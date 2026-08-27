@@ -2,7 +2,7 @@
 
 > Generated from `docs/aqua-linux/progress.json`. Update the changed phase date, then run `scripts/write-progress-report.sh`.
 
-**Overall progress: 83%**
+**Overall progress: 84%**
 
 | Field | Value |
 | --- | --- |
@@ -14,7 +14,7 @@
 
 ## Current Stage
 
-Milestone 9 remains complete and the packaged installer performance path is validated. Runtime convergence has started with a compositor-owned compact top bar that renders the Aqua product label, UTC clock, network state, battery capacity, and audio availability through the shared software/GPU renderer path. The pale idle desktop, Applications, Search, bottom shell groups, application chrome, installer presentation, and four-theme selection remain ahead without changing the Buildroot or custom Wayland compositor architecture.
+Milestone 9 remains complete and the packaged installer performance path is validated. Runtime convergence now includes the compositor-owned compact top bar and a reproducible pale-wave default wallpaper packaged through the existing Buildroot asset path. Applications, Search, bottom shell groups, application chrome, installer presentation, and four-theme selection remain ahead without changing the Buildroot or custom Wayland compositor architecture.
 
 ## Phases
 
@@ -22,8 +22,8 @@ Phases are ordered by their most recent update.
 
 | Updated | Phase | Status | Progress | Summary |
 | --- | --- | --- | ---: | --- |
-| 2026-08-28 | M11: Polish and Public Readiness | Early | 8% | The v1 desktop and installer contracts are documented. The runtime now has a dedicated compact top bar model and renderer surface backed by real clock, network, battery, and audio state, uploaded into the compositor GPU scene and refreshed every minute. The pale idle desktop, remaining shell surfaces, contributor guide, current public OS screenshots, hardware status, final artwork clearance, and issue workflow are incomplete. |
-| 2026-08-27 | M2: Asset and Visual System Intake | In Progress | 90% | Public contracts now capture the permanent desktop, application, search, first-party app, installer, completion, and four-theme direction derived from private Git-ignored boards. The project-owner-supplied brand board provides transparent primary, inverse, accent, wordmark, and combined-logo PNG exports used by the runtime. A pale wave wallpaper master and final Aqua-owned application/status icons are still required. |
+| 2026-08-28 | M2: Asset and Visual System Intake | In Progress | 95% | Public contracts capture the permanent desktop, application, search, first-party app, installer, completion, and four-theme direction derived from private Git-ignored boards. Approved transparent brand exports are used by the runtime. A deterministic pale-wave wallpaper master is now the packaged default and can be reproduced from renderer source. Final Aqua-owned application and status icons are still required. |
+| 2026-08-28 | M11: Polish and Public Readiness | Early | 10% | The v1 desktop and installer contracts are documented. The runtime now has a dedicated compact top bar backed by real system state and a bright reproducible pale-wave default wallpaper shipped through Buildroot. Remaining shell surfaces, contributor guide, current public OS screenshots, hardware status, final icon clearance, and issue workflow are incomplete. |
 | 2026-08-22 | M4: Scene and Surface Renderer | Complete | 100% | The Smithay GLES2 renderer composes the packaged wallpaper, shared surfaces, optional two-pass blur, and live wl_shm textures at the native output size. Physical DRM retains XRGB8888 GBM front/back dma-buf scanout. QEMU keeps GLES readback for the desktop, but a full-output client that explicitly supplies a complete Wayland opaque region may use the dumb-buffer bridge after one GPU validation frame. Packaged installer acceptance measured 30 bridged frames at a 61 ms median total while preserving distinct 1280x800 captures. |
 | 2026-08-21 | M9: Graphical Installer MVP | Complete | 100% | The packaged installer executes and boots the complete separately gated installation, proves failure cleanup, and emits QEMU-validated transaction progress. Seven deterministic Rust-rendered setup screens feed a packaged aqua.installer wl_shm xdg-toplevel client; QEMU proves full-output composition and navigation from Welcome through Completed. An explicit presentation-only rehearsal consumes the canonical non-executing 20-step graph, renders progress at 40%, 65%, and 95%, reaches Completed at 100%, emits seven distinct screendumps, and proves transaction_executed=false. Real virtio pointer input activates the Welcome footer and selects a Language row through renderer-shared geometry before keyboard navigation resumes. Full-output input origin now matches presentation origin, blocked disks and hidden controls reject hits, and disk/profile application retains explicit activation. |
 | 2026-08-16 | M8: Terminal App | Complete | 100% | A packaged aqua-terminal opens as a supervised aqua.terminal xdg-toplevel with Aqua chrome and a dark readable scrim. It uses portable-pty for a real /bin/sh session and vt100 for mature terminal parsing, renders the prompt, coalesces PTY output into bounded redraws, and resizes both the PTY and parser grid. Aqua boot mounts devpts and provides /dev/ptmx. QEMU forwards all 40 press/release events for 'echo aquaterminalok', observes Enter, parses output, applies Alt+F8 resize through a real xdg configure to a 640x478 buffer and 74x21 grid, resizes the PTY, repaints, captures the window, closes with Alt+F4, reaps the process, and confirms restart=never. Pointer titlebar and bottom-right resize requests are implemented; broader key and clipboard support remain later enhancements. |
@@ -45,9 +45,8 @@ Phases are ordered by their most recent update.
 
 ## Next Developments
 
-1. Complete the pale blue idle desktop and approved wallpaper path around the new runtime top bar.
-2. Split the prototype launcher into the canonical Applications overview and Global Search surfaces.
-3. Rebuild the bottom shell controls as Applications/Search, centered pinned/running apps, and workspace thumbnails.
-4. Unify bright window chrome and controls across Files, Settings, Terminal, Properties, and Installer.
-5. Replace the legacy wallpaper and luminous mark when clean approved masters matching the new references are supplied.
-6. Keep fallback TTY, boot_graphics=false, and autostart=false in the default development image.
+1. Split the prototype launcher into the canonical Applications overview and Global Search surfaces.
+2. Rebuild the bottom shell controls as Applications/Search, centered pinned/running apps, and workspace thumbnails.
+3. Unify bright window chrome and controls across Files, Settings, Terminal, Properties, and Installer.
+4. Apply the four theme token sets to runtime shell and first-party window surfaces.
+5. Keep fallback TTY, boot_graphics=false, and autostart=false in the default development image.

@@ -23,6 +23,7 @@ need_entry() {
 need_tar
 
 need_entry "./usr/share/aqua/wallpapers/default-wallpaper.png"
+need_entry "./usr/share/aqua/wallpapers/wallpaper-pale-waves.png"
 need_entry "./usr/share/aqua/wallpapers/wallpaper-surf.png"
 need_entry "./usr/share/aqua/wallpapers/wallpaper-reef.png"
 need_entry "./usr/share/aqua/wallpapers/wallpaper-sunlit-water.png"

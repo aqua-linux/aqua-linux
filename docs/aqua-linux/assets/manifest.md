@@ -41,16 +41,18 @@ symbol for active/focused brand states only.
 
 ## Current Runtime Assets
 
-The approved brand exports and existing wallpaper collection are installed in
-the working image. The ocean wallpapers predate the current pale-wave desktop
-direction and remain temporary runtime material.
+The approved brand exports and wallpaper collection are installed in the
+working image. The reproducible pale-wave master is the current default. The
+ocean wallpapers predate the current desktop direction and remain optional
+legacy material.
 
 | Asset | Path | Status | Runtime role |
 | --- | --- | --- | --- |
-| Default wallpaper alias | `assets/default-wallpaper.png` | legacy-runtime | Current compositor wallpaper |
+| Default wallpaper alias | `assets/default-wallpaper.png` | current-runtime | Alias to the pale-wave master |
+| Pale Waves wallpaper | `assets/wallpaper-pale-waves.png` | current-runtime | Current default source; SHA-256 `bd749fee349ce50ceeba89457d0b24a2b3578a4a06d8366e1fef4683d9bfe455` |
 | Surf wallpaper | `assets/wallpaper-surf.png` | legacy-runtime | Optional wallpaper |
 | Reef wallpaper | `assets/wallpaper-reef.png` | legacy-runtime | Optional wallpaper |
-| Sunlit Water wallpaper | `assets/wallpaper-sunlit-water.png` | legacy-runtime | Current default source |
+| Sunlit Water wallpaper | `assets/wallpaper-sunlit-water.png` | legacy-runtime | Optional wallpaper |
 | Moonlit Lagoon wallpaper | `assets/wallpaper-moonlit-lagoon.png` | legacy-runtime | Optional wallpaper |
 | Primary symbol | `assets/aqua-symbol-primary.png` | approved | Bright-surface symbol |
 | Inverse symbol | `assets/aqua-symbol-inverse.png` | approved | Dark-surface symbol |
@@ -66,7 +68,6 @@ Lucide icons under `assets/temp-icons/lucide/` have `temporary` status as licens
 
 ## Final Assets Still Needed
 
-- Pale blue wave wallpaper as a clean image without a device frame or UI.
 - Aqua-owned or independently licensed Files, Terminal, Browser, Calendar, Photos, Music, Camera, Settings, Trash, application-overview, and search icons.
 - Status icons for network, volume, battery/power, locale, and notifications.
 - File-type and sidebar icons for first-party applications.
@@ -76,5 +77,6 @@ Lucide icons under `assets/temp-icons/lucide/` have `temporary` status as licens
 - New runtime artwork must follow [../interface-style.md](../interface-style.md).
 - Keep placeholders explicitly marked until an approved replacement exists.
 - Preserve aspect ratio for wallpapers; use a centered cover crop instead of stretching.
+- Reproduce the pale-wave master with `cargo run -p aqua-renderer --example export-pale-wallpaper -- <output.png>`.
 - Mock values must be identified in design-only output and must not enter runtime defaults.
 - Do not add assets from GNOME, KDE, XFCE, LXQt, Apple, or another desktop product as Aqua identity assets without explicit license and product review.

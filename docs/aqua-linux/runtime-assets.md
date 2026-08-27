@@ -19,9 +19,10 @@ Expected first exports:
 | Source | Runtime destination | Notes |
 | --- | --- | --- |
 | `docs/aqua-linux/assets/default-wallpaper.png` | `/usr/share/aqua/wallpapers/default-wallpaper.png` | Keep original source; compositor may request scaled copies later |
+| `docs/aqua-linux/assets/wallpaper-pale-waves.png` | `/usr/share/aqua/wallpapers/wallpaper-pale-waves.png` | Reproducible pale-wave source master and current default |
 | `docs/aqua-linux/assets/wallpaper-surf.png` | `/usr/share/aqua/wallpapers/wallpaper-surf.png` | Official alternate wallpaper |
 | `docs/aqua-linux/assets/wallpaper-reef.png` | `/usr/share/aqua/wallpapers/wallpaper-reef.png` | Official alternate wallpaper |
-| `docs/aqua-linux/assets/wallpaper-sunlit-water.png` | `/usr/share/aqua/wallpapers/wallpaper-sunlit-water.png` | Current default source master |
+| `docs/aqua-linux/assets/wallpaper-sunlit-water.png` | `/usr/share/aqua/wallpapers/wallpaper-sunlit-water.png` | Optional legacy wallpaper |
 | `docs/aqua-linux/assets/wallpaper-moonlit-lagoon.png` | `/usr/share/aqua/wallpapers/wallpaper-moonlit-lagoon.png` | Official night/login-context alternate |
 | `docs/aqua-linux/assets/aqua-symbol-primary.png` | `/usr/share/aqua/brand/aqua-symbol-primary.png` | Primary symbol |
 | `docs/aqua-linux/assets/aqua-symbol-inverse.png` | `/usr/share/aqua/brand/aqua-symbol-inverse.png` | Dark-surface symbol |

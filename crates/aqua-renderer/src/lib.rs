@@ -35,6 +35,62 @@ pub const RENDERER_STATUS: &str = "plan-only";
 pub const RENDER_BACKEND: &str = "headless-command-plan";
 pub const CLIENT_SAMPLE_GRID_PIXELS: usize = 4;
 
+pub fn render_pale_wave_wallpaper_rgba(width: u32, height: u32) -> Vec<u8> {
+    if width == 0 || height == 0 {
+        return Vec::new();
+    }
+
+    const PALETTE: [[u8; 3]; 6] = [
+        [0xf6, 0xfa, 0xff],
+        [0xd9, 0xe8, 0xf9],
+        [0xf0, 0xf6, 0xfd],
+        [0xcf, 0xe0, 0xf4],
+        [0xe7, 0xf0, 0xfb],
+        [0xb9, 0xd2, 0xee],
+    ];
+    let mut rgba = Vec::with_capacity(width as usize * height as usize * 4);
+    let tau = std::f32::consts::TAU;
+    for y in 0..height {
+        let normalized_y = y as f32 / height.saturating_sub(1).max(1) as f32;
+        for x in 0..width {
+            let normalized_x = x as f32 / width.saturating_sub(1).max(1) as f32;
+            let boundaries = [
+                0.25 + 0.060 * (normalized_x * tau * 1.05 + 0.35).sin(),
+                0.39 + 0.050 * (normalized_x * tau * 0.92 + 2.10).sin(),
+                0.53 + 0.055 * (normalized_x * tau * 1.12 + 3.45).sin(),
+                0.68 + 0.060 * (normalized_x * tau * 0.86 + 5.10).sin(),
+                0.83 + 0.050 * (normalized_x * tau * 1.18 + 1.45).sin(),
+            ];
+            let mut color = PALETTE[0].map(f32::from);
+            for (index, boundary) in boundaries.into_iter().enumerate() {
+                let blend = smoothstep(boundary - 0.006, boundary + 0.006, normalized_y);
+                let next = PALETTE[index + 1].map(f32::from);
+                for channel in 0..3 {
+                    color[channel] = color[channel] * (1.0 - blend) + next[channel] * blend;
+                }
+            }
+            let soft_light = (1.0 - normalized_y) * 3.0;
+            rgba.extend_from_slice(&[
+                (color[0] + soft_light).min(255.0).round() as u8,
+                (color[1] + soft_light).min(255.0).round() as u8,
+                (color[2] + soft_light).min(255.0).round() as u8,
+                0xff,
+            ]);
+        }
+    }
+    rgba
+}
+
+pub fn export_pale_wave_wallpaper_png(width: u32, height: u32) -> Vec<u8> {
+    let rgba = render_pale_wave_wallpaper_rgba(width, height);
+    encode_png_rgba(width, height, &rgba)
+}
+
+fn smoothstep(edge_start: f32, edge_end: f32, value: f32) -> f32 {
+    let normalized = ((value - edge_start) / (edge_end - edge_start)).clamp(0.0, 1.0);
+    normalized * normalized * (3.0 - 2.0 * normalized)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InstallerImageSource<'a> {
     width: u32,
@@ -6841,6 +6897,24 @@ mod tests {
             egl: true,
             gles2: true,
         }
+    }
+
+    #[test]
+    fn pale_wave_wallpaper_is_bright_opaque_varied_and_deterministic() {
+        let first = render_pale_wave_wallpaper_rgba(320, 200);
+        let second = render_pale_wave_wallpaper_rgba(320, 200);
+        assert_eq!(first, second);
+        assert_eq!(first.len(), 320 * 200 * 4);
+        assert!(first.chunks_exact(4).all(|pixel| pixel[3] == 0xff));
+        assert!(first
+            .chunks_exact(4)
+            .all(|pixel| pixel[0] >= 0xb8 && pixel[1] >= 0xd2 && pixel[2] >= 0xee));
+        let unique = first
+            .chunks_exact(4)
+            .map(|pixel| [pixel[0], pixel[1], pixel[2]])
+            .collect::<std::collections::BTreeSet<_>>();
+        assert!(unique.len() > 64);
+        assert_eq!(checksum_bytes(&first), checksum_bytes(&second));
     }
 
     #[test]
