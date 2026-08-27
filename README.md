@@ -43,7 +43,7 @@ not part of the Aqua Linux runtime image.
 The detailed roadmap is in
 [milestones.md](docs/aqua-linux/milestones.md). The generated progress report
 uses explicit milestone percentages and is available at
-[progress.html](docs/aqua-linux/progress.html).
+[progress.md](docs/aqua-linux/progress.md).
 
 ## Architecture
 

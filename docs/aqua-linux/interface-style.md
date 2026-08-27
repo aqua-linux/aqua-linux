@@ -1,14 +1,12 @@
 # Aqua Linux Interface Style
 
-This document defines the shared visual system derived from the canonical screens in [visual-reference.md](visual-reference.md). It replaces the retired liquid-glass specification.
+This document defines the shared visual system derived from the canonical screens in [visual-reference.md](visual-reference.md).
 
 ## Product Character
 
 Aqua Linux is calm, precise, and desktop-oriented. Its identity comes from
 disciplined layout, four deliberate light/dark palettes, responsive system
-surfaces, and a small set of recognizable Aqua controls. It does not depend on
-liquid glass, Frutiger Aero, historical Apple styling, heavy skeuomorphism, or
-decorative effects.
+surfaces, restrained depth, and a small set of recognizable Aqua controls.
 
 ## Palette
 

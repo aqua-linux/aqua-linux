@@ -18,7 +18,7 @@ Aqua-owned desktop interface, and Chromium OS-like product simplicity.
 
 ## Active Implementation Priority
 
-From 2026-08-27, the bright Aqua interface contract is the permanent v1 direction. The previous liquid-glass, Frutiger Aero, skeuomorphic, Apple 2008/2009, and six-board composition targets are retired. Aqua remains custom compositor work and does not use GNOME Shell, Mutter, GTK desktop components, KDE Plasma, or an existing desktop session.
+From 2026-08-27, the bright Aqua interface contract is the permanent v1 direction. Aqua remains custom compositor work and does not use GNOME Shell, Mutter, GTK desktop components, KDE Plasma, or an existing desktop session.
 
 ## Milestone 0: Repository And Build Skeleton
 

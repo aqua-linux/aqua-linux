@@ -1009,10 +1009,10 @@ grep -Fq '("scene_contract", "operator_transcript")' scripts/check-image-manifes
 grep -Fq '("scene_contract", "operator_transcript_no_boot_graphics")' scripts/check-image-manifest.sh
 grep -Fq 'Aqua Linux progress report checks passed.' scripts/check-progress-report.sh
 grep -Fq 'progress.json' scripts/write-progress-report.sh
-grep -Fq 'progress.html' scripts/write-progress-report.sh
+grep -Fq 'progress.md' scripts/write-progress-report.sh
 test -f docs/aqua-linux/compositor-foundation.toml
 test -f docs/aqua-linux/progress.json
-test -f docs/aqua-linux/progress.html
+test -f docs/aqua-linux/progress.md
 grep -Fq '"overallPercent":' docs/aqua-linux/progress.json
 grep -Fq 'probe-drm-device' crates/aqua-compositor/src/main.rs
 grep -Fq 'drm-device-probe.txt' scripts/export-rootfs-compositor-contract-docker.sh

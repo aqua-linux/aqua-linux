@@ -3,25 +3,25 @@ set -eu
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 PROGRESS_JSON="${PROGRESS_JSON:-${ROOT_DIR}/docs/aqua-linux/progress.json}"
-PROGRESS_HTML="${PROGRESS_HTML:-${ROOT_DIR}/docs/aqua-linux/progress.html}"
+PROGRESS_MD="${PROGRESS_MD:-${ROOT_DIR}/docs/aqua-linux/progress.md}"
 
 if [ ! -f "${PROGRESS_JSON}" ]; then
     echo "Missing progress JSON: ${PROGRESS_JSON}" >&2
     exit 1
 fi
 
-if [ ! -f "${PROGRESS_HTML}" ]; then
-    echo "Missing progress HTML: ${PROGRESS_HTML}" >&2
+if [ ! -f "${PROGRESS_MD}" ]; then
+    echo "Missing progress Markdown: ${PROGRESS_MD}" >&2
     echo "Run scripts/write-progress-report.sh first." >&2
     exit 1
 fi
 
-python3 - "${PROGRESS_JSON}" "${PROGRESS_HTML}" <<'PY'
+python3 - "${PROGRESS_JSON}" "${PROGRESS_MD}" <<'PY'
 import json
 import sys
 
 json_path = sys.argv[1]
-html_path = sys.argv[2]
+markdown_path = sys.argv[2]
 
 with open(json_path, "r", encoding="utf-8") as handle:
     data = json.load(handle)
@@ -56,30 +56,33 @@ else:
         if not isinstance(updated, str) or len(updated) != 10 or updated[4] != "-" or updated[7] != "-":
             errors.append(f"{phase.get('id', 'unknown')} must include updated date as YYYY-MM-DD")
 
-with open(html_path, "r", encoding="utf-8") as handle:
-    html = handle.read()
+with open(markdown_path, "r", encoding="utf-8") as handle:
+    markdown = handle.read()
 
 for needle in [
-    "Aqua Linux",
-    "v1.0 progress report",
-    f"{data.get('overallPercent')}%",
-    "<table>",
-    "Updated",
-    "Progress",
+    "# Aqua Linux v1.0 Progress Report",
+    f"**Overall progress: {data.get('overallPercent')}%**",
+    "| Updated | Phase | Status | Progress | Summary |",
     "Repository and Build Skeleton",
     "Buildroot Boot to Text Recovery",
     "Boot Aqua Compositor in QEMU",
-    "Generated from docs/aqua-linux/progress.json",
+    "Generated from `docs/aqua-linux/progress.json`",
+    "## Next Developments",
 ]:
-    if needle not in html:
-        errors.append(f"progress HTML missing {needle!r}")
+    if needle not in markdown:
+        errors.append(f"progress Markdown missing {needle!r}")
 
-for removed in [
-    "splash-card",
-    "splash-loader",
-]:
-    if removed in html:
-        errors.append(f"progress HTML should not include removed splash asset {removed!r}")
+expected_order = sorted(
+    phases or [],
+    key=lambda phase: (phase.get("updated", ""), phase.get("id", "")),
+    reverse=True,
+)
+positions = [markdown.find(f"{phase['id'].upper()}: {phase['name']}") for phase in expected_order]
+if any(position < 0 for position in positions) or positions != sorted(positions):
+    errors.append("progress Markdown phases must be ordered by most recent update")
+
+if "<html" in markdown.lower() or "<table" in markdown.lower():
+    errors.append("progress Markdown must not contain the retired HTML report")
 
 if errors:
     for error in errors:

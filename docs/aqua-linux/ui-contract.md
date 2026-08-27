@@ -14,7 +14,7 @@ local-only and excluded from Git.
 - Applications and global search are separate surfaces with separate activation states.
 - Terminal is an application, not the desktop identity.
 - Runtime labels, clock, system status, files, and results use real localized data.
-- No screen depends on liquid glass, Frutiger Aero, 2008/2009 Apple styling, or skeuomorphic decoration.
+- Every screen uses the shared Aqua layout, surface, typography, and interaction tokens.
 
 ## Top Bar
 

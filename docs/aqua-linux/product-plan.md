@@ -44,7 +44,7 @@ All new UI implementation must follow [ui-contract.md](ui-contract.md) and [inte
 
 ### Active Delivery Style
 
-As of 2026-08-27, the new bright Aqua interface is the permanent v1 direction, not an interim or deferred style. Liquid glass, Frutiger Aero, skeuomorphism, the 2008/2009 Apple-era direction, and the previous six final boards are retired.
+As of 2026-08-27, the bright Aqua interface is the permanent v1 direction, not an interim or deferred style.
 
 Product consequences:
 
