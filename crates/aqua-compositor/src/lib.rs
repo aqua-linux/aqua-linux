@@ -4925,7 +4925,7 @@ impl XdgSmokeClientState {
         let files_model = files_navigator
             .as_ref()
             .map(|navigator| navigator.window().clone())
-            .unwrap_or_else(aqua_shell::FilesWindowModel::default);
+            .unwrap_or_default();
         Self {
             buffer_width: 640,
             buffer_height: 420,
@@ -5031,7 +5031,7 @@ impl XdgSmokeClientState {
     }
 
     fn installer_app_with_logo(logo_path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
-        let (logo_width, logo_height, logo_rgba) = decode_installer_logo(&logo_path)?;
+        let (logo_width, logo_height, logo_rgba) = decode_installer_logo(logo_path)?;
         let mut model = InstallerModel::default();
         model.set_mode(InstallMode::Real);
         let ui = InstallerUiState::new(&model);
@@ -5452,20 +5452,15 @@ impl XdgSmokeClientState {
             changed = false;
         }
         match action {
-            InstallerUiAction::ActivateStepContent(step)
-                if matches!(
-                    step,
-                    InstallerStep::Language | InstallerStep::Keyboard | InstallerStep::TimeZone
-                ) =>
-            {
-                match forms.handle_key(model, InstallerFormKey::Activate) {
-                    Ok(update) => {
-                        changed |= update.changed();
-                        println!("aqua_installer_form_update={update:?}");
-                    }
-                    Err(error) => eprintln!("aqua_installer_form_error={error}"),
+            InstallerUiAction::ActivateStepContent(
+                InstallerStep::Language | InstallerStep::Keyboard | InstallerStep::TimeZone,
+            ) => match forms.handle_key(model, InstallerFormKey::Activate) {
+                Ok(update) => {
+                    changed |= update.changed();
+                    println!("aqua_installer_form_update={update:?}");
                 }
-            }
+                Err(error) => eprintln!("aqua_installer_form_error={error}"),
+            },
             InstallerUiAction::ActivateStepContent(InstallerStep::Partitions) => {
                 match forms.handle_disk_key(model, InstallerFormKey::Activate) {
                     Ok(update) => {
@@ -6978,10 +6973,10 @@ pub fn run_external_wayland_test_client(
     let wait_for_close =
         std::env::var("AQUA_WAYLAND_TEST_CLIENT_WAIT_FOR_CLOSE").as_deref() == Ok("true");
 
-    while !(state.partial_damage_commit_sent
-        && state.keyboard_event_received
-        && state.pointer_event_received)
-        && !state.close_event_received
+    while !(state.close_event_received
+        || state.partial_damage_commit_sent
+            && state.keyboard_event_received
+            && state.pointer_event_received)
     {
         event_queue.blocking_dispatch(&mut state)?;
         connection.flush()?;
@@ -7385,7 +7380,7 @@ pub fn run_aqua_terminal_client(
             read_guard.read()?;
         }
     }
-    poller.delete(&event_queue.as_fd())?;
+    poller.delete(event_queue.as_fd())?;
     println!("aqua_terminal_close_received=true");
     println!("[AQUA-TERMINAL] stage=wayland-surface status=ok");
     Ok(())
@@ -8641,15 +8636,14 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                     let navigation = state
                         .files_scrollbar_dragging
                         .then(|| navigator.handle_scrollbar_drag(surface_y.max(0.0) as u32));
-                    if navigation.is_some_and(aqua_shell::FilesNavigation::changed) {
-                        state.files_model = Some(navigator.window().clone());
-                        state.redraw_files_buffer(qh);
-                    } else if !state.files_scrollbar_dragging
-                        && navigator.handle_hover(
-                            state.pointer_surface_x.max(0.0) as u32,
-                            state.pointer_surface_y.max(0.0) as u32,
-                        )
-                    {
+                    let files_changed = navigation
+                        .is_some_and(aqua_shell::FilesNavigation::changed)
+                        || (!state.files_scrollbar_dragging
+                            && navigator.handle_hover(
+                                state.pointer_surface_x.max(0.0) as u32,
+                                state.pointer_surface_y.max(0.0) as u32,
+                            ));
+                    if files_changed {
                         state.files_model = Some(navigator.window().clone());
                         state.redraw_files_buffer(qh);
                     }

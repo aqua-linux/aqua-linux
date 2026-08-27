@@ -74,7 +74,7 @@ Architecture decisions and implementation details live under
 ### Requirements
 
 - Docker Desktop or a Linux Buildroot host.
-- Rust stable toolchain for local checks.
+- Rust 1.85 toolchain for local checks.
 - QEMU x86_64 for booting the generated image.
 - `expect`, Python 3, and `jq` for extended validation.
 

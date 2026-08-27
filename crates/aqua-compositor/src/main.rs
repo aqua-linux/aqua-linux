@@ -1672,6 +1672,7 @@ fn render_gpu_blur_pass(
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+#[allow(clippy::too_many_arguments)]
 fn render_gpu_scene(
     renderer: &mut GlesRenderer,
     target: &mut GlesTexture,
@@ -3918,7 +3919,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     let checksum = gpu_frame.checksum;
                     *live_gpu_wayland_compositor.borrow_mut() = Some(compositor);
                     *live_gpu_wayland_frame.borrow_mut() = Some(gpu_frame);
-                    return Ok((scanout_frame, checksum, true));
+                    Ok((scanout_frame, checksum, true))
                 }
             }
             #[cfg(not(all(
@@ -4032,7 +4033,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     }
                 );
                 println!("drm_wayland_gpu_render_device={}", device.display());
-                println!("drm_wayland_gpu_render_node_separate={}", false);
+                println!("drm_wayland_gpu_render_node_separate=false");
                 println!("drm_wayland_gpu_client_texture_source=live-smithay-wl-shm-snapshot");
                 println!(
                     "drm_wayland_gpu_client_texture_count={}",
@@ -6267,10 +6268,11 @@ struct DirectLibinputInterface;
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl LibinputInterface for DirectLibinputInterface {
     fn open_restricted(&mut self, path: &Path, flags: i32) -> Result<OwnedFd, i32> {
+        let access_mode = flags & libc::O_ACCMODE;
         OpenOptions::new()
             .custom_flags(flags)
-            .read((flags & libc::O_RDONLY != 0) || (flags & libc::O_RDWR != 0))
-            .write((flags & libc::O_WRONLY != 0) || (flags & libc::O_RDWR != 0))
+            .read(access_mode != libc::O_WRONLY)
+            .write(access_mode != libc::O_RDONLY)
             .open(path)
             .map(Into::into)
             .map_err(|error| error.raw_os_error().unwrap_or(libc::EIO))
@@ -6584,6 +6586,7 @@ fn probe_evdev_aqua_seat_cli(_keyboard_path: PathBuf, _pointer_path: PathBuf) {
 }
 
 #[cfg(target_os = "linux")]
+#[allow(clippy::too_many_arguments)]
 fn present_drm_page_flip(
     device: &Path,
     frame_count: u32,
@@ -6789,6 +6792,7 @@ fn present_drm_page_flip(
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+#[allow(clippy::too_many_arguments)]
 fn present_drm_gbm_page_flip(
     device: &Path,
     frame_count: u32,
