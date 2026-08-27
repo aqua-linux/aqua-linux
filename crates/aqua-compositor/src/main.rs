@@ -23,7 +23,7 @@ use aqua_renderer::{
     export_runtime_desktop_rgba_with_launcher, plan_client_layer_paint_steps,
     plan_client_surface_sources, render_desktop_icons_rgba, render_dock_rgba,
     render_notification_toast_rgba, render_session_menu_overlay_rgba, render_system_overview_rgba,
-    ClientLayerPaintPlan, ClientSurfaceSource,
+    render_top_bar_rgba, ClientLayerPaintPlan, ClientSurfaceSource,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_scene::{static_shell_scene, MaterialKind, Rect};
@@ -553,6 +553,9 @@ struct LiveGpuCompositor {
     target: GlesTexture,
     target_size: (u32, u32),
     scene: aqua_scene::ShellScene,
+    top_bar_texture: Option<GlesTexture>,
+    top_bar_state: Option<aqua_shell::TopBarState>,
+    top_bar_texture_size: (u32, u32),
     session_menu_texture: Option<GlesTexture>,
     session_menu_state: Option<aqua_shell::SessionMenuState>,
     session_menu_texture_size: (u32, u32),
@@ -582,6 +585,35 @@ struct ClientTextureCacheEntry {
 
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
 impl LiveGpuCompositor {
+    fn set_top_bar_state(&mut self, state: &aqua_shell::TopBarState) -> Result<(), String> {
+        if self.top_bar_state.as_ref() == Some(state) {
+            return Ok(());
+        }
+        let overlay = render_top_bar_rgba(self.scene.viewport.width, 36, state);
+        self.top_bar_texture = Some(
+            self.renderer
+                .import_memory(
+                    &overlay.rgba,
+                    Fourcc::Abgr8888,
+                    (overlay.width as i32, overlay.height as i32).into(),
+                    false,
+                )
+                .map_err(|error| format!("cannot upload top bar texture: {error}"))?,
+        );
+        self.top_bar_state = Some(state.clone());
+        self.top_bar_texture_size = (overlay.width, overlay.height);
+        println!("desktop_top_bar_texture_ready=true");
+        println!("desktop_top_bar_clock={}", state.clock_label);
+        println!("desktop_top_bar_network={}", state.network_connected);
+        println!(
+            "desktop_top_bar_battery={}",
+            state
+                .battery_percent
+                .map_or("none".to_string(), |percent| percent.to_string())
+        );
+        Ok(())
+    }
+
     fn set_shell_chrome_visible(&mut self, visible: bool) {
         for kind in [
             aqua_scene::SurfaceKind::TopPanel,
@@ -885,6 +917,9 @@ impl LiveGpuCompositor {
             target,
             target_size: (320, 240),
             scene,
+            top_bar_texture: None,
+            top_bar_state: None,
+            top_bar_texture_size: (0, 0),
             session_menu_texture: None,
             session_menu_state: None,
             session_menu_texture_size: (0, 0),
@@ -986,6 +1021,8 @@ impl LiveGpuCompositor {
             &self.scene,
             client_plan,
             &client_textures,
+            self.top_bar_texture.as_ref(),
+            self.top_bar_texture_size,
             self.desktop_icons_texture.as_ref(),
             self.desktop_icons_texture_size,
             self.dock_texture.as_ref(),
@@ -1012,6 +1049,8 @@ impl LiveGpuCompositor {
             &self.scene,
             client_plan,
             &client_textures,
+            self.top_bar_texture.as_ref(),
+            self.top_bar_texture_size,
             self.desktop_icons_texture.as_ref(),
             self.desktop_icons_texture_size,
             self.dock_texture.as_ref(),
@@ -1095,6 +1134,8 @@ impl LiveGpuCompositor {
             &self.scene,
             client_plan,
             &client_textures,
+            self.top_bar_texture.as_ref(),
+            self.top_bar_texture_size,
             self.desktop_icons_texture.as_ref(),
             self.desktop_icons_texture_size,
             self.dock_texture.as_ref(),
@@ -1684,6 +1725,8 @@ fn render_gpu_scene(
     scene: &aqua_scene::ShellScene,
     client_plan: &aqua_renderer::ClientLayerPaintPlan,
     client_textures: &[GlesTexture],
+    top_bar_texture: Option<&GlesTexture>,
+    top_bar_texture_size: (u32, u32),
     desktop_icons_texture: Option<&GlesTexture>,
     desktop_icons_texture_size: (u32, u32),
     dock_texture: Option<&GlesTexture>,
@@ -1897,6 +1940,42 @@ fn render_gpu_scene(
                 &uniforms,
             )
             .map_err(|error| format!("cannot shade GPU surface surface {}: {error}", surface.id))?;
+    }
+    if let (Some(texture), Some(surface)) = (
+        top_bar_texture,
+        scene
+            .surfaces
+            .iter()
+            .find(|surface| surface.visible && surface.kind == aqua_scene::SurfaceKind::TopPanel),
+    ) {
+        let rect = Rectangle::new(
+            (
+                (surface.rect.x * render_width / scene.viewport.width) as i32,
+                (surface.rect.y * render_height / scene.viewport.height) as i32,
+            )
+                .into(),
+            (
+                (surface.rect.width * render_width / scene.viewport.width) as i32,
+                (surface.rect.height * render_height / scene.viewport.height) as i32,
+            )
+                .into(),
+        );
+        frame
+            .render_texture_from_to(
+                texture,
+                Rectangle::new(
+                    (0.0, 0.0).into(),
+                    (top_bar_texture_size.0 as f64, top_bar_texture_size.1 as f64).into(),
+                ),
+                rect,
+                &[Rectangle::from_size(rect.size)],
+                &[],
+                Transform::Normal,
+                1.0,
+                None,
+                &[],
+            )
+            .map_err(|error| format!("cannot composite top bar content: {error}"))?;
     }
     if let (Some(texture), Some(surface)) = (
         dock_texture,
@@ -3864,6 +3943,14 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
         }),
     );
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let runtime_top_bar = RefCell::new(aqua_shell::TopBarState::read(
+        Path::new("/"),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+    ));
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let last_system_overview_refresh_ms = Cell::new(0_u64);
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let desktop_session_started_at = std::time::Instant::now();
@@ -3907,6 +3994,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         compositor.set_shell_chrome_visible(false);
                         println!("installer_wayland_shell_chrome_visible=false");
                     } else {
+                        compositor.set_top_bar_state(&runtime_top_bar.borrow())?;
                         compositor.set_desktop_icons_state(&runtime_desktop_icon_state.borrow())?;
                         compositor.set_dock_state(&runtime_dock_state.borrow())?;
                         compositor.set_system_overview_state(&runtime_system_overview.borrow())?;
@@ -4340,28 +4428,34 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                             }
                             let notification_ticked =
                                 smithay_session.borrow_mut().tick_notifications(now_ms);
-                            let overview_changed = if now_ms
+                            let shell_status_changed = if now_ms
                                 .saturating_sub(last_system_overview_refresh_ms.get())
                                 >= aqua_shell::SYSTEM_OVERVIEW_REFRESH_MS
                             {
                                 last_system_overview_refresh_ms.set(now_ms);
+                                let epoch_seconds = std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_secs();
                                 let refreshed = aqua_shell::SystemOverviewModel::read(
                                     Path::new("/"),
-                                    std::time::SystemTime::now()
-                                        .duration_since(std::time::UNIX_EPOCH)
-                                        .unwrap_or_default()
-                                        .as_secs(),
+                                    epoch_seconds,
                                 )
                                 .map_err(|error| {
                                     format!("cannot refresh system overview: {error}")
                                 })?;
-                                let changed = *runtime_system_overview.borrow() != refreshed;
+                                let top_bar =
+                                    aqua_shell::TopBarState::read(Path::new("/"), epoch_seconds);
+                                let changed = *runtime_system_overview.borrow() != refreshed
+                                    || *runtime_top_bar.borrow() != top_bar;
                                 *runtime_system_overview.borrow_mut() = refreshed;
+                                *runtime_top_bar.borrow_mut() = top_bar;
                                 changed
                             } else {
                                 false
                             };
                             let system_overview_state = runtime_system_overview.borrow().clone();
+                            let top_bar_state = runtime_top_bar.borrow().clone();
                             let launcher_state = smithay_session.borrow().launcher_state_snapshot();
                             let dock_state = current_dock_state(
                                 &launcher_state,
@@ -4394,7 +4488,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                     || session_menu_changed
                                     || notification_changed
                                     || notification_ticked
-                                    || overview_changed
+                                    || shell_status_changed
                                     || launched
                                     || surface_changed
                                     || process_exited)
@@ -4405,6 +4499,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                         live_gpu_wayland_compositor.borrow_mut().as_mut()
                                     {
                                         compositor.set_launcher_visible(launcher_state.is_open());
+                                        compositor.set_top_bar_state(&top_bar_state)?;
                                         compositor.set_desktop_icons_state(&desktop_icon_state)?;
                                         compositor.set_dock_state(&dock_state)?;
                                         compositor

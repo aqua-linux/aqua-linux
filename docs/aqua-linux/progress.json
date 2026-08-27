@@ -5,8 +5,8 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. The permanent v1 desktop and installer direction is now recorded in public visual/UI contracts derived from private, Git-ignored reference boards. The next work is runtime convergence across desktop chrome, Applications, Search, dock, workspaces, Files, Settings, Terminal, installer presentation, and four-theme selection without changing the Buildroot or custom Wayland compositor architecture.",
-  "updated": "2026-08-27",
+  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. Runtime convergence has started with a compositor-owned compact top bar that renders the Aqua product label, UTC clock, network state, battery capacity, and audio availability through the shared software/GPU renderer path. The pale idle desktop, Applications, Search, bottom shell groups, application chrome, installer presentation, and four-theme selection remain ahead without changing the Buildroot or custom Wayland compositor architecture.",
+  "updated": "2026-08-28",
   "overallPercent": 83,
   "rules": [
     "Aqua Linux v1.0 is treated as 100%.",
@@ -107,14 +107,14 @@
     {
       "id": "m11",
       "name": "Polish and Public Readiness",
-      "percent": 5,
+      "percent": 8,
       "status": "early",
-      "updated": "2026-08-27",
-      "summary": "The v1 desktop and installer contracts are documented, but the runtime shell has not yet converged on them. Contributor guide, current public OS screenshots, hardware status, final artwork clearance, and issue workflow are also incomplete."
+      "updated": "2026-08-28",
+      "summary": "The v1 desktop and installer contracts are documented. The runtime now has a dedicated compact top bar model and renderer surface backed by real clock, network, battery, and audio state, uploaded into the compositor GPU scene and refreshed every minute. The pale idle desktop, remaining shell surfaces, contributor guide, current public OS screenshots, hardware status, final artwork clearance, and issue workflow are incomplete."
     }
   ],
   "nextSteps": [
-    "Implement the canonical compact top bar and pale blue idle desktop from the new reference set.",
+    "Complete the pale blue idle desktop and approved wallpaper path around the new runtime top bar.",
     "Split the prototype launcher into the canonical Applications overview and Global Search surfaces.",
     "Rebuild the bottom shell controls as Applications/Search, centered pinned/running apps, and workspace thumbnails.",
     "Unify bright window chrome and controls across Files, Settings, Terminal, Properties, and Installer.",

@@ -936,6 +936,90 @@ pub struct NetworkInterfaceStatus {
     pub state: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TopBarState {
+    pub product_label: String,
+    pub clock_label: String,
+    pub network_connected: bool,
+    pub battery_percent: Option<u8>,
+    pub audio_available: bool,
+}
+
+impl TopBarState {
+    pub fn read(root: &Path, epoch_seconds: u64) -> Self {
+        let network_connected = read_network_interfaces(&root.join("sys/class/net"))
+            .unwrap_or_default()
+            .iter()
+            .any(|interface| interface.state == "up");
+
+        Self {
+            product_label: "Aqua Linux".to_string(),
+            clock_label: format_top_bar_clock(epoch_seconds),
+            network_connected,
+            battery_percent: read_battery_percent(&root.join("sys/class/power_supply")),
+            audio_available: root.join("dev/snd").is_dir(),
+        }
+    }
+}
+
+fn read_battery_percent(power_supply: &Path) -> Option<u8> {
+    let entries = fs::read_dir(power_supply).ok()?;
+    for entry in entries.flatten().take(16) {
+        let path = entry.path();
+        let Ok(supply_type) = fs::read_to_string(path.join("type")) else {
+            continue;
+        };
+        if supply_type.trim() != "Battery" {
+            continue;
+        }
+        let Ok(capacity) = fs::read_to_string(path.join("capacity")) else {
+            continue;
+        };
+        let Ok(capacity) = capacity.trim().parse::<u8>() else {
+            continue;
+        };
+        return Some(capacity.min(100));
+    }
+    None
+}
+
+fn format_top_bar_clock(epoch_seconds: u64) -> String {
+    const WEEKDAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+
+    let days = (epoch_seconds / 86_400) as i64;
+    let seconds_today = epoch_seconds % 86_400;
+    let (year, month, day) = civil_date_from_unix_days(days);
+    let weekday = WEEKDAYS[(days + 4).rem_euclid(7) as usize];
+    format!(
+        "{weekday}, {day:02} {} {year}  {:02}:{:02} UTC",
+        MONTHS[(month - 1) as usize],
+        seconds_today / 3_600,
+        seconds_today % 3_600 / 60
+    )
+}
+
+fn civil_date_from_unix_days(days: i64) -> (i64, u32, u32) {
+    let shifted = days + 719_468;
+    let era = if shifted >= 0 {
+        shifted
+    } else {
+        shifted - 146_096
+    } / 146_097;
+    let day_of_era = shifted - era * 146_097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let mut year = year_of_era + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_piece = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_piece + 2) / 5 + 1;
+    let month = month_piece + if month_piece < 10 { 3 } else { -9 };
+    year += i64::from(month <= 2);
+    (year, month as u32, day as u32)
+}
+
 pub fn read_network_interfaces(class_net: &Path) -> io::Result<Vec<NetworkInterfaceStatus>> {
     let mut interfaces = Vec::new();
     for entry in fs::read_dir(class_net)? {
@@ -2359,6 +2443,31 @@ mod tests {
         assert_eq!(model.load_average_x100, 125);
         assert_eq!(model.memory_used_percent(), 37);
         fs::remove_dir_all(root).expect("remove overview fixture");
+    }
+
+    #[test]
+    fn top_bar_reads_clock_network_battery_and_audio_from_system_contract() {
+        let root = std::env::temp_dir().join(format!("aqua-top-bar-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("sys/class/net/eth0")).expect("network fixture");
+        fs::create_dir_all(root.join("sys/class/power_supply/AC")).expect("adapter fixture");
+        fs::create_dir_all(root.join("sys/class/power_supply/BAT0")).expect("battery fixture");
+        fs::create_dir_all(root.join("dev/snd")).expect("audio fixture");
+        fs::write(root.join("sys/class/net/eth0/operstate"), "up\n").expect("network state");
+        fs::write(root.join("sys/class/power_supply/AC/type"), "Mains\n").expect("adapter type");
+        fs::write(root.join("sys/class/power_supply/BAT0/type"), "Battery\n")
+            .expect("battery type");
+        fs::write(root.join("sys/class/power_supply/BAT0/capacity"), "87\n")
+            .expect("battery capacity");
+
+        let state = TopBarState::read(&root, 0);
+        assert_eq!(state.product_label, "Aqua Linux");
+        assert_eq!(state.clock_label, "Thu, 01 Jan 1970  00:00 UTC");
+        assert!(state.network_connected);
+        assert_eq!(state.battery_percent, Some(87));
+        assert!(state.audio_available);
+
+        fs::remove_dir_all(root).expect("remove top bar fixture");
     }
 
     #[test]
