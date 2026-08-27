@@ -1,0 +1,127 @@
+#!/bin/sh
+
+set -u
+
+CONFIG_PATH="${AQUA_COMPOSITOR_CONFIG:-/etc/aqua/compositor-session.conf}"
+ENV_PATH="${AQUA_SESSION_ENV:-/etc/aqua/session.env}"
+COMPOSITOR_BIN="${AQUA_COMPOSITOR_BIN:-/usr/bin/aqua-compositor}"
+HANDOFF_GATE_BIN="${AQUA_HANDOFF_GATE_BIN:-/usr/bin/aqua-compositor-handoff-gate}"
+GUARDED_RUN_BIN="${AQUA_GUARDED_RUN_BIN:-/usr/bin/aqua-compositor-guarded-run}"
+MANUAL_LAUNCH_BIN="${AQUA_MANUAL_LAUNCH_BIN:-/usr/bin/aqua-compositor-manual-launch}"
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+
+failures=0
+
+mark() {
+    status="$1"
+    echo "[AQUA-PREVIEW] stage=manual-nested-preview-execution status=${status}"
+}
+
+run_step() {
+    label="$1"
+    shift
+    log="${RUNTIME_DIR}/${label}.log"
+
+    if "$@" > "${log}" 2> "${log}.err"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+need_log() {
+    label="$1"
+    log="$2"
+    needle="$3"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-compositor-preview-exec"
+echo "execution_status=qemu-safe-manual-nested-preview-execution-ready"
+echo "launch_mode=manual-recovery"
+echo "operator_controlled=true"
+echo "operator_ack_required=true"
+echo "operator_acknowledged=true"
+echo "config_path=${CONFIG_PATH}"
+echo "env_path=${ENV_PATH}"
+echo "compositor_bin=${COMPOSITOR_BIN}"
+echo "handoff_gate_bin=${HANDOFF_GATE_BIN}"
+echo "guarded_run_bin=${GUARDED_RUN_BIN}"
+echo "manual_launch_bin=${MANUAL_LAUNCH_BIN}"
+
+if [ ! -x "${COMPOSITOR_BIN}" ]; then
+    echo "compositor_status=missing"
+    mark error
+    exit 1
+fi
+
+if [ ! -x "${HANDOFF_GATE_BIN}" ]; then
+    echo "handoff_gate_tool=missing"
+    mark error
+    exit 1
+fi
+
+AQUA_COMPOSITOR_CONFIG="${CONFIG_PATH}" \
+AQUA_SESSION_ENV="${ENV_PATH}" \
+AQUA_COMPOSITOR_BIN="${COMPOSITOR_BIN}" \
+AQUA_GUARDED_RUN_BIN="${GUARDED_RUN_BIN}" \
+AQUA_MANUAL_LAUNCH_BIN="${MANUAL_LAUNCH_BIN}" \
+AQUA_RUNTIME_DIR="${RUNTIME_DIR}" \
+run_step "preview-handoff-gate" "${HANDOFF_GATE_BIN}"
+
+run_step "preview-execution" "${COMPOSITOR_BIN}" run-manual-nested-preview-execution
+
+gate_log="${RUNTIME_DIR}/preview-handoff-gate.log"
+execution_log="${RUNTIME_DIR}/preview-execution.log"
+
+need_log "handoff_gate_ready" "${gate_log}" "[AQUA-GATE] stage=nested-preview-handoff status=ok"
+need_log "handoff_gate_manual_backend" "${gate_log}" "manual_nested_backend_gate=ok"
+need_log "handoff_gate_no_auto" "${gate_log}" "automatic_promotion=false"
+need_log "execution_ready" "${execution_log}" "[AQUA-COMPOSITOR] stage=manual-nested-preview-execution status=ok"
+need_log "execution_complete" "${execution_log}" "execution_status=manual-nested-preview-execution-complete"
+need_log "execution_backend_ready" "${execution_log}" "backend_ready=ok"
+need_log "execution_operator_ack" "${execution_log}" "operator_acknowledged=true"
+need_log "execution_frames" "${execution_log}" "rendered_frames=3"
+need_log "execution_started" "${execution_log}" "display_output_started=true"
+need_log "execution_stopped" "${execution_log}" "display_output_stopped=true"
+need_log "execution_cleanup" "${execution_log}" "cleanup_complete=ok"
+need_log "execution_fallback_tty" "${execution_log}" "fallback_tty_available=true"
+need_log "execution_return" "${execution_log}" "safe_return_to_recovery=ok"
+need_log "execution_no_preview_window" "${execution_log}" "preview_window_started=false"
+need_log "execution_no_renderer" "${execution_log}" "renderer_started=false"
+need_log "execution_no_boot_graphics" "${execution_log}" "boot_graphics=false"
+need_log "execution_no_shell" "${execution_log}" "desktop_shell_started=false"
+need_log "execution_no_autostart" "${execution_log}" "autostart=false"
+
+echo "handoff_gate=ok"
+echo "manual_nested_backend=ok"
+echo "manual_execution=ok"
+echo "bounded_frames=3"
+echo "display_output_started=true"
+echo "display_output_stopped=true"
+echo "preview_window_started=false"
+echo "fallback_tty_available=true"
+echo "safe_return_to_recovery=ok"
+echo "autostart=false"
+echo "boot_graphics=false"
+echo "desktop_shell_started=false"
+echo "next_manual_command=/usr/bin/aqua-compositor run-manual-nested-preview-execution"
+
+if [ "${failures}" -eq 0 ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1

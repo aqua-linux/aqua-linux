@@ -1,0 +1,199 @@
+#!/bin/sh
+
+echo "Aqua Linux recovery shell"
+echo "base: Buildroot"
+echo "target: QEMU x86_64"
+echo "graphics target: custom Wayland compositor"
+echo "current runtime: text recovery shell"
+echo
+echo "Boot markers:"
+echo '[AQUA-BOOT] stage=rcS-start product="Aqua Linux"'
+echo '[AQUA-BOOT] stage=filesystems-mounted status=ok'
+echo '[AQUA-BOOT] stage=os-release id=aqua pretty="Aqua Linux Milestone 1"'
+echo '[AQUA-BOOT] stage=session-config status=ok autostart=false boot_graphics=false recovery_tty=true'
+echo '[AQUA-BOOT] stage=session-runtime status=ok runtime_dir=/run/aqua'
+echo '[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/aqua assets=/usr/share/aqua'
+echo '[AQUA-BOOT] stage=runtime-assets-ready milestone=2 status=ok'
+echo '[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/aqua autostart=false boot_graphics=false session_started=false'
+echo '[AQUA-BOOT] stage=compositor-assets status=ok root=/usr/share/aqua'
+echo '[AQUA-BOOT] stage=output-plan status=ok backend=nested-dev-window boot_graphics=false renderer_started=false'
+echo '[AQUA-BOOT] stage=visible-preview-plan status=ok preview_window_started=false boot_graphics=false renderer_started=false'
+echo '[AQUA-BOOT] stage=scene-contract status=ok surfaces=7 boot_graphics=false'
+echo '[AQUA-BOOT] stage=render-plan status=ok commands=7 boot_graphics=false renderer_started=false'
+echo '[AQUA-BOOT] stage=paint-plan status=ok steps=7 boot_graphics=false renderer_started=false'
+echo '[AQUA-BOOT] stage=frame-plan status=ok format=rgba8888 boot_graphics=false renderer_started=false'
+echo '[AQUA-BOOT] stage=frame-buffer status=ok bytes=6291456 boot_graphics=false renderer_started=false'
+echo '[AQUA-BOOT] stage=raster status=ok rects=7 surface_layers=15 boot_graphics=false renderer_started=false'
+echo '[AQUA-BOOT] stage=surface-primitives status=ok layers=15 boot_graphics=false renderer_started=false'
+echo '[AQUA-BOOT] stage=raster-export status=ok bytes=4718609 boot_graphics=false renderer_started=false'
+echo '[AQUA-BOOT] stage=raster-png-export status=ok bytes=6293028 boot_graphics=false renderer_started=false'
+echo '[AQUA-BOOT] stage=session-check status=ok no_graphics=true'
+echo '[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh'
+echo
+echo "System identity:"
+cat /etc/os-release 2>/dev/null || true
+echo
+echo "Aqua compositor session config:"
+cat /etc/aqua/compositor-session.conf 2>/dev/null || echo "missing /etc/aqua/compositor-session.conf"
+echo
+echo "Aqua session environment:"
+cat /etc/aqua/session.env 2>/dev/null || echo "missing /etc/aqua/session.env"
+echo
+echo "Aqua session runtime:"
+ls -ld /run/aqua 2>/dev/null || echo "missing /run/aqua"
+echo
+echo "Aqua runtime assets:"
+find /usr/share/aqua -maxdepth 3 -type f 2>/dev/null | sort || true
+echo
+echo "Aqua compositor binary:"
+if [ -x /usr/bin/aqua-compositor ]; then
+    /usr/bin/aqua-compositor status 2>/dev/null || true
+else
+    cat /usr/share/doc/aqua/compositor-binary.txt 2>/dev/null || echo "aqua-compositor packaged=false"
+fi
+echo
+echo "Aqua session bootstrap:"
+if [ -x /usr/bin/aqua-compositor ]; then
+    /usr/bin/aqua-compositor probe-session-bootstrap /etc/aqua/compositor-session.conf /run/aqua 2>/dev/null || true
+else
+    echo "missing /usr/bin/aqua-compositor"
+fi
+echo
+echo "Aqua non-graphical compositor contracts:"
+if [ -x /usr/bin/aqua-compositor ]; then
+    /usr/bin/aqua-compositor probe-assets /usr/share/aqua 2>/dev/null || true
+    /usr/bin/aqua-compositor probe-output-plan 2>/dev/null || true
+    /usr/bin/aqua-compositor probe-visible-preview-plan 2>/dev/null || true
+    /usr/bin/aqua-compositor probe-scene 2>/dev/null || true
+    /usr/bin/aqua-compositor probe-render-plan 2>/dev/null || true
+    /usr/bin/aqua-compositor probe-paint-plan 2>/dev/null || true
+    /usr/bin/aqua-compositor probe-frame-plan 2>/dev/null || true
+    /usr/bin/aqua-compositor probe-frame-buffer 2>/dev/null || true
+    /usr/bin/aqua-compositor probe-raster 2>/dev/null || true
+    /usr/bin/aqua-compositor probe-raster-export 2>/dev/null || true
+    /usr/bin/aqua-compositor probe-raster-png-export 2>/dev/null || true
+else
+    echo "missing /usr/bin/aqua-compositor"
+fi
+echo
+echo "Aqua session check:"
+if [ -x /usr/bin/aqua-session-check ]; then
+    /usr/bin/aqua-session-check 2>/dev/null || true
+else
+    echo "missing /usr/bin/aqua-session-check"
+fi
+echo
+echo "Aqua manual visible preview launcher:"
+if [ -x /usr/bin/aqua-visible-preview-launch ]; then
+    echo "Run manually when needed: /usr/bin/aqua-visible-preview-launch"
+else
+    echo "missing /usr/bin/aqua-visible-preview-launch"
+fi
+echo
+echo "Aqua operator help:"
+if [ -x /usr/bin/aqua-recovery-help ]; then
+    echo "Run manually when needed: /usr/bin/aqua-recovery-help"
+else
+    echo "missing /usr/bin/aqua-recovery-help"
+fi
+echo
+echo "Aqua operator transcript:"
+if [ -x /usr/bin/aqua-operator-transcript ]; then
+    echo "Run manually when needed: /usr/bin/aqua-operator-transcript"
+else
+    echo "missing /usr/bin/aqua-operator-transcript"
+fi
+echo
+echo "Aqua graphics enable gate:"
+if [ -x /usr/bin/aqua-graphics-enable-gate ]; then
+    echo "Run manually when needed: /usr/bin/aqua-graphics-enable-gate"
+else
+    echo "missing /usr/bin/aqua-graphics-enable-gate"
+fi
+echo
+echo "Aqua graphics launch candidate:"
+if [ -x /usr/bin/aqua-graphics-launch-candidate ]; then
+    echo "Run manually when needed: /usr/bin/aqua-graphics-launch-candidate"
+else
+    echo "missing /usr/bin/aqua-graphics-launch-candidate"
+fi
+echo
+echo "Aqua graphics rollback drill:"
+if [ -x /usr/bin/aqua-graphics-rollback-drill ]; then
+    echo "Run manually when needed: /usr/bin/aqua-graphics-rollback-drill"
+else
+    echo "missing /usr/bin/aqua-graphics-rollback-drill"
+fi
+echo
+echo "Aqua graphics startup preflight:"
+if [ -x /usr/bin/aqua-graphics-startup-preflight ]; then
+    echo "Run manually when needed: /usr/bin/aqua-graphics-startup-preflight"
+else
+    echo "missing /usr/bin/aqua-graphics-startup-preflight"
+fi
+echo
+echo "Aqua graphics startup rehearsal:"
+if [ -x /usr/bin/aqua-graphics-startup-rehearsal ]; then
+    echo "Run manually when needed: /usr/bin/aqua-graphics-startup-rehearsal"
+else
+    echo "missing /usr/bin/aqua-graphics-startup-rehearsal"
+fi
+echo
+echo "Aqua graphics QEMU display gate:"
+if [ -x /usr/bin/aqua-graphics-qemu-display-gate ]; then
+    echo "Run manually when needed: /usr/bin/aqua-graphics-qemu-display-gate"
+else
+    echo "missing /usr/bin/aqua-graphics-qemu-display-gate"
+fi
+echo
+echo "Aqua graphics visible QEMU attempt:"
+if [ -x /usr/bin/aqua-graphics-visible-qemu-attempt ]; then
+    echo "Run manually when needed: /usr/bin/aqua-graphics-visible-qemu-attempt"
+else
+    echo "missing /usr/bin/aqua-graphics-visible-qemu-attempt"
+fi
+echo
+echo "Aqua graphics visible attempt transcript:"
+if [ -x /usr/bin/aqua-graphics-visible-attempt-transcript ]; then
+    echo "Run manually when needed: /usr/bin/aqua-graphics-visible-attempt-transcript"
+else
+    echo "missing /usr/bin/aqua-graphics-visible-attempt-transcript"
+fi
+echo
+echo "Aqua graphics visible attempt result:"
+if [ -x /usr/bin/aqua-graphics-visible-attempt-result ]; then
+    echo "Run manually when needed: /usr/bin/aqua-graphics-visible-attempt-result"
+else
+    echo "missing /usr/bin/aqua-graphics-visible-attempt-result"
+fi
+echo
+echo "Aqua graphics visible attempt runner:"
+if [ -x /usr/bin/aqua-graphics-visible-attempt-runner ]; then
+    echo "Run manually when needed: /usr/bin/aqua-graphics-visible-attempt-runner"
+else
+    echo "missing /usr/bin/aqua-graphics-visible-attempt-runner"
+fi
+echo
+echo "Aqua graphics QEMU visible boot check:"
+if [ -x /usr/bin/aqua-graphics-qemu-visible-boot-check ]; then
+    echo "Run manually when needed: /usr/bin/aqua-graphics-qemu-visible-boot-check"
+else
+    echo "missing /usr/bin/aqua-graphics-qemu-visible-boot-check"
+fi
+echo
+echo "Aqua graphics QEMU observation marker:"
+if [ -x /usr/bin/aqua-graphics-qemu-observation-marker ]; then
+    echo "Run manually when needed: /usr/bin/aqua-graphics-qemu-observation-marker"
+else
+    echo "missing /usr/bin/aqua-graphics-qemu-observation-marker"
+fi
+echo
+echo "Aqua QEMU visible pass report:"
+if [ -x /usr/bin/aqua-qemu-visible-pass-report ]; then
+    echo "Run manually when needed: /usr/bin/aqua-qemu-visible-pass-report"
+else
+    echo "missing /usr/bin/aqua-qemu-visible-pass-report"
+fi
+echo
+echo "Mounted filesystems:"
+mount

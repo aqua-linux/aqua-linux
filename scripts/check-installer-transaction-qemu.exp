@@ -1,0 +1,102 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp 2 \
+    -m 1024M \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -drive file=$env(TARGET_DISK),if=virtio,format=qcow2 \
+    -drive file=$env(ARTIFACT_DISK),if=virtio,format=raw,readonly=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.installer_execution_gate=1} \
+    -serial stdio \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -no-reboot
+
+expect -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh}
+expect -exact {aqua-linux login: }
+send -- "root\r"
+expect -exact {# }
+send -- "mkdir -p /run/aqua-installer && mount -o ro /dev/vdc /run/aqua-installer\r"
+expect -exact {# }
+send -- {AQUA_INSTALLER_QEMU_EXECUTION_ENABLE=QEMU_DISPOSABLE_TARGET_ONLY /usr/bin/aqua-installer-probe execution-run 'ERASE /dev/vdb' >/tmp/aqua-run-disabled.log 2>&1 || echo '[AQUA-TEST] stage=installer-transaction-missing-enable status=ok rejected=true'}
+send -- "\r"
+expect -exact {[AQUA-TEST] stage=installer-transaction-missing-enable status=ok rejected=true}
+expect -exact {# }
+send -- "AQUA_INSTALLER_QEMU_EXECUTION_ENABLE=QEMU_DISPOSABLE_TARGET_ONLY AQUA_INSTALLER_QEMU_TRANSACTION_EXECUTE=ERASE_DISPOSABLE_VDB_NOW /usr/bin/aqua-installer-probe execution-run 'ERASE /dev/vdb'\r"
+expect {
+    -exact {[AQUA-INSTALLER] stage=execution-run status=ok executed=true target=/dev/vdb} {}
+    timeout { puts stderr "Installer transaction completion marker missing"; exit 1 }
+    eof { puts stderr "QEMU exited before installer transaction completed"; exit 1 }
+}
+expect -exact {# }
+send -- {mkdir -p /mnt/aqua-verify-root /mnt/aqua-verify-efi && mount -o ro /dev/vdb2 /mnt/aqua-verify-root && mount -o ro /dev/vdb1 /mnt/aqua-verify-efi && test "$(blkid -s LABEL -o value /dev/vdb2)" = AQUA_ROOT && test "$(blkid -s LABEL -o value /dev/vdb1)" = AQUA_EFI && test "$(blkid -s PARTLABEL -o value /dev/vdb2)" = AQUA_ROOT && grep -Fq 'ID=aqua' /mnt/aqua-verify-root/etc/os-release && test -s /mnt/aqua-verify-root/boot/vmlinuz-aqua && test -s /mnt/aqua-verify-efi/EFI/BOOT/BOOTX64.EFI && grep -Fq 'root=PARTLABEL=AQUA_ROOT' /mnt/aqua-verify-efi/EFI/BOOT/grub.cfg && grep -Fq 'username=aqua' /mnt/aqua-verify-root/etc/aqua/first-user.conf && echo '[AQUA-TEST] stage=installer-installed-content status=ok root_label=AQUA_ROOT efi_label=AQUA_EFI partlabel=AQUA_ROOT kernel=true bootloader=true configuration=true'}
+send -- "\r"
+expect -exact {[AQUA-TEST] stage=installer-installed-content status=ok root_label=AQUA_ROOT efi_label=AQUA_EFI partlabel=AQUA_ROOT kernel=true bootloader=true configuration=true}
+expect -exact {# }
+send -- "umount /mnt/aqua-verify-efi && umount /mnt/aqua-verify-root && poweroff -f\r"
+expect eof
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp 2 \
+    -m 1024M \
+    -kernel $env(KERNEL) \
+    -drive file=$env(TARGET_DISK),if=virtio,format=qcow2 \
+    -append {root=/dev/vda2 rootwait rw console=tty1 console=ttyS0,115200n8 panic=-1} \
+    -serial stdio \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh} {}
+    timeout { puts stderr "Installed root recovery marker missing"; exit 1 }
+    eof { puts stderr "Installed root QEMU exited before recovery marker"; exit 1 }
+}
+expect -exact {aqua-linux login: }
+send -- "root\r"
+expect -exact {# }
+send -- {echo '[AQUA-TEST] stage=installer-installed-root-boot status=ok root=/dev/vda2 recovery=true'}
+send -- "\r"
+expect -exact {[AQUA-TEST] stage=installer-installed-root-boot status=ok root=/dev/vda2 recovery=true}
+expect -exact {# }
+send -- "poweroff -f\r"
+expect eof
+
+spawn qemu-system-x86_64 \
+    -machine pc,accel=tcg \
+    -cpu max \
+    -smp 2 \
+    -m 1024M \
+    -drive if=pflash,format=raw,unit=0,readonly=on,file=$env(FIRMWARE) \
+    -drive file=$env(TARGET_DISK),if=virtio,format=qcow2 \
+    -boot order=c \
+    -serial stdio \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh} {}
+    timeout { puts stderr "Installed UEFI recovery marker missing"; exit 1 }
+    eof { puts stderr "Installed UEFI QEMU exited before recovery marker"; exit 1 }
+}
+expect -exact {aqua-linux login: }
+send -- "root\r"
+expect -exact {# }
+send -- {test -d /sys/firmware/efi && grep -qw 'root=PARTLABEL=AQUA_ROOT' /proc/cmdline && echo '[AQUA-TEST] stage=installer-installed-uefi-boot status=ok firmware=edk2 bootloader=grub root=PARTLABEL=AQUA_ROOT recovery=true'}
+send -- "\r"
+expect -exact {[AQUA-TEST] stage=installer-installed-uefi-boot status=ok firmware=edk2 bootloader=grub root=PARTLABEL=AQUA_ROOT recovery=true}
+expect -exact {# }
+send -- "poweroff -f\r"
+expect eof

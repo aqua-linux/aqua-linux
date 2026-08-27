@@ -1,0 +1,432 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp $env(CPUS) \
+    -m $env(MEMORY) \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1} \
+    -serial stdio \
+    -monitor unix:$env(MONITOR_SOCKET),server=on,wait=off \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -device virtio-keyboard-pci \
+    -device virtio-mouse-pci \
+    -netdev user,id=net0 \
+    -device virtio-net-pci,netdev=net0 \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh} {}
+    timeout { puts stderr "Timed out waiting for recovery-ready"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery-ready"; exit 1 }
+}
+
+expect {
+    -exact {aqua-linux login: } {}
+    timeout { puts stderr "Timed out waiting for serial login"; exit 1 }
+    eof { puts stderr "QEMU exited before serial login"; exit 1 }
+}
+send -- "root\r"
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Timed out waiting for recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery shell"; exit 1 }
+}
+
+send -- {for event in /sys/class/input/event*; do echo "AQUA_INPUT_DEVICE=$(basename "$event"):$(cat "$event/device/name")"; done}
+send -- "\r"
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Timed out listing QEMU input devices"; exit 1 }
+    eof { puts stderr "QEMU exited before input device listing"; exit 1 }
+}
+
+send -- {/usr/bin/aqua-compositor probe-evdev-aqua-seat /dev/input/event1 /dev/input/event2}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-INPUT] stage=evdev-aqua-seat status=active} {}
+    timeout { puts stderr "Timed out waiting for active evdev Aqua Seat probe"; exit 1 }
+    eof { puts stderr "QEMU exited before evdev Aqua Seat probe became active"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) basic} input_error]} {
+    puts stderr "QEMU input injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -exact {[AQUA-INPUT] stage=evdev-aqua-seat status=ok} {}
+    timeout { puts stderr "Timed out waiting for evdev Aqua Seat events"; exit 1 }
+    eof { puts stderr "QEMU exited before evdev Aqua Seat probe completed"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "evdev Aqua Seat probe did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before evdev Aqua Seat recovery return"; exit 1 }
+}
+
+send -- {/usr/bin/aqua-compositor probe-drm-device /dev/dri/card0}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-device-probe status=ok} {}
+    timeout { puts stderr "Timed out waiting for DRM device probe"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM device probe completed"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "DRM device probe did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM probe recovery return"; exit 1 }
+}
+
+send -- {/usr/bin/aqua-compositor probe-renderer-backend auto}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=renderer-backend-probe status=ok} {}
+    timeout { puts stderr "Timed out waiting for renderer backend probe"; exit 1 }
+    eof { puts stderr "QEMU exited before renderer backend probe completed"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Renderer backend probe did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before renderer backend recovery return"; exit 1 }
+}
+
+send -- {/usr/bin/aqua-compositor probe-gpu-offscreen-frame /dev/dri/card0}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=gpu-offscreen-frame status=ok} {}
+    timeout { puts stderr "Timed out waiting for GPU offscreen frame probe"; exit 1 }
+    eof { puts stderr "QEMU exited before GPU offscreen frame probe completed"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "GPU offscreen frame probe did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before GPU offscreen recovery return"; exit 1 }
+}
+
+send -- {AQUA_DRM_GPU_SURFACE_HOLD_SECONDS=10 AQUA_DRM_GPU_SURFACE_TIMEOUT_MS=2000 AQUA_DRM_GPU_SURFACE_HEADLESS_TEST_CONFIRMED=true AQUA_DRM_GPU_SURFACE_TEST_MODE=headless-qemu /usr/bin/aqua-compositor present-drm-gpu-surface /dev/dri/card0}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-gpu-surface status=active} {}
+    timeout { puts stderr "Timed out waiting for visible DRM GPU surface frame"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM GPU surface frame became active"; exit 1 }
+}
+
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(GPU_SURFACE_SCREENSHOT) $env(GPU_SURFACE_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU DRM GPU surface screendump failed: $capture_error"
+    exit 1
+}
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-gpu-surface status=ok} {}
+    timeout { puts stderr "Timed out waiting for DRM GPU surface restoration"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM GPU surface restoration completed"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "DRM GPU surface presenter did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM GPU surface recovery return"; exit 1 }
+}
+
+send -- {/usr/bin/aqua-compositor probe-drm-dumb-buffer /dev/dri/card0}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-dumb-buffer-probe status=ok} {}
+    timeout { puts stderr "Timed out waiting for DRM dumb buffer probe"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM dumb buffer probe completed"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "DRM dumb buffer probe did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM dumb buffer recovery return"; exit 1 }
+}
+
+send -- {/usr/bin/aqua-compositor probe-drm-gbm-scanout-buffer /dev/dri/card0}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-gbm-scanout-buffer-probe status=ok} {}
+    timeout { puts stderr "Timed out waiting for DRM GBM scanout buffer probe"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM GBM scanout buffer probe completed"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "DRM GBM scanout buffer probe did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM GBM scanout buffer recovery return"; exit 1 }
+}
+
+send -- {AQUA_DRM_GBM_SCANOUT_HOLD_SECONDS=10 AQUA_DRM_GBM_SCANOUT_TIMEOUT_MS=2000 AQUA_DRM_GBM_SCANOUT_HEADLESS_TEST_CONFIRMED=true AQUA_DRM_GBM_SCANOUT_TEST_MODE=headless-qemu /usr/bin/aqua-compositor present-drm-gbm-scanout /dev/dri/card0}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-gbm-scanout status=active} {}
+    timeout { puts stderr "Timed out waiting for active DRM GBM direct scanout"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM GBM direct scanout became active"; exit 1 }
+}
+
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(GBM_SCANOUT_SCREENSHOT) $env(GBM_SCANOUT_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU DRM GBM direct-scanout screendump failed: $capture_error"
+    exit 1
+}
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-gbm-scanout status=ok} {}
+    timeout { puts stderr "Timed out waiting for DRM GBM direct-scanout restoration"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM GBM direct-scanout restoration completed"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "DRM GBM direct-scanout presenter did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM GBM direct-scanout recovery return"; exit 1 }
+}
+
+send -- {AQUA_DRM_KMS_HOLD_SECONDS=10 AQUA_DRM_KMS_HEADLESS_TEST_CONFIRMED=true AQUA_DRM_KMS_TEST_MODE=headless-qemu /usr/bin/aqua-compositor present-drm-kms /dev/dri/card0}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-kms-present status=active} {}
+    timeout { puts stderr "Timed out waiting for active DRM KMS frame"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM KMS frame became active"; exit 1 }
+}
+
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(KMS_SCREENSHOT) $env(KMS_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU KMS screendump failed: $capture_error"
+    exit 1
+}
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-kms-present status=ok} {}
+    timeout { puts stderr "Timed out waiting for DRM KMS restoration"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM KMS restoration completed"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "DRM KMS presenter did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM KMS recovery return"; exit 1 }
+}
+
+send -- {AQUA_DRM_PAGE_FLIP_HOLD_SECONDS=10 AQUA_DRM_PAGE_FLIP_TIMEOUT_MS=2000 AQUA_DRM_PAGE_FLIP_HEADLESS_TEST_CONFIRMED=true AQUA_DRM_PAGE_FLIP_TEST_MODE=headless-qemu /usr/bin/aqua-compositor present-drm-page-flip /dev/dri/card0}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-page-flip status=active} {}
+    timeout { puts stderr "Timed out waiting for completed DRM page flip"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM page flip completed"; exit 1 }
+}
+
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(PAGE_FLIP_SCREENSHOT) $env(PAGE_FLIP_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU DRM page-flip screendump failed: $capture_error"
+    exit 1
+}
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-page-flip status=ok} {}
+    timeout { puts stderr "Timed out waiting for DRM page-flip restoration"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM page-flip restoration completed"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "DRM page-flip presenter did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM page-flip recovery return"; exit 1 }
+}
+
+send -- {AQUA_DRM_FRAME_LOOP_FRAMES=3 AQUA_DRM_FRAME_LOOP_HOLD_SECONDS=10 AQUA_DRM_FRAME_LOOP_TIMEOUT_MS=2000 AQUA_DRM_FRAME_LOOP_HEADLESS_TEST_CONFIRMED=true AQUA_DRM_FRAME_LOOP_TEST_MODE=headless-qemu /usr/bin/aqua-compositor run-drm-frame-loop /dev/dri/card0}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-frame-loop status=active} {}
+    timeout { puts stderr "Timed out waiting for bounded DRM frame loop"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM frame loop completed"; exit 1 }
+}
+
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(FRAME_LOOP_SCREENSHOT) $env(FRAME_LOOP_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU DRM frame-loop screendump failed: $capture_error"
+    exit 1
+}
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-frame-loop status=ok} {}
+    timeout { puts stderr "Timed out waiting for DRM frame-loop restoration"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM frame-loop restoration completed"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "DRM frame loop did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM frame-loop recovery return"; exit 1 }
+}
+
+send -- {AQUA_DRM_SESSION_LOOP_FRAMES=3 AQUA_DRM_SESSION_LOOP_HOLD_SECONDS=10 AQUA_DRM_SESSION_LOOP_TIMEOUT_MS=2000 AQUA_DRM_SESSION_LOOP_HEADLESS_TEST_CONFIRMED=true AQUA_DRM_SESSION_LOOP_TEST_MODE=headless-qemu /usr/bin/aqua-compositor run-drm-session-loop /dev/dri/card0}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-session-loop status=active} {}
+    timeout { puts stderr "Timed out waiting for compositor-owned DRM session loop"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM session loop completed"; exit 1 }
+}
+
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(SESSION_LOOP_SCREENSHOT) $env(SESSION_LOOP_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU DRM session-loop screendump failed: $capture_error"
+    exit 1
+}
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-session-loop status=ok} {}
+    timeout { puts stderr "Timed out waiting for DRM session-loop restoration"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM session-loop restoration completed"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "DRM session loop did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM session-loop recovery return"; exit 1 }
+}
+
+send -- {AQUA_DRM_WAYLAND_SESSION_HOLD_SECONDS=10 AQUA_DRM_WAYLAND_SESSION_HEADLESS_TEST_CONFIRMED=true AQUA_DRM_WAYLAND_SESSION_TEST_MODE=headless-qemu AQUA_DRM_WAYLAND_SCENARIO=qemu-integration AQUA_DRM_WAYLAND_INPUT_REQUIRED=true AQUA_DRM_WAYLAND_EXTERNAL_CLIENT_REQUIRED=true /usr/bin/aqua-compositor run-drm-wayland-session /dev/dri/card0}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-wayland-session status=active} {}
+    timeout { puts stderr "Timed out waiting for combined DRM Wayland session"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM Wayland session completed"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) launcher} input_error]} {
+    puts stderr "QEMU DRM Wayland input injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -exact {drm_wayland_files_window_repaint_complete=true} {}
+    timeout { puts stderr "Timed out waiting for Aqua Files repaint"; exit 1 }
+    eof { puts stderr "QEMU exited before Aqua Files repaint completed"; exit 1 }
+}
+
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(WAYLAND_SESSION_SCREENSHOT) $env(WAYLAND_SESSION_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU DRM Wayland-session screendump failed: $capture_error"
+    exit 1
+}
+
+expect {
+    -exact {drm_wayland_settings_capture_ready=true} {}
+    timeout { puts stderr "Timed out waiting for Aqua Settings capture frame"; exit 1 }
+    eof { puts stderr "QEMU exited before Aqua Settings capture frame"; exit 1 }
+}
+
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(SETTINGS_SCREENSHOT) $env(SETTINGS_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU Aqua Settings screendump failed: $capture_error"
+    exit 1
+}
+
+expect {
+    -exact {drm_wayland_client_cleanup_repaint_complete=true} {}
+    timeout { puts stderr "Timed out waiting for DRM Wayland client cleanup repaint"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM Wayland client cleanup repaint completed"; exit 1 }
+}
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok} {}
+    timeout { puts stderr "Timed out waiting for DRM Wayland-session cleanup"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM Wayland-session cleanup completed"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "DRM Wayland session did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before DRM Wayland-session recovery return"; exit 1 }
+}
+
+send -- {printf 'boot_graphics=true\nrecovery_tty_required=true\n' > /run/aqua/supervisor-qemu-test.conf}
+send -- "\r"
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Could not prepare graphical supervisor QEMU config"; exit 1 }
+    eof { puts stderr "QEMU exited before graphical supervisor QEMU config"; exit 1 }
+}
+
+send -- {AQUA_COMPOSITOR_CONFIG=/run/aqua/supervisor-qemu-test.conf AQUA_GRAPHICS_SESSION_ENABLED=true AQUA_GRAPHICS_MAX_RESTARTS=2 AQUA_GRAPHICS_RESTART_DELAY_SECONDS=0 AQUA_DRM_DEVICE=/dev/dri/aqua-missing /usr/bin/aqua-graphical-session-supervisor}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-SESSION] stage=graphical-session-supervisor status=fallback reason=restart-limit exit_code=1 attempts=3 restarts=2 recovery=true} {}
+    timeout { puts stderr "Graphical session supervisor did not exhaust its restart budget"; exit 1 }
+    eof { puts stderr "QEMU exited before graphical supervisor fallback"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Graphical session supervisor did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before graphical supervisor recovery return"; exit 1 }
+}
+
+send -- {grep -Fq 'state=fallback' /run/aqua/graphical-session-supervisor.state && grep -Fq 'attempts=3' /run/aqua/graphical-session-supervisor.state && grep -Fq 'restarts=2' /run/aqua/graphical-session-supervisor.state && echo '[AQUA-TEST] stage=graphical-session-supervisor-qemu status=ok real_compositor_failures=3 bounded_restarts=2 recovery_return=ok'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=graphical-session-supervisor-qemu status=ok real_compositor_failures=3 bounded_restarts=2 recovery_return=ok} {}
+    timeout { puts stderr "Missing graphical session supervisor QEMU marker"; exit 1 }
+    eof { puts stderr "QEMU exited before graphical supervisor QEMU marker"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Graphical session supervisor marker did not return to shell"; exit 1 }
+    eof { puts stderr "QEMU exited after graphical supervisor marker"; exit 1 }
+}
+
+send -- {AQUA_FBDEV_HOLD_SECONDS=0 AQUA_FBDEV_HEADLESS_TEST_CONFIRMED=true AQUA_FBDEV_TEST_MODE=headless-qemu /usr/bin/aqua-graphics-fbdev-present}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-GATE] stage=graphics-fbdev-present status=ok} {}
+    timeout { puts stderr "Timed out waiting for fbdev presenter success"; exit 1 }
+    eof { puts stderr "QEMU exited before fbdev presenter completed"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Presenter did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery return"; exit 1 }
+}
+
+# virtio-vga updates its scanout asynchronously after the fbdev write completes.
+after 1000
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(SCREENSHOT) $env(SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU framebuffer screendump failed: $capture_error"
+    exit 1
+}
+send -- {echo '[AQUA-TEST] stage=fbdev-present-qemu status=ok framebuffer_write=true visible_observation=false safe_return_to_recovery=ok'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=fbdev-present-qemu status=ok framebuffer_write=true visible_observation=false safe_return_to_recovery=ok} {}
+    timeout { puts stderr "Missing fbdev QEMU test marker"; exit 1 }
+    eof { puts stderr "QEMU exited before fbdev QEMU test marker"; exit 1 }
+}
+
+send -- "poweroff -f\r"
+expect eof

@@ -1,0 +1,202 @@
+#!/bin/sh
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+export PATH
+
+mark() {
+    message="$1"
+    echo "$message"
+    [ -e /dev/console ] && echo "$message" > /dev/console
+    [ -e /dev/ttyS0 ] && echo "$message" > /dev/ttyS0
+}
+
+mark '[AQUA-BOOT] stage=rcS-start product="Aqua Linux"'
+
+mkdir -p /proc /sys /dev /dev/pts /tmp /run
+
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sysfs /sys 2>/dev/null || true
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts -o mode=620,ptmxmode=666 2>/dev/null || true
+[ -e /dev/ptmx ] || ln -s pts/ptmx /dev/ptmx
+mount -t tmpfs tmpfs /tmp 2>/dev/null || true
+mount -t tmpfs tmpfs /run 2>/dev/null || true
+
+hostname aqua-linux
+
+mark '[AQUA-BOOT] stage=filesystems-mounted status=ok'
+if [ -c /dev/pts/ptmx ] && [ -e /dev/ptmx ]; then
+    mark '[AQUA-BOOT] stage=devpts-ready status=ok ptmx=/dev/ptmx'
+else
+    mark '[AQUA-BOOT] stage=devpts-ready status=failed ptmx=/dev/ptmx'
+fi
+
+if [ -x /etc/init.d/S10udev ] && /etc/init.d/S10udev start >/run/aqua-udev.log 2>&1; then
+    mark '[AQUA-BOOT] stage=udev-ready status=ok seat=seat0'
+else
+    mark '[AQUA-BOOT] stage=udev-ready status=failed seat=seat0'
+fi
+
+if [ -c /dev/fb0 ] && \
+   [ -r /sys/class/graphics/fb0/virtual_size ] && \
+   [ -r /sys/class/graphics/fb0/bits_per_pixel ]; then
+    fbdev_mode="$(tr -d '\r\n' < /sys/class/graphics/fb0/virtual_size)"
+    fbdev_bpp="$(tr -d '\r\n' < /sys/class/graphics/fb0/bits_per_pixel)"
+    fbdev_stride="unknown"
+    [ -r /sys/class/graphics/fb0/stride ] && fbdev_stride="$(tr -d '\r\n' < /sys/class/graphics/fb0/stride)"
+    {
+        echo 'fbdev_status=ready'
+        echo 'fbdev_device=/dev/fb0'
+        echo "fbdev_mode=${fbdev_mode}"
+        echo "fbdev_bits_per_pixel=${fbdev_bpp}"
+        echo "fbdev_stride=${fbdev_stride}"
+        echo 'boot_graphics=false'
+        echo 'autostart=false'
+    } > /run/aqua-fbdev-device.env
+    mark "[AQUA-BOOT] stage=fbdev-device status=ok device=/dev/fb0 mode=${fbdev_mode} bpp=${fbdev_bpp} stride=${fbdev_stride} boot_graphics=false"
+else
+    mark '[AQUA-BOOT] stage=fbdev-device status=missing device=/dev/fb0 mode=unknown bpp=unknown stride=unknown boot_graphics=false'
+fi
+
+mark '[AQUA-BOOT] stage=os-release id=aqua pretty="Aqua Linux Milestone 1"'
+
+if [ -f /etc/aqua/compositor-session.conf ] && \
+   grep -q '^autostart=false$' /etc/aqua/compositor-session.conf && \
+   grep -q '^boot_graphics=false$' /etc/aqua/compositor-session.conf && \
+   grep -q '^recovery_tty_required=true$' /etc/aqua/compositor-session.conf; then
+    mark '[AQUA-BOOT] stage=session-config status=ok autostart=false boot_graphics=false recovery_tty=true'
+else
+    mark '[AQUA-BOOT] stage=session-config status=missing autostart=false boot_graphics=false recovery_tty=true'
+fi
+
+mkdir -p /run/aqua
+chmod 700 /run/aqua 2>/dev/null || true
+if [ -d /run/aqua ]; then
+    mark '[AQUA-BOOT] stage=session-runtime status=ok runtime_dir=/run/aqua'
+else
+    mark '[AQUA-BOOT] stage=session-runtime status=missing runtime_dir=/run/aqua'
+fi
+
+if [ -f /etc/aqua/session.env ] && \
+   grep -q '^export WAYLAND_DISPLAY=aqua-wayland-0$' /etc/aqua/session.env && \
+   grep -q '^export XDG_RUNTIME_DIR=/run/aqua$' /etc/aqua/session.env && \
+   grep -q '^export AQUA_ASSET_ROOT=/usr/share/aqua$' /etc/aqua/session.env; then
+    mark '[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/aqua assets=/usr/share/aqua'
+else
+    mark '[AQUA-BOOT] stage=session-env status=missing wayland=aqua-wayland-0 xdg=/run/aqua assets=/usr/share/aqua'
+fi
+
+if [ -f /usr/share/aqua/tokens/design-tokens.json ] && \
+   [ -f /usr/share/aqua/wallpapers/default-wallpaper.png ] && \
+   [ -f /usr/share/aqua/icons/temp/lucide/home.svg ]; then
+    mark '[AQUA-BOOT] stage=runtime-assets-ready milestone=2 status=ok'
+else
+    mark '[AQUA-BOOT] stage=runtime-assets-ready milestone=2 status=missing'
+fi
+
+if [ -x /usr/bin/aqua-compositor ]; then
+    mark '[AQUA-BOOT] stage=compositor-binary status=packaged autostart=false boot_graphics=false'
+    if /usr/bin/aqua-compositor status >/run/aqua-compositor-status.log 2>/run/aqua-compositor-status.err; then
+        mark '[AQUA-BOOT] stage=compositor-status status=ok mode=nested-dev'
+    else
+        mark '[AQUA-BOOT] stage=compositor-status status=failed mode=nested-dev'
+    fi
+    if /usr/bin/aqua-compositor probe-session-bootstrap /etc/aqua/compositor-session.conf /run/aqua >/run/aqua-compositor-bootstrap.log 2>/run/aqua-compositor-bootstrap.err; then
+        mark '[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/aqua autostart=false boot_graphics=false session_started=false'
+    else
+        mark '[AQUA-BOOT] stage=session-bootstrap status=failed runtime_dir=/run/aqua autostart=false boot_graphics=false session_started=false'
+    fi
+    if /usr/bin/aqua-compositor probe-assets /usr/share/aqua >/run/aqua-compositor-assets.log 2>/run/aqua-compositor-assets.err; then
+        mark '[AQUA-BOOT] stage=compositor-assets status=ok root=/usr/share/aqua'
+    else
+        mark '[AQUA-BOOT] stage=compositor-assets status=failed root=/usr/share/aqua'
+    fi
+    if /usr/bin/aqua-compositor probe-output-plan >/run/aqua-compositor-output-plan.log 2>/run/aqua-compositor-output-plan.err; then
+        mark '[AQUA-BOOT] stage=output-plan status=ok backend=nested-dev-window boot_graphics=false renderer_started=false'
+    else
+        mark '[AQUA-BOOT] stage=output-plan status=failed backend=nested-dev-window boot_graphics=false renderer_started=false'
+    fi
+    if /usr/bin/aqua-compositor probe-visible-preview-plan >/run/aqua-compositor-visible-preview-plan.log 2>/run/aqua-compositor-visible-preview-plan.err; then
+        mark '[AQUA-BOOT] stage=visible-preview-plan status=ok preview_window_started=false boot_graphics=false renderer_started=false'
+    else
+        mark '[AQUA-BOOT] stage=visible-preview-plan status=failed preview_window_started=false boot_graphics=false renderer_started=false'
+    fi
+    if /usr/bin/aqua-compositor probe-scene >/run/aqua-compositor-scene.log 2>/run/aqua-compositor-scene.err; then
+        mark '[AQUA-BOOT] stage=scene-contract status=ok surfaces=7 boot_graphics=false'
+    else
+        mark '[AQUA-BOOT] stage=scene-contract status=failed surfaces=7 boot_graphics=false'
+    fi
+    if /usr/bin/aqua-compositor probe-render-plan >/run/aqua-compositor-render-plan.log 2>/run/aqua-compositor-render-plan.err; then
+        mark '[AQUA-BOOT] stage=render-plan status=ok commands=7 boot_graphics=false renderer_started=false'
+    else
+        mark '[AQUA-BOOT] stage=render-plan status=failed commands=7 boot_graphics=false renderer_started=false'
+    fi
+    if /usr/bin/aqua-compositor probe-paint-plan >/run/aqua-compositor-paint-plan.log 2>/run/aqua-compositor-paint-plan.err; then
+        mark '[AQUA-BOOT] stage=paint-plan status=ok steps=7 boot_graphics=false renderer_started=false'
+    else
+        mark '[AQUA-BOOT] stage=paint-plan status=failed steps=7 boot_graphics=false renderer_started=false'
+    fi
+    if /usr/bin/aqua-compositor probe-frame-plan >/run/aqua-compositor-frame-plan.log 2>/run/aqua-compositor-frame-plan.err; then
+        mark '[AQUA-BOOT] stage=frame-plan status=ok format=rgba8888 boot_graphics=false renderer_started=false'
+    else
+        mark '[AQUA-BOOT] stage=frame-plan status=failed format=rgba8888 boot_graphics=false renderer_started=false'
+    fi
+    if /usr/bin/aqua-compositor probe-frame-buffer >/run/aqua-compositor-frame-buffer.log 2>/run/aqua-compositor-frame-buffer.err; then
+        mark '[AQUA-BOOT] stage=frame-buffer status=ok bytes=6291456 boot_graphics=false renderer_started=false'
+    else
+        mark '[AQUA-BOOT] stage=frame-buffer status=failed bytes=6291456 boot_graphics=false renderer_started=false'
+    fi
+    if /usr/bin/aqua-compositor probe-raster >/run/aqua-compositor-raster.log 2>/run/aqua-compositor-raster.err; then
+        mark '[AQUA-BOOT] stage=raster status=ok rects=7 surface_layers=15 boot_graphics=false renderer_started=false'
+        mark '[AQUA-BOOT] stage=surface-primitives status=ok layers=15 boot_graphics=false renderer_started=false'
+    else
+        mark '[AQUA-BOOT] stage=raster status=failed rects=7 surface_layers=15 boot_graphics=false renderer_started=false'
+        mark '[AQUA-BOOT] stage=surface-primitives status=failed layers=15 boot_graphics=false renderer_started=false'
+    fi
+    if /usr/bin/aqua-compositor probe-raster-export >/run/aqua-compositor-raster-export.log 2>/run/aqua-compositor-raster-export.err; then
+        mark '[AQUA-BOOT] stage=raster-export status=ok bytes=4718609 boot_graphics=false renderer_started=false'
+    else
+        mark '[AQUA-BOOT] stage=raster-export status=failed bytes=4718609 boot_graphics=false renderer_started=false'
+    fi
+    if /usr/bin/aqua-compositor probe-raster-png-export >/run/aqua-compositor-raster-png-export.log 2>/run/aqua-compositor-raster-png-export.err; then
+        mark '[AQUA-BOOT] stage=raster-png-export status=ok bytes=6293028 boot_graphics=false renderer_started=false'
+    else
+        mark '[AQUA-BOOT] stage=raster-png-export status=failed bytes=6293028 boot_graphics=false renderer_started=false'
+    fi
+    if /usr/bin/aqua-session-check >/run/aqua-session-check.log 2>/run/aqua-session-check.err; then
+        mark '[AQUA-BOOT] stage=session-check status=ok no_graphics=true'
+    else
+        mark '[AQUA-BOOT] stage=session-check status=failed no_graphics=true'
+    fi
+else
+    mark '[AQUA-BOOT] stage=compositor-binary status=missing autostart=false boot_graphics=false'
+    mark '[AQUA-BOOT] stage=compositor-status status=skipped mode=nested-dev'
+    mark '[AQUA-BOOT] stage=session-bootstrap status=skipped runtime_dir=/run/aqua autostart=false boot_graphics=false session_started=false'
+    mark '[AQUA-BOOT] stage=compositor-assets status=skipped root=/usr/share/aqua'
+    mark '[AQUA-BOOT] stage=output-plan status=skipped backend=nested-dev-window boot_graphics=false renderer_started=false'
+    mark '[AQUA-BOOT] stage=visible-preview-plan status=skipped preview_window_started=false boot_graphics=false renderer_started=false'
+    mark '[AQUA-BOOT] stage=scene-contract status=skipped surfaces=7 boot_graphics=false'
+    mark '[AQUA-BOOT] stage=render-plan status=skipped commands=7 boot_graphics=false renderer_started=false'
+    mark '[AQUA-BOOT] stage=paint-plan status=skipped steps=7 boot_graphics=false renderer_started=false'
+    mark '[AQUA-BOOT] stage=frame-plan status=skipped format=rgba8888 boot_graphics=false renderer_started=false'
+    mark '[AQUA-BOOT] stage=frame-buffer status=skipped bytes=6291456 boot_graphics=false renderer_started=false'
+    mark '[AQUA-BOOT] stage=raster status=skipped rects=7 surface_layers=15 boot_graphics=false renderer_started=false'
+    mark '[AQUA-BOOT] stage=surface-primitives status=skipped layers=15 boot_graphics=false renderer_started=false'
+    mark '[AQUA-BOOT] stage=raster-export status=skipped bytes=4718609 boot_graphics=false renderer_started=false'
+    mark '[AQUA-BOOT] stage=raster-png-export status=skipped bytes=6293028 boot_graphics=false renderer_started=false'
+    mark '[AQUA-BOOT] stage=session-check status=skipped no_graphics=true'
+fi
+
+if [ -x /usr/bin/aqua-graphical-session-boot ] &&
+   /usr/bin/aqua-graphical-session-boot >/run/aqua-graphical-session-boot.log 2>/run/aqua-graphical-session-boot.err; then
+    if grep -Fq 'status=started' /run/aqua-graphical-session-boot.log; then
+        mark '[AQUA-BOOT] stage=graphical-session-activation status=started mode=supervised boot_graphics=true recovery_tty=true'
+    else
+        mark '[AQUA-BOOT] stage=graphical-session-activation status=disabled boot_graphics=false session_started=false'
+    fi
+else
+    mark '[AQUA-BOOT] stage=graphical-session-activation status=blocked boot_graphics=false session_started=false'
+fi
+
+mark '[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh'

@@ -1,0 +1,82 @@
+#!/bin/sh
+
+set -u
+
+COMPOSITOR_BIN="${AQUA_COMPOSITOR_BIN:-/usr/bin/aqua-compositor}"
+FBDEV_DEVICE="${AQUA_FBDEV_DEVICE:-/dev/fb0}"
+DRY_RUN="${AQUA_FBDEV_DRY_RUN:-false}"
+OPERATOR_CONFIRMED="${AQUA_FBDEV_OPERATOR_CONFIRMED:-false}"
+HEADLESS_TEST_CONFIRMED="${AQUA_FBDEV_HEADLESS_TEST_CONFIRMED:-false}"
+TEST_MODE="${AQUA_FBDEV_TEST_MODE:-none}"
+PROBE_WIDTH="${AQUA_FBDEV_PROBE_WIDTH:-1024}"
+PROBE_HEIGHT="${AQUA_FBDEV_PROBE_HEIGHT:-768}"
+PROBE_BPP="${AQUA_FBDEV_PROBE_BPP:-32}"
+
+echo "product=Aqua Linux"
+echo "tool=aqua-graphics-fbdev-present"
+echo "backend=fbdev"
+echo "device=${FBDEV_DEVICE}"
+echo "dry_run=${DRY_RUN}"
+echo "operator_confirmation_required=true"
+echo "operator_confirmed=${OPERATOR_CONFIRMED}"
+echo "headless_test_confirmed=${HEADLESS_TEST_CONFIRMED}"
+echo "test_mode=${TEST_MODE}"
+echo "bounded_frames=1"
+echo "boot_graphics=false"
+echo "autostart=false"
+echo "persistent_graphical_session_started=false"
+
+if [ ! -x "${COMPOSITOR_BIN}" ]; then
+    echo "compositor_status=missing"
+    echo "[AQUA-GATE] stage=graphics-fbdev-present status=error"
+    exit 1
+fi
+
+if [ "${DRY_RUN}" = "true" ]; then
+    if "${COMPOSITOR_BIN}" probe-fbdev-frame "${PROBE_WIDTH}" "${PROBE_HEIGHT}" "${PROBE_BPP}"; then
+        echo "fbdev_probe=ok"
+        echo "visible_frame_presented=false"
+        echo "safe_return_to_recovery=ok"
+        echo "[AQUA-GATE] stage=graphics-fbdev-present status=dry-run-ok"
+        exit 0
+    fi
+    echo "fbdev_probe=failed"
+    echo "[AQUA-GATE] stage=graphics-fbdev-present status=error"
+    exit 1
+fi
+
+if [ "${OPERATOR_CONFIRMED}" != "true" ] && \
+   { [ "${HEADLESS_TEST_CONFIRMED}" != "true" ] || [ "${TEST_MODE}" != "headless-qemu" ]; }; then
+    echo "visible_frame_presented=false"
+    echo "blocked_reason=missing-explicit-operator-confirmation"
+    echo "[AQUA-GATE] stage=graphics-fbdev-present status=blocked-operator-confirmation"
+    exit 1
+fi
+
+if [ ! -c "${FBDEV_DEVICE}" ]; then
+    echo "fbdev_status=missing"
+    echo "visible_frame_presented=false"
+    echo "[AQUA-GATE] stage=graphics-fbdev-present status=error"
+    exit 1
+fi
+
+if "${COMPOSITOR_BIN}" present-fbdev "${FBDEV_DEVICE}"; then
+    echo "fbdev_present=ok"
+    echo "visible_frame_presented=true"
+    if [ "${OPERATOR_CONFIRMED}" = "true" ]; then
+        echo 'confirmation_source=manual-operator'
+        echo 'visible_frame_observed=true'
+    else
+        echo 'confirmation_source=headless-qemu-test'
+        echo 'visible_frame_observed=false'
+    fi
+    echo "presented_frames=1"
+    echo "safe_return_to_recovery=ok"
+    echo "[AQUA-GATE] stage=graphics-fbdev-present status=ok"
+    exit 0
+fi
+
+echo "fbdev_present=failed"
+echo "visible_frame_presented=false"
+echo "[AQUA-GATE] stage=graphics-fbdev-present status=error"
+exit 1

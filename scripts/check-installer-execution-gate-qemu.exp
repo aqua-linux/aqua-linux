@@ -1,0 +1,55 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp 2 \
+    -m 1024M \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -drive file=$env(TARGET_DISK),if=virtio,format=qcow2 \
+    -drive file=$env(ARTIFACT_DISK),if=virtio,format=raw,readonly=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.installer_execution_gate=1} \
+    -serial stdio \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh} {}
+    timeout { puts stderr "Recovery marker missing"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery marker"; exit 1 }
+}
+expect -exact {aqua-linux login: }
+send -- "root\r"
+expect -exact {# }
+send -- "mkdir -p /run/aqua-installer && mount -o ro /dev/vdc /run/aqua-installer && cd /run/aqua-installer && sha256sum -c manifest.sha256\r"
+expect -exact {rootfs.tar: OK}
+expect -exact {bzImage: OK}
+expect -exact {bootx64.efi: OK}
+expect -exact {# }
+send -- {echo '[AQUA-TEST] stage=installer-artifacts-qemu status=ok device=/dev/vdc readonly=true manifest=verified artifacts=3'}
+send -- "\r"
+expect -exact {[AQUA-TEST] stage=installer-artifacts-qemu status=ok device=/dev/vdc readonly=true manifest=verified artifacts=3}
+expect -exact {# }
+send -- {AQUA_INSTALLER_QEMU_EXECUTION_ENABLE=QEMU_DISPOSABLE_TARGET_ONLY /usr/bin/aqua-installer-probe execution-gate 'ERASE /dev/vda' >/tmp/aqua-gate-wrong.log 2>&1 || echo '[AQUA-TEST] stage=installer-execution-gate-wrong-confirmation status=ok rejected=true'}
+send -- "\r"
+expect -exact {[AQUA-TEST] stage=installer-execution-gate-wrong-confirmation status=ok rejected=true}
+expect -exact {# }
+send -- {/usr/bin/aqua-installer-probe execution-gate 'ERASE /dev/vdb' >/tmp/aqua-gate-disabled.log 2>&1 || echo '[AQUA-TEST] stage=installer-execution-gate-missing-operator-enable status=ok rejected=true'}
+send -- "\r"
+expect -exact {[AQUA-TEST] stage=installer-execution-gate-missing-operator-enable status=ok rejected=true}
+expect -exact {# }
+send -- "AQUA_INSTALLER_QEMU_EXECUTION_ENABLE=QEMU_DISPOSABLE_TARGET_ONLY /usr/bin/aqua-installer-probe execution-gate 'ERASE /dev/vdb'\r"
+expect {
+    -exact {[AQUA-INSTALLER] stage=execution-gate status=authorized executed=false} {}
+    timeout { puts stderr "Installer execution gate marker missing"; exit 1 }
+    eof { puts stderr "QEMU exited before execution gate marker"; exit 1 }
+}
+expect -exact {# }
+send -- "poweroff -f\r"
+expect eof

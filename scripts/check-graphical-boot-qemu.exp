@@ -1,0 +1,663 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+proc run_shell_check {command description} {
+    send -- "$command\r"
+    expect {
+        -exact {# } {}
+        timeout { puts stderr "Timed out while $description"; exit 1 }
+        eof { puts stderr "QEMU exited while $description"; exit 1 }
+    }
+}
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp $env(CPUS) \
+    -m $env(MEMORY) \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.boot_graphics=1} \
+    -serial stdio \
+    -monitor unix:$env(MONITOR_SOCKET),server=on,wait=off \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -device virtio-keyboard-pci \
+    -device virtio-mouse-pci \
+    -netdev user,id=net0 \
+    -device virtio-net-pci,netdev=net0 \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=graphical-session-activation status=started mode=supervised boot_graphics=true recovery_tty=true} {}
+    timeout { puts stderr "Timed out waiting for opt-in graphical boot marker"; exit 1 }
+    eof { puts stderr "QEMU exited before opt-in graphical boot marker"; exit 1 }
+}
+
+expect {
+    -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh} {}
+    timeout { puts stderr "Recovery TTY marker missing during graphical boot"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery TTY marker"; exit 1 }
+}
+
+expect {
+    -exact {aqua-linux login: } {}
+    timeout { puts stderr "Timed out waiting for serial login during graphical boot"; exit 1 }
+    eof { puts stderr "QEMU exited before serial login"; exit 1 }
+}
+send -- "root\r"
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Timed out waiting for recovery shell during graphical boot"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery shell"; exit 1 }
+}
+
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'stage=drm-wayland-session status=active' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the first graphical session"
+run_shell_check {ok=1; pid="$(cat /run/aqua/graphical-session-supervisor.pid 2>/dev/null)"} "reading the first supervisor PID"
+run_shell_check {grep -Fq 'stage=graphical-session-supervisor status=running attempt=1 restart=0 device=/dev/dri/card0' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the first supervisor marker"
+run_shell_check {grep -Fq 'stage=drm-wayland-session status=active' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the first DRM session marker"
+run_shell_check {grep -Fq 'boot_graphics=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'autostart=true' /run/aqua/graphical-session-supervisor.log || ok=0} "checking graphical boot policy"
+run_shell_check {grep -Fq 'persistent_graphical_session_started=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'session_lifetime_policy=persistent-until-stop' /run/aqua/graphical-session-supervisor.log || ok=0} "checking persistent lifetime policy"
+run_shell_check {grep -Fq 'session_scenario=desktop-event-loop' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'external_fixture_clients_started=false' /run/aqua/graphical-session-supervisor.log || ok=0} "checking production desktop scenario"
+run_shell_check {grep -Fq 'state=running' /run/aqua/graphical-session-supervisor.state || ok=0; kill -0 "$pid" 2>/dev/null || ok=0} "checking the first running process"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=graphical-boot-qemu status=ok activation=supervised drm_wayland=active persistent=true scenario=desktop-event-loop fixtures=false recovery_tty=available'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=graphical-boot-qemu status=ok activation=supervised drm_wayland=active persistent=true scenario=desktop-event-loop fixtures=false recovery_tty=available} {}
+    timeout { puts stderr "Opt-in graphical boot did not become active"; exit 1 }
+    eof { puts stderr "QEMU exited before opt-in graphical boot verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Opt-in graphical boot verification did not return to shell"; exit 1 }
+    eof { puts stderr "QEMU exited after opt-in graphical boot verification"; exit 1 }
+}
+
+run_shell_check {ok=1; grep -Fq 'desktop_system_overview_texture_ready=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_system_overview_clock=' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_system_overview_kernel=' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_system_overview_memory_percent=' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_system_overview_visible=true' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the real system overview GPU panel"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-system-overview-qemu status=ok data=clock,kernel,uptime,load,memory gpu_texture=true visible=true'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-system-overview-qemu status=ok data=clock,kernel,uptime,load,memory gpu_texture=true visible=true} {}
+    timeout { puts stderr "Real system overview was not GPU composited"; exit 1 }
+    eof { puts stderr "QEMU exited before system overview verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "System overview verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after system overview verification"; exit 1 }
+}
+
+run_shell_check {ok=1; grep -Fq 'desktop_dock_texture_ready=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_dock_item_count=4' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_dock_running_indicators=0' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the functional dock GPU layer"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-dock-qemu status=ok items=4 gpu_texture=true running_indicators=true'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-dock-qemu status=ok items=4 gpu_texture=true running_indicators=true} {}
+    timeout { puts stderr "Dock content was not GPU composited"; exit 1 }
+    eof { puts stderr "QEMU exited before dock verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Dock verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after dock verification"; exit 1 }
+}
+
+after 500
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(CLEAN_DESKTOP_SCREENSHOT) $env(CLEAN_DESKTOP_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU clean desktop screendump failed: $capture_error"
+    exit 1
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) dock-launcher-toggle} input_error]} {
+    puts stderr "QEMU dock launcher input injection failed: $input_error"
+    exit 1
+}
+
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'desktop_dock_activation=launcher' /run/aqua/graphical-session-supervisor.log)" -lt 2 ]; do sleep 1; i=$((i + 1)); done} "waiting for dock launcher toggles"
+run_shell_check {ok=1; [ "$(grep -Fc 'desktop_dock_activation=launcher' /run/aqua/graphical-session-supervisor.log)" -ge 2 ] || ok=0} "checking dock launcher input"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-dock-input-qemu status=ok item=launcher toggles=2 bounded=true'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-dock-input-qemu status=ok item=launcher toggles=2 bounded=true} {}
+    timeout { puts stderr "Dock launcher input did not toggle twice"; exit 1 }
+    eof { puts stderr "QEMU exited before dock input verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Dock input verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after dock input verification"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) launcher-after-dock} input_error]} {
+    puts stderr "QEMU production launcher input injection failed: $input_error"
+    exit 1
+}
+
+run_shell_check {i=0; while [ "$i" -lt 60 ] && ! grep -Fq 'desktop_event_client_surface_count=1' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the runtime Files repaint"
+run_shell_check {printf '%s\n' '[AQUA-DIAG] files-launch'; grep -E 'aqua_launcher_|desktop_launch_|desktop_event_launcher_visible=|desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 40} "reporting the Files launch state"
+run_shell_check {ok=1; grep -Fq 'desktop_launch_request_app=files' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_preflight=accepted' /run/aqua/graphical-session-supervisor.log || ok=0} "checking runtime Files preflight"
+run_shell_check {grep -Fq 'desktop_launch_surface_app_id=aqua.files' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_surface_ready=true' /run/aqua/graphical-session-supervisor.log || ok=0} "checking runtime Files surface"
+run_shell_check {grep -Fq 'desktop_event_repaint=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_event_client_surface_count=1' /run/aqua/graphical-session-supervisor.log || ok=0} "checking runtime Files repaint"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-runtime-launch-qemu status=ok app=files surface=aqua.files repaint=true supervised=true'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-runtime-launch-qemu status=ok app=files surface=aqua.files repaint=true supervised=true} {}
+    timeout { puts stderr "Production launcher did not start and repaint Aqua Files"; exit 1 }
+    eof { puts stderr "QEMU exited before runtime launcher verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Runtime launcher verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after runtime launcher verification"; exit 1 }
+}
+
+run_shell_check {ok=1; grep -Fq 'desktop_notification_overlay_texture_ready=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_notification_visible=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_notification_active_id=1' /run/aqua/graphical-session-supervisor.log || ok=0} "checking runtime notification toast"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-notification-qemu status=ok source=launcher toast=visible gpu_texture=true active_id=1'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-notification-qemu status=ok source=launcher toast=visible gpu_texture=true active_id=1} {}
+    timeout { puts stderr "Runtime notification toast was not GPU composited"; exit 1 }
+    eof { puts stderr "QEMU exited before runtime notification verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Runtime notification verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after runtime notification verification"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) notification-promote} input_error]} {
+    puts stderr "QEMU notification promotion input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_notification_dismissed=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for pointer notification dismissal"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_notification_active_id=2' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for queued notification promotion"
+run_shell_check {printf '%s\n' '[AQUA-DIAG] notification-promotion'; grep -E 'desktop_icon_context_action=|desktop_notification_|desktop_primary_pointer_press|aqua_desktop_pointer' /run/aqua/graphical-session-supervisor.log | tail -n 48} "reporting notification promotion state"
+run_shell_check {ok=1; grep -Fq 'desktop_icon_context_action=properties icon=files' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_notification_dismissed=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_notification_active_id=2' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_notification_queued=0' /run/aqua/graphical-session-supervisor.log || ok=0} "checking FIFO notification promotion"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-notification-promotion-qemu status=ok dismissed=1 promoted=2 queued=0 pointer=true'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-notification-promotion-qemu status=ok dismissed=1 promoted=2 queued=0 pointer=true} {}
+    timeout { puts stderr "Pointer dismissal did not promote the queued notification"; exit 1 }
+    eof { puts stderr "QEMU exited before notification promotion verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Notification promotion verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after notification promotion verification"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) desktop-context} input_error]} {
+    puts stderr "QEMU desktop icon context input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_icon_selected=0' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the desktop icon selection"
+run_shell_check {ok=1; grep -Fq 'desktop_icon_selected=0' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_icons_texture_ready=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_icons_selected=0' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the desktop icon GPU interaction"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-icons-qemu status=ok selection=files gpu_texture=true'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-icons-qemu status=ok selection=files gpu_texture=true} {}
+    timeout { puts stderr "Desktop icon selection was not GPU composited"; exit 1 }
+    eof { puts stderr "QEMU exited before desktop icon verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Desktop icon verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after desktop icon verification"; exit 1 }
+}
+
+run_shell_check {i=0; while [ "$i" -lt 60 ] && ! grep -Fq 'desktop_launch_surface_app_id=aqua.properties' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Properties surface"
+run_shell_check {ok=1; grep -Fq 'desktop_launch_request_app=properties' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_preflight=accepted' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_surface_app_id=aqua.properties' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Properties launch"
+run_shell_check {grep -Fq 'aqua_properties_target=files' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_properties_kind=Folder' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_properties_location=/home/aqua' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Properties target metadata"
+run_shell_check {[ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=2' ] || ok=0} "checking the Properties composition"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-qemu status=ok target=files surface=aqua.properties kind=Folder location=/home/aqua clients=2'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-properties-qemu status=ok target=files surface=aqua.properties kind=Folder location=/home/aqua clients=2} {}
+    timeout { puts stderr "Desktop Properties did not open as a real Wayland surface"; exit 1 }
+    eof { puts stderr "QEMU exited before Properties verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Properties verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Properties verification"; exit 1 }
+}
+
+run_shell_check {properties_refresh_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Properties repaint baseline"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) properties-refresh} input_error]} {
+    puts stderr "QEMU Properties refresh input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_properties_refresh_generation=1' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Properties F5 refresh"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_client_surface_count=2' ]; do sleep 1; i=$((i + 1)); done} "waiting for the refreshed Properties composition"
+run_shell_check {i=0; while [ "$i" -lt 60 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$properties_refresh_repaint_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Properties repaint to complete"
+run_shell_check {ok=1; grep -Fq 'aqua_properties_primary_action=refresh-contents' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_properties_action=refresh-contents' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_properties_refresh_generation=1' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_properties_refresh_status=Available' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Properties F5 refresh"
+run_shell_check {[ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=2' ] || ok=0} "checking the refreshed Properties composition"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-refresh-qemu status=ok input=f5 action=refresh-contents generation=1 repaint=true clients=2'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-properties-refresh-qemu status=ok input=f5 action=refresh-contents generation=1 repaint=true clients=2} {}
+    timeout { puts stderr "Properties F5 refresh was not committed and repainted"; exit 1 }
+    eof { puts stderr "QEMU exited before Properties refresh verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Properties refresh verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Properties refresh verification"; exit 1 }
+}
+
+after 500
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) close-properties} input_error]} {
+    puts stderr "QEMU Properties close shortcut injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 60 ] && ! grep -Fq 'desktop_runtime_process_exited_properties=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Properties close lifecycle"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_client_surface_count=1' ]; do sleep 1; i=$((i + 1)); done} "waiting for the Properties stale surface cleanup"
+run_shell_check {ok=1; grep -Fq 'desktop_runtime_process_exit_properties_success=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_runtime_process_properties_restart_policy=never' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_runtime_process_properties_restart_attempted=false' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Properties exit policy"
+run_shell_check {[ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=1' ] || ok=0} "checking the Properties stale surface cleanup"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-close-qemu status=ok close=alt-f4 exit=clean stale_surface=removed restart=never clients=1'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-properties-close-qemu status=ok close=alt-f4 exit=clean stale_surface=removed restart=never clients=1} {}
+    timeout { puts stderr "Properties close lifecycle was not completed"; exit 1 }
+    eof { puts stderr "QEMU exited before Properties close verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Properties close verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Properties close verification"; exit 1 }
+}
+
+run_shell_check {mkdir -p /home/aqua/Trash/folder; printf '%s\n' discard > /home/aqua/Trash/note.txt} "seeding the confined Trash fixture"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) trash-empty} input_error]} {
+    puts stderr "QEMU Trash confirmation input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_icon_context_action=trash-emptied count=2 status=ok' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for confirmed Trash emptying"
+run_shell_check {ok=1; grep -Fq 'desktop_icon_context_action=trash-empty-confirmation count=2 refresh_ok=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_icon_context_action=trash-emptied count=2 status=ok' /run/aqua/graphical-session-supervisor.log || ok=0; [ -d /home/aqua/Trash ] || ok=0; [ -z "$(find /home/aqua/Trash -mindepth 1 -maxdepth 1 -print -quit)" ] || ok=0} "checking confirmed and root-confined Trash emptying"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-trash-qemu status=ok confirmation=true removed=2 remaining=0 root_confined=true'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-trash-qemu status=ok confirmation=true removed=2 remaining=0 root_confined=true} {}
+    timeout { puts stderr "Trash was not emptied through the confirmed desktop context action"; exit 1 }
+    eof { puts stderr "QEMU exited before Trash verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Trash verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Trash verification"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) settings} input_error]} {
+    puts stderr "QEMU production Settings launcher input injection failed: $input_error"
+    exit 1
+}
+
+run_shell_check {i=0; while [ "$i" -lt 60 ] && ! grep -Fq 'desktop_launch_surface_app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the runtime Settings surface"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_client_surface_count=2' ]; do sleep 1; i=$((i + 1)); done} "waiting for the runtime Settings composition"
+run_shell_check {printf '%s\n' '[AQUA-DIAG] settings-launch'; grep -E 'aqua_launcher_pointer|desktop_launch_|desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 16} "reporting the Settings launch state"
+run_shell_check {ok=1; grep -Fq 'desktop_launch_request_app=settings' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_surface_app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log || ok=0} "checking runtime Settings surface"
+run_shell_check {[ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=2' ] || ok=0; grep -Fq 'desktop_event_launcher_visible=false' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_surface_focused=true' /run/aqua/graphical-session-supervisor.log || ok=0} "checking runtime Settings composition and focus"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-runtime-settings-qemu status=ok app=settings surface=aqua.settings clients=2 launcher_closed=true'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-runtime-settings-qemu status=ok app=settings surface=aqua.settings clients=2 launcher_closed=true} {}
+    timeout { puts stderr "Production launcher did not start and repaint Aqua Settings"; exit 1 }
+    eof { puts stderr "QEMU exited before runtime Settings verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Runtime Settings verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after runtime Settings verification"; exit 1 }
+}
+
+run_shell_check {before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; settings_before="$(grep -Fc 'aqua_settings_keyboard' /run/aqua/graphical-session-supervisor.log)"} "recording the pre-reset Settings state"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) settings-reset} input_error]} {
+    puts stderr "QEMU Settings reset input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'aqua_settings_keyboard' /run/aqua/graphical-session-supervisor.log)" -le "$settings_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Settings focus probe"
+run_shell_check {latest_settings="$(grep -F 'aqua_settings_keyboard' /run/aqua/graphical-session-supervisor.log | tail -n 1)"; printf '[AQUA-DIAG] settings-focus latest=%s\n' "$latest_settings"} "reporting the Settings focus probe"
+run_shell_check {ok=1; printf '%s\n' "$latest_settings" | grep -Fq 'update=CategorySelected(0)' || ok=0} "checking the Settings focus and reset"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-runtime-settings-focus-qemu status=ok app=settings input=home category=0'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-runtime-settings-focus-qemu status=ok app=settings input=home category=0} {}
+    timeout { puts stderr "Settings did not accept the deterministic focus probe"; exit 1 }
+    eof { puts stderr "QEMU exited before Settings focus verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Settings focus verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Settings focus verification"; exit 1 }
+}
+
+run_shell_check {before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the pre-interaction repaint sequence"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) settings-interaction} input_error]} {
+    puts stderr "QEMU Settings interaction injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -F 'aqua_settings_keyboard' /run/aqua/graphical-session-supervisor.log | grep -Fq 'update=CategorySelected(4)'; do sleep 1; i=$((i + 1)); done} "waiting for the complete Settings keyboard interaction"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Settings damage repaint"
+run_shell_check {ok=1; grep -F 'aqua_settings_keyboard' /run/aqua/graphical-session-supervisor.log | grep -Fq 'update=CategorySelected(4)' || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$before" ] || ok=0} "checking the Settings damage repaint"
+run_shell_check {grep -Fq 'desktop_event_surface_revision_changed=true' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the surface revision repaint trigger"
+run_shell_check {grep -E 'gpu_(native_render|xrgb_pack|native_frame_total)_ms=' /run/aqua/graphical-session-supervisor.log | tail -n 12} "reporting native frame timings"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-runtime-damage-qemu status=ok app=settings interaction=keyboard-category-selected repaint=incremented revision=changed'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-runtime-damage-qemu status=ok app=settings interaction=keyboard-category-selected repaint=incremented revision=changed} {}
+    timeout { puts stderr "Settings damage did not trigger a production repaint"; exit 1 }
+    eof { puts stderr "QEMU exited before Settings damage repaint verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Settings damage verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Settings damage verification"; exit 1 }
+}
+
+run_shell_check {burst_keyboard_before="$(grep -Fc 'desktop_keyboard_forward_event' /run/aqua/graphical-session-supervisor.log)"; burst_pointer_before="$(grep -Fc 'aqua_settings_pointer_motion' /run/aqua/graphical-session-supervisor.log)"} "recording the pre-burst input counters"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) input-burst} input_error]} {
+    puts stderr "QEMU sustained input burst injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ]; do keyboard_now="$(grep -Fc 'desktop_keyboard_forward_event' /run/aqua/graphical-session-supervisor.log)"; pointer_now="$(grep -Fc 'aqua_settings_pointer_motion' /run/aqua/graphical-session-supervisor.log)"; [ "$((keyboard_now - burst_keyboard_before))" -ge 24 ] && [ "$((pointer_now - burst_pointer_before))" -ge 1 ] && break; sleep 1; i=$((i + 1)); done} "waiting for the sustained Settings input burst"
+run_shell_check {ok=1; keyboard_delta="$((keyboard_now - burst_keyboard_before))"; pointer_delta="$((pointer_now - burst_pointer_before))"; printf '[AQUA-DIAG] input-burst keyboard_events=%s pointer_motion_events=%s pointer_commands=17\n' "$keyboard_delta" "$pointer_delta"; [ "$keyboard_delta" -ge 24 ] || ok=0; [ "$pointer_delta" -ge 1 ] || ok=0; [ "$(grep -F 'aqua_settings_keyboard' /run/aqua/graphical-session-supervisor.log | tail -n 1 | sed -n 's/.*update=CategorySelected(\([0-9][0-9]*\)).*/\1/p')" = 4 ] || ok=0} "checking the sustained Settings input burst"
+send -- {[ "$ok" = 1 ] && echo "[AQUA-TEST] stage=desktop-input-burst-qemu status=ok keyboard_events=$keyboard_delta pointer_commands=17 pointer_motion_events=$pointer_delta pointer_coalescing=allowed category=4 monitor_connection=persistent"}
+send -- "\r"
+
+expect {
+    -re {\[AQUA-TEST\] stage=desktop-input-burst-qemu status=ok keyboard_events=[2-9][0-9]+ pointer_commands=17 pointer_motion_events=[1-9][0-9]* pointer_coalescing=allowed category=4 monitor_connection=persistent} {}
+    timeout { puts stderr "Sustained keyboard and pointer burst was not fully dispatched"; exit 1 }
+    eof { puts stderr "QEMU exited before sustained input burst verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Sustained input burst verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after sustained input burst verification"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) close-settings} input_error]} {
+    puts stderr "QEMU Settings close shortcut injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_runtime_process_exited_settings=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Settings close lifecycle"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_client_surface_count=1' ]; do sleep 1; i=$((i + 1)); done} "waiting for the Settings stale surface cleanup"
+run_shell_check {ok=1; grep -Fq 'desktop_close_shortcut_received=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_close_request_sent=true' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Settings close request"
+run_shell_check {grep -Fq 'desktop_runtime_process_exit_settings_success=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_runtime_process_settings_restart_policy=never' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_runtime_process_settings_restart_attempted=false' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Settings exit policy"
+run_shell_check {[ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=1' ] || ok=0} "checking the Settings stale surface cleanup"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-runtime-close-qemu status=ok app=settings close=alt-f4 exit=clean stale_surface=removed restart=never clients=1'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-runtime-close-qemu status=ok app=settings close=alt-f4 exit=clean stale_surface=removed restart=never clients=1} {}
+    timeout { puts stderr "Settings close lifecycle was not completed"; exit 1 }
+    eof { puts stderr "QEMU exited before Settings close lifecycle verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Settings close verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Settings close verification"; exit 1 }
+}
+
+run_shell_check {files_pid="$(awk -F= '/desktop_launch_process_pid=/{print $2; exit}' /run/aqua/graphical-session-supervisor.log)"; test -n "$files_pid"; kill -9 "$files_pid"} "forcing the unexpected Files exit"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_runtime_process_exited_files=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the unexpected Files exit"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_client_surface_count=0' ]; do sleep 1; i=$((i + 1)); done} "waiting for the Files stale surface cleanup"
+run_shell_check {ok=1; grep -Fq 'desktop_runtime_process_exit_files_success=false' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_runtime_process_files_restart_policy=never' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_runtime_process_files_restart_attempted=false' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Files unexpected-exit policy"
+run_shell_check {grep -Fq 'desktop_runtime_process_active_count=0' /run/aqua/graphical-session-supervisor.log || ok=0; [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=0' ] || ok=0} "checking the Files stale surface cleanup"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-runtime-unexpected-exit-qemu status=ok app=files exit=forced stale_surface=removed restart=never active_count=0 clients=0'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-runtime-unexpected-exit-qemu status=ok app=files exit=forced stale_surface=removed restart=never active_count=0 clients=0} {}
+    timeout { puts stderr "Files unexpected-exit lifecycle was not completed"; exit 1 }
+    eof { puts stderr "QEMU exited before Files unexpected-exit verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Files unexpected-exit verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Files unexpected-exit verification"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) terminal-launch} input_error]} {
+    puts stderr "QEMU Terminal launcher input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 60 ] && ! grep -Fq 'desktop_launch_surface_app_id=aqua.terminal' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Aqua Terminal surface"
+run_shell_check {ok=1; grep -Fq 'desktop_launch_request_app=terminal' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_preflight=accepted' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_terminal_pty=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_terminal_emulator=vt100' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Aqua Terminal runtime contract"
+run_shell_check {grep -Fc 'aqua_terminal_pty_output_bytes=' /run/aqua/graphical-session-supervisor.log > /run/aqua/terminal-output-count || true} "recording the initial terminal output count"
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) terminal-command} input_error]} {
+    puts stderr "QEMU Terminal command input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; before="$(cat /run/aqua/terminal-output-count)"; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'aqua_terminal_pty_output_bytes=' /run/aqua/graphical-session-supervisor.log)" -le "$before" ]; do sleep 1; i=$((i + 1)); done} "waiting for PTY command output"
+run_shell_check {grep -Fq 'aqua_terminal_input_enter=true' /run/aqua/graphical-session-supervisor.log || ok=0; [ "$(grep -Fc 'aqua_terminal_pty_output_bytes=' /run/aqua/graphical-session-supervisor.log)" -gt "$(cat /run/aqua/terminal-output-count)" ] || ok=0; grep -Fq 'aqua_terminal_resize_protocol=true' /run/aqua/graphical-session-supervisor.log || ok=0} "checking terminal input, output, and resize protocol"
+
+after 500
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(TERMINAL_SCREENSHOT) $env(TERMINAL_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU Aqua Terminal screendump failed: $capture_error"
+    exit 1
+}
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-terminal-qemu status=ok app=terminal surface=aqua.terminal pty=true emulator=vt100 command=true resize=protocol-ready'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-terminal-qemu status=ok app=terminal surface=aqua.terminal pty=true emulator=vt100 command=true resize=protocol-ready} {}
+    timeout { puts stderr "Aqua Terminal did not execute through its PTY"; exit 1 }
+    eof { puts stderr "QEMU exited before Aqua Terminal verification"; exit 1 }
+}
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Aqua Terminal verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Aqua Terminal verification"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) close-terminal} input_error]} {
+    puts stderr "QEMU Terminal close shortcut injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_runtime_process_exited_terminal=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Terminal close lifecycle"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_client_surface_count=0' ]; do sleep 1; i=$((i + 1)); done} "waiting for the Terminal stale surface cleanup"
+run_shell_check {grep -Fq 'desktop_runtime_process_exit_terminal_success=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_runtime_process_terminal_restart_policy=never' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Terminal close policy"
+
+run_shell_check {grep -Fc 'desktop_session_menu_overlay_texture_ready=true' /run/aqua/graphical-session-supervisor.log > /run/aqua/session-menu-overlay-count || true} "recording the previous session menu repaint count"
+run_shell_check {grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log > /run/aqua/session-menu-frame-count || true} "recording the previous completed frame count"
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) session-open} input_error]} {
+    puts stderr "QEMU session menu open input injection failed: $input_error"
+    exit 1
+}
+
+run_shell_check {i=0; before="$(cat /run/aqua/session-menu-frame-count)"; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$before" ]; do sleep 1; i=$((i + 1)); done; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$before" ]} "waiting for the completed session menu GPU repaint"
+run_shell_check {grep -Fc 'desktop_session_menu_overlay_texture_ready=true' /run/aqua/graphical-session-supervisor.log > /run/aqua/session-menu-overlay-count || true} "recording the open session menu repaint count"
+run_shell_check {grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log > /run/aqua/session-menu-frame-count || true} "recording the open session menu completed frame count"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) session-recovery-arm} input_error]} {
+    puts stderr "QEMU session Recovery selection input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; before="$(cat /run/aqua/session-menu-frame-count)"; while [ "$i" -lt 30 ]; do count="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; selected="$(grep -F 'desktop_session_menu_overlay_selected=' /run/aqua/graphical-session-supervisor.log | tail -n 1)"; confirmation="$(grep -F 'desktop_session_menu_overlay_confirmation=' /run/aqua/graphical-session-supervisor.log | tail -n 1)"; [ "$count" -gt "$before" ] && [ "$selected" = 'desktop_session_menu_overlay_selected=recovery' ] && [ "$confirmation" = 'desktop_session_menu_overlay_confirmation=true' ] && break; sleep 1; i=$((i + 1)); done; [ "$count" -gt "$before" ] && [ "$selected" = 'desktop_session_menu_overlay_selected=recovery' ] && [ "$confirmation" = 'desktop_session_menu_overlay_confirmation=true' ]} "waiting for the completed confirmed Recovery menu repaint"
+run_shell_check {grep -E 'desktop_session_menu_(selected|confirmation)=' /run/aqua/graphical-session-supervisor.log | tail -n 20} "reporting the session menu event history"
+send -- {[ "$(grep -F 'desktop_session_menu_selected=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_session_menu_selected=recovery' ] && [ "$(grep -F 'desktop_session_menu_confirmation=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_session_menu_confirmation=recovery' ] && echo '[AQUA-TEST] stage=desktop-session-menu-state-qemu status=ok selected=recovery confirmation=recovery'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-session-menu-state-qemu status=ok selected=recovery confirmation=recovery} {}
+    timeout { puts stderr "Session menu did not reach confirmed Recovery state"; exit 1 }
+    eof { puts stderr "QEMU exited before confirmed Recovery state"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Confirmed Recovery state did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after confirmed Recovery state"; exit 1 }
+}
+after 500
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(SESSION_MENU_SCREENSHOT) $env(SESSION_MENU_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU session menu screendump failed: $capture_error"
+    exit 1
+}
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) session-recovery-confirm} input_error]} {
+    puts stderr "QEMU session Recovery completion input injection failed: $input_error"
+    exit 1
+}
+
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_session_action_execution=return-to-recovery' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_session_action_execution=return-to-recovery' /run/aqua/graphical-session-supervisor.log} "waiting for the confirmed Recovery action"
+run_shell_check {grep -E 'desktop_session_(menu_key_code|action_queued)=' /run/aqua/graphical-session-supervisor.log | tail -n 30} "reporting the session menu input history"
+run_shell_check {grep -E 'desktop_input_action_yield=|panicked at|stage=graphical-session-supervisor' /run/aqua/graphical-session-supervisor.log | tail -n 30} "reporting the session action yield history"
+run_shell_check {grep -E 'desktop_session_action_|gpu_readback_session_menu_native_composited=' /run/aqua/graphical-session-supervisor.log | tail -n 30} "reporting the session action execution history"
+run_shell_check {ok=1; grep -Fq 'desktop_session_menu_selected=recovery' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_session_menu_confirmation=recovery' /run/aqua/graphical-session-supervisor.log || ok=0} "checking session menu selection and confirmation"
+run_shell_check {grep -Fq 'desktop_session_action_requested=recovery' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_session_action_confirmed=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_session_action_execution=return-to-recovery' /run/aqua/graphical-session-supervisor.log || ok=0} "checking Recovery action execution"
+run_shell_check {grep -Fq 'desktop_session_menu_overlay_texture_ready=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Eq 'desktop_session_menu_overlay_primitives=1[1-9]|desktop_session_menu_overlay_primitives=[2-9][0-9]' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'gpu_readback_session_menu_native_composited=true' /run/aqua/graphical-session-supervisor.log || ok=0} "checking session menu GPU content texture and native scanout composition"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-session-menu-qemu status=ok actions=logout,restart,shutdown,recovery confirmation=true selected=recovery execution=return-to-recovery'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-session-menu-qemu status=ok actions=logout,restart,shutdown,recovery confirmation=true selected=recovery execution=return-to-recovery} {}
+    timeout { puts stderr "Session menu Recovery action was not completed"; exit 1 }
+    eof { puts stderr "QEMU exited before session menu verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Session menu verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after session menu verification"; exit 1 }
+}
+
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'state=stopped' /run/aqua/graphical-session-supervisor.state; do sleep 1; i=$((i + 1)); done} "waiting for Recovery action cleanup"
+run_shell_check {ok=1; test ! -e /run/aqua/graphical-session-supervisor.pid || ok=0; grep -Fq 'state=stopped' /run/aqua/graphical-session-supervisor.state || ok=0} "checking first stop state"
+run_shell_check {grep -Fq 'crtc_restored=true' /run/aqua/graphical-session-supervisor.log || ok=0} "checking first KMS cleanup"
+run_shell_check {grep -Fq 'desktop_runtime_process_exited_files=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_runtime_process_exited_settings=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_runtime_process_active_count=0' /run/aqua/graphical-session-supervisor.log || ok=0} "checking runtime application process cleanup"
+run_shell_check {grep -Fq 'gbm_scanout_buffers_released=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'graceful_stop_completed=true' /run/aqua/graphical-session-supervisor.log || ok=0} "checking first GBM cleanup"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-runtime-cleanup-qemu status=ok apps=files,settings lifecycle_clean=true active_count=0 stale_surfaces=0'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-runtime-cleanup-qemu status=ok apps=files,settings lifecycle_clean=true active_count=0 stale_surfaces=0} {}
+    timeout { puts stderr "Runtime application processes were not cleaned up"; exit 1 }
+    eof { puts stderr "QEMU exited before runtime application cleanup verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Runtime Files cleanup verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after runtime Files cleanup verification"; exit 1 }
+}
+
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=graphical-stop-qemu status=ok clients_stopped=true kms_restored=true gbm_released=true pid_cleaned=true recovery_return=ok'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=graphical-stop-qemu status=ok clients_stopped=true kms_restored=true gbm_released=true pid_cleaned=true recovery_return=ok} {}
+    timeout { puts stderr "Missing graphical stop QEMU verification marker"; exit 1 }
+    eof { puts stderr "QEMU exited before graphical stop QEMU marker"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Graphical stop marker did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after graphical stop marker"; exit 1 }
+}
+
+send -- {/usr/bin/aqua-graphical-session-boot}
+send -- "\r"
+
+expect {
+    -re {\[AQUA-BOOT\] stage=graphical-session-activation status=started mode=supervised pid=[0-9]+ boot_graphics=true autostart=true recovery_tty=true} {}
+    timeout { puts stderr "Second graphical session did not start"; exit 1 }
+    eof { puts stderr "QEMU exited before second graphical session start"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Second graphical session start did not return to shell"; exit 1 }
+    eof { puts stderr "QEMU exited after second graphical session start"; exit 1 }
+}
+
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'stage=drm-wayland-session status=active' /run/aqua/graphical-session-supervisor.log)" -lt 2 ]; do sleep 1; i=$((i + 1)); done} "waiting for the second graphical session"
+run_shell_check {ok=1; pid="$(cat /run/aqua/graphical-session-supervisor.pid 2>/dev/null)"} "reading the second supervisor PID"
+run_shell_check {[ "$(grep -Fc 'stage=drm-wayland-session status=active' /run/aqua/graphical-session-supervisor.log)" -ge 2 ] || ok=0; [ "$(grep -Fc 'session_lifetime_policy=persistent-until-stop' /run/aqua/graphical-session-supervisor.log)" -ge 2 ] || ok=0} "checking the second persistent DRM session"
+run_shell_check {grep -Fq 'state=running' /run/aqua/graphical-session-supervisor.state || ok=0; kill -0 "$pid" 2>/dev/null || ok=0} "checking the second running process"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=graphical-restart-qemu status=ok second_session=active stale_pid=false stale_drm=false stale_socket=false'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=graphical-restart-qemu status=ok second_session=active stale_pid=false stale_drm=false stale_socket=false} {}
+    timeout { puts stderr "Second graphical session did not become active"; exit 1 }
+    eof { puts stderr "QEMU exited before second graphical session verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Second graphical session verification did not return to shell"; exit 1 }
+    eof { puts stderr "QEMU exited after second graphical session verification"; exit 1 }
+}
+
+send -- {/usr/bin/aqua-graphical-session-stop}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-SESSION] stage=graphical-session-stop status=ok supervisor_stopped=true pid_cleaned=true kms_restored=true clients_stopped=true recovery_return=ok} {}
+    timeout { puts stderr "Second graphical session did not stop cleanly"; exit 1 }
+    eof { puts stderr "QEMU exited before second graphical session cleanup"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Second graphical stop did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after second graphical stop"; exit 1 }
+}
+
+run_shell_check {ok=1; test ! -e /run/aqua/graphical-session-supervisor.pid || ok=0; test ! -e /run/aqua/aqua-wayland-drm-0 || ok=0} "checking final PID and socket cleanup"
+run_shell_check {[ "$(grep -Fc 'graceful_stop_completed=true' /run/aqua/graphical-session-supervisor.log)" -ge 2 ] || ok=0; [ "$(grep -Fc 'external_fixture_clients_started=false' /run/aqua/graphical-session-supervisor.log)" -ge 2 ] || ok=0} "checking two-cycle production cleanup"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=graphical-session-cycle-qemu status=ok starts=2 stops=2 sockets_clean=true pids_clean=true clients_clean=true drm_clean=true recovery_return=ok'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=graphical-session-cycle-qemu status=ok starts=2 stops=2 sockets_clean=true pids_clean=true clients_clean=true drm_clean=true recovery_return=ok} {}
+    timeout { puts stderr "Graphical start-stop-start cycle did not clean up"; exit 1 }
+    eof { puts stderr "QEMU exited before graphical cycle marker"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Graphical cycle marker did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after graphical cycle marker"; exit 1 }
+}
+
+send -- "poweroff -f\r"
+expect eof

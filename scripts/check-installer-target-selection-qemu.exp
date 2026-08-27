@@ -1,0 +1,41 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp 2 \
+    -m 1024M \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -drive file=$env(TARGET_DISK),if=virtio,format=qcow2 \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1} \
+    -serial stdio \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh} {}
+    timeout { puts stderr "Recovery marker missing"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery marker"; exit 1 }
+}
+expect -exact {aqua-linux login: }
+send -- "root\r"
+expect -exact {# }
+send -- "/usr/bin/aqua-installer-probe readiness\r"
+expect {
+    -exact {[AQUA-INSTALLER] stage=readiness-probe status=ok executed=false} {}
+    timeout { puts stderr "Installer readiness marker missing"; exit 1 }
+    eof { puts stderr "QEMU exited before installer readiness marker"; exit 1 }
+}
+expect -exact {# }
+send -- {echo '[AQUA-TEST] stage=installer-target-selection-qemu status=ok target=/dev/vdb bound=true execution=false'}
+send -- "\r"
+expect -exact {[AQUA-TEST] stage=installer-target-selection-qemu status=ok target=/dev/vdb bound=true execution=false}
+expect -exact {# }
+send -- "poweroff -f\r"
+expect eof

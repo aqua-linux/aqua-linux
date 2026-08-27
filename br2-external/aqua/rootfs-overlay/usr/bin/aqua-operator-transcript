@@ -1,0 +1,128 @@
+#!/bin/sh
+
+set -u
+
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+TRANSCRIPT_FILE="${AQUA_OPERATOR_TRANSCRIPT_FILE:-${RUNTIME_DIR}/operator-transcript.txt}"
+HELP_BIN="${AQUA_RECOVERY_HELP_BIN:-/usr/bin/aqua-recovery-help}"
+LAUNCH_BIN="${AQUA_VISIBLE_PREVIEW_LAUNCH_BIN:-/usr/bin/aqua-visible-preview-launch}"
+
+failures=0
+
+need_file() {
+    label="$1"
+    path="$2"
+
+    if [ -x "${path}" ]; then
+        echo "${label}=ok"
+    else
+        echo "${label}=missing"
+        failures=$((failures + 1))
+    fi
+}
+
+need_log() {
+    label="$1"
+    log="$2"
+    needle="$3"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=missing"
+        failures=$((failures + 1))
+    fi
+}
+
+mark() {
+    status="$1"
+    echo "[AQUA-RECOVERY] stage=operator-transcript status=${status}"
+}
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-operator-transcript"
+echo "transcript_status=qemu-safe-operator-transcript-ready"
+echo "mode=text-recovery"
+echo "launch_mode=dry-run"
+echo "operator_controlled=true"
+echo "manual_start_required=true"
+echo "autostart=false"
+echo "boot_graphics=false"
+echo "desktop_shell_started=false"
+echo "host_tool_packaged=false"
+echo "qemu_window_started=false"
+echo "preview_window_started=false"
+echo "fallback_tty_available=true"
+echo "runtime_dir=${RUNTIME_DIR}"
+echo "transcript_file=${TRANSCRIPT_FILE}"
+echo "help_bin=${HELP_BIN}"
+echo "launch_bin=${LAUNCH_BIN}"
+
+need_file "recovery_help_tool" "${HELP_BIN}"
+need_file "visible_preview_launch_tool" "${LAUNCH_BIN}"
+
+cat > "${TRANSCRIPT_FILE}" <<'EOF' || failures=$((failures + 1))
+product=Aqua Linux
+transcript=manual-visible-preview-dry-run
+mode=text-recovery
+step_01=qemu:/usr/bin/aqua-recovery-help
+step_02=qemu:/usr/bin/aqua-session-check
+step_03=qemu:/usr/bin/aqua-compositor-manual-launch
+step_04=qemu:/usr/bin/aqua-compositor-guarded-run
+step_05=qemu:/usr/bin/aqua-compositor-handoff-gate
+step_06=qemu:/usr/bin/aqua-compositor-preview-exec
+step_07=qemu:/usr/bin/aqua-visible-preview-request
+step_08=qemu:/usr/bin/aqua-visible-preview-launch
+step_09=qemu:/usr/bin/aqua-graphics-enable-gate
+step_10=host:aqua-host-tools -- handoff-summary
+step_11=host:aqua-host-tools --features host-window-preview -- smoke-manual-execution-window
+dry_run=true
+manual_start_required=true
+autostart=false
+boot_graphics=false
+desktop_shell_started=false
+host_tool_packaged=false
+qemu_window_started=false
+preview_window_started=false
+fallback_tty_available=true
+safe_return_to_recovery=ok
+EOF
+
+need_log "transcript_written" "${TRANSCRIPT_FILE}" "transcript=manual-visible-preview-dry-run"
+need_log "transcript_help_step" "${TRANSCRIPT_FILE}" "step_01=qemu:/usr/bin/aqua-recovery-help"
+need_log "transcript_launcher_step" "${TRANSCRIPT_FILE}" "step_08=qemu:/usr/bin/aqua-visible-preview-launch"
+need_log "transcript_graphics_gate_step" "${TRANSCRIPT_FILE}" "step_09=qemu:/usr/bin/aqua-graphics-enable-gate"
+need_log "transcript_host_summary_step" "${TRANSCRIPT_FILE}" "step_10=host:aqua-host-tools -- handoff-summary"
+need_log "transcript_host_smoke_step" "${TRANSCRIPT_FILE}" "step_11=host:aqua-host-tools --features host-window-preview -- smoke-manual-execution-window"
+need_log "transcript_dry_run" "${TRANSCRIPT_FILE}" "dry_run=true"
+need_log "transcript_no_autostart" "${TRANSCRIPT_FILE}" "autostart=false"
+need_log "transcript_no_boot_graphics" "${TRANSCRIPT_FILE}" "boot_graphics=false"
+need_log "transcript_host_tool_external" "${TRANSCRIPT_FILE}" "host_tool_packaged=false"
+need_log "transcript_recovery_safe" "${TRANSCRIPT_FILE}" "safe_return_to_recovery=ok"
+
+echo "operator_transcript=ok"
+echo "transcript_written=ok"
+echo "transcript_dry_run=true"
+echo "transcript_qemu_steps=9"
+echo "transcript_host_steps=2"
+echo "next_qemu_command=/usr/bin/aqua-graphics-enable-gate"
+echo "next_host_command=aqua-host-tools --features host-window-preview -- smoke-manual-execution-window"
+echo "autostart=false"
+echo "boot_graphics=false"
+echo "desktop_shell_started=false"
+echo "host_tool_packaged=false"
+echo "qemu_window_started=false"
+echo "preview_window_started=false"
+echo "fallback_tty_available=true"
+echo "safe_return_to_recovery=ok"
+
+if [ "${failures}" -eq 0 ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1

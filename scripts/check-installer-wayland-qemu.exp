@@ -1,0 +1,283 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp $env(CPUS) \
+    -m $env(MEMORY) \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -drive file=$env(TARGET_DISK),if=virtio,format=qcow2,snapshot=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1} \
+    -serial stdio \
+    -monitor unix:$env(MONITOR_SOCKET),server=on,wait=off \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -device virtio-keyboard-pci \
+    -device virtio-mouse-pci \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh} {}
+    timeout { puts stderr "Timed out waiting for recovery-ready"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery-ready"; exit 1 }
+}
+
+expect {
+    -exact {aqua-linux login: } {}
+    timeout { puts stderr "Timed out waiting for serial login"; exit 1 }
+    eof { puts stderr "QEMU exited before serial login"; exit 1 }
+}
+send -- "root\r"
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Timed out waiting for recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery shell"; exit 1 }
+}
+
+send -- {AQUA_INSTALLER_PROGRESS_PRESENTATION_REHEARSAL=true AQUA_DRM_WAYLAND_SESSION_PERSISTENT=true AQUA_DRM_WAYLAND_SESSION_HEADLESS_TEST_CONFIRMED=true AQUA_DRM_WAYLAND_SESSION_TEST_MODE=headless-qemu AQUA_DRM_WAYLAND_SCENARIO=installer-welcome AQUA_DRM_WAYLAND_INPUT_REQUIRED=true /usr/bin/aqua-compositor run-drm-wayland-session /dev/dri/card0}
+send -- "\r"
+
+expect {
+    -exact {installer_wayland_surface_ready=true} {}
+    timeout { puts stderr "Timed out waiting for the Aqua Installer Wayland surface"; exit 1 }
+    eof { puts stderr "QEMU exited before the installer surface was ready"; exit 1 }
+}
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-wayland-session status=active} {}
+    timeout { puts stderr "Timed out waiting for the installer scanout"; exit 1 }
+    eof { puts stderr "QEMU exited before the installer scanout became active"; exit 1 }
+}
+
+after 500
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(SCREENSHOT) $env(SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU installer screendump failed: $capture_error"
+    exit 1
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-pointer-welcome-forward} input_error]} {
+    puts stderr "QEMU installer footer pointer injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -re {aqua_installer_pointer x=[0-9]+ y=[0-9]+ action=AdvanceRequested} {}
+    timeout { puts stderr "Timed out waiting for installer footer pointer action"; exit 1 }
+    eof { puts stderr "QEMU exited before installer footer pointer action"; exit 1 }
+}
+
+expect {
+    -exact {installer_wayland_repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer Language repaint"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Language repaint"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-pointer-language-row} input_error]} {
+    puts stderr "QEMU installer form pointer injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -exact {aqua_installer_pointer_form_update=SelectionChanged { step: Language, index: 0, value: "tr_TR.UTF-8" }} {}
+    timeout { puts stderr "Timed out waiting for installer form pointer selection"; exit 1 }
+    eof { puts stderr "QEMU exited before installer form pointer selection"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-language-keyboard} input_error]} {
+    puts stderr "QEMU installer keyboard injection failed after pointer selection: $input_error"
+    exit 1
+}
+
+expect {
+    -exact {aqua_installer_keyboard_layout=trq} {}
+    timeout { puts stderr "Timed out waiting for installer Keyboard selection"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Keyboard selection"; exit 1 }
+}
+
+expect {
+    -exact {installer_wayland_repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer Keyboard repaint"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Keyboard repaint"; exit 1 }
+}
+
+after 500
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(NAV_SCREENSHOT) $env(NAV_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU installer navigation screendump failed: $capture_error"
+    exit 1
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-keyboard-partitions} input_error]} {
+    puts stderr "QEMU installer Partitions keyboard injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -exact {aqua_installer_target_device=/dev/vdb} {}
+    timeout { puts stderr "Timed out waiting for installer target selection"; exit 1 }
+    eof { puts stderr "QEMU exited before installer target selection"; exit 1 }
+}
+
+expect {
+    -exact {installer_wayland_repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer Partitions repaint"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Partitions repaint"; exit 1 }
+}
+
+after 500
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(PARTITIONS_SCREENSHOT) $env(PARTITIONS_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU installer Partitions screendump failed: $capture_error"
+    exit 1
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-partitions-timezone} input_error]} {
+    puts stderr "QEMU installer Time Zone keyboard injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -exact {aqua_installer_timezone=Europe/Istanbul} {}
+    timeout { puts stderr "Timed out waiting for installer Time Zone selection"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Time Zone selection"; exit 1 }
+}
+
+expect {
+    -exact {installer_wayland_repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer Time Zone repaint"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Time Zone repaint"; exit 1 }
+}
+
+after 500
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(TIMEZONE_SCREENSHOT) $env(TIMEZONE_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU installer Time Zone screendump failed: $capture_error"
+    exit 1
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-timezone-user} input_error]} {
+    puts stderr "QEMU installer User Information keyboard injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -exact {aqua_installer_user_profile username=aqua display_name=user password_configured=true} {}
+    timeout { puts stderr "Timed out waiting for installer user profile"; exit 1 }
+    eof { puts stderr "QEMU exited before installer user profile"; exit 1 }
+}
+
+expect {
+    -exact {aqua_installer_step=summary} {}
+    timeout { puts stderr "Timed out waiting for installer Summary step"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Summary step"; exit 1 }
+}
+
+expect {
+    -exact {installer_wayland_repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer Summary step repaint"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Summary step repaint"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-user-summary-confirmation} input_error]} {
+    puts stderr "QEMU installer Summary keyboard injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -exact {aqua_installer_summary_confirmation_applied=true} {}
+    timeout { puts stderr "Timed out waiting for installer Summary confirmation"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Summary confirmation"; exit 1 }
+}
+
+expect {
+    -exact {installer_wayland_repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer Summary repaint"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Summary repaint"; exit 1 }
+}
+
+after 500
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(SUMMARY_SCREENSHOT) $env(SUMMARY_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU installer Summary screendump failed: $capture_error"
+    exit 1
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-summary-begin} input_error]} {
+    puts stderr "QEMU installer begin keyboard injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -exact {aqua_installer_step=installation} {}
+    timeout { puts stderr "Timed out waiting for installer Installation step"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Installation step"; exit 1 }
+}
+
+expect {
+    -exact {installer_wayland_repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer Installation repaint"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Installation repaint"; exit 1 }
+}
+
+foreach checkpoint {40 65} {
+    if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-progress-next} input_error]} {
+        puts stderr "QEMU installer progress keyboard injection failed: $input_error"
+        exit 1
+    }
+    expect {
+        -exact "percent=$checkpoint" {}
+        timeout { puts stderr "Timed out waiting for installer progress $checkpoint"; exit 1 }
+        eof { puts stderr "QEMU exited before installer progress $checkpoint"; exit 1 }
+    }
+    expect {
+        -exact {installer_wayland_repaint=true} {}
+        timeout { puts stderr "Timed out waiting for installer progress repaint"; exit 1 }
+        eof { puts stderr "QEMU exited before installer progress repaint"; exit 1 }
+    }
+}
+
+after 500
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(PROGRESS_SCREENSHOT) $env(PROGRESS_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU installer progress screendump failed: $capture_error"
+    exit 1
+}
+
+foreach checkpoint {95 100} {
+    if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-progress-next} input_error]} {
+        puts stderr "QEMU installer completion keyboard injection failed: $input_error"
+        exit 1
+    }
+    expect {
+        -exact "percent=$checkpoint" {}
+        timeout { puts stderr "Timed out waiting for installer progress $checkpoint"; exit 1 }
+        eof { puts stderr "QEMU exited before installer progress $checkpoint"; exit 1 }
+    }
+    expect {
+        -exact {installer_wayland_repaint=true} {}
+        timeout { puts stderr "Timed out waiting for installer completion repaint"; exit 1 }
+        eof { puts stderr "QEMU exited before installer completion repaint"; exit 1 }
+    }
+}
+
+after 500
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(COMPLETED_SCREENSHOT) $env(COMPLETED_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU installer completed screendump failed: $capture_error"
+    exit 1
+}
+
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok} {}
+    timeout { puts stderr "Timed out waiting for the installer session cleanup"; exit 1 }
+    eof { puts stderr "QEMU exited before installer session cleanup"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Installer session did not return to the recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery return"; exit 1 }
+}
+
+send -- "poweroff -f\r"
+expect eof

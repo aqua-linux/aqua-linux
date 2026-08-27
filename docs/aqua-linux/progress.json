@@ -1,0 +1,124 @@
+{
+  "product": "Aqua Linux",
+  "release": "v1.0",
+  "base": "Buildroot",
+  "graphicsTarget": "custom Wayland compositor",
+  "devTarget": "QEMU x86_64",
+  "hardwareTarget": "MSI Sword 17 later",
+  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. The permanent v1 desktop and installer direction is now recorded in public visual/UI contracts derived from private, Git-ignored reference boards. The next work is runtime convergence across desktop chrome, Applications, Search, dock, workspaces, Files, Settings, Terminal, installer presentation, and four-theme selection without changing the Buildroot or custom Wayland compositor architecture.",
+  "updated": "2026-08-27",
+  "overallPercent": 83,
+  "rules": [
+    "Aqua Linux v1.0 is treated as 100%.",
+    "Overall progress is the rounded arithmetic mean of the 12 phase percentages so the public value is reproducible.",
+    "Progress advances only when bootable OS, compositor, installer, or validation contracts move forward.",
+    "Host mockups and website work do not count as OS completion unless they become packaged runtime assets.",
+    "The project remains Buildroot-based and does not use Ubuntu, Debian, KDE, GNOME, XFCE, LXQt, or a theme-pack base."
+  ],
+  "phases": [
+    {
+      "id": "m0",
+      "name": "Repository and Build Skeleton",
+      "percent": 100,
+      "status": "complete",
+      "updated": "2026-08-05",
+      "summary": "Rust workspace, Buildroot external tree, scripts, docs, assets folder, and local checks exist."
+    },
+    {
+      "id": "m1",
+      "name": "Buildroot Boot to Text Recovery",
+      "percent": 100,
+      "status": "complete",
+      "updated": "2026-08-05",
+      "summary": "QEMU x86_64 boots a minimal Buildroot image to BusyBox recovery shell with serial boot markers."
+    },
+    {
+      "id": "m2",
+      "name": "Asset and Visual System Intake",
+      "percent": 90,
+      "status": "in-progress",
+      "updated": "2026-08-27",
+      "summary": "Public contracts now capture the permanent desktop, application, search, first-party app, installer, completion, and four-theme direction derived from private Git-ignored boards. The project-owner-supplied brand board provides transparent primary, inverse, accent, wordmark, and combined-logo PNG exports used by the runtime. A pale wave wallpaper master and final Aqua-owned application/status icons are still required."
+    },
+    {
+      "id": "m3",
+      "name": "Nested Aqua Compositor Prototype",
+      "percent": 100,
+      "status": "complete",
+      "updated": "2026-08-14",
+      "summary": "Smithay/calloop, host preview, recovery-safe output, and QEMU DRM/KMS integration are complete for the prototype milestone. The packaged supervisor limits rapid failures and returns to recovery after budget exhaustion; QEMU proves three real compositor failures and two bounded restarts. The boot gate requires aqua.boot_graphics=1 plus a separate graphics profile, tracks PID/state, rejects duplicates, stays disabled by default, and starts the real DRM-Wayland compositor from rcS when explicitly enabled while preserving recovery TTY access."
+    },
+    {
+      "id": "m4",
+      "name": "Scene and Surface Renderer",
+      "percent": 100,
+      "status": "complete",
+      "updated": "2026-08-22",
+      "summary": "The Smithay GLES2 renderer composes the packaged wallpaper, shared surfaces, optional two-pass blur, and live wl_shm textures at the native output size. Physical DRM retains XRGB8888 GBM front/back dma-buf scanout. QEMU keeps GLES readback for the desktop, but a full-output client that explicitly supplies a complete Wayland opaque region may use the dumb-buffer bridge after one GPU validation frame. Packaged installer acceptance measured 30 bridged frames at a 61 ms median total while preserving distinct 1280x800 captures."
+    },
+    {
+      "id": "m5",
+      "name": "Basic Wayland Client Support",
+      "percent": 100,
+      "status": "complete",
+      "updated": "2026-08-13",
+      "summary": "The packaged QEMU DRM session runs the upstream Weston simple-shm C reference client as an independent compatibility fixture beside an Aqua state client. Aqua's compositor exposes the xdg-shell and wl_shm protocol path, composites their 250x250 and 384x256 buffers, returns frame callbacks, records damage, changes focus and stacking, handles move, resize, size constraints, maximize/restore, fullscreen/restore, repeated configure acknowledgements, compositor close, stale-focus cleanup, surviving-window repaint, final empty-desktop repaint, and recovery return. The Weston compositor, shells, backends, and desktop session are neither packaged nor started."
+    },
+    {
+      "id": "m6",
+      "name": "Boot Aqua Compositor in QEMU",
+      "percent": 100,
+      "status": "complete",
+      "updated": "2026-08-14",
+      "summary": "The packaged compositor boots through the explicit aqua.boot_graphics=1 gate while default boot remains text recovery. In one aqua-compositor process, real Smithay compositor, shm, xdg-shell, and Aqua Seat globals bind /run/aqua/aqua-wayland-drm-0, dispatch clients and DRM page flips, and discover real virtio input through libinput/udev. The supervised boot profile now remains active until controlled stop or fatal error. QEMU verifies two complete start-stop cycles, socket and PID cleanup, client termination, CRTC restoration, GBM release, and recovery return."
+    },
+    {
+      "id": "m7",
+      "name": "First-Party Shell Surfaces",
+      "percent": 100,
+      "status": "complete",
+      "updated": "2026-08-16",
+      "summary": "The state-driven application launcher starts packaged Aqua Files and Aqua Settings through strict executable preflight and reusable process supervision. Production QEMU maps and raises first-party windows by XDG app_id, tracks damage, closes applications, reaps failures, and removes stale surfaces. Notifications, real system overview, desktop icon interactions, target-aware Properties, confined Trash, and the confirmed session menu are integrated. The compositor-owned dock reflects launcher and process ownership with running indicators, accepts real pointer input, and raises an existing first-party surface instead of spawning duplicates. These completed behaviors now need presentation convergence with the new Applications, Search, dock, and workspace references."
+    },
+    {
+      "id": "m8",
+      "name": "Terminal App",
+      "percent": 100,
+      "status": "complete",
+      "updated": "2026-08-16",
+      "summary": "A packaged aqua-terminal opens as a supervised aqua.terminal xdg-toplevel with Aqua chrome and a dark readable scrim. It uses portable-pty for a real /bin/sh session and vt100 for mature terminal parsing, renders the prompt, coalesces PTY output into bounded redraws, and resizes both the PTY and parser grid. Aqua boot mounts devpts and provides /dev/ptmx. QEMU forwards all 40 press/release events for 'echo aquaterminalok', observes Enter, parses output, applies Alt+F8 resize through a real xdg configure to a 640x478 buffer and 74x21 grid, resizes the PTY, repaints, captures the window, closes with Alt+F4, reaps the process, and confirms restart=never. Pointer titlebar and bottom-right resize requests are implemented; broader key and clipboard support remain later enhancements."
+    },
+    {
+      "id": "m9",
+      "name": "Graphical Installer MVP",
+      "percent": 100,
+      "status": "complete",
+      "updated": "2026-08-21",
+      "summary": "The packaged installer executes and boots the complete separately gated installation, proves failure cleanup, and emits QEMU-validated transaction progress. Seven deterministic Rust-rendered setup screens feed a packaged aqua.installer wl_shm xdg-toplevel client; QEMU proves full-output composition and navigation from Welcome through Completed. An explicit presentation-only rehearsal consumes the canonical non-executing 20-step graph, renders progress at 40%, 65%, and 95%, reaches Completed at 100%, emits seven distinct screendumps, and proves transaction_executed=false. Real virtio pointer input activates the Welcome footer and selects a Language row through renderer-shared geometry before keyboard navigation resumes. Full-output input origin now matches presentation origin, blocked disks and hidden controls reject hits, and disk/profile application retains explicit activation."
+    },
+    {
+      "id": "m10",
+      "name": "MSI Sword 17 Hardware Validation",
+      "percent": 0,
+      "status": "not-started",
+      "updated": "2026-08-04",
+      "summary": "Real hardware validation is intentionally later; QEMU remains the first reproducible target."
+    },
+    {
+      "id": "m11",
+      "name": "Polish and Public Readiness",
+      "percent": 5,
+      "status": "early",
+      "updated": "2026-08-27",
+      "summary": "The v1 desktop and installer contracts are documented, but the runtime shell has not yet converged on them. Contributor guide, current public OS screenshots, hardware status, final artwork clearance, and issue workflow are also incomplete."
+    }
+  ],
+  "nextSteps": [
+    "Implement the canonical compact top bar and pale blue idle desktop from the new reference set.",
+    "Split the prototype launcher into the canonical Applications overview and Global Search surfaces.",
+    "Rebuild the bottom shell controls as Applications/Search, centered pinned/running apps, and workspace thumbnails.",
+    "Unify bright window chrome and controls across Files, Settings, Terminal, Properties, and Installer.",
+    "Replace the legacy wallpaper and luminous mark when clean approved masters matching the new references are supplied.",
+    "Keep fallback TTY, boot_graphics=false, and autostart=false in the default development image."
+  ]
+}

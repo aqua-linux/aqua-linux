@@ -1,0 +1,17 @@
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+export PS1='aqua-recovery:\w# '
+
+[ -f /etc/aqua/session.env ] && . /etc/aqua/session.env
+
+echo
+echo "Aqua Linux Milestone 1 recovery shell"
+case " $(cat /proc/cmdline 2>/dev/null) " in
+    *' aqua.boot_graphics=1 '*)
+        echo "Supervised graphics is enabled; recovery shell remains available."
+        ;;
+    *)
+        echo "Graphics/compositor startup is intentionally disabled in this image."
+        ;;
+esac
+echo "Run aqua-recovery for marker and system details."
+echo

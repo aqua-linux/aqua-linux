@@ -1,0 +1,59 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+proc shell {command description} {
+    send -- "$command\r"
+    expect {
+        -exact {# } {}
+        timeout { puts stderr "Timed out while $description"; exit 1 }
+        eof { puts stderr "QEMU exited while $description"; exit 1 }
+    }
+}
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp 2 \
+    -m 1024M \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.boot_graphics=1} \
+    -serial stdio \
+    -monitor unix:$env(MONITOR_SOCKET),server=on,wait=off \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -device virtio-keyboard-pci \
+    -device virtio-mouse-pci \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh} {}
+    timeout { puts stderr "Recovery marker missing"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery marker"; exit 1 }
+}
+expect -exact {aqua-linux login: }
+send -- "root\r"
+expect -exact {# }
+
+shell {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'stage=drm-wayland-session status=active' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'stage=drm-wayland-session status=active' /run/aqua/graphical-session-supervisor.log} "waiting for the graphical session"
+shell {grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log > /run/aqua/session-menu-frame-count || true} "recording the initial frame count"
+
+exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) session-open
+shell {i=0; before="$(cat /run/aqua/session-menu-frame-count)"; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$before" ]; do sleep 1; i=$((i + 1)); done; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$before" ]} "waiting for the open menu frame"
+shell {grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log > /run/aqua/session-menu-frame-count} "recording the open menu frame count"
+
+exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) session-recovery-arm
+shell {i=0; before="$(cat /run/aqua/session-menu-frame-count)"; while [ "$i" -lt 30 ]; do frames="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; state="$(grep -F 'desktop_session_menu_confirmation=' /run/aqua/graphical-session-supervisor.log | tail -n 1)"; [ "$frames" -gt "$before" ] && [ "$state" = 'desktop_session_menu_confirmation=recovery' ] && break; sleep 1; i=$((i + 1)); done; [ "$frames" -gt "$before" ] && [ "$state" = 'desktop_session_menu_confirmation=recovery' ]} "waiting for the confirmed Recovery frame"
+
+exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) session-recovery-confirm
+shell {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_session_action_execution=return-to-recovery' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_session_action_execution=return-to-recovery' /run/aqua/graphical-session-supervisor.log} "waiting for Recovery execution"
+shell {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'state=stopped' /run/aqua/graphical-session-supervisor.state; do sleep 1; i=$((i + 1)); done; grep -Fq 'state=stopped' /run/aqua/graphical-session-supervisor.state} "waiting for clean session stop"
+send -- {ok=1; grep -Fq 'desktop_session_action_requested=recovery' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_session_action_confirmed=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_session_action_execution=return-to-recovery' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'state=stopped' /run/aqua/graphical-session-supervisor.state || ok=0; [ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-session-menu-focused-qemu status=ok execution=return-to-recovery cleanup=clean'}
+send -- "\r"
+expect -exact {[AQUA-TEST] stage=desktop-session-menu-focused-qemu status=ok execution=return-to-recovery cleanup=clean}
+expect -exact {# }
+send -- "poweroff -f\r"
+expect eof

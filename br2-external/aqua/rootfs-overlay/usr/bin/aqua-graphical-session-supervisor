@@ -1,0 +1,139 @@
+#!/bin/sh
+
+set -u
+
+CONFIG_PATH="${AQUA_COMPOSITOR_CONFIG:-/etc/aqua/compositor-session.conf}"
+ENV_PATH="${AQUA_SESSION_ENV:-/etc/aqua/session.env}"
+COMPOSITOR_BIN="${AQUA_COMPOSITOR_BIN:-/usr/bin/aqua-compositor}"
+RECOVERY_BIN="${AQUA_RECOVERY_BIN:-/usr/bin/aqua-recovery}"
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+STATE_FILE="${AQUA_GRAPHICS_SUPERVISOR_STATE_FILE:-${RUNTIME_DIR}/graphical-session-supervisor.state}"
+PID_FILE="${AQUA_GRAPHICS_SUPERVISOR_PID_FILE:-${RUNTIME_DIR}/graphical-session-supervisor.pid}"
+DRM_DEVICE="${AQUA_DRM_DEVICE:-/dev/dri/card0}"
+MAX_RESTARTS="${AQUA_GRAPHICS_MAX_RESTARTS:-3}"
+RESTART_DELAY="${AQUA_GRAPHICS_RESTART_DELAY_SECONDS:-2}"
+STABLE_SECONDS="${AQUA_GRAPHICS_STABLE_SECONDS:-30}"
+ENABLED="${AQUA_GRAPHICS_SESSION_ENABLED:-false}"
+DRY_RUN="${AQUA_GRAPHICS_SUPERVISOR_DRY_RUN:-false}"
+
+cleanup_pid() {
+    if [ -f "${PID_FILE}" ] && [ "$(cat "${PID_FILE}" 2>/dev/null || true)" = "$$" ]; then
+        rm -f "${PID_FILE}"
+    fi
+}
+
+trap cleanup_pid EXIT
+
+mark() {
+    echo "[AQUA-SESSION] stage=graphical-session-supervisor status=$1 $2"
+}
+
+write_state() {
+    state="$1"
+    attempts="$2"
+    restarts="$3"
+    exit_code="$4"
+    tmp="${STATE_FILE}.tmp"
+
+    {
+        echo "product=Aqua Linux"
+        echo "state=${state}"
+        echo "attempts=${attempts}"
+        echo "restarts=${restarts}"
+        echo "last_exit_code=${exit_code}"
+        echo "max_restarts=${MAX_RESTARTS}"
+        echo "fallback_tty_available=true"
+    } > "${tmp}" && mv "${tmp}" "${STATE_FILE}"
+}
+
+case "${MAX_RESTARTS}:${RESTART_DELAY}:${STABLE_SECONDS}" in
+    *[!0-9:]*|:*|*::*|*:)
+        mark error "reason=invalid-policy"
+        exit 2
+        ;;
+esac
+
+mkdir -p "${RUNTIME_DIR}" || {
+    mark error "reason=runtime-directory"
+    exit 2
+}
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-graphical-session-supervisor"
+echo "policy=bounded-restart-with-recovery-fallback"
+echo "max_restarts=${MAX_RESTARTS}"
+echo "restart_delay_seconds=${RESTART_DELAY}"
+echo "stable_seconds=${STABLE_SECONDS}"
+echo "fallback_tty_available=true"
+echo "recovery_command=${RECOVERY_BIN}"
+
+if [ "${DRY_RUN}" = true ]; then
+    write_state policy-ready 0 0 0
+    echo "session_started=false"
+    echo "boot_graphics=false"
+    echo "autostart=false"
+    echo "recovery_fallback=armed"
+    mark ok "mode=dry-run session_started=false"
+    exit 0
+fi
+
+if [ "${ENABLED}" != true ] ||
+   [ ! -f "${CONFIG_PATH}" ] ||
+   ! grep -q '^boot_graphics=true$' "${CONFIG_PATH}" ||
+   ! grep -q '^recovery_tty_required=true$' "${CONFIG_PATH}"; then
+    write_state blocked 0 0 0
+    echo "session_started=false"
+    echo "blocked_reason=graphics-not-explicitly-enabled"
+    mark blocked "reason=graphics-not-explicitly-enabled session_started=false"
+    exit 0
+fi
+
+if [ ! -x "${COMPOSITOR_BIN}" ]; then
+    write_state fallback 0 0 127
+    mark fallback "reason=compositor-missing recovery=true"
+    [ -x "${RECOVERY_BIN}" ] && "${RECOVERY_BIN}"
+    exit 1
+fi
+
+[ -f "${ENV_PATH}" ] && . "${ENV_PATH}"
+
+attempts=0
+restarts=0
+while :; do
+    attempts=$((attempts + 1))
+    started_at="$(date +%s)"
+    write_state running "${attempts}" "${restarts}" 0
+    mark running "attempt=${attempts} restart=${restarts} device=${DRM_DEVICE}"
+
+    set +e
+    "${COMPOSITOR_BIN}" run-drm-wayland-session "${DRM_DEVICE}"
+    exit_code="$?"
+    set -e
+    ended_at="$(date +%s)"
+    runtime=$((ended_at - started_at))
+
+    if [ "${exit_code}" -eq 0 ]; then
+        write_state stopped "${attempts}" "${restarts}" 0
+        mark stopped "reason=clean-exit attempts=${attempts} restarts=${restarts}"
+        exit 0
+    fi
+
+    if [ "${runtime}" -ge "${STABLE_SECONDS}" ]; then
+        restarts=0
+    fi
+
+    if [ "${restarts}" -ge "${MAX_RESTARTS}" ]; then
+        write_state fallback "${attempts}" "${restarts}" "${exit_code}"
+        mark fallback "reason=restart-limit exit_code=${exit_code} attempts=${attempts} restarts=${restarts} recovery=true"
+        if [ -x "${RECOVERY_BIN}" ]; then
+            "${RECOVERY_BIN}"
+        fi
+        exit 1
+    fi
+
+    restarts=$((restarts + 1))
+    write_state restarting "${attempts}" "${restarts}" "${exit_code}"
+    mark restarting "exit_code=${exit_code} next_restart=${restarts} delay_seconds=${RESTART_DELAY}"
+    [ "${RESTART_DELAY}" -gt 0 ] && sleep "${RESTART_DELAY}"
+done

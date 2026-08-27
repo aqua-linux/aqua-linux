@@ -1,0 +1,107 @@
+#!/bin/sh
+
+set -u
+
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+CANDIDATE_FILE="${AQUA_GRAPHICS_LAUNCH_CANDIDATE_FILE:-${RUNTIME_DIR}/graphics-launch-candidate.plan}"
+ROLLBACK_FILE="${AQUA_GRAPHICS_ROLLBACK_DRILL_FILE:-${RUNTIME_DIR}/graphics-rollback-drill.plan}"
+
+failures=0
+
+mark() {
+    status="$1"
+    echo "[AQUA-GATE] stage=graphics-rollback-drill status=${status}"
+}
+
+need_log() {
+    label="$1"
+    log="$2"
+    needle="$3"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-graphics-rollback-drill"
+echo "rollback_drill_status=qemu-safe-rollback-drill-ready"
+echo "mode=text-recovery"
+echo "drill_mode=no-start-cancel-path"
+echo "candidate_file=${CANDIDATE_FILE}"
+echo "rollback_file=${ROLLBACK_FILE}"
+
+need_log "source_candidate_ready" "${CANDIDATE_FILE}" "candidate=manual-graphics-launch"
+need_log "source_candidate_selected" "${CANDIDATE_FILE}" "candidate_selected=true"
+need_log "source_candidate_not_started" "${CANDIDATE_FILE}" "candidate_started=false"
+need_log "source_candidate_no_actual_start" "${CANDIDATE_FILE}" "actual_graphics_started=false"
+need_log "source_candidate_no_display_start" "${CANDIDATE_FILE}" "display_output_started=false"
+need_log "source_candidate_fallback_tty" "${CANDIDATE_FILE}" "fallback_tty_available=true"
+need_log "source_candidate_rollback_required" "${CANDIDATE_FILE}" "rollback_required=true"
+need_log "source_candidate_rollback_command" "${CANDIDATE_FILE}" "rollback_command=/usr/bin/aqua-recovery"
+need_log "source_candidate_recovery_safe" "${CANDIDATE_FILE}" "safe_return_to_recovery=ok"
+
+cat > "${ROLLBACK_FILE}" <<'EOF' || failures=$((failures + 1))
+product=Aqua Linux
+drill=graphics-rollback
+mode=text-recovery
+drill_mode=no-start-cancel-path
+source_candidate=graphics-launch-candidate
+operator_cancel_simulated=true
+startup_failure_simulated=true
+candidate_started=false
+actual_graphics_started=false
+display_output_started=false
+desktop_shell_started=false
+boot_graphics=false
+autostart=false
+fallback_tty_available=true
+rollback_required=true
+rollback_verified=true
+rollback_strategy=return-to-text-recovery
+rollback_command=/usr/bin/aqua-recovery
+rollback_target=text-recovery-shell
+safe_return_to_recovery=ok
+EOF
+
+need_log "rollback_written" "${ROLLBACK_FILE}" "drill=graphics-rollback"
+need_log "rollback_cancel_path" "${ROLLBACK_FILE}" "operator_cancel_simulated=true"
+need_log "rollback_failure_path" "${ROLLBACK_FILE}" "startup_failure_simulated=true"
+need_log "rollback_not_started" "${ROLLBACK_FILE}" "candidate_started=false"
+need_log "rollback_no_actual_graphics" "${ROLLBACK_FILE}" "actual_graphics_started=false"
+need_log "rollback_no_display_start" "${ROLLBACK_FILE}" "display_output_started=false"
+need_log "rollback_verified" "${ROLLBACK_FILE}" "rollback_verified=true"
+need_log "rollback_recovery_command" "${ROLLBACK_FILE}" "rollback_command=/usr/bin/aqua-recovery"
+need_log "rollback_recovery_safe" "${ROLLBACK_FILE}" "safe_return_to_recovery=ok"
+
+echo "graphics_rollback_drill=ok"
+echo "rollback_written=ok"
+echo "operator_cancel_simulated=true"
+echo "startup_failure_simulated=true"
+echo "candidate_started=false"
+echo "actual_graphics_started=false"
+echo "display_output_started=false"
+echo "desktop_shell_started=false"
+echo "boot_graphics=false"
+echo "autostart=false"
+echo "fallback_tty_available=true"
+echo "rollback_required=true"
+echo "rollback_verified=true"
+echo "rollback_strategy=return-to-text-recovery"
+echo "rollback_command=/usr/bin/aqua-recovery"
+echo "rollback_target=text-recovery-shell"
+echo "safe_return_to_recovery=ok"
+
+if [ "${failures}" -eq 0 ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1

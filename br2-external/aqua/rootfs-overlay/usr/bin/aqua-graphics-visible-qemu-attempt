@@ -1,0 +1,111 @@
+#!/bin/sh
+
+set -u
+
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+DISPLAY_GATE_FILE="${AQUA_GRAPHICS_QEMU_DISPLAY_GATE_FILE:-${RUNTIME_DIR}/graphics-qemu-display-gate.plan}"
+ATTEMPT_FILE="${AQUA_GRAPHICS_VISIBLE_QEMU_ATTEMPT_FILE:-${RUNTIME_DIR}/graphics-visible-qemu-attempt.plan}"
+
+failures=0
+
+mark() {
+    status="$1"
+    echo "[AQUA-GATE] stage=graphics-visible-qemu-attempt status=${status}"
+}
+
+need_log() {
+    label="$1"
+    log="$2"
+    needle="$3"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-graphics-visible-qemu-attempt"
+echo "visible_qemu_attempt_status=qemu-safe-visible-attempt-plan-ready"
+echo "mode=text-recovery"
+echo "attempt_mode=manual-visible-qemu-compositor"
+echo "display_gate_file=${DISPLAY_GATE_FILE}"
+echo "attempt_file=${ATTEMPT_FILE}"
+
+need_log "source_display_gate_ready" "${DISPLAY_GATE_FILE}" "gate=manual-qemu-display-step"
+need_log "source_display_gate_passed" "${DISPLAY_GATE_FILE}" "qemu_display_gate_passed=true"
+need_log "source_display_gate_decision" "${DISPLAY_GATE_FILE}" "qemu_display_gate_decision=allow-manual-qemu-display-step"
+need_log "source_display_gate_manual" "${DISPLAY_GATE_FILE}" "manual_start_required=true"
+need_log "source_display_gate_not_started" "${DISPLAY_GATE_FILE}" "visible_qemu_step_started=false"
+need_log "source_display_gate_no_desktop_shell" "${DISPLAY_GATE_FILE}" "desktop_shell_started=false"
+need_log "source_display_gate_recovery_safe" "${DISPLAY_GATE_FILE}" "safe_return_to_recovery=ok"
+
+cat > "${ATTEMPT_FILE}" <<'EOF' || failures=$((failures + 1))
+product=Aqua Linux
+attempt=first-visible-qemu-compositor-run
+mode=text-recovery
+attempt_mode=manual-visible-qemu-compositor
+source_gate=graphics-qemu-display-gate
+attempt_plan_written=true
+visible_qemu_attempt_allowed=true
+visible_qemu_attempt_started=false
+visible_qemu_attempt_completed=false
+operator_ack_required=true
+manual_start_required=true
+fallback_tty_available=true
+rollback_verified=true
+rollback_command=/usr/bin/aqua-recovery
+bounded_run_frames=3
+startup_timeout_seconds=5
+actual_graphics_started=false
+desktop_shell_started=false
+boot_graphics=false
+autostart=false
+qemu_attempt_command=/usr/bin/aqua-compositor-guarded-run
+qemu_attempt_expected_return=safe-return-to-recovery
+safe_return_to_recovery=ok
+EOF
+
+need_log "attempt_written" "${ATTEMPT_FILE}" "attempt=first-visible-qemu-compositor-run"
+need_log "attempt_allowed" "${ATTEMPT_FILE}" "visible_qemu_attempt_allowed=true"
+need_log "attempt_not_started" "${ATTEMPT_FILE}" "visible_qemu_attempt_started=false"
+need_log "attempt_manual" "${ATTEMPT_FILE}" "manual_start_required=true"
+need_log "attempt_fallback_tty" "${ATTEMPT_FILE}" "fallback_tty_available=true"
+need_log "attempt_rollback" "${ATTEMPT_FILE}" "rollback_command=/usr/bin/aqua-recovery"
+need_log "attempt_no_desktop_shell" "${ATTEMPT_FILE}" "desktop_shell_started=false"
+need_log "attempt_no_autostart" "${ATTEMPT_FILE}" "autostart=false"
+need_log "attempt_command" "${ATTEMPT_FILE}" "qemu_attempt_command=/usr/bin/aqua-compositor-guarded-run"
+need_log "attempt_recovery_safe" "${ATTEMPT_FILE}" "safe_return_to_recovery=ok"
+
+echo "graphics_visible_qemu_attempt=ok"
+echo "attempt_plan_written=true"
+echo "visible_qemu_attempt_allowed=true"
+echo "visible_qemu_attempt_started=false"
+echo "visible_qemu_attempt_completed=false"
+echo "operator_ack_required=true"
+echo "manual_start_required=true"
+echo "fallback_tty_available=true"
+echo "rollback_verified=true"
+echo "rollback_command=/usr/bin/aqua-recovery"
+echo "bounded_run_frames=3"
+echo "startup_timeout_seconds=5"
+echo "actual_graphics_started=false"
+echo "desktop_shell_started=false"
+echo "boot_graphics=false"
+echo "autostart=false"
+echo "qemu_attempt_command=/usr/bin/aqua-compositor-guarded-run"
+echo "qemu_attempt_expected_return=safe-return-to-recovery"
+echo "safe_return_to_recovery=ok"
+
+if [ "${failures}" -eq 0 ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1

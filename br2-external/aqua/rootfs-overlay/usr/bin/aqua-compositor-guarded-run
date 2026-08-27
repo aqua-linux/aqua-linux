@@ -1,0 +1,109 @@
+#!/bin/sh
+
+set -u
+
+CONFIG_PATH="${AQUA_COMPOSITOR_CONFIG:-/etc/aqua/compositor-session.conf}"
+ENV_PATH="${AQUA_SESSION_ENV:-/etc/aqua/session.env}"
+COMPOSITOR_BIN="${AQUA_COMPOSITOR_BIN:-/usr/bin/aqua-compositor}"
+MANUAL_LAUNCH_BIN="${AQUA_MANUAL_LAUNCH_BIN:-/usr/bin/aqua-compositor-manual-launch}"
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+
+failures=0
+
+mark() {
+    status="$1"
+    echo "[AQUA-GUARDED] stage=compositor-bounded-run status=${status}"
+}
+
+run_step() {
+    label="$1"
+    shift
+    log="${RUNTIME_DIR}/${label}.log"
+
+    if "$@" > "${log}" 2> "${log}.err"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+need_log() {
+    label="$1"
+    log="$2"
+    needle="$3"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-compositor-guarded-run"
+echo "run_status=qemu-safe-guarded-compositor-run-complete"
+echo "launch_mode=manual-recovery"
+echo "config_path=${CONFIG_PATH}"
+echo "env_path=${ENV_PATH}"
+echo "compositor_bin=${COMPOSITOR_BIN}"
+echo "manual_launch_bin=${MANUAL_LAUNCH_BIN}"
+
+if [ ! -x "${MANUAL_LAUNCH_BIN}" ]; then
+    echo "manual_launch_tool=missing"
+    mark error
+    exit 1
+fi
+
+if [ ! -x "${COMPOSITOR_BIN}" ]; then
+    echo "compositor_status=missing"
+    mark error
+    exit 1
+fi
+
+AQUA_COMPOSITOR_CONFIG="${CONFIG_PATH}" \
+AQUA_SESSION_ENV="${ENV_PATH}" \
+AQUA_COMPOSITOR_BIN="${COMPOSITOR_BIN}" \
+AQUA_RUNTIME_DIR="${RUNTIME_DIR}" \
+run_step "guarded-manual-launch-plan" "${MANUAL_LAUNCH_BIN}"
+
+run_step "guarded-display-output-smoke" "${COMPOSITOR_BIN}" smoke-display-output
+
+manual_log="${RUNTIME_DIR}/guarded-manual-launch-plan.log"
+smoke_log="${RUNTIME_DIR}/guarded-display-output-smoke.log"
+
+need_log "launch_plan_ready" "${manual_log}" "[AQUA-MANUAL] stage=compositor-launch-plan status=ok"
+need_log "bounded_run_complete" "${smoke_log}" "[AQUA-COMPOSITOR] stage=display-output-smoke status=ok"
+need_log "presented_frames" "${smoke_log}" "presented_frames=3"
+need_log "display_output_started" "${smoke_log}" "display_output_started=true"
+need_log "display_output_stopped" "${smoke_log}" "display_output_stopped=true"
+need_log "fallback_tty_available" "${smoke_log}" "fallback_tty_available=true"
+need_log "autostart_blocked" "${smoke_log}" "autostart=false"
+need_log "boot_graphics_blocked" "${smoke_log}" "boot_graphics=false"
+need_log "renderer_not_started" "${smoke_log}" "renderer_started=false"
+need_log "desktop_shell_not_started" "${smoke_log}" "desktop_shell_started=false"
+need_log "recovery_safe" "${smoke_log}" "recovery_safe=ok"
+
+echo "manual_start_required=true"
+echo "bounded_run_required=true"
+echo "bounded_run_frames=3"
+echo "display_output_started=true"
+echo "display_output_stopped=true"
+echo "fallback_tty_available=true"
+echo "autostart=false"
+echo "boot_graphics=false"
+echo "renderer_started=false"
+echo "desktop_shell_started=false"
+echo "safe_return_to_recovery=ok"
+
+if [ "${failures}" -eq 0 ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1

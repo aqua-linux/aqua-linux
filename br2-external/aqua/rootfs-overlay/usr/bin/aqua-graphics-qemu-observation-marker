@@ -1,0 +1,125 @@
+#!/bin/sh
+
+set -u
+
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+BOOT_CHECK_FILE="${AQUA_GRAPHICS_QEMU_VISIBLE_BOOT_CHECK_FILE:-${RUNTIME_DIR}/graphics-qemu-visible-boot-check.plan}"
+OBSERVATION_FILE="${AQUA_GRAPHICS_QEMU_OBSERVATION_FILE:-${RUNTIME_DIR}/graphics-qemu-observation.plan}"
+EVIDENCE_FILE="${AQUA_QEMU_VM_DISPLAY_EVIDENCE_FILE:-${RUNTIME_DIR}/qemu-visible-evidence.plan}"
+OBSERVED="${AQUA_QEMU_VM_DISPLAY_OBSERVED:-false}"
+
+failures=0
+
+mark() {
+    status="$1"
+    echo "[AQUA-GATE] stage=graphics-qemu-observation-marker status=${status}"
+}
+
+need_log() {
+    label="$1"
+    log="$2"
+    needle="$3"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+case "${OBSERVED}" in
+    true|false) ;;
+    *)
+        echo "invalid_observed_value=${OBSERVED}"
+        mark error
+        exit 1
+        ;;
+esac
+
+if [ "${OBSERVED}" = "true" ]; then
+    observation_status="observed"
+else
+    observation_status="not-observed"
+fi
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-graphics-qemu-observation-marker"
+echo "qemu_observation_marker_status=qemu-visible-observation-marker-ready"
+echo "mode=text-recovery"
+echo "boot_check_file=${BOOT_CHECK_FILE}"
+echo "observation_file=${OBSERVATION_FILE}"
+echo "evidence_file=${EVIDENCE_FILE}"
+
+need_log "source_boot_check_ready" "${BOOT_CHECK_FILE}" "qemu_visible_boot_path_ready=true"
+need_log "source_manual_observation_required" "${BOOT_CHECK_FILE}" "manual_observation_required=true"
+need_log "source_no_autostart" "${BOOT_CHECK_FILE}" "autostart=false"
+need_log "source_no_boot_graphics" "${BOOT_CHECK_FILE}" "boot_graphics=false"
+need_log "source_recovery_safe" "${BOOT_CHECK_FILE}" "safe_return_to_recovery=ok"
+
+if [ "${OBSERVED}" = "true" ]; then
+    need_log "evidence_record_ready" "${EVIDENCE_FILE}" "evidence_status=operator-capture-recorded"
+    need_log "evidence_manual_capture" "${EVIDENCE_FILE}" "qemu_visible_manual_evidence=true"
+    need_log "evidence_positive_allowed" "${EVIDENCE_FILE}" "observation_marker_may_be_positive=true"
+    need_log "evidence_no_autostart" "${EVIDENCE_FILE}" "autostart=false"
+    need_log "evidence_no_boot_graphics" "${EVIDENCE_FILE}" "boot_graphics=false"
+    evidence_required=true
+    evidence_status="operator-capture-recorded"
+else
+    evidence_required=false
+    evidence_status="not-required-for-negative-marker"
+fi
+
+{
+    echo "product=Aqua Linux"
+    echo "marker=qemu-visible-observation"
+    echo "mode=text-recovery"
+    echo "source_check=graphics-qemu-visible-boot-check"
+    echo "qemu_visible_boot_path_ready=true"
+    echo "qemu_vm_display_observed=${OBSERVED}"
+    echo "observation_status=${observation_status}"
+    echo "evidence_required=${evidence_required}"
+    echo "evidence_status=${evidence_status}"
+    echo "manual_observation_recorded=true"
+    echo "operator_confirmation_required=true"
+    echo "bounded_attempt_completed=true"
+    echo "persistent_graphical_session_started=false"
+    echo "desktop_shell_started=false"
+    echo "boot_graphics=false"
+    echo "autostart=false"
+    echo "fallback_tty_available=true"
+    echo "safe_return_to_recovery=ok"
+} > "${OBSERVATION_FILE}" || failures=$((failures + 1))
+
+need_log "observation_written" "${OBSERVATION_FILE}" "marker=qemu-visible-observation"
+need_log "observation_recorded" "${OBSERVATION_FILE}" "manual_observation_recorded=true"
+need_log "observation_no_persistent" "${OBSERVATION_FILE}" "persistent_graphical_session_started=false"
+need_log "observation_no_boot_graphics" "${OBSERVATION_FILE}" "boot_graphics=false"
+need_log "observation_no_autostart" "${OBSERVATION_FILE}" "autostart=false"
+need_log "observation_recovery_safe" "${OBSERVATION_FILE}" "safe_return_to_recovery=ok"
+
+echo "graphics_qemu_observation_marker=ok"
+echo "qemu_visible_boot_path_ready=true"
+echo "qemu_vm_display_observed=${OBSERVED}"
+echo "observation_status=${observation_status}"
+echo "evidence_required=${evidence_required}"
+echo "evidence_status=${evidence_status}"
+echo "manual_observation_recorded=true"
+echo "operator_confirmation_required=true"
+echo "persistent_graphical_session_started=false"
+echo "desktop_shell_started=false"
+echo "boot_graphics=false"
+echo "autostart=false"
+echo "fallback_tty_available=true"
+echo "safe_return_to_recovery=ok"
+
+if [ "${failures}" -eq 0 ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1

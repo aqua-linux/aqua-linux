@@ -1,0 +1,117 @@
+{
+  "product": "Aqua Linux",
+  "milestone": "2",
+  "status": "source-of-truth",
+  "directionUpdated": "2026-08-27",
+  "defaultTheme": "LightWhite",
+  "themes": {
+    "LightWhite": {
+      "description": "white and ice-white surfaces with a very light gray secondary layer",
+      "desktop": "#edf5ff",
+      "surface": "#fbfdff",
+      "surfaceSecondary": "#f1f6fc",
+      "border": "#d7e1ee",
+      "textPrimary": "#101827",
+      "textSecondary": "#5d6b7c",
+      "accent": "#1478f2",
+      "brandSymbol": "aqua-symbol-primary.png"
+    },
+    "Softtouch": {
+      "description": "warm light gray surfaces with softer contrast",
+      "desktop": "#ececea",
+      "surface": "#f7f6f3",
+      "surfaceSecondary": "#e7e6e2",
+      "border": "#cfcec9",
+      "textPrimary": "#202124",
+      "textSecondary": "#686966",
+      "accent": "#237be5",
+      "brandSymbol": "aqua-symbol-primary.png"
+    },
+    "Deepside": {
+      "description": "Aqua deep navy and characteristic deep-sea blue",
+      "desktop": "#071a33",
+      "surface": "#0d2747",
+      "surfaceSecondary": "#123258",
+      "border": "#294d73",
+      "textPrimary": "#f6f9ff",
+      "textSecondary": "#a9bdd2",
+      "accent": "#3d9cff",
+      "brandSymbol": "aqua-symbol-inverse.png"
+    },
+    "Nightmare": {
+      "description": "neutral charcoal and near-black surfaces",
+      "desktop": "#111214",
+      "surface": "#1a1c1f",
+      "surfaceSecondary": "#24272b",
+      "border": "#393d42",
+      "textPrimary": "#f5f6f7",
+      "textSecondary": "#adb1b7",
+      "accent": "#4a92e8",
+      "brandSymbol": "aqua-symbol-inverse.png"
+    }
+  },
+  "color": {
+    "desktop": "#edf5ff",
+    "surface": "#fbfdff",
+    "surfaceSecondary": "#f1f6fc",
+    "border": "#d7e1ee",
+    "accent": "#1478f2",
+    "accentSoft": "#dcecff",
+    "textPrimary": "#101827",
+    "textSecondary": "#5d6b7c",
+    "destructive": "#e53935",
+    "success": "#24a148",
+    "warning": "#f59e0b"
+  },
+  "typography": {
+    "uiFamily": "Noto Sans, system-ui, sans-serif",
+    "monoFamily": "ui-monospace, monospace",
+    "baseSize": 14,
+    "smallSize": 12,
+    "titleSize": 18
+  },
+  "spacing": {
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24
+  },
+  "radius": {
+    "control": 6,
+    "panel": 12,
+    "window": 14,
+    "dock": 14
+  },
+  "surface": {
+    "fill": "rgba(251, 253, 255, 0.96)",
+    "secondaryFill": "rgba(241, 246, 252, 0.94)",
+    "border": "rgba(159, 177, 200, 0.42)",
+    "separator": "rgba(159, 177, 200, 0.26)",
+    "shadow": "rgba(42, 65, 94, 0.18)",
+    "optionalBlurRadius": 8,
+    "blurRequired": false
+  },
+  "layout": {
+    "topBarHeight": 44,
+    "bottomControlHeight": 64,
+    "applicationPanelWidth": 580,
+    "searchPanelWidth": 720,
+    "desktopIconSize": 52,
+    "toastWidth": 360
+  },
+  "canonicalComposition": {
+    "applicationsControl": "bottom-left",
+    "searchControl": "bottom-left",
+    "runningAppDock": "bottom-center",
+    "workspaceSwitcher": "bottom-right",
+    "statusBar": "compact-full-width",
+    "defaultDesktopIcons": "none",
+    "referenceContract": "visual-reference.md"
+  },
+  "mockPolicy": {
+    "mockValuesMustBeLabeled": true,
+    "blurMustRemainOptional": true,
+    "doNotUseDesktopEnvironmentThemeAssets": true
+  }
+}

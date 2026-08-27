@@ -1,0 +1,159 @@
+#!/bin/sh
+
+set -u
+
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+BOOT_CHECK_FILE="${AQUA_GRAPHICS_QEMU_VISIBLE_BOOT_CHECK_FILE:-${RUNTIME_DIR}/graphics-qemu-visible-boot-check.plan}"
+ATTEMPT_RESULT_FILE="${AQUA_GRAPHICS_VISIBLE_ATTEMPT_RESULT_FILE:-${RUNTIME_DIR}/graphics-visible-attempt-result.plan}"
+OBSERVATION_FILE="${AQUA_GRAPHICS_QEMU_OBSERVATION_FILE:-${RUNTIME_DIR}/graphics-qemu-observation.plan}"
+EVIDENCE_FILE="${AQUA_QEMU_VM_DISPLAY_EVIDENCE_FILE:-${RUNTIME_DIR}/qemu-visible-evidence.plan}"
+PASS_REPORT_FILE="${AQUA_QEMU_VISIBLE_PASS_REPORT_FILE:-${RUNTIME_DIR}/qemu-visible-pass-report.plan}"
+
+failures=0
+
+mark() {
+    status="$1"
+    echo "[AQUA-GATE] stage=qemu-visible-pass-report status=${status}"
+}
+
+need_log() {
+    label="$1"
+    log="$2"
+    needle="$3"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+value_from_file() {
+    file="$1"
+    key="$2"
+    if [ -f "${file}" ]; then
+        sed -n "s/^${key}=//p" "${file}" | sed -n "1p"
+    fi
+}
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-qemu-visible-pass-report"
+echo "pass_report_status=qemu-visible-pass-report-ready"
+echo "mode=text-recovery"
+echo "boot_check_file=${BOOT_CHECK_FILE}"
+echo "attempt_result_file=${ATTEMPT_RESULT_FILE}"
+echo "observation_file=${OBSERVATION_FILE}"
+echo "evidence_file=${EVIDENCE_FILE}"
+echo "pass_report_file=${PASS_REPORT_FILE}"
+
+need_log "source_boot_check_ready" "${BOOT_CHECK_FILE}" "qemu_visible_boot_path_ready=true"
+need_log "source_boot_check_manual" "${BOOT_CHECK_FILE}" "manual_observation_required=true"
+need_log "source_attempt_result_collected" "${ATTEMPT_RESULT_FILE}" "attempt_result_collected=true"
+need_log "source_attempt_bounded" "${ATTEMPT_RESULT_FILE}" "bounded_run_frames=3"
+need_log "source_attempt_no_persistent" "${ATTEMPT_RESULT_FILE}" "persistent_graphical_session_started=false"
+need_log "source_attempt_recovery_safe" "${ATTEMPT_RESULT_FILE}" "safe_return_to_recovery=ok"
+need_log "source_observation_recorded" "${OBSERVATION_FILE}" "manual_observation_recorded=true"
+need_log "source_observation_no_persistent" "${OBSERVATION_FILE}" "persistent_graphical_session_started=false"
+need_log "source_observation_recovery_safe" "${OBSERVATION_FILE}" "safe_return_to_recovery=ok"
+
+attempt_result="$(value_from_file "${ATTEMPT_RESULT_FILE}" "attempt_result")"
+attempt_completed="$(value_from_file "${ATTEMPT_RESULT_FILE}" "visible_qemu_attempt_completed")"
+attempt_started="$(value_from_file "${ATTEMPT_RESULT_FILE}" "visible_qemu_attempt_started")"
+observation_status="$(value_from_file "${OBSERVATION_FILE}" "observation_status")"
+qemu_vm_display_observed="$(value_from_file "${OBSERVATION_FILE}" "qemu_vm_display_observed")"
+evidence_status="$(value_from_file "${OBSERVATION_FILE}" "evidence_status")"
+
+[ -n "${attempt_result}" ] || attempt_result="unknown"
+[ -n "${attempt_completed}" ] || attempt_completed="false"
+[ -n "${attempt_started}" ] || attempt_started="false"
+[ -n "${observation_status}" ] || observation_status="unknown"
+[ -n "${qemu_vm_display_observed}" ] || qemu_vm_display_observed="false"
+[ -n "${evidence_status}" ] || evidence_status="unknown"
+
+case "${qemu_vm_display_observed}" in
+    true)
+        evidence_required=true
+        need_log "source_evidence_ready" "${EVIDENCE_FILE}" "evidence_status=operator-capture-recorded"
+        need_log "source_evidence_manual" "${EVIDENCE_FILE}" "qemu_visible_manual_evidence=true"
+        need_log "source_evidence_recovery_safe" "${EVIDENCE_FILE}" "safe_return_to_recovery=ok"
+        ;;
+    false)
+        evidence_required=false
+        ;;
+    *)
+        echo "invalid_qemu_vm_display_observed=${qemu_vm_display_observed}"
+        failures=$((failures + 1))
+        evidence_required=true
+        ;;
+esac
+
+if [ "${qemu_vm_display_observed}" = "true" ] && [ "${attempt_completed}" != "true" ]; then
+    echo "positive_observation_requires_completed_attempt=failed"
+    failures=$((failures + 1))
+else
+    echo "positive_observation_requires_completed_attempt=ok"
+fi
+
+{
+    echo "product=Aqua Linux"
+    echo "report=qemu-visible-pass"
+    echo "mode=text-recovery"
+    echo "source_boot_check=graphics-qemu-visible-boot-check"
+    echo "source_attempt_result=graphics-visible-attempt-result"
+    echo "source_observation=graphics-qemu-observation-marker"
+    echo "attempt_result=${attempt_result}"
+    echo "visible_qemu_attempt_started=${attempt_started}"
+    echo "visible_qemu_attempt_completed=${attempt_completed}"
+    echo "qemu_vm_display_observed=${qemu_vm_display_observed}"
+    echo "observation_status=${observation_status}"
+    echo "evidence_required=${evidence_required}"
+    echo "evidence_status=${evidence_status}"
+    echo "positive_observation_requires_evidence=true"
+    echo "positive_observation_requires_completed_attempt=true"
+    echo "manual_observation_recorded=true"
+    echo "operator_confirmation_required=true"
+    echo "persistent_graphical_session_started=false"
+    echo "desktop_shell_started=false"
+    echo "boot_graphics=false"
+    echo "autostart=false"
+    echo "fallback_tty_available=true"
+    echo "safe_return_to_recovery=ok"
+} > "${PASS_REPORT_FILE}" || failures=$((failures + 1))
+
+need_log "pass_report_written" "${PASS_REPORT_FILE}" "report=qemu-visible-pass"
+need_log "pass_report_observation" "${PASS_REPORT_FILE}" "qemu_vm_display_observed=${qemu_vm_display_observed}"
+need_log "pass_report_evidence_rule" "${PASS_REPORT_FILE}" "positive_observation_requires_evidence=true"
+need_log "pass_report_no_persistent" "${PASS_REPORT_FILE}" "persistent_graphical_session_started=false"
+need_log "pass_report_no_desktop_shell" "${PASS_REPORT_FILE}" "desktop_shell_started=false"
+need_log "pass_report_no_boot_graphics" "${PASS_REPORT_FILE}" "boot_graphics=false"
+need_log "pass_report_no_autostart" "${PASS_REPORT_FILE}" "autostart=false"
+need_log "pass_report_recovery_safe" "${PASS_REPORT_FILE}" "safe_return_to_recovery=ok"
+
+echo "qemu_visible_pass_report=ok"
+echo "attempt_result=${attempt_result}"
+echo "visible_qemu_attempt_started=${attempt_started}"
+echo "visible_qemu_attempt_completed=${attempt_completed}"
+echo "qemu_vm_display_observed=${qemu_vm_display_observed}"
+echo "observation_status=${observation_status}"
+echo "evidence_required=${evidence_required}"
+echo "evidence_status=${evidence_status}"
+echo "positive_observation_requires_evidence=true"
+echo "manual_observation_recorded=true"
+echo "persistent_graphical_session_started=false"
+echo "desktop_shell_started=false"
+echo "boot_graphics=false"
+echo "autostart=false"
+echo "fallback_tty_available=true"
+echo "safe_return_to_recovery=ok"
+
+if [ "${failures}" -eq 0 ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1

@@ -1,0 +1,9 @@
+menu "Aqua Linux"
+
+config BR2_PACKAGE_AQUA_BOOT_MARKERS
+    bool "Aqua boot markers"
+    default y
+    help
+      Installs the early recovery boot marker scripts used by Milestone 1.
+
+endmenu

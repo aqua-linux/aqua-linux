@@ -1,0 +1,46 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp 2 \
+    -m 1024M \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -drive file=$env(TARGET_DISK),if=virtio,format=qcow2 \
+    -drive file=$env(ARTIFACT_DISK),if=virtio,format=raw,readonly=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.installer_execution_gate=1} \
+    -serial stdio \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -no-reboot
+
+expect -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh}
+expect -exact {aqua-linux login: }
+send -- "root\r"
+expect -exact {# }
+send -- "mkdir -p /run/aqua-installer && mount -o ro /dev/vdc /run/aqua-installer\r"
+expect -exact {# }
+send -- "AQUA_INSTALLER_QEMU_EXECUTION_ENABLE=QEMU_DISPOSABLE_TARGET_ONLY AQUA_INSTALLER_QEMU_TRANSACTION_EXECUTE=ERASE_DISPOSABLE_VDB_NOW AQUA_INSTALLER_QEMU_FAILURE_INJECT=AFTER_EFI_MOUNT /usr/bin/aqua-installer-probe execution-run 'ERASE /dev/vdb'\r"
+expect -exact {transaction_failure_injection=after-efi-mount}
+expect -exact {transaction_cleanup_attempt=/mnt/aqua-target/boot/efi}
+expect -exact {transaction_cleanup_completed=/mnt/aqua-target/boot/efi}
+expect -exact {transaction_cleanup_attempt=/mnt/aqua-target}
+expect -exact {transaction_cleanup_completed=/mnt/aqua-target}
+expect -exact {installer_probe_error=transaction failed after 8 steps; cleanup_commands=2: injected failure after EFI mount}
+expect -exact {[AQUA-INSTALLER] stage=execution-run status=error executed=true completed=false}
+expect -exact {# }
+send -- {if grep -Fq ' /mnt/aqua-target/boot/efi ' /proc/mounts || grep -Fq ' /mnt/aqua-target ' /proc/mounts; then echo '[AQUA-TEST] stage=installer-cleanup-unmounted status=error'; else echo '[AQUA-TEST] stage=installer-cleanup-unmounted status=ok efi=true root=true'; fi}
+send -- "\r"
+expect -exact {[AQUA-TEST] stage=installer-cleanup-unmounted status=ok efi=true root=true}
+expect -exact {# }
+send -- {mkdir -p /mnt/aqua-cleanup-root /mnt/aqua-cleanup-efi && mount -o ro /dev/vdb2 /mnt/aqua-cleanup-root && mount -o ro /dev/vdb1 /mnt/aqua-cleanup-efi && grep -Fq 'ID=aqua' /mnt/aqua-cleanup-root/etc/os-release && test ! -e /mnt/aqua-cleanup-efi/EFI/BOOT/BOOTX64.EFI && echo '[AQUA-TEST] stage=installer-cleanup-filesystems status=ok root_readable=true efi_readable=true bootloader_staged=false'}
+send -- "\r"
+expect -exact {[AQUA-TEST] stage=installer-cleanup-filesystems status=ok root_readable=true efi_readable=true bootloader_staged=false}
+expect -exact {# }
+send -- "umount /mnt/aqua-cleanup-efi && umount /mnt/aqua-cleanup-root && poweroff -f\r"
+expect eof

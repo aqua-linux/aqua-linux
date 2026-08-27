@@ -1,0 +1,228 @@
+#!/bin/sh
+
+set -u
+
+CONFIG_PATH="${AQUA_COMPOSITOR_CONFIG:-/etc/aqua/compositor-session.conf}"
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+GATE_FILE="${AQUA_GRAPHICS_ENABLE_GATE_FILE:-${RUNTIME_DIR}/graphics-enable-gate.plan}"
+TRANSCRIPT_BIN="${AQUA_OPERATOR_TRANSCRIPT_BIN:-/usr/bin/aqua-operator-transcript}"
+LAUNCH_BIN="${AQUA_VISIBLE_PREVIEW_LAUNCH_BIN:-/usr/bin/aqua-visible-preview-launch}"
+HANDOFF_LOG="${AQUA_HANDOFF_GATE_LOG:-${RUNTIME_DIR}/preview-handoff-gate.log}"
+EXECUTION_LOG="${AQUA_MANUAL_EXECUTION_LOG:-${RUNTIME_DIR}/preview-execution.log}"
+POSITIVE_DRY_RUN="${AQUA_GRAPHICS_ENABLE_POSITIVE_DRY_RUN:-false}"
+
+failures=0
+
+mark() {
+    status="$1"
+    echo "[AQUA-GATE] stage=graphics-enable-gate status=${status}"
+}
+
+need_file() {
+    label="$1"
+    path="$2"
+
+    if [ -x "${path}" ]; then
+        echo "${label}=ok"
+    else
+        echo "${label}=missing"
+        failures=$((failures + 1))
+    fi
+}
+
+need_config_value() {
+    key="$1"
+    expected="$2"
+    label="$3"
+
+    if [ -f "${CONFIG_PATH}" ] && grep -Fq "${key}=${expected}" "${CONFIG_PATH}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+need_log() {
+    label="$1"
+    log="$2"
+    needle="$3"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+status_from_log() {
+    log="$1"
+    needle="$2"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        printf 'ok'
+    else
+        printf 'missing'
+    fi
+}
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-graphics-enable-gate"
+echo "gate_status=qemu-safe-graphics-enable-gate-ready"
+echo "mode=text-recovery"
+echo "launch_mode=manual-recovery"
+echo "operator_controlled=true"
+echo "manual_start_required=true"
+echo "config_path=${CONFIG_PATH}"
+echo "runtime_dir=${RUNTIME_DIR}"
+echo "gate_file=${GATE_FILE}"
+echo "operator_transcript_bin=${TRANSCRIPT_BIN}"
+echo "visible_preview_launch_bin=${LAUNCH_BIN}"
+echo "handoff_log=${HANDOFF_LOG}"
+echo "manual_execution_log=${EXECUTION_LOG}"
+echo "positive_dry_run=${POSITIVE_DRY_RUN}"
+
+need_config_value "autostart" "false" "config_autostart_blocked"
+need_config_value "boot_graphics" "false" "config_boot_graphics_blocked"
+need_config_value "recovery_tty_required" "true" "config_recovery_tty_required"
+need_file "operator_transcript_tool" "${TRANSCRIPT_BIN}"
+need_file "visible_preview_launch_tool" "${LAUNCH_BIN}"
+
+handoff_gate_check="$(status_from_log "${HANDOFF_LOG}" "[AQUA-GATE] stage=nested-preview-handoff status=ok")"
+manual_execution_check="$(status_from_log "${EXECUTION_LOG}" "[AQUA-COMPOSITOR] stage=manual-nested-preview-execution status=ok")"
+fallback_tty_check="$(status_from_log "${EXECUTION_LOG}" "fallback_tty_available=true")"
+manual_cleanup_check="$(status_from_log "${EXECUTION_LOG}" "cleanup_complete=ok")"
+manual_stopped_check="$(status_from_log "${EXECUTION_LOG}" "display_output_stopped=true")"
+
+if [ "${handoff_gate_check}" = "ok" ] && \
+   [ "${manual_execution_check}" = "ok" ] && \
+   [ "${fallback_tty_check}" = "ok" ] && \
+   [ "${manual_cleanup_check}" = "ok" ] && \
+   [ "${manual_stopped_check}" = "ok" ] && \
+   [ "${POSITIVE_DRY_RUN}" = "true" ]; then
+    currently_allowable="true"
+    dry_run_allowable="true"
+    enable_decision="allow-dry-run"
+    refuse_reason="none"
+    blocked_criteria="none-for-dry-run"
+else
+    currently_allowable="false"
+    dry_run_allowable="false"
+    enable_decision="refuse"
+    refuse_reason="boot-graphics-disabled-until-fail-safe-compositor"
+    blocked_criteria="boot_graphics=false"
+fi
+
+cat > "${GATE_FILE}" <<EOF || failures=$((failures + 1))
+product=Aqua Linux
+gate=manual-graphics-enable
+mode=text-recovery
+requested_action=enable-graphics
+preflight_contract_version=1
+preflight_status=evaluated
+allow_when_compositor_packaged=true
+allow_when_handoff_gate_ok=true
+allow_when_manual_execution_ok=true
+allow_when_fallback_tty_supervised=true
+allow_when_boot_graphics_explicitly_enabled=true
+allow_when_autostart_policy=manual-only
+check_handoff_gate=${handoff_gate_check}
+check_manual_execution=${manual_execution_check}
+check_fallback_tty=${fallback_tty_check}
+check_manual_cleanup=${manual_cleanup_check}
+check_manual_stopped=${manual_stopped_check}
+positive_dry_run=${POSITIVE_DRY_RUN}
+currently_allowable=${currently_allowable}
+dry_run_allowable=${dry_run_allowable}
+enable_decision=${enable_decision}
+refuse_reason=${refuse_reason}
+blocked_criteria=${blocked_criteria}
+operator_controlled=true
+manual_start_required=true
+autostart=false
+boot_graphics=false
+actual_graphics_started=false
+desktop_shell_started=false
+display_output_started=false
+preview_window_started=false
+host_tool_packaged=false
+fallback_tty_available=true
+safe_return_to_recovery=ok
+next_qemu_command=/usr/bin/aqua-visible-preview-launch
+next_host_command=aqua-host-tools --features host-window-preview -- smoke-manual-execution-window
+EOF
+
+need_log "gate_plan_written" "${GATE_FILE}" "gate=manual-graphics-enable"
+need_log "gate_preflight_evaluated" "${GATE_FILE}" "preflight_status=evaluated"
+need_log "gate_allow_handoff" "${GATE_FILE}" "allow_when_handoff_gate_ok=true"
+need_log "gate_allow_manual_execution" "${GATE_FILE}" "allow_when_manual_execution_ok=true"
+need_log "gate_allow_fallback_tty" "${GATE_FILE}" "allow_when_fallback_tty_supervised=true"
+need_log "gate_allow_boot_graphics" "${GATE_FILE}" "allow_when_boot_graphics_explicitly_enabled=true"
+need_log "gate_check_handoff" "${GATE_FILE}" "check_handoff_gate=ok"
+need_log "gate_check_manual_execution" "${GATE_FILE}" "check_manual_execution=ok"
+need_log "gate_check_fallback_tty" "${GATE_FILE}" "check_fallback_tty=ok"
+need_log "gate_check_manual_cleanup" "${GATE_FILE}" "check_manual_cleanup=ok"
+need_log "gate_check_manual_stopped" "${GATE_FILE}" "check_manual_stopped=ok"
+need_log "gate_no_autostart" "${GATE_FILE}" "autostart=false"
+need_log "gate_no_boot_graphics" "${GATE_FILE}" "boot_graphics=false"
+need_log "gate_no_actual_graphics_start" "${GATE_FILE}" "actual_graphics_started=false"
+need_log "gate_no_display_start" "${GATE_FILE}" "display_output_started=false"
+need_log "gate_recovery_safe" "${GATE_FILE}" "safe_return_to_recovery=ok"
+
+if [ "${POSITIVE_DRY_RUN}" = "true" ]; then
+    need_log "gate_currently_allowable" "${GATE_FILE}" "currently_allowable=true"
+    need_log "gate_dry_run_allowable" "${GATE_FILE}" "dry_run_allowable=true"
+    need_log "gate_decision_allow_dry_run" "${GATE_FILE}" "enable_decision=allow-dry-run"
+else
+    need_log "gate_currently_not_allowable" "${GATE_FILE}" "currently_allowable=false"
+    need_log "gate_decision_refuse" "${GATE_FILE}" "enable_decision=refuse"
+    need_log "gate_refuse_reason" "${GATE_FILE}" "refuse_reason=boot-graphics-disabled-until-fail-safe-compositor"
+    need_log "gate_blocked_criteria" "${GATE_FILE}" "blocked_criteria=boot_graphics=false"
+fi
+
+echo "graphics_enable_gate=ok"
+echo "gate_plan_written=ok"
+echo "requested_action=enable-graphics"
+echo "preflight_contract_version=1"
+echo "preflight_status=evaluated"
+echo "allow_when_compositor_packaged=true"
+echo "allow_when_handoff_gate_ok=true"
+echo "allow_when_manual_execution_ok=true"
+echo "allow_when_fallback_tty_supervised=true"
+echo "allow_when_boot_graphics_explicitly_enabled=true"
+echo "allow_when_autostart_policy=manual-only"
+echo "check_handoff_gate=${handoff_gate_check}"
+echo "check_manual_execution=${manual_execution_check}"
+echo "check_fallback_tty=${fallback_tty_check}"
+echo "check_manual_cleanup=${manual_cleanup_check}"
+echo "check_manual_stopped=${manual_stopped_check}"
+echo "positive_dry_run=${POSITIVE_DRY_RUN}"
+echo "currently_allowable=${currently_allowable}"
+echo "dry_run_allowable=${dry_run_allowable}"
+echo "enable_decision=${enable_decision}"
+echo "refuse_reason=${refuse_reason}"
+echo "blocked_criteria=${blocked_criteria}"
+echo "manual_start_required=true"
+echo "autostart=false"
+echo "boot_graphics=false"
+echo "actual_graphics_started=false"
+echo "display_output_started=false"
+echo "preview_window_started=false"
+echo "desktop_shell_started=false"
+echo "host_tool_packaged=false"
+echo "fallback_tty_available=true"
+echo "safe_return_to_recovery=ok"
+echo "next_qemu_command=/usr/bin/aqua-visible-preview-launch"
+echo "next_host_command=aqua-host-tools --features host-window-preview -- smoke-manual-execution-window"
+
+if [ "${failures}" -eq 0 ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1

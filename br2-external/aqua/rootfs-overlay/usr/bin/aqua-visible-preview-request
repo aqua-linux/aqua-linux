@@ -1,0 +1,154 @@
+#!/bin/sh
+
+set -u
+
+CONFIG_PATH="${AQUA_COMPOSITOR_CONFIG:-/etc/aqua/compositor-session.conf}"
+ENV_PATH="${AQUA_SESSION_ENV:-/etc/aqua/session.env}"
+COMPOSITOR_BIN="${AQUA_COMPOSITOR_BIN:-/usr/bin/aqua-compositor}"
+PREVIEW_EXEC_BIN="${AQUA_PREVIEW_EXEC_BIN:-/usr/bin/aqua-compositor-preview-exec}"
+HANDOFF_GATE_BIN="${AQUA_HANDOFF_GATE_BIN:-/usr/bin/aqua-compositor-handoff-gate}"
+GUARDED_RUN_BIN="${AQUA_GUARDED_RUN_BIN:-/usr/bin/aqua-compositor-guarded-run}"
+MANUAL_LAUNCH_BIN="${AQUA_MANUAL_LAUNCH_BIN:-/usr/bin/aqua-compositor-manual-launch}"
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+REQUEST_FILE="${AQUA_VISIBLE_PREVIEW_REQUEST_FILE:-${RUNTIME_DIR}/visible-preview.request}"
+
+failures=0
+
+mark() {
+    status="$1"
+    echo "[AQUA-PREVIEW] stage=visible-nested-preview-request status=${status}"
+}
+
+run_step() {
+    label="$1"
+    shift
+    log="${RUNTIME_DIR}/${label}.log"
+
+    if "$@" > "${log}" 2> "${log}.err"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+need_log() {
+    label="$1"
+    log="$2"
+    needle="$3"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-visible-preview-request"
+echo "request_status=qemu-safe-visible-nested-preview-request-ready"
+echo "launch_mode=manual-recovery"
+echo "operator_controlled=true"
+echo "operator_ack_required=true"
+echo "operator_acknowledged=true"
+echo "request_target=host-visible-nested-window"
+echo "window_backend=minifb"
+echo "feature_gate=host-window-preview"
+echo "host_tool_packaged=false"
+echo "rootfs_packaged_request=true"
+echo "config_path=${CONFIG_PATH}"
+echo "env_path=${ENV_PATH}"
+echo "compositor_bin=${COMPOSITOR_BIN}"
+echo "preview_exec_bin=${PREVIEW_EXEC_BIN}"
+echo "handoff_gate_bin=${HANDOFF_GATE_BIN}"
+echo "guarded_run_bin=${GUARDED_RUN_BIN}"
+echo "manual_launch_bin=${MANUAL_LAUNCH_BIN}"
+echo "request_file=${REQUEST_FILE}"
+
+if [ ! -x "${COMPOSITOR_BIN}" ]; then
+    echo "compositor_status=missing"
+    mark error
+    exit 1
+fi
+
+if [ ! -x "${PREVIEW_EXEC_BIN}" ]; then
+    echo "preview_exec_tool=missing"
+    mark error
+    exit 1
+fi
+
+AQUA_COMPOSITOR_CONFIG="${CONFIG_PATH}" \
+AQUA_SESSION_ENV="${ENV_PATH}" \
+AQUA_COMPOSITOR_BIN="${COMPOSITOR_BIN}" \
+AQUA_HANDOFF_GATE_BIN="${HANDOFF_GATE_BIN}" \
+AQUA_GUARDED_RUN_BIN="${GUARDED_RUN_BIN}" \
+AQUA_MANUAL_LAUNCH_BIN="${MANUAL_LAUNCH_BIN}" \
+AQUA_RUNTIME_DIR="${RUNTIME_DIR}" \
+run_step "visible-preview-manual-execution" "${PREVIEW_EXEC_BIN}"
+
+preview_log="${RUNTIME_DIR}/visible-preview-manual-execution.log"
+
+need_log "manual_execution_ready" "${preview_log}" "[AQUA-PREVIEW] stage=manual-nested-preview-execution status=ok"
+need_log "manual_execution_complete" "${preview_log}" "execution_complete=ok"
+need_log "manual_execution_backend" "${preview_log}" "handoff_gate_manual_backend=ok"
+need_log "manual_execution_started" "${preview_log}" "display_output_started=true"
+need_log "manual_execution_stopped" "${preview_log}" "display_output_stopped=true"
+need_log "manual_execution_return" "${preview_log}" "safe_return_to_recovery=ok"
+need_log "manual_execution_no_preview_window" "${preview_log}" "preview_window_started=false"
+need_log "manual_execution_no_boot_graphics" "${preview_log}" "boot_graphics=false"
+need_log "manual_execution_no_autostart" "${preview_log}" "autostart=false"
+
+cat > "${REQUEST_FILE}" <<'EOF' || failures=$((failures + 1))
+product=Aqua Linux
+request=visible-nested-preview
+target=host-visible-nested-window
+window_backend=minifb
+feature_gate=host-window-preview
+operator_controlled=true
+manual_start_required=true
+host_tool_packaged=false
+rootfs_packaged_request=true
+autostart=false
+boot_graphics=false
+desktop_shell_started=false
+fallback_tty_required=true
+next_host_command=aqua-host-tools --features host-window-preview -- smoke-manual-execution-window
+EOF
+
+need_log "request_source_execution" "${REQUEST_FILE}" "request=visible-nested-preview"
+need_log "request_target_ready" "${REQUEST_FILE}" "target=host-visible-nested-window"
+need_log "request_window_backend" "${REQUEST_FILE}" "window_backend=minifb"
+need_log "request_feature_gate" "${REQUEST_FILE}" "feature_gate=host-window-preview"
+need_log "request_manual_start" "${REQUEST_FILE}" "manual_start_required=true"
+need_log "request_host_tool_not_packaged" "${REQUEST_FILE}" "host_tool_packaged=false"
+need_log "request_no_autostart" "${REQUEST_FILE}" "autostart=false"
+need_log "request_no_boot_graphics" "${REQUEST_FILE}" "boot_graphics=false"
+need_log "request_fallback_tty" "${REQUEST_FILE}" "fallback_tty_required=true"
+
+echo "visible_preview_request=ok"
+echo "request_file_written=ok"
+echo "request_target_ready=ok"
+echo "request_window_backend=minifb"
+echo "request_feature_gate=host-window-preview"
+echo "request_manual_start_required=true"
+echo "request_host_tool_packaged=false"
+echo "request_rootfs_packaged=true"
+echo "request_autostart=false"
+echo "request_boot_graphics=false"
+echo "request_desktop_shell_started=false"
+echo "fallback_tty_available=true"
+echo "safe_return_to_recovery=ok"
+echo "next_manual_command=/usr/bin/aqua-visible-preview-request"
+echo "next_host_command=aqua-host-tools --features host-window-preview -- smoke-manual-execution-window"
+
+if [ "${failures}" -eq 0 ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1

@@ -1,0 +1,4 @@
+Aqua Linux Milestone 1 recovery
+
+This image proves Buildroot boot, mounted base filesystems, serial boot markers,
+and a fallback text shell. It is not a graphical desktop image yet.

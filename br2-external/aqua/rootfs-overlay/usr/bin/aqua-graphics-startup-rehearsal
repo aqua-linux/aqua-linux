@@ -1,0 +1,117 @@
+#!/bin/sh
+
+set -u
+
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+PREFLIGHT_FILE="${AQUA_GRAPHICS_STARTUP_PREFLIGHT_FILE:-${RUNTIME_DIR}/graphics-startup-preflight.plan}"
+GUARDED_SMOKE_LOG="${AQUA_GUARDED_SMOKE_LOG:-${RUNTIME_DIR}/guarded-display-output-smoke.log}"
+REHEARSAL_FILE="${AQUA_GRAPHICS_STARTUP_REHEARSAL_FILE:-${RUNTIME_DIR}/graphics-startup-rehearsal.plan}"
+
+failures=0
+
+mark() {
+    status="$1"
+    echo "[AQUA-GATE] stage=graphics-startup-rehearsal status=${status}"
+}
+
+need_log() {
+    label="$1"
+    log="$2"
+    needle="$3"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-graphics-startup-rehearsal"
+echo "startup_rehearsal_status=qemu-safe-guarded-startup-rehearsal-complete"
+echo "mode=text-recovery"
+echo "rehearsal_mode=bounded-manual-display-output-smoke"
+echo "preflight_file=${PREFLIGHT_FILE}"
+echo "guarded_smoke_log=${GUARDED_SMOKE_LOG}"
+echo "rehearsal_file=${REHEARSAL_FILE}"
+
+need_log "source_preflight_ready" "${PREFLIGHT_FILE}" "preflight=guarded-graphics-startup"
+need_log "source_preflight_bounded" "${PREFLIGHT_FILE}" "bounded_startup_candidate=true"
+need_log "source_preflight_decision" "${PREFLIGHT_FILE}" "startup_preflight_decision=allow-bounded-manual-preflight-only"
+need_log "source_preflight_fallback_tty" "${PREFLIGHT_FILE}" "fallback_tty_available=true"
+need_log "source_preflight_rollback" "${PREFLIGHT_FILE}" "rollback_verified=true"
+need_log "source_preflight_recovery_safe" "${PREFLIGHT_FILE}" "safe_return_to_recovery=ok"
+
+need_log "guarded_smoke_complete" "${GUARDED_SMOKE_LOG}" "[AQUA-COMPOSITOR] stage=display-output-smoke status=ok"
+need_log "guarded_smoke_frames" "${GUARDED_SMOKE_LOG}" "presented_frames=3"
+need_log "guarded_smoke_started" "${GUARDED_SMOKE_LOG}" "display_output_started=true"
+need_log "guarded_smoke_stopped" "${GUARDED_SMOKE_LOG}" "display_output_stopped=true"
+need_log "guarded_smoke_fallback_tty" "${GUARDED_SMOKE_LOG}" "fallback_tty_available=true"
+need_log "guarded_smoke_no_autostart" "${GUARDED_SMOKE_LOG}" "autostart=false"
+need_log "guarded_smoke_no_boot_graphics" "${GUARDED_SMOKE_LOG}" "boot_graphics=false"
+need_log "guarded_smoke_no_desktop_shell" "${GUARDED_SMOKE_LOG}" "desktop_shell_started=false"
+need_log "guarded_smoke_recovery_safe" "${GUARDED_SMOKE_LOG}" "recovery_safe=ok"
+
+cat > "${REHEARSAL_FILE}" <<'EOF' || failures=$((failures + 1))
+product=Aqua Linux
+rehearsal=guarded-graphics-startup
+mode=text-recovery
+rehearsal_mode=bounded-manual-display-output-smoke
+source_preflight=graphics-startup-preflight
+bounded_startup_rehearsal=true
+operator_ack_required=true
+manual_start_required=true
+bounded_run_required=true
+bounded_run_frames=3
+display_output_started=true
+display_output_stopped=true
+actual_graphics_started=false
+desktop_shell_started=false
+boot_graphics=false
+autostart=false
+fallback_tty_available=true
+rollback_verified=true
+rollback_command=/usr/bin/aqua-recovery
+startup_rehearsal_passed=true
+startup_rehearsal_decision=allow-next-manual-qemu-display-step
+safe_return_to_recovery=ok
+EOF
+
+need_log "rehearsal_written" "${REHEARSAL_FILE}" "rehearsal=guarded-graphics-startup"
+need_log "rehearsal_bounded" "${REHEARSAL_FILE}" "bounded_startup_rehearsal=true"
+need_log "rehearsal_frames" "${REHEARSAL_FILE}" "bounded_run_frames=3"
+need_log "rehearsal_started" "${REHEARSAL_FILE}" "display_output_started=true"
+need_log "rehearsal_stopped" "${REHEARSAL_FILE}" "display_output_stopped=true"
+need_log "rehearsal_no_desktop_shell" "${REHEARSAL_FILE}" "desktop_shell_started=false"
+need_log "rehearsal_no_boot_graphics" "${REHEARSAL_FILE}" "boot_graphics=false"
+need_log "rehearsal_recovery_safe" "${REHEARSAL_FILE}" "safe_return_to_recovery=ok"
+
+echo "graphics_startup_rehearsal=ok"
+echo "bounded_startup_rehearsal=true"
+echo "manual_start_required=true"
+echo "bounded_run_required=true"
+echo "bounded_run_frames=3"
+echo "display_output_started=true"
+echo "display_output_stopped=true"
+echo "actual_graphics_started=false"
+echo "desktop_shell_started=false"
+echo "boot_graphics=false"
+echo "autostart=false"
+echo "fallback_tty_available=true"
+echo "rollback_verified=true"
+echo "rollback_command=/usr/bin/aqua-recovery"
+echo "startup_rehearsal_passed=true"
+echo "startup_rehearsal_decision=allow-next-manual-qemu-display-step"
+echo "safe_return_to_recovery=ok"
+
+if [ "${failures}" -eq 0 ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1

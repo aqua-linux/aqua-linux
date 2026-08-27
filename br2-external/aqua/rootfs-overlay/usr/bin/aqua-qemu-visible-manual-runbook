@@ -1,0 +1,136 @@
+#!/bin/sh
+
+set -u
+
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+RUNBOOK_FILE="${AQUA_QEMU_VISIBLE_MANUAL_RUNBOOK_FILE:-${RUNTIME_DIR}/qemu-visible-manual-runbook.plan}"
+TOOL_DIR="${AQUA_ROOTFS_USR_BIN:-/usr/bin}"
+
+failures=0
+
+mark() {
+    status="$1"
+    echo "[AQUA-GATE] stage=qemu-visible-manual-runbook status=${status}"
+}
+
+need_exec() {
+    label="$1"
+    path="$2"
+
+    if [ -x "${path}" ]; then
+        echo "${label}=present"
+    else
+        echo "${label}=missing"
+        failures=$((failures + 1))
+    fi
+}
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-qemu-visible-manual-runbook"
+echo "manual_runbook_status=qemu-vm-display-manual-runbook-ready"
+echo "mode=text-recovery"
+echo "host_entrypoint=scripts/run-qemu-visible-manual.sh"
+echo "host_ready_capture_flow=scripts/run-qemu-visible-ready-capture-flow.sh"
+echo "docker_required=false"
+echo "qemu_display_required=true"
+echo "operator_confirmation_required=true"
+
+need_exec "graphics_enable_gate_tool" "${TOOL_DIR}/aqua-graphics-enable-gate"
+need_exec "graphics_launch_candidate_tool" "${TOOL_DIR}/aqua-graphics-launch-candidate"
+need_exec "graphics_rollback_drill_tool" "${TOOL_DIR}/aqua-graphics-rollback-drill"
+need_exec "graphics_startup_preflight_tool" "${TOOL_DIR}/aqua-graphics-startup-preflight"
+need_exec "graphics_startup_rehearsal_tool" "${TOOL_DIR}/aqua-graphics-startup-rehearsal"
+need_exec "graphics_qemu_display_gate_tool" "${TOOL_DIR}/aqua-graphics-qemu-display-gate"
+need_exec "graphics_visible_qemu_attempt_tool" "${TOOL_DIR}/aqua-graphics-visible-qemu-attempt"
+need_exec "graphics_visible_attempt_transcript_tool" "${TOOL_DIR}/aqua-graphics-visible-attempt-transcript"
+need_exec "graphics_visible_attempt_runner_tool" "${TOOL_DIR}/aqua-graphics-visible-attempt-runner"
+need_exec "graphics_qemu_visible_boot_check_tool" "${TOOL_DIR}/aqua-graphics-qemu-visible-boot-check"
+need_exec "graphics_fbdev_present_tool" "${TOOL_DIR}/aqua-graphics-fbdev-present"
+need_exec "qemu_visible_evidence_record_tool" "${TOOL_DIR}/aqua-qemu-visible-evidence-record"
+need_exec "graphics_qemu_observation_marker_tool" "${TOOL_DIR}/aqua-graphics-qemu-observation-marker"
+need_exec "qemu_visible_pass_report_tool" "${TOOL_DIR}/aqua-qemu-visible-pass-report"
+need_exec "qemu_visible_evidence_bundle_apply_tool" "${TOOL_DIR}/aqua-qemu-visible-evidence-bundle-apply"
+
+{
+    echo "product=Aqua Linux"
+    echo "runbook=qemu-visible-manual"
+    echo "host_entrypoint=scripts/run-qemu-visible-manual.sh"
+    echo "host_step_1=scripts/build-image-docker-volume.sh"
+    echo "host_step_2=scripts/run-qemu-visible-manual.sh"
+    echo "host_step_3=scripts/watch-qemu-visible-readiness.sh"
+    echo "host_step_4=scripts/capture-qemu-visible-manual.sh"
+    echo "host_step_5=scripts/run-qemu-visible-ready-capture-flow.sh"
+    echo "host_step_6=scripts/run-qemu-visible-evidence-flow.sh"
+    echo "host_ready_capture_flow=scripts/run-qemu-visible-ready-capture-flow.sh"
+    echo "host_ready_capture_flow_supported=true"
+    echo "recovery_step_1=/usr/bin/aqua-recovery-help"
+    echo "recovery_step_2=/usr/bin/aqua-graphics-enable-gate"
+    echo "recovery_step_3=/usr/bin/aqua-graphics-launch-candidate"
+    echo "recovery_step_4=/usr/bin/aqua-graphics-rollback-drill"
+    echo "recovery_step_5=/usr/bin/aqua-graphics-startup-preflight"
+    echo "recovery_step_6=/usr/bin/aqua-graphics-startup-rehearsal"
+    echo "recovery_step_7=/usr/bin/aqua-graphics-qemu-display-gate"
+    echo "recovery_step_8=/usr/bin/aqua-graphics-visible-qemu-attempt"
+    echo "recovery_step_9=/usr/bin/aqua-graphics-visible-attempt-transcript"
+    echo "recovery_step_10=/usr/bin/aqua-graphics-visible-attempt-runner"
+    echo "recovery_step_11=/usr/bin/aqua-graphics-qemu-visible-boot-check"
+    echo "recovery_fbdev_probe=AQUA_FBDEV_DRY_RUN=true /usr/bin/aqua-graphics-fbdev-present"
+    echo "recovery_fbdev_present=AQUA_FBDEV_OPERATOR_CONFIRMED=true /usr/bin/aqua-graphics-fbdev-present"
+    echo "visible_frame_command_required=true"
+    echo "recovery_step_12=AQUA_QEMU_VM_DISPLAY_CAPTURE_ID=<capture-id> AQUA_QEMU_VM_DISPLAY_CAPTURE_FILE=<capture-file> /usr/bin/aqua-qemu-visible-evidence-record"
+    echo "recovery_step_13=AQUA_QEMU_VM_DISPLAY_OBSERVED=true /usr/bin/aqua-graphics-qemu-observation-marker"
+    echo "recovery_step_14=/usr/bin/aqua-qemu-visible-pass-report"
+    echo "recovery_bundle_apply_alternative=AQUA_QEMU_VM_DISPLAY_OPERATOR_CONFIRMED=true /usr/bin/aqua-qemu-visible-evidence-bundle-apply"
+    echo "observation_rule=run-step-13-only-after-operator-confirms-vm-display-and-records-evidence-then-run-step-14"
+    echo "pass_report_required=true"
+    echo "bundle_apply_supported=true"
+    echo "bounded_attempt_required=true"
+    echo "manual_observation_required=true"
+    echo "persistent_graphical_session_started=false"
+    echo "desktop_shell_started=false"
+    echo "boot_graphics=false"
+    echo "autostart=false"
+    echo "fallback_tty_available=true"
+    echo "safe_return_to_recovery=ok"
+} > "${RUNBOOK_FILE}" || failures=$((failures + 1))
+
+if [ -f "${RUNBOOK_FILE}" ] && grep -Fq "runbook=qemu-visible-manual" "${RUNBOOK_FILE}"; then
+    echo "runbook_written=ok"
+else
+    echo "runbook_written=failed"
+    failures=$((failures + 1))
+fi
+
+echo "qemu_visible_manual_runbook=ok"
+echo "host_entrypoint=scripts/run-qemu-visible-manual.sh"
+echo "host_ready_capture_flow=scripts/run-qemu-visible-ready-capture-flow.sh"
+echo "host_ready_capture_flow_supported=true"
+echo "host_display_script_ready=true"
+echo "docker_required=false"
+echo "manual_observation_required=true"
+echo "evidence_record_required=true"
+echo "recovery_fbdev_probe=AQUA_FBDEV_DRY_RUN=true /usr/bin/aqua-graphics-fbdev-present"
+echo "recovery_fbdev_present=AQUA_FBDEV_OPERATOR_CONFIRMED=true /usr/bin/aqua-graphics-fbdev-present"
+echo "visible_frame_command_required=true"
+echo "recovery_step_14=/usr/bin/aqua-qemu-visible-pass-report"
+echo "observation_rule=run-step-13-only-after-operator-confirms-vm-display-and-records-evidence-then-run-step-14"
+echo "pass_report_required=true"
+echo "bundle_apply_supported=true"
+echo "bounded_attempt_required=true"
+echo "persistent_graphical_session_started=false"
+echo "desktop_shell_started=false"
+echo "boot_graphics=false"
+echo "autostart=false"
+echo "fallback_tty_available=true"
+echo "safe_return_to_recovery=ok"
+
+if [ "${failures}" -eq 0 ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1

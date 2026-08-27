@@ -1,0 +1,261 @@
+#!/bin/sh
+
+set -u
+
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+BUNDLE_FILE="${AQUA_QEMU_VISIBLE_EVIDENCE_BUNDLE_FILE:-${RUNTIME_DIR}/qemu-visible-evidence-bundle.txt}"
+APPLY_FILE="${AQUA_QEMU_VISIBLE_EVIDENCE_BUNDLE_APPLY_FILE:-${RUNTIME_DIR}/qemu-visible-evidence-bundle-apply.plan}"
+BOOT_CHECK_FILE="${AQUA_GRAPHICS_QEMU_VISIBLE_BOOT_CHECK_FILE:-${RUNTIME_DIR}/graphics-qemu-visible-boot-check.plan}"
+EVIDENCE_FILE="${AQUA_QEMU_VM_DISPLAY_EVIDENCE_FILE:-${RUNTIME_DIR}/qemu-visible-evidence.plan}"
+OBSERVATION_FILE="${AQUA_GRAPHICS_QEMU_OBSERVATION_FILE:-${RUNTIME_DIR}/graphics-qemu-observation-positive.plan}"
+EVIDENCE_BIN="${AQUA_QEMU_VISIBLE_EVIDENCE_BIN:-/usr/bin/aqua-qemu-visible-evidence-record}"
+OBSERVATION_BIN="${AQUA_GRAPHICS_QEMU_OBSERVATION_BIN:-/usr/bin/aqua-graphics-qemu-observation-marker}"
+OPERATOR_CONFIRMED="${AQUA_QEMU_VM_DISPLAY_OPERATOR_CONFIRMED:-false}"
+
+failures=0
+
+mark() {
+    status="$1"
+    echo "[AQUA-GATE] stage=qemu-visible-evidence-bundle-apply status=${status}"
+}
+
+need_log() {
+    label="$1"
+    log="$2"
+    needle="$3"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+value_from_bundle() {
+    key="$1"
+    sed -n "s/^${key}=//p" "${BUNDLE_FILE}" | sed -n '1p'
+}
+
+case "${OPERATOR_CONFIRMED}" in
+    true|false) ;;
+    *)
+        echo "invalid_operator_confirmation=${OPERATOR_CONFIRMED}"
+        mark error
+        exit 1
+        ;;
+esac
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-qemu-visible-evidence-bundle-apply"
+echo "bundle_apply_status=qemu-visible-evidence-bundle-apply-ready"
+echo "mode=text-recovery"
+echo "bundle_file=${BUNDLE_FILE}"
+echo "apply_file=${APPLY_FILE}"
+echo "boot_check_file=${BOOT_CHECK_FILE}"
+echo "evidence_file=${EVIDENCE_FILE}"
+echo "observation_file=${OBSERVATION_FILE}"
+echo "operator_confirmed=${OPERATOR_CONFIRMED}"
+
+need_log "bundle_ready" "${BUNDLE_FILE}" "bundle_status=recovery-commands-ready"
+need_log "bundle_operator_required" "${BUNDLE_FILE}" "operator_confirmation_required=true"
+need_log "bundle_manual_observation" "${BUNDLE_FILE}" "manual_observation_required=true"
+need_log "bundle_no_persistent" "${BUNDLE_FILE}" "persistent_graphical_session_started=false"
+need_log "bundle_no_boot_graphics" "${BUNDLE_FILE}" "boot_graphics=false"
+need_log "bundle_no_autostart" "${BUNDLE_FILE}" "autostart=false"
+need_log "bundle_recovery_safe" "${BUNDLE_FILE}" "safe_return_to_recovery=ok"
+need_log "bundle_preflight_summary_status" "${BUNDLE_FILE}" "preflight_summary_status=ok"
+need_log "bundle_preflight_summary_verified" "${BUNDLE_FILE}" "preflight_summary_verified=true"
+need_log "bundle_capture_hash" "${BUNDLE_FILE}" "capture_sha256="
+need_log "bundle_capture_hash_verified" "${BUNDLE_FILE}" "capture_hash_verified=true"
+need_log "source_boot_check_ready" "${BOOT_CHECK_FILE}" "qemu_visible_boot_path_ready=true"
+need_log "source_manual_observation_required" "${BOOT_CHECK_FILE}" "manual_observation_required=true"
+need_log "source_no_boot_graphics" "${BOOT_CHECK_FILE}" "boot_graphics=false"
+need_log "source_no_autostart" "${BOOT_CHECK_FILE}" "autostart=false"
+
+capture_id="$(value_from_bundle capture_id)"
+capture_file="$(value_from_bundle capture_file)"
+capture_sha256="$(value_from_bundle capture_sha256)"
+capture_hash_verified="$(value_from_bundle capture_hash_verified)"
+preflight_summary_json="$(value_from_bundle preflight_summary_json)"
+preflight_summary_generated_at="$(value_from_bundle preflight_summary_generated_at)"
+preflight_summary_verified="false"
+
+if [ -z "${capture_id}" ]; then
+    echo "capture_id_status=missing"
+    failures=$((failures + 1))
+else
+    echo "capture_id=${capture_id}"
+fi
+
+if [ -z "${capture_file}" ]; then
+    echo "capture_file_status=missing"
+    failures=$((failures + 1))
+else
+    echo "capture_file=${capture_file}"
+fi
+
+if [ -z "${capture_sha256}" ]; then
+    capture_sha256="unavailable"
+fi
+echo "capture_sha256=${capture_sha256}"
+
+if [ "${capture_hash_verified}" != "true" ]; then
+    echo "capture_hash_verified=${capture_hash_verified:-missing}"
+    failures=$((failures + 1))
+else
+    echo "capture_hash_verified=true"
+fi
+
+if [ -z "${preflight_summary_json}" ]; then
+    echo "preflight_summary_json_status=missing"
+    failures=$((failures + 1))
+else
+    echo "preflight_summary_json=${preflight_summary_json}"
+fi
+
+if [ -z "${preflight_summary_generated_at}" ]; then
+    preflight_summary_generated_at="unknown"
+fi
+echo "preflight_summary_generated_at=${preflight_summary_generated_at}"
+
+if [ -n "${preflight_summary_json}" ] \
+    && grep -Fq "preflight_summary_status=ok" "${BUNDLE_FILE}" \
+    && grep -Fq "preflight_summary_verified=true" "${BUNDLE_FILE}"; then
+    preflight_summary_verified="true"
+fi
+echo "preflight_summary_verified=${preflight_summary_verified}"
+
+if [ "${OPERATOR_CONFIRMED}" != "true" ]; then
+    {
+        echo "product=Aqua Linux"
+        echo "apply=qemu-visible-evidence-bundle"
+        echo "apply_status=waiting-for-operator-confirmation"
+        echo "source_bundle=${BUNDLE_FILE}"
+        echo "capture_id=${capture_id}"
+        echo "capture_file=${capture_file}"
+        echo "capture_sha256=${capture_sha256}"
+        echo "capture_hash_verified=${capture_hash_verified}"
+        echo "preflight_summary_json=${preflight_summary_json}"
+        echo "preflight_summary_generated_at=${preflight_summary_generated_at}"
+        echo "preflight_summary_verified=${preflight_summary_verified}"
+        echo "operator_confirmation_required=true"
+        echo "operator_confirmed=false"
+        echo "evidence_record_written=false"
+        echo "qemu_vm_display_observed=false"
+        echo "persistent_graphical_session_started=false"
+        echo "desktop_shell_started=false"
+        echo "boot_graphics=false"
+        echo "autostart=false"
+        echo "fallback_tty_available=true"
+        echo "safe_return_to_recovery=ok"
+    } > "${APPLY_FILE}" || failures=$((failures + 1))
+
+    need_log "apply_written" "${APPLY_FILE}" "apply_status=waiting-for-operator-confirmation"
+    need_log "apply_not_observed" "${APPLY_FILE}" "qemu_vm_display_observed=false"
+
+    echo "qemu_visible_evidence_bundle_apply=ok"
+    echo "apply_status=waiting-for-operator-confirmation"
+    echo "evidence_record_written=false"
+    echo "capture_hash_verified=${capture_hash_verified}"
+    echo "preflight_summary_verified=${preflight_summary_verified}"
+    echo "qemu_vm_display_observed=false"
+    echo "persistent_graphical_session_started=false"
+    echo "desktop_shell_started=false"
+    echo "boot_graphics=false"
+    echo "autostart=false"
+    echo "fallback_tty_available=true"
+    echo "safe_return_to_recovery=ok"
+
+    if [ "${failures}" -eq 0 ]; then
+        mark ok
+        exit 0
+    fi
+
+    mark error
+    exit 1
+fi
+
+if [ ! -x "${EVIDENCE_BIN}" ]; then
+    echo "evidence_bin_status=missing"
+    failures=$((failures + 1))
+fi
+
+if [ ! -x "${OBSERVATION_BIN}" ]; then
+    echo "observation_bin_status=missing"
+    failures=$((failures + 1))
+fi
+
+if [ "${failures}" -eq 0 ]; then
+    AQUA_RUNTIME_DIR="${RUNTIME_DIR}" \
+    AQUA_GRAPHICS_QEMU_VISIBLE_BOOT_CHECK_FILE="${BOOT_CHECK_FILE}" \
+    AQUA_QEMU_VM_DISPLAY_EVIDENCE_FILE="${EVIDENCE_FILE}" \
+    AQUA_QEMU_VM_DISPLAY_CAPTURE_ID="${capture_id}" \
+    AQUA_QEMU_VM_DISPLAY_CAPTURE_FILE="${capture_file}" \
+    "${EVIDENCE_BIN}" > "${RUNTIME_DIR}/qemu-visible-evidence-bundle-evidence.log" || failures=$((failures + 1))
+
+    AQUA_RUNTIME_DIR="${RUNTIME_DIR}" \
+    AQUA_GRAPHICS_QEMU_VISIBLE_BOOT_CHECK_FILE="${BOOT_CHECK_FILE}" \
+    AQUA_GRAPHICS_QEMU_OBSERVATION_FILE="${OBSERVATION_FILE}" \
+    AQUA_QEMU_VM_DISPLAY_EVIDENCE_FILE="${EVIDENCE_FILE}" \
+    AQUA_QEMU_VM_DISPLAY_OBSERVED=true \
+    "${OBSERVATION_BIN}" > "${RUNTIME_DIR}/qemu-visible-evidence-bundle-observation.log" || failures=$((failures + 1))
+fi
+
+need_log "evidence_record_applied" "${RUNTIME_DIR}/qemu-visible-evidence-bundle-evidence.log" "[AQUA-GATE] stage=qemu-visible-evidence-record status=ok"
+need_log "observation_applied" "${RUNTIME_DIR}/qemu-visible-evidence-bundle-observation.log" "[AQUA-GATE] stage=graphics-qemu-observation-marker status=ok"
+need_log "observation_positive" "${OBSERVATION_FILE}" "qemu_vm_display_observed=true"
+need_log "observation_no_boot_graphics" "${OBSERVATION_FILE}" "boot_graphics=false"
+need_log "observation_no_autostart" "${OBSERVATION_FILE}" "autostart=false"
+
+{
+    echo "product=Aqua Linux"
+    echo "apply=qemu-visible-evidence-bundle"
+    echo "apply_status=applied-positive-observation"
+    echo "source_bundle=${BUNDLE_FILE}"
+    echo "capture_id=${capture_id}"
+    echo "capture_file=${capture_file}"
+    echo "capture_sha256=${capture_sha256}"
+    echo "capture_hash_verified=${capture_hash_verified}"
+    echo "preflight_summary_json=${preflight_summary_json}"
+    echo "preflight_summary_generated_at=${preflight_summary_generated_at}"
+    echo "preflight_summary_verified=${preflight_summary_verified}"
+    echo "operator_confirmation_required=true"
+    echo "operator_confirmed=true"
+    echo "evidence_record_written=true"
+    echo "qemu_vm_display_observed=true"
+    echo "persistent_graphical_session_started=false"
+    echo "desktop_shell_started=false"
+    echo "boot_graphics=false"
+    echo "autostart=false"
+    echo "fallback_tty_available=true"
+    echo "safe_return_to_recovery=ok"
+} > "${APPLY_FILE}" || failures=$((failures + 1))
+
+need_log "apply_written" "${APPLY_FILE}" "apply_status=applied-positive-observation"
+need_log "apply_observed" "${APPLY_FILE}" "qemu_vm_display_observed=true"
+need_log "apply_recovery_safe" "${APPLY_FILE}" "safe_return_to_recovery=ok"
+
+echo "qemu_visible_evidence_bundle_apply=ok"
+echo "apply_status=applied-positive-observation"
+echo "evidence_record_written=true"
+echo "capture_hash_verified=${capture_hash_verified}"
+echo "preflight_summary_verified=${preflight_summary_verified}"
+echo "qemu_vm_display_observed=true"
+echo "persistent_graphical_session_started=false"
+echo "desktop_shell_started=false"
+echo "boot_graphics=false"
+echo "autostart=false"
+echo "fallback_tty_available=true"
+echo "safe_return_to_recovery=ok"
+
+if [ "${failures}" -eq 0 ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1

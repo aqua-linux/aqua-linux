@@ -1,0 +1,180 @@
+#!/bin/sh
+
+set -u
+
+failures=0
+SESSION_ROOT="${AQUA_SESSION_ROOT:-}"
+RUN_DIR="${AQUA_SESSION_RUN_DIR:-/run}"
+
+root_path() {
+    path="$1"
+    if [ -n "${SESSION_ROOT}" ]; then
+        printf '%s%s\n' "${SESSION_ROOT}" "${path}"
+    else
+        printf '%s\n' "${path}"
+    fi
+}
+
+run_path() {
+    path="$1"
+    printf '%s/%s\n' "${RUN_DIR}" "${path}"
+}
+
+COMPOSITOR_BIN="${AQUA_COMPOSITOR_BIN:-$(root_path /usr/bin/aqua-compositor)}"
+
+report() {
+    stage="$1"
+    status="$2"
+    detail="$3"
+    echo "[AQUA-SESSION] stage=${stage} status=${status} ${detail}"
+}
+
+pass() {
+    report "$1" ok "$2"
+}
+
+fail() {
+    report "$1" failed "$2"
+    failures=$((failures + 1))
+}
+
+need_file() {
+    stage="$1"
+    path="$2"
+    detail="$3"
+
+    if [ -f "${path}" ]; then
+        pass "${stage}" "${detail}"
+    else
+        fail "${stage}" "${detail}"
+    fi
+}
+
+need_grep() {
+    stage="$1"
+    path="$2"
+    pattern="$3"
+    detail="$4"
+
+    if [ -f "${path}" ] && grep -q "${pattern}" "${path}"; then
+        pass "${stage}" "${detail}"
+    else
+        fail "${stage}" "${detail}"
+    fi
+}
+
+run_probe() {
+    stage="$1"
+    log="$2"
+    detail="$3"
+    shift 3
+
+    if "$@" > "${log}" 2> "${log}.err"; then
+        pass "${stage}" "${detail}"
+    else
+        fail "${stage}" "${detail}"
+    fi
+}
+
+mkdir -p "$(run_path aqua)"
+chmod 700 "$(run_path aqua)" 2>/dev/null || true
+
+need_grep session-config "$(root_path /etc/aqua/compositor-session.conf)" '^autostart=false$' 'autostart=false'
+need_grep session-config "$(root_path /etc/aqua/compositor-session.conf)" '^boot_graphics=false$' 'boot_graphics=false'
+need_grep session-config "$(root_path /etc/aqua/compositor-session.conf)" '^recovery_tty_required=true$' 'recovery_tty=true'
+need_grep graphics-session-profile "$(root_path /etc/aqua/compositor-session-graphics.conf)" '^boot_graphics=true$' 'boot_graphics=true'
+need_grep graphics-session-profile "$(root_path /etc/aqua/compositor-session-graphics.conf)" '^autostart=true$' 'autostart=true'
+need_grep graphics-session-profile "$(root_path /etc/aqua/compositor-session-graphics.conf)" '^recovery_tty_required=true$' 'recovery_tty=true'
+
+need_grep session-env "$(root_path /etc/aqua/session.env)" '^export WAYLAND_DISPLAY=aqua-wayland-0$' 'wayland=aqua-wayland-0'
+need_grep session-env "$(root_path /etc/aqua/session.env)" '^export XDG_RUNTIME_DIR=/run/aqua$' 'xdg=/run/aqua'
+need_grep session-env "$(root_path /etc/aqua/session.env)" '^export AQUA_ASSET_ROOT=/usr/share/aqua$' 'assets=/usr/share/aqua'
+need_grep graphics-session-env "$(root_path /etc/aqua/session-graphics.env)" '^export AQUA_BOOT_GRAPHICS=true$' 'boot_graphics=true'
+need_grep graphics-session-env "$(root_path /etc/aqua/session-graphics.env)" '^export AQUA_COMPOSITOR_AUTOSTART=true$' 'autostart=true'
+need_grep graphics-session-env "$(root_path /etc/aqua/session-graphics.env)" '^export AQUA_DRM_WAYLAND_SESSION_OPERATOR_CONFIRMED=true$' 'operator_confirmed=true'
+need_grep graphics-session-env "$(root_path /etc/aqua/session-graphics.env)" '^export AQUA_DRM_WAYLAND_SESSION_PERSISTENT=true$' 'persistent=true'
+need_grep graphics-session-env "$(root_path /etc/aqua/session-graphics.env)" '^export AQUA_DRM_WAYLAND_EXTERNAL_CLIENT_REQUIRED=false$' 'external_fixtures=false'
+need_grep graphics-session-env "$(root_path /etc/aqua/session-graphics.env)" '^export AQUA_DRM_WAYLAND_SCENARIO=desktop-event-loop$' 'scenario=desktop-event-loop'
+
+if [ -d "$(run_path aqua)" ]; then
+    pass session-runtime 'runtime_dir=/run/aqua'
+else
+    fail session-runtime 'runtime_dir=/run/aqua'
+fi
+
+need_file runtime-assets "$(root_path /usr/share/aqua/tokens/design-tokens.json)" 'tokens=present'
+need_file runtime-assets "$(root_path /usr/share/aqua/wallpapers/default-wallpaper.png)" 'wallpaper=present'
+need_file runtime-assets "$(root_path /usr/share/aqua/icons/temp/lucide/home.svg)" 'temp_icons=present'
+need_file manual-launch-tool "$(root_path /usr/bin/aqua-compositor-manual-launch)" 'manual_launch_tool=present'
+need_file guarded-run-tool "$(root_path /usr/bin/aqua-compositor-guarded-run)" 'guarded_run_tool=present'
+need_file graphical-session-supervisor-tool "$(root_path /usr/bin/aqua-graphical-session-supervisor)" 'graphical_session_supervisor_tool=present'
+need_file graphical-session-boot-tool "$(root_path /usr/bin/aqua-graphical-session-boot)" 'graphical_session_boot_tool=present'
+need_file graphical-session-stop-tool "$(root_path /usr/bin/aqua-graphical-session-stop)" 'graphical_session_stop_tool=present'
+need_file handoff-gate-tool "$(root_path /usr/bin/aqua-compositor-handoff-gate)" 'handoff_gate_tool=present'
+need_file visible-preview-request-tool "$(root_path /usr/bin/aqua-visible-preview-request)" 'visible_preview_request_tool=present'
+need_file visible-preview-launch-tool "$(root_path /usr/bin/aqua-visible-preview-launch)" 'visible_preview_launch_tool=present'
+need_file recovery-help-tool "$(root_path /usr/bin/aqua-recovery-help)" 'recovery_help_tool=present'
+need_file operator-transcript-tool "$(root_path /usr/bin/aqua-operator-transcript)" 'operator_transcript_tool=present'
+need_file graphics-enable-gate-tool "$(root_path /usr/bin/aqua-graphics-enable-gate)" 'graphics_enable_gate_tool=present'
+need_file graphics-launch-candidate-tool "$(root_path /usr/bin/aqua-graphics-launch-candidate)" 'graphics_launch_candidate_tool=present'
+need_file graphics-rollback-drill-tool "$(root_path /usr/bin/aqua-graphics-rollback-drill)" 'graphics_rollback_drill_tool=present'
+need_file graphics-startup-preflight-tool "$(root_path /usr/bin/aqua-graphics-startup-preflight)" 'graphics_startup_preflight_tool=present'
+need_file graphics-startup-rehearsal-tool "$(root_path /usr/bin/aqua-graphics-startup-rehearsal)" 'graphics_startup_rehearsal_tool=present'
+need_file graphics-qemu-display-gate-tool "$(root_path /usr/bin/aqua-graphics-qemu-display-gate)" 'graphics_qemu_display_gate_tool=present'
+need_file graphics-visible-qemu-attempt-tool "$(root_path /usr/bin/aqua-graphics-visible-qemu-attempt)" 'graphics_visible_qemu_attempt_tool=present'
+need_file graphics-visible-attempt-transcript-tool "$(root_path /usr/bin/aqua-graphics-visible-attempt-transcript)" 'graphics_visible_attempt_transcript_tool=present'
+need_file graphics-visible-attempt-result-tool "$(root_path /usr/bin/aqua-graphics-visible-attempt-result)" 'graphics_visible_attempt_result_tool=present'
+need_file graphics-visible-attempt-runner-tool "$(root_path /usr/bin/aqua-graphics-visible-attempt-runner)" 'graphics_visible_attempt_runner_tool=present'
+need_file graphics-qemu-visible-boot-check-tool "$(root_path /usr/bin/aqua-graphics-qemu-visible-boot-check)" 'graphics_qemu_visible_boot_check_tool=present'
+need_file graphics-qemu-observation-marker-tool "$(root_path /usr/bin/aqua-graphics-qemu-observation-marker)" 'graphics_qemu_observation_marker_tool=present'
+need_file qemu-visible-evidence-bundle-apply-tool "$(root_path /usr/bin/aqua-qemu-visible-evidence-bundle-apply)" 'qemu_visible_evidence_bundle_apply_tool=present'
+
+if [ -x "${COMPOSITOR_BIN}" ]; then
+    pass compositor-binary 'path=/usr/bin/aqua-compositor'
+    run_probe compositor-status "$(run_path aqua-session-status.log)" 'mode=nested-dev' \
+        "${COMPOSITOR_BIN}" status
+    run_probe session-bootstrap "$(run_path aqua-session-bootstrap.log)" 'session_started=false' \
+        "${COMPOSITOR_BIN}" probe-session-bootstrap "$(root_path /etc/aqua/compositor-session.conf)" "$(run_path aqua)"
+    run_probe output-plan "$(run_path aqua-session-output-plan.log)" 'backend=nested-dev-window renderer_started=false' \
+        "${COMPOSITOR_BIN}" probe-output-plan
+    run_probe visible-preview-plan "$(run_path aqua-session-visible-preview-plan.log)" 'preview_window_started=false renderer_started=false' \
+        "${COMPOSITOR_BIN}" probe-visible-preview-plan
+    run_probe compositor-assets "$(run_path aqua-session-assets.log)" 'root=/usr/share/aqua' \
+        "${COMPOSITOR_BIN}" probe-assets "$(root_path /usr/share/aqua)"
+    run_probe scene-contract "$(run_path aqua-session-scene.log)" 'surfaces=7 boot_graphics=false' \
+        "${COMPOSITOR_BIN}" probe-scene
+    run_probe render-plan "$(run_path aqua-session-render-plan.log)" 'commands=7 renderer_started=false' \
+        "${COMPOSITOR_BIN}" probe-render-plan
+    run_probe paint-plan "$(run_path aqua-session-paint-plan.log)" 'steps=7 renderer_started=false' \
+        "${COMPOSITOR_BIN}" probe-paint-plan
+    run_probe frame-plan "$(run_path aqua-session-frame-plan.log)" 'format=rgba8888 renderer_started=false' \
+        "${COMPOSITOR_BIN}" probe-frame-plan
+    run_probe frame-buffer "$(run_path aqua-session-frame-buffer.log)" 'bytes=6291456 renderer_started=false' \
+        "${COMPOSITOR_BIN}" probe-frame-buffer
+    run_probe raster "$(run_path aqua-session-raster.log)" 'rects=7 surface_layers=15 renderer_started=false' \
+        "${COMPOSITOR_BIN}" probe-raster
+    run_probe raster-export "$(run_path aqua-session-raster-export.log)" 'bytes=4718609 renderer_started=false' \
+        "${COMPOSITOR_BIN}" probe-raster-export
+    run_probe raster-png-export "$(run_path aqua-session-raster-png-export.log)" 'bytes=6293028 renderer_started=false' \
+        "${COMPOSITOR_BIN}" probe-raster-png-export
+    if [ -x "$(root_path /usr/bin/aqua-compositor-manual-launch)" ]; then
+        AQUA_COMPOSITOR_CONFIG="$(root_path /etc/aqua/compositor-session.conf)" \
+        AQUA_SESSION_ENV="$(root_path /etc/aqua/session.env)" \
+        AQUA_COMPOSITOR_BIN="${COMPOSITOR_BIN}" \
+        AQUA_RUNTIME_DIR="$(run_path aqua)" \
+        run_probe manual-launch-plan "$(run_path aqua-session-manual-launch-plan.log)" 'manual_launch_plan=ok display_output_started=false' \
+            "$(root_path /usr/bin/aqua-compositor-manual-launch)"
+    else
+        fail manual-launch-plan 'manual_launch_plan=missing'
+    fi
+else
+    fail compositor-binary 'path=/usr/bin/aqua-compositor'
+fi
+
+if [ "${failures}" -eq 0 ]; then
+    report session-check ok 'no_graphics=true'
+    exit 0
+fi
+
+report session-check failed "failures=${failures} no_graphics=true"
+exit 1

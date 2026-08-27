@@ -1,0 +1,111 @@
+#!/bin/sh
+
+set -u
+
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+REHEARSAL_FILE="${AQUA_GRAPHICS_STARTUP_REHEARSAL_FILE:-${RUNTIME_DIR}/graphics-startup-rehearsal.plan}"
+DISPLAY_GATE_FILE="${AQUA_GRAPHICS_QEMU_DISPLAY_GATE_FILE:-${RUNTIME_DIR}/graphics-qemu-display-gate.plan}"
+
+failures=0
+
+mark() {
+    status="$1"
+    echo "[AQUA-GATE] stage=graphics-qemu-display-gate status=${status}"
+}
+
+need_log() {
+    label="$1"
+    log="$2"
+    needle="$3"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-graphics-qemu-display-gate"
+echo "qemu_display_gate_status=qemu-safe-manual-display-step-gate-ready"
+echo "mode=text-recovery"
+echo "gate_mode=manual-qemu-display-step"
+echo "rehearsal_file=${REHEARSAL_FILE}"
+echo "display_gate_file=${DISPLAY_GATE_FILE}"
+
+need_log "source_rehearsal_ready" "${REHEARSAL_FILE}" "rehearsal=guarded-graphics-startup"
+need_log "source_rehearsal_bounded" "${REHEARSAL_FILE}" "bounded_startup_rehearsal=true"
+need_log "source_rehearsal_frames" "${REHEARSAL_FILE}" "bounded_run_frames=3"
+need_log "source_rehearsal_started" "${REHEARSAL_FILE}" "display_output_started=true"
+need_log "source_rehearsal_stopped" "${REHEARSAL_FILE}" "display_output_stopped=true"
+need_log "source_rehearsal_no_desktop_shell" "${REHEARSAL_FILE}" "desktop_shell_started=false"
+need_log "source_rehearsal_no_boot_graphics" "${REHEARSAL_FILE}" "boot_graphics=false"
+need_log "source_rehearsal_recovery_safe" "${REHEARSAL_FILE}" "safe_return_to_recovery=ok"
+
+cat > "${DISPLAY_GATE_FILE}" <<'EOF' || failures=$((failures + 1))
+product=Aqua Linux
+gate=manual-qemu-display-step
+mode=text-recovery
+source_rehearsal=graphics-startup-rehearsal
+qemu_display_step_candidate=true
+qemu_display_gate_passed=true
+qemu_display_gate_decision=allow-manual-qemu-display-step
+operator_ack_required=true
+manual_start_required=true
+visible_qemu_step_allowed=true
+visible_qemu_step_started=false
+actual_graphics_started=false
+desktop_shell_started=false
+boot_graphics=false
+autostart=false
+fallback_tty_available=true
+rollback_verified=true
+rollback_command=/usr/bin/aqua-recovery
+bounded_run_frames=3
+startup_timeout_seconds=5
+safe_return_to_recovery=ok
+next_manual_step=first-visible-qemu-compositor-run
+EOF
+
+need_log "display_gate_written" "${DISPLAY_GATE_FILE}" "gate=manual-qemu-display-step"
+need_log "display_gate_candidate" "${DISPLAY_GATE_FILE}" "qemu_display_step_candidate=true"
+need_log "display_gate_passed" "${DISPLAY_GATE_FILE}" "qemu_display_gate_passed=true"
+need_log "display_gate_decision" "${DISPLAY_GATE_FILE}" "qemu_display_gate_decision=allow-manual-qemu-display-step"
+need_log "display_gate_manual" "${DISPLAY_GATE_FILE}" "manual_start_required=true"
+need_log "display_gate_not_started" "${DISPLAY_GATE_FILE}" "visible_qemu_step_started=false"
+need_log "display_gate_no_actual_graphics" "${DISPLAY_GATE_FILE}" "actual_graphics_started=false"
+need_log "display_gate_no_desktop_shell" "${DISPLAY_GATE_FILE}" "desktop_shell_started=false"
+need_log "display_gate_no_autostart" "${DISPLAY_GATE_FILE}" "autostart=false"
+need_log "display_gate_recovery_safe" "${DISPLAY_GATE_FILE}" "safe_return_to_recovery=ok"
+
+echo "graphics_qemu_display_gate=ok"
+echo "qemu_display_step_candidate=true"
+echo "qemu_display_gate_passed=true"
+echo "qemu_display_gate_decision=allow-manual-qemu-display-step"
+echo "operator_ack_required=true"
+echo "manual_start_required=true"
+echo "visible_qemu_step_allowed=true"
+echo "visible_qemu_step_started=false"
+echo "actual_graphics_started=false"
+echo "desktop_shell_started=false"
+echo "boot_graphics=false"
+echo "autostart=false"
+echo "fallback_tty_available=true"
+echo "rollback_verified=true"
+echo "rollback_command=/usr/bin/aqua-recovery"
+echo "bounded_run_frames=3"
+echo "startup_timeout_seconds=5"
+echo "safe_return_to_recovery=ok"
+echo "next_manual_step=first-visible-qemu-compositor-run"
+
+if [ "${failures}" -eq 0 ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1

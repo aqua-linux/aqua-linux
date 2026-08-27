@@ -1,0 +1,14 @@
+[workspace]
+members = [
+    "crates/aqua-compositor",
+    "crates/aqua-host-tools",
+    "crates/aqua-installer",
+    "crates/aqua-renderer",
+    "crates/aqua-scene",
+    "crates/aqua-shell",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"

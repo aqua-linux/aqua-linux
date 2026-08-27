@@ -1,0 +1,77 @@
+#!/bin/sh
+
+set -u
+
+CMDLINE_PATH="${AQUA_CMDLINE_PATH:-/proc/cmdline}"
+PROFILE_PATH="${AQUA_GRAPHICS_BOOT_PROFILE:-/etc/aqua/compositor-session-graphics.conf}"
+GRAPHICS_ENV_PATH="${AQUA_GRAPHICS_SESSION_ENV:-/etc/aqua/session-graphics.env}"
+SUPERVISOR_BIN="${AQUA_GRAPHICS_SUPERVISOR_BIN:-/usr/bin/aqua-graphical-session-supervisor}"
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+PID_FILE="${AQUA_GRAPHICS_SUPERVISOR_PID_FILE:-${RUNTIME_DIR}/graphical-session-supervisor.pid}"
+LOG_FILE="${AQUA_GRAPHICS_SUPERVISOR_LOG_FILE:-${RUNTIME_DIR}/graphical-session-supervisor.log}"
+
+mark() {
+    echo "[AQUA-BOOT] stage=graphical-session-activation status=$1 $2"
+}
+
+mkdir -p "${RUNTIME_DIR}" || {
+    mark failed "reason=runtime-directory session_started=false"
+    exit 1
+}
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+cmdline=""
+[ -r "${CMDLINE_PATH}" ] && cmdline="$(cat "${CMDLINE_PATH}")"
+case " ${cmdline} " in
+    *' aqua.boot_graphics=1 '*) ;;
+    *)
+        mark disabled "reason=kernel-flag-absent boot_graphics=false session_started=false"
+        exit 0
+        ;;
+esac
+
+if [ ! -f "${PROFILE_PATH}" ] ||
+   ! grep -q '^boot_graphics=true$' "${PROFILE_PATH}" ||
+   ! grep -q '^autostart=true$' "${PROFILE_PATH}" ||
+   ! grep -q '^recovery_tty_required=true$' "${PROFILE_PATH}"; then
+    mark blocked "reason=invalid-graphics-profile session_started=false"
+    exit 1
+fi
+
+if [ ! -f "${GRAPHICS_ENV_PATH}" ] ||
+   ! grep -q '^export AQUA_BOOT_GRAPHICS=true$' "${GRAPHICS_ENV_PATH}" ||
+   ! grep -q '^export AQUA_COMPOSITOR_AUTOSTART=true$' "${GRAPHICS_ENV_PATH}"; then
+    mark blocked "reason=invalid-graphics-environment session_started=false"
+    exit 1
+fi
+
+if [ ! -x "${SUPERVISOR_BIN}" ]; then
+    mark blocked "reason=supervisor-missing session_started=false"
+    exit 1
+fi
+
+if [ -f "${PID_FILE}" ]; then
+    old_pid="$(cat "${PID_FILE}" 2>/dev/null || true)"
+    case "${old_pid}" in
+        ''|*[!0-9]*) ;;
+        *)
+            if kill -0 "${old_pid}" 2>/dev/null; then
+                mark duplicate "pid=${old_pid} session_started=false"
+                exit 1
+            fi
+            ;;
+    esac
+    rm -f "${PID_FILE}"
+fi
+
+AQUA_COMPOSITOR_CONFIG="${PROFILE_PATH}" \
+AQUA_SESSION_ENV="${GRAPHICS_ENV_PATH}" \
+AQUA_GRAPHICS_SESSION_ENABLED=true \
+AQUA_RUNTIME_DIR="${RUNTIME_DIR}" \
+AQUA_DRM_WAYLAND_STOP_FILE="${RUNTIME_DIR}/graphical-session.stop" \
+"${SUPERVISOR_BIN}" >> "${LOG_FILE}" 2>&1 &
+supervisor_pid="$!"
+echo "${supervisor_pid}" > "${PID_FILE}"
+
+mark started "mode=supervised pid=${supervisor_pid} boot_graphics=true autostart=true recovery_tty=true"
+exit 0

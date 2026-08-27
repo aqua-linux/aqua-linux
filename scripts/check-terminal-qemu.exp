@@ -1,0 +1,109 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+proc shell {command description} {
+    send -- "$command\r"
+    expect {
+        -exact {# } {}
+        timeout { puts stderr "Timed out while $description"; exit 1 }
+        eof { puts stderr "QEMU exited while $description"; exit 1 }
+    }
+}
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg -cpu max -smp 2 -m 1024M \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.boot_graphics=1} \
+    -serial stdio \
+    -monitor unix:$env(MONITOR_SOCKET),server=on,wait=off \
+    -display none -vga none -device virtio-vga \
+    -device virtio-keyboard-pci -device virtio-mouse-pci -no-reboot
+
+expect {
+    -exact {aqua-linux login: } {}
+    timeout { puts stderr "Timed out waiting for Aqua Linux login"; exit 1 }
+}
+send -- "root\r"
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Timed out waiting for recovery shell"; exit 1 }
+}
+
+shell {i=0; while [ "$i" -lt 40 ] && ! grep -Fq 'stage=drm-wayland-session status=active' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the graphical session"
+shell {/usr/bin/aqua-terminal --probe-pty} "probing the packaged PTY and VT100 stack"
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) terminal-launch-fast} error]} {
+    puts stderr "Terminal launcher input failed: $error"
+    exit 1
+}
+shell {i=0; while [ "$i" -lt 60 ] && ! grep -Fq 'desktop_launch_surface_app_id=aqua.terminal' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the terminal surface"
+shell {printf '%s\n' '[AQUA-DIAG] terminal-supervisor'; tail -n 60 /run/aqua/graphical-session-supervisor.log; printf '%s\n' '[AQUA-DIAG] terminal-supervisor-state'; cat /run/aqua/graphical-session-supervisor.state 2>/dev/null || true} "reporting the terminal supervisor state"
+shell {printf '%s\n' '[AQUA-DIAG] terminal-errors'; grep -Ei 'error|cannot|failed|panicked|aqua-terminal:' /run/aqua/graphical-session-supervisor.log | tail -n 40 || true} "reporting terminal launch errors"
+shell {ok=1; grep -Fq 'desktop_launch_request_app=terminal' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_terminal_pty=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_terminal_emulator=vt100' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fc 'aqua_terminal_pty_output_bytes=' /run/aqua/graphical-session-supervisor.log > /run/aqua/terminal-output-before || true; grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log > /run/aqua/terminal-repaint-before || true} "checking the terminal launch contract"
+shell {printf '[AQUA-DIAG] terminal-launch ok=%s output_before=%s\n' "$ok" "$(cat /run/aqua/terminal-output-before)"; grep -E 'desktop_launch_(request_app|surface_app_id)|aqua_terminal_(pty|emulator|resize_protocol|pty_output)' /run/aqua/graphical-session-supervisor.log | tail -n 16} "reporting the terminal launch contract"
+
+shell {i=0; before="$(cat /run/aqua/terminal-repaint-before)"; while [ "$i" -lt 240 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$before" ]; do sleep 1; i=$((i + 1)); done; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$before" ] || ok=0} "waiting for the terminal surface repaint"
+shell {i=0; stable=0; last=-1; while [ "$i" -lt 240 ] && [ "$stable" -lt 35 ]; do current="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; if [ "$current" = "$last" ]; then stable=$((stable + 1)); else last="$current"; stable=0; fi; sleep 1; i=$((i + 1)); done; printf '%s\n' "$last" > /run/aqua/terminal-repaint-before; [ "$stable" -ge 35 ] || ok=0; printf '[AQUA-DIAG] terminal-repaint-stable count=%s seconds=%s\n' "$last" "$stable"} "waiting for the terminal repaint queue to become idle"
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(SCREENSHOT_PPM) $env(SCREENSHOT_PNG)} error]} {
+    puts stderr "Terminal screenshot failed: $error"
+    exit 1
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) terminal-command} error]} {
+    puts stderr "Terminal command input failed: $error"
+    exit 1
+}
+shell {i=0; before="$(cat /run/aqua/terminal-output-before)"; while [ "$i" -lt 120 ] && [ "$(grep -Fc 'aqua_terminal_pty_output_bytes=' /run/aqua/graphical-session-supervisor.log)" -le "$before" ]; do sleep 1; i=$((i + 1)); done} "waiting for terminal command output"
+shell {command_ok=1; grep -Fq 'aqua_terminal_input_enter=true' /run/aqua/graphical-session-supervisor.log || command_ok=0; grep -Fq 'aqua_terminal_command_output=true' /run/aqua/graphical-session-supervisor.log || command_ok=0} "checking PTY input and parsed command output"
+shell {i=0; before="$(cat /run/aqua/terminal-repaint-before)"; while [ "$i" -lt 120 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$before" ]; do sleep 1; i=$((i + 1)); done} "observing the terminal command repaint"
+shell {printf '[AQUA-DIAG] terminal-command ok=%s output_after=%s enter=%s parsed=%s\n' "$(grep -Fq 'aqua_terminal_input_enter=true' /run/aqua/graphical-session-supervisor.log && grep -Fq 'aqua_terminal_command_output=true' /run/aqua/graphical-session-supervisor.log && echo 1 || echo 0)" "$(grep -Fc 'aqua_terminal_pty_output_bytes=' /run/aqua/graphical-session-supervisor.log)" "$(grep -Fc 'aqua_terminal_input_enter=true' /run/aqua/graphical-session-supervisor.log)" "$(grep -Fc 'aqua_terminal_command_output=true' /run/aqua/graphical-session-supervisor.log)"} "reporting the terminal command contract"
+shell {printf '[AQUA-DIAG] terminal-keyboard-forward count=%s\n' "$(grep -Fc 'desktop_keyboard_forward_event' /run/aqua/graphical-session-supervisor.log)"; grep -E 'desktop_keyboard_forward_event|aqua_terminal_key=' /run/aqua/graphical-session-supervisor.log | tail -n 48} "reporting terminal keyboard forwarding"
+
+send -- {grep -Fq 'aqua_terminal_input_enter=true' /run/aqua/graphical-session-supervisor.log && grep -Fq 'aqua_terminal_command_output=true' /run/aqua/graphical-session-supervisor.log && echo '[AQUA-TEST] stage=terminal-qemu status=ok surface=aqua.terminal pty=true emulator=vt100 command=true resize=protocol-ready'}
+send -- "\r"
+expect {
+    -exact {[AQUA-TEST] stage=terminal-qemu status=ok surface=aqua.terminal pty=true emulator=vt100 command=true resize=protocol-ready} {}
+    timeout { puts stderr "Terminal runtime contract failed"; exit 1 }
+}
+expect -exact {# }
+
+shell {i=0; stable=0; last=-1; while [ "$i" -lt 180 ] && [ "$stable" -lt 20 ]; do current="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; if [ "$current" = "$last" ]; then stable=$((stable + 1)); else last="$current"; stable=0; fi; sleep 1; i=$((i + 1)); done; [ "$stable" -ge 20 ]} "waiting for the command repaint queue to become idle"
+shell {grep -Fc 'aqua_terminal_resized=' /run/aqua/graphical-session-supervisor.log > /run/aqua/terminal-resize-before; grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log > /run/aqua/terminal-resize-repaint-before} "recording terminal resize baselines"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) terminal-resize} error]} {
+    puts stderr "Terminal resize input failed: $error"
+    exit 1
+}
+shell {i=0; before="$(cat /run/aqua/terminal-resize-before)"; while [ "$i" -lt 60 ] && [ "$(grep -Fc 'aqua_terminal_resized=' /run/aqua/graphical-session-supervisor.log)" -le "$before" ]; do sleep 1; i=$((i + 1)); done} "waiting for terminal resize configure"
+shell {resize_ok=1; grep -Fq 'desktop_resize_shortcut_received=true' /run/aqua/graphical-session-supervisor.log || resize_ok=0; grep -Fq 'desktop_resize_request_sent=true' /run/aqua/graphical-session-supervisor.log || resize_ok=0; grep -Fq 'desktop_toplevel_resize_request width=640 height=478' /run/aqua/graphical-session-supervisor.log || resize_ok=0; grep -Fq 'aqua_terminal_resize_buffer=640x478' /run/aqua/graphical-session-supervisor.log || resize_ok=0; grep -Fq 'aqua_terminal_resize_grid=74x21' /run/aqua/graphical-session-supervisor.log || resize_ok=0; grep -Fq 'aqua_terminal_resize_pty=true' /run/aqua/graphical-session-supervisor.log || resize_ok=0} "checking terminal resize contract"
+shell {i=0; before="$(cat /run/aqua/terminal-resize-repaint-before)"; while [ "$i" -lt 120 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$before" ]; do sleep 1; i=$((i + 1)); done; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$before" ] || resize_ok=0} "waiting for terminal resize repaint"
+shell {printf '[AQUA-DIAG] terminal-resize ok=%s buffer=%s grid=%s pty=%s\n' "$resize_ok" "$(grep -F 'aqua_terminal_resize_buffer=' /run/aqua/graphical-session-supervisor.log | tail -n 1 | cut -d= -f2)" "$(grep -F 'aqua_terminal_resize_grid=' /run/aqua/graphical-session-supervisor.log | tail -n 1 | cut -d= -f2)" "$(grep -F 'aqua_terminal_resize_pty=' /run/aqua/graphical-session-supervisor.log | tail -n 1 | cut -d= -f2)"} "reporting terminal resize contract"
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(SCREENSHOT_PPM) $env(SCREENSHOT_PNG)} error]} {
+    puts stderr "Resized terminal screenshot failed: $error"
+    exit 1
+}
+send -- {[ "$resize_ok" = 1 ] && echo '[AQUA-TEST] stage=terminal-resize-qemu status=ok input=alt-f8 buffer=640x478 grid=74x21 pty=true repaint=true'}
+send -- "\r"
+expect {
+    -exact {[AQUA-TEST] stage=terminal-resize-qemu status=ok input=alt-f8 buffer=640x478 grid=74x21 pty=true repaint=true} {}
+    timeout { puts stderr "Terminal resize contract failed"; exit 1 }
+}
+expect -exact {# }
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) close-terminal} error]} {
+    puts stderr "Terminal close input failed: $error"
+    exit 1
+}
+shell {i=0; while [ "$i" -lt 40 ] && ! grep -Fq 'desktop_runtime_process_exited_terminal=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for terminal cleanup"
+shell {cleanup_ok=1; grep -Fq 'desktop_runtime_process_exit_terminal_success=true' /run/aqua/graphical-session-supervisor.log || cleanup_ok=0; grep -Fq 'desktop_runtime_process_terminal_restart_policy=never' /run/aqua/graphical-session-supervisor.log || cleanup_ok=0} "checking terminal cleanup"
+send -- {[ "$cleanup_ok" = 1 ] && echo '[AQUA-TEST] stage=terminal-cleanup-qemu status=ok process=clean surface=removed restart=never'}
+send -- "\r"
+expect {
+    -exact {[AQUA-TEST] stage=terminal-cleanup-qemu status=ok process=clean surface=removed restart=never} {}
+    timeout { puts stderr "Terminal cleanup contract failed"; exit 1 }
+}
+expect -exact {# }
+send -- "poweroff -f\r"
+expect eof

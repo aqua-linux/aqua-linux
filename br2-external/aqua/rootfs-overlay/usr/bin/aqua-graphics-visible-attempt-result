@@ -1,0 +1,132 @@
+#!/bin/sh
+
+set -u
+
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+TRANSCRIPT_FILE="${AQUA_GRAPHICS_VISIBLE_ATTEMPT_TRANSCRIPT_FILE:-${RUNTIME_DIR}/graphics-visible-attempt-transcript.plan}"
+RESULT_FILE="${AQUA_GRAPHICS_VISIBLE_ATTEMPT_RESULT_FILE:-${RUNTIME_DIR}/graphics-visible-attempt-result.plan}"
+RUN_LOG="${AQUA_GRAPHICS_VISIBLE_ATTEMPT_RUN_LOG:-}"
+
+failures=0
+
+mark() {
+    status="$1"
+    echo "[AQUA-GATE] stage=graphics-visible-attempt-result status=${status}"
+}
+
+need_log() {
+    label="$1"
+    log="$2"
+    needle="$3"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+log_status() {
+    if [ -n "${RUN_LOG}" ] && [ -f "${RUN_LOG}" ]; then
+        printf 'present'
+    else
+        printf 'not-provided'
+    fi
+}
+
+attempt_result="manual-not-run"
+attempt_completed="false"
+display_output_started="false"
+display_output_stopped="false"
+safe_return_to_recovery="ok"
+
+if [ -n "${RUN_LOG}" ] && [ -f "${RUN_LOG}" ]; then
+    if grep -Fq "bounded_run_complete=ok" "${RUN_LOG}" && \
+       grep -Fq "display_output_started=true" "${RUN_LOG}" && \
+       grep -Fq "display_output_stopped=true" "${RUN_LOG}" && \
+       grep -Fq "safe_return_to_recovery=ok" "${RUN_LOG}"; then
+        attempt_result="completed-bounded-run"
+        attempt_completed="true"
+        display_output_started="true"
+        display_output_stopped="true"
+    else
+        attempt_result="run-log-incomplete"
+        safe_return_to_recovery="needs-review"
+    fi
+fi
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-graphics-visible-attempt-result"
+echo "visible_attempt_result_status=qemu-safe-visible-attempt-result-ready"
+echo "mode=text-recovery"
+echo "result_mode=manual-visible-qemu-attempt"
+echo "transcript_file=${TRANSCRIPT_FILE}"
+echo "result_file=${RESULT_FILE}"
+echo "run_log_status=$(log_status)"
+
+need_log "source_transcript_ready" "${TRANSCRIPT_FILE}" "transcript=first-visible-qemu-attempt"
+need_log "source_transcript_sequence" "${TRANSCRIPT_FILE}" "operator_sequence_ready=true"
+need_log "source_transcript_expected_return" "${TRANSCRIPT_FILE}" "expected_return=safe-return-to-recovery"
+need_log "source_transcript_no_persistent" "${TRANSCRIPT_FILE}" "persistent_graphical_session_started=false"
+need_log "source_transcript_recovery_safe" "${TRANSCRIPT_FILE}" "safe_return_to_recovery=ok"
+
+{
+    echo "product=Aqua Linux"
+    echo "result=first-visible-qemu-attempt"
+    echo "mode=text-recovery"
+    echo "result_mode=manual-visible-qemu-attempt"
+    echo "source_transcript=graphics-visible-attempt-transcript"
+    echo "attempt_result=${attempt_result}"
+    echo "attempt_result_collected=true"
+    echo "visible_qemu_attempt_started=${display_output_started}"
+    echo "visible_qemu_attempt_completed=${attempt_completed}"
+    echo "bounded_run_frames=3"
+    echo "display_output_started=${display_output_started}"
+    echo "display_output_stopped=${display_output_stopped}"
+    echo "persistent_graphical_session_started=false"
+    echo "desktop_shell_started=false"
+    echo "boot_graphics=false"
+    echo "autostart=false"
+    echo "fallback_tty_available=true"
+    echo "manual_operator_required=true"
+    echo "rollback_command=/usr/bin/aqua-recovery"
+    echo "safe_return_to_recovery=${safe_return_to_recovery}"
+} > "${RESULT_FILE}" || failures=$((failures + 1))
+
+need_log "result_written" "${RESULT_FILE}" "result=first-visible-qemu-attempt"
+need_log "result_collected" "${RESULT_FILE}" "attempt_result_collected=true"
+need_log "result_bounded_frames" "${RESULT_FILE}" "bounded_run_frames=3"
+need_log "result_no_persistent_session" "${RESULT_FILE}" "persistent_graphical_session_started=false"
+need_log "result_no_desktop_shell" "${RESULT_FILE}" "desktop_shell_started=false"
+need_log "result_no_boot_graphics" "${RESULT_FILE}" "boot_graphics=false"
+need_log "result_no_autostart" "${RESULT_FILE}" "autostart=false"
+need_log "result_recovery_safe" "${RESULT_FILE}" "safe_return_to_recovery=${safe_return_to_recovery}"
+
+echo "graphics_visible_attempt_result=ok"
+echo "attempt_result=${attempt_result}"
+echo "attempt_result_collected=true"
+echo "visible_qemu_attempt_started=${display_output_started}"
+echo "visible_qemu_attempt_completed=${attempt_completed}"
+echo "bounded_run_frames=3"
+echo "display_output_started=${display_output_started}"
+echo "display_output_stopped=${display_output_stopped}"
+echo "persistent_graphical_session_started=false"
+echo "desktop_shell_started=false"
+echo "boot_graphics=false"
+echo "autostart=false"
+echo "fallback_tty_available=true"
+echo "manual_operator_required=true"
+echo "rollback_command=/usr/bin/aqua-recovery"
+echo "safe_return_to_recovery=${safe_return_to_recovery}"
+
+if [ "${failures}" -eq 0 ] && [ "${safe_return_to_recovery}" = "ok" ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1

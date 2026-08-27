@@ -1,0 +1,129 @@
+#!/bin/sh
+
+set -u
+
+CONFIG_PATH="${AQUA_COMPOSITOR_CONFIG:-/etc/aqua/compositor-session.conf}"
+ENV_PATH="${AQUA_SESSION_ENV:-/etc/aqua/session.env}"
+COMPOSITOR_BIN="${AQUA_COMPOSITOR_BIN:-/usr/bin/aqua-compositor}"
+GUARDED_RUN_BIN="${AQUA_GUARDED_RUN_BIN:-/usr/bin/aqua-compositor-guarded-run}"
+MANUAL_LAUNCH_BIN="${AQUA_MANUAL_LAUNCH_BIN:-/usr/bin/aqua-compositor-manual-launch}"
+RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
+
+failures=0
+
+mark() {
+    status="$1"
+    echo "[AQUA-GATE] stage=nested-preview-handoff status=${status}"
+}
+
+run_step() {
+    label="$1"
+    shift
+    log="${RUNTIME_DIR}/${label}.log"
+
+    if "$@" > "${log}" 2> "${log}.err"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+need_log() {
+    label="$1"
+    log="$2"
+    needle="$3"
+
+    if [ -f "${log}" ] && grep -Fq "${needle}" "${log}"; then
+        echo "${label}=ok"
+    else
+        echo "${label}=failed"
+        failures=$((failures + 1))
+    fi
+}
+
+mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))
+chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+
+echo "product=Aqua Linux"
+echo "tool=aqua-compositor-handoff-gate"
+echo "gate_status=qemu-safe-nested-preview-handoff-gate-ready"
+echo "launch_mode=manual-recovery"
+echo "config_path=${CONFIG_PATH}"
+echo "env_path=${ENV_PATH}"
+echo "compositor_bin=${COMPOSITOR_BIN}"
+echo "guarded_run_bin=${GUARDED_RUN_BIN}"
+echo "manual_launch_bin=${MANUAL_LAUNCH_BIN}"
+
+if [ ! -x "${COMPOSITOR_BIN}" ]; then
+    echo "compositor_status=missing"
+    mark error
+    exit 1
+fi
+
+if [ ! -x "${GUARDED_RUN_BIN}" ]; then
+    echo "guarded_run_tool=missing"
+    mark error
+    exit 1
+fi
+
+AQUA_COMPOSITOR_CONFIG="${CONFIG_PATH}" \
+AQUA_SESSION_ENV="${ENV_PATH}" \
+AQUA_COMPOSITOR_BIN="${COMPOSITOR_BIN}" \
+AQUA_MANUAL_LAUNCH_BIN="${MANUAL_LAUNCH_BIN}" \
+AQUA_RUNTIME_DIR="${RUNTIME_DIR}" \
+run_step "handoff-guarded-run" "${GUARDED_RUN_BIN}"
+
+run_step "handoff-display-output" "${COMPOSITOR_BIN}" probe-display-output-handoff
+run_step "handoff-visible-preview-plan" "${COMPOSITOR_BIN}" probe-visible-preview-plan
+run_step "handoff-nested-preview-loop" "${COMPOSITOR_BIN}" smoke-nested-preview-loop
+run_step "handoff-manual-nested-backend" "${COMPOSITOR_BIN}" probe-manual-nested-preview-backend
+
+guarded_log="${RUNTIME_DIR}/handoff-guarded-run.log"
+handoff_log="${RUNTIME_DIR}/handoff-display-output.log"
+preview_log="${RUNTIME_DIR}/handoff-visible-preview-plan.log"
+loop_log="${RUNTIME_DIR}/handoff-nested-preview-loop.log"
+backend_log="${RUNTIME_DIR}/handoff-manual-nested-backend.log"
+
+need_log "guarded_run_ready" "${guarded_log}" "[AQUA-GUARDED] stage=compositor-bounded-run status=ok"
+need_log "guarded_run_stopped" "${guarded_log}" "display_output_stopped=true"
+need_log "handoff_ready" "${handoff_log}" "[AQUA-COMPOSITOR] stage=display-output-handoff status=ok"
+need_log "handoff_frame_ready" "${handoff_log}" "frame_format=raw-rgba8888-composited-client-preview"
+need_log "handoff_client_layers" "${handoff_log}" "client_layer_composited=ok"
+need_log "visible_preview_ready" "${preview_log}" "[AQUA-COMPOSITOR] stage=visible-preview-plan-probe status=ok"
+need_log "visible_preview_window_stopped" "${preview_log}" "preview_window_started=false"
+need_log "preview_loop_ready" "${loop_log}" "[AQUA-COMPOSITOR] stage=nested-preview-loop status=ok"
+need_log "preview_loop_frames" "${loop_log}" "rendered_frames=3"
+need_log "preview_loop_no_autostart" "${loop_log}" "autostart=false"
+need_log "preview_loop_no_boot_graphics" "${loop_log}" "boot_graphics=false"
+need_log "manual_backend_ready" "${backend_log}" "[AQUA-COMPOSITOR] stage=manual-nested-preview-backend status=ok"
+need_log "manual_backend_selected" "${backend_log}" "backend_selected=ok"
+need_log "manual_backend_checksum_match" "${backend_log}" "frame_checksum_matches_surface=ok"
+need_log "manual_backend_no_display_start" "${backend_log}" "display_output_started=false"
+need_log "manual_backend_stopped" "${backend_log}" "display_output_stopped=true"
+need_log "manual_backend_recovery_safe" "${backend_log}" "recovery_safe=ok"
+
+echo "bounded_run_gate=ok"
+echo "display_handoff_gate=ok"
+echo "visible_preview_gate=ok"
+echo "nested_preview_loop_gate=ok"
+echo "manual_nested_backend_gate=ok"
+echo "candidate_path=manual-nested-preview"
+echo "promotion_decision=ready-for-manual-operator"
+echo "automatic_promotion=false"
+echo "manual_operator_required=true"
+echo "autostart=false"
+echo "boot_graphics=false"
+echo "display_output_started=false"
+echo "preview_window_started=false"
+echo "desktop_shell_started=false"
+echo "safe_to_remain_in_recovery=ok"
+echo "next_manual_command=/usr/bin/aqua-compositor probe-manual-nested-preview-backend"
+
+if [ "${failures}" -eq 0 ]; then
+    mark ok
+    exit 0
+fi
+
+mark error
+exit 1
