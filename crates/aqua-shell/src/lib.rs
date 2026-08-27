@@ -8,10 +8,10 @@ pub const SETTINGS_CONFIG_VERSION: u8 = 1;
 pub const LAUNCHER_STATUS: &str = "interactive-launcher-model";
 pub const LAUNCHER_DESIGN_ERA: &str = "bright-aqua-desktop";
 pub const LAUNCHER_MATERIAL: &str = "aqua-light-surface";
-pub const LAUNCHER_PANEL_X: u32 = 24;
-pub const LAUNCHER_PANEL_Y: u32 = 60;
-pub const LAUNCHER_PANEL_WIDTH: u32 = 560;
-pub const LAUNCHER_PANEL_HEIGHT: u32 = 520;
+pub const LAUNCHER_PANEL_X: u32 = 90;
+pub const LAUNCHER_PANEL_Y: u32 = 70;
+pub const LAUNCHER_PANEL_WIDTH: u32 = 620;
+pub const LAUNCHER_PANEL_HEIGHT: u32 = 460;
 pub const FILES_VISIBLE_ROWS: usize = 4;
 pub const FILES_TEXT_PREVIEW_LIMIT: u64 = 4096;
 pub const FILES_PREVIEW_VISIBLE_LINES: usize = 6;
@@ -1678,6 +1678,37 @@ pub enum LauncherPointerTarget {
     Panel,
     Category(LauncherCategory),
     Application(usize),
+    QuickAction(LauncherQuickAction),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LauncherQuickAction {
+    Applications,
+    Settings,
+    Files,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LauncherMode {
+    Applications,
+    Search,
+}
+
+impl LauncherMode {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Applications => "applications",
+            Self::Search => "search",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LauncherPanelBounds {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1813,6 +1844,8 @@ pub struct LaunchRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LauncherEvent {
     Toggle,
+    OpenApplications,
+    OpenSearch,
     Dismiss,
     SelectCategory(LauncherCategory),
     ReplaceQuery(String),
@@ -1840,6 +1873,7 @@ impl LauncherUpdate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LauncherState {
     open: bool,
+    mode: LauncherMode,
     category: LauncherCategory,
     query: String,
     selected_index: usize,
@@ -1849,6 +1883,7 @@ impl Default for LauncherState {
     fn default() -> Self {
         Self {
             open: false,
+            mode: LauncherMode::Applications,
             category: LauncherCategory::Favorites,
             query: String::new(),
             selected_index: 0,
@@ -1865,6 +1900,10 @@ impl LauncherState {
         self.category
     }
 
+    pub fn mode(&self) -> LauncherMode {
+        self.mode
+    }
+
     pub fn query(&self) -> &str {
         &self.query
     }
@@ -1874,11 +1913,28 @@ impl LauncherState {
     }
 
     pub fn open(&mut self) {
+        self.open_applications();
+    }
+
+    pub fn open_applications(&mut self) {
         self.open = true;
+        self.mode = LauncherMode::Applications;
+        self.category = LauncherCategory::AllApplications;
+        self.query.clear();
+        self.selected_index = 0;
+    }
+
+    pub fn open_search(&mut self) {
+        self.open = true;
+        self.mode = LauncherMode::Search;
+        self.category = LauncherCategory::AllApplications;
+        self.query.clear();
+        self.selected_index = 0;
     }
 
     pub fn close(&mut self) {
         self.open = false;
+        self.mode = LauncherMode::Applications;
         self.query.clear();
         self.selected_index = 0;
     }
@@ -1892,6 +1948,7 @@ impl LauncherState {
     }
 
     pub fn select_category(&mut self, category: LauncherCategory) {
+        self.mode = LauncherMode::Applications;
         self.category = category;
         self.query.clear();
         self.selected_index = 0;
@@ -1899,7 +1956,26 @@ impl LauncherState {
 
     pub fn set_query(&mut self, query: impl Into<String>) {
         self.query = query.into();
+        if !self.query.is_empty() {
+            self.mode = LauncherMode::Search;
+            self.category = LauncherCategory::AllApplications;
+        }
         self.selected_index = 0;
+    }
+
+    pub fn panel_bounds(&self, viewport_width: u32, viewport_height: u32) -> LauncherPanelBounds {
+        let requested_width = match self.mode {
+            LauncherMode::Applications => 620,
+            LauncherMode::Search => 720,
+        };
+        let width = requested_width.min(viewport_width.saturating_sub(48));
+        let height = 460_u32.min(viewport_height.saturating_sub(140));
+        LauncherPanelBounds {
+            x: viewport_width.saturating_sub(width) / 2,
+            y: 70_u32.min(viewport_height.saturating_sub(height) / 2),
+            width,
+            height,
+        }
     }
 
     pub fn visible_apps(&self) -> Vec<&'static LauncherApp> {
@@ -1937,24 +2013,57 @@ impl LauncherState {
     }
 
     pub fn pointer_target(&self, x: u32, y: u32) -> Option<LauncherPointerTarget> {
+        self.pointer_target_in_viewport(x, y, 800, 600)
+    }
+
+    pub fn pointer_target_in_viewport(
+        &self,
+        x: u32,
+        y: u32,
+        viewport_width: u32,
+        viewport_height: u32,
+    ) -> Option<LauncherPointerTarget> {
+        let panel = self.panel_bounds(viewport_width, viewport_height);
         if !self.open
-            || !(LAUNCHER_PANEL_X..LAUNCHER_PANEL_X + LAUNCHER_PANEL_WIDTH).contains(&x)
-            || !(LAUNCHER_PANEL_Y..LAUNCHER_PANEL_Y + LAUNCHER_PANEL_HEIGHT).contains(&y)
+            || !(panel.x..panel.x + panel.width).contains(&x)
+            || !(panel.y..panel.y + panel.height).contains(&y)
         {
             return None;
         }
 
-        let content_y = LAUNCHER_PANEL_Y + 84;
-        if x < LAUNCHER_PANEL_X + 220 && y >= content_y {
-            let index = ((y - content_y) / 38) as usize;
-            if let Some(category) = LauncherCategory::ALL.get(index).copied() {
-                return Some(LauncherPointerTarget::Category(category));
+        let content_y = panel.y + 96;
+        match self.mode {
+            LauncherMode::Applications => {
+                if y >= content_y {
+                    let column_width = (panel.width.saturating_sub(48) / 3).max(1);
+                    let column = ((x.saturating_sub(panel.x + 24)) / column_width).min(2);
+                    let row = (y - content_y) / 112;
+                    let index = (row * 3 + column) as usize;
+                    if index < self.visible_apps().len().min(6) {
+                        return Some(LauncherPointerTarget::Application(index));
+                    }
+                }
             }
-        }
-        if x >= LAUNCHER_PANEL_X + 220 && y >= content_y {
-            let index = ((y - content_y) / 62) as usize;
-            if index < self.visible_apps().len().min(6) {
-                return Some(LauncherPointerTarget::Application(index));
+            LauncherMode::Search => {
+                if y >= content_y {
+                    if x < panel.x + panel.width / 2 {
+                        let index = ((y - content_y) / 58) as usize;
+                        if index < self.visible_apps().len().min(6) {
+                            return Some(LauncherPointerTarget::Application(index));
+                        }
+                    } else {
+                        let index = ((y - content_y) / 62) as usize;
+                        let action = match index {
+                            0 => Some(LauncherQuickAction::Applications),
+                            1 => Some(LauncherQuickAction::Settings),
+                            2 => Some(LauncherQuickAction::Files),
+                            _ => None,
+                        };
+                        if let Some(action) = action {
+                            return Some(LauncherPointerTarget::QuickAction(action));
+                        }
+                    }
+                }
             }
         }
         Some(LauncherPointerTarget::Panel)
@@ -1974,6 +2083,40 @@ impl LauncherState {
             })
     }
 
+    pub fn activate_quick_action(&mut self, action: LauncherQuickAction) -> LauncherUpdate {
+        if !self.open || self.mode != LauncherMode::Search {
+            return LauncherUpdate::unchanged();
+        }
+        match action {
+            LauncherQuickAction::Applications => {
+                self.open_applications();
+                LauncherUpdate {
+                    redraw_requested: true,
+                    visibility_changed: false,
+                    launch_request: None,
+                }
+            }
+            LauncherQuickAction::Settings | LauncherQuickAction::Files => {
+                let app_id = match action {
+                    LauncherQuickAction::Settings => "settings",
+                    LauncherQuickAction::Files => "files",
+                    LauncherQuickAction::Applications => unreachable!(),
+                };
+                LauncherUpdate {
+                    redraw_requested: false,
+                    visibility_changed: false,
+                    launch_request: DEFAULT_APPS.iter().find(|app| app.id == app_id).map(|app| {
+                        LaunchRequest {
+                            app_id: app.id,
+                            command: app.command,
+                            target: None,
+                        }
+                    }),
+                }
+            }
+        }
+    }
+
     pub fn handle_event(&mut self, event: LauncherEvent) -> LauncherUpdate {
         match event {
             LauncherEvent::Toggle => {
@@ -1981,6 +2124,24 @@ impl LauncherState {
                 LauncherUpdate {
                     redraw_requested: true,
                     visibility_changed: true,
+                    launch_request: None,
+                }
+            }
+            LauncherEvent::OpenApplications => {
+                let visibility_changed = !self.open;
+                self.open_applications();
+                LauncherUpdate {
+                    redraw_requested: true,
+                    visibility_changed,
+                    launch_request: None,
+                }
+            }
+            LauncherEvent::OpenSearch => {
+                let visibility_changed = !self.open;
+                self.open_search();
+                LauncherUpdate {
+                    redraw_requested: true,
+                    visibility_changed,
                     launch_request: None,
                 }
             }
@@ -2854,21 +3015,57 @@ mod tests {
     }
 
     #[test]
-    fn launcher_pointer_hit_test_maps_categories_and_visible_apps() {
+    fn launcher_pointer_hit_test_maps_application_and_search_results() {
         let mut launcher = LauncherState::default();
         launcher.open();
 
         assert_eq!(
-            launcher.pointer_target(80, 188),
-            Some(LauncherPointerTarget::Category(
-                LauncherCategory::AllApplications
-            ))
+            launcher.pointer_target(130, 180),
+            Some(LauncherPointerTarget::Application(0))
         );
+        launcher.open_search();
+        launcher.set_query("settings");
         assert_eq!(
-            launcher.pointer_target(300, 160),
+            launcher.pointer_target(70, 180),
             Some(LauncherPointerTarget::Application(0))
         );
         assert_eq!(launcher.pointer_target(900, 700), None);
+    }
+
+    #[test]
+    fn launcher_exposes_distinct_applications_and_search_modes() {
+        let mut launcher = LauncherState::default();
+        launcher.handle_event(LauncherEvent::OpenApplications);
+        assert_eq!(launcher.mode(), LauncherMode::Applications);
+        assert_eq!(launcher.category(), LauncherCategory::AllApplications);
+
+        launcher.handle_event(LauncherEvent::OpenSearch);
+        assert_eq!(launcher.mode(), LauncherMode::Search);
+        assert_eq!(launcher.query(), "");
+
+        launcher.handle_event(LauncherEvent::OpenApplications);
+        launcher.handle_event(LauncherEvent::ReplaceQuery("files".into()));
+        assert_eq!(launcher.mode(), LauncherMode::Search);
+        assert_eq!(launcher.visible_apps()[0].id, "files");
+    }
+
+    #[test]
+    fn launcher_search_quick_actions_are_real_and_bounded() {
+        let mut launcher = LauncherState::default();
+        launcher.open_search();
+        assert_eq!(
+            launcher.pointer_target(500, 190),
+            Some(LauncherPointerTarget::QuickAction(
+                LauncherQuickAction::Applications
+            ))
+        );
+        let settings = launcher.activate_quick_action(LauncherQuickAction::Settings);
+        assert_eq!(settings.launch_request.unwrap().app_id, "settings");
+
+        launcher.close();
+        let blocked = launcher.activate_quick_action(LauncherQuickAction::Files);
+        assert!(!blocked.redraw_requested);
+        assert!(blocked.launch_request.is_none());
     }
 
     #[test]
