@@ -5,9 +5,9 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. Runtime convergence has started with a compositor-owned compact top bar that renders the Aqua product label, UTC clock, network state, battery capacity, and audio availability through the shared software/GPU renderer path. The pale idle desktop, Applications, Search, bottom shell groups, application chrome, installer presentation, and four-theme selection remain ahead without changing the Buildroot or custom Wayland compositor architecture.",
+  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. Runtime convergence now includes the compositor-owned compact top bar and a reproducible pale-wave default wallpaper packaged through the existing Buildroot asset path. Applications, Search, bottom shell groups, application chrome, installer presentation, and four-theme selection remain ahead without changing the Buildroot or custom Wayland compositor architecture.",
   "updated": "2026-08-28",
-  "overallPercent": 83,
+  "overallPercent": 84,
   "rules": [
     "Aqua Linux v1.0 is treated as 100%.",
     "Overall progress is the rounded arithmetic mean of the 12 phase percentages so the public value is reproducible.",
@@ -35,10 +35,10 @@
     {
       "id": "m2",
       "name": "Asset and Visual System Intake",
-      "percent": 90,
+      "percent": 95,
       "status": "in-progress",
-      "updated": "2026-08-27",
-      "summary": "Public contracts now capture the permanent desktop, application, search, first-party app, installer, completion, and four-theme direction derived from private Git-ignored boards. The project-owner-supplied brand board provides transparent primary, inverse, accent, wordmark, and combined-logo PNG exports used by the runtime. A pale wave wallpaper master and final Aqua-owned application/status icons are still required."
+      "updated": "2026-08-28",
+      "summary": "Public contracts capture the permanent desktop, application, search, first-party app, installer, completion, and four-theme direction derived from private Git-ignored boards. Approved transparent brand exports are used by the runtime. A deterministic pale-wave wallpaper master is now the packaged default and can be reproduced from renderer source. Final Aqua-owned application and status icons are still required."
     },
     {
       "id": "m3",
@@ -107,18 +107,17 @@
     {
       "id": "m11",
       "name": "Polish and Public Readiness",
-      "percent": 8,
+      "percent": 10,
       "status": "early",
       "updated": "2026-08-28",
-      "summary": "The v1 desktop and installer contracts are documented. The runtime now has a dedicated compact top bar model and renderer surface backed by real clock, network, battery, and audio state, uploaded into the compositor GPU scene and refreshed every minute. The pale idle desktop, remaining shell surfaces, contributor guide, current public OS screenshots, hardware status, final artwork clearance, and issue workflow are incomplete."
+      "summary": "The v1 desktop and installer contracts are documented. The runtime now has a dedicated compact top bar backed by real system state and a bright reproducible pale-wave default wallpaper shipped through Buildroot. Remaining shell surfaces, contributor guide, current public OS screenshots, hardware status, final icon clearance, and issue workflow are incomplete."
     }
   ],
   "nextSteps": [
-    "Complete the pale blue idle desktop and approved wallpaper path around the new runtime top bar.",
     "Split the prototype launcher into the canonical Applications overview and Global Search surfaces.",
     "Rebuild the bottom shell controls as Applications/Search, centered pinned/running apps, and workspace thumbnails.",
     "Unify bright window chrome and controls across Files, Settings, Terminal, Properties, and Installer.",
-    "Replace the legacy wallpaper and luminous mark when clean approved masters matching the new references are supplied.",
+    "Apply the four theme token sets to runtime shell and first-party window surfaces.",
     "Keep fallback TTY, boot_graphics=false, and autostart=false in the default development image."
   ]
 }

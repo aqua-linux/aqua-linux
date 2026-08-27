@@ -20,6 +20,7 @@ need_text() {
 }
 
 need_file "${ASSET_DIR}/default-wallpaper.png"
+need_file "${ASSET_DIR}/wallpaper-pale-waves.png"
 need_file "${ASSET_DIR}/wallpaper-surf.png"
 need_file "${ASSET_DIR}/wallpaper-reef.png"
 need_file "${ASSET_DIR}/wallpaper-sunlit-water.png"
@@ -55,6 +56,7 @@ need_text "${ASSET_DIR}/manifest.md" "Approved Aqua Brand Exports"
 need_text "${ASSET_DIR}/manifest.md" "Status icons"
 need_text "${ASSET_DIR}/manifest.md" "temporary"
 need_text "${ASSET_DIR}/manifest.md" "wallpaper-sunlit-water.png"
+need_text "${ASSET_DIR}/manifest.md" "wallpaper-pale-waves.png"
 need_text "${ASSET_DIR}/manifest.md" "wallpaper-moonlit-lagoon.png"
 need_text "${ASSET_DIR}/manifest.md" "Private Interface References"
 need_text "${ASSET_DIR}/manifest.md" "Do not commit or package private boards"

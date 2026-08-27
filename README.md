@@ -33,7 +33,7 @@ not part of the Aqua Linux runtime image.
 ## Not Finished
 
 - Runtime convergence with the canonical Aqua interface contract.
-- Final pale-wave wallpaper master, application icons, and status icons.
+- Final Aqua-owned application and status icons.
 - Production login/first-run experience.
 - Audio, Wi-Fi, Bluetooth, battery, suspend/resume, and update UX.
 - MSI Sword 17 hardware validation.

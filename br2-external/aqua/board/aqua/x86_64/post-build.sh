@@ -355,6 +355,7 @@ if [ -d "${ASSET_SOURCE_DIR}" ] && [ -f "${TOKEN_SOURCE}" ]; then
         "${TARGET_DIR}/usr/share/doc/aqua"
 
     cp "${ASSET_SOURCE_DIR}/default-wallpaper.png" "${TARGET_DIR}/usr/share/aqua/wallpapers/default-wallpaper.png"
+    cp "${ASSET_SOURCE_DIR}/wallpaper-pale-waves.png" "${TARGET_DIR}/usr/share/aqua/wallpapers/wallpaper-pale-waves.png"
     cp "${ASSET_SOURCE_DIR}/wallpaper-surf.png" "${TARGET_DIR}/usr/share/aqua/wallpapers/wallpaper-surf.png"
     cp "${ASSET_SOURCE_DIR}/wallpaper-reef.png" "${TARGET_DIR}/usr/share/aqua/wallpapers/wallpaper-reef.png"
     cp "${ASSET_SOURCE_DIR}/wallpaper-sunlit-water.png" "${TARGET_DIR}/usr/share/aqua/wallpapers/wallpaper-sunlit-water.png"
