@@ -8,8 +8,9 @@ use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind};
 use aqua_shell::{
     DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
     FilesWindowModel, LauncherCategory, LauncherState, NotificationCenter, SessionAction,
-    SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView, DESKTOP_ICONS,
-    DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT, FILES_PREVIEW_VISIBLE_LINES, FILES_VISIBLE_ROWS,
+    SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView, TopBarState,
+    DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT, FILES_PREVIEW_VISIBLE_LINES,
+    FILES_VISIBLE_ROWS,
 };
 use fontdue::{Font, FontSettings};
 use std::sync::OnceLock;
@@ -321,6 +322,327 @@ pub struct DockOverlay {
     pub rgba: Vec<u8>,
     pub running_item_count: usize,
     pub primitive_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TopBarOverlay {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+    pub primitive_count: usize,
+}
+
+pub fn render_top_bar_rgba(width: u32, height: u32, state: &TopBarState) -> TopBarOverlay {
+    let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
+    if width < 480 || height < 28 {
+        return TopBarOverlay {
+            width,
+            height,
+            rgba,
+            primitive_count: 0,
+        };
+    }
+
+    fill_transparent_rect(
+        &mut rgba,
+        width,
+        height,
+        Rect {
+            x: 0,
+            y: 0,
+            width,
+            height,
+        },
+        [0xf8, 0xfb, 0xff, 0xf2],
+    );
+    fill_transparent_rect(
+        &mut rgba,
+        width,
+        height,
+        Rect {
+            x: 0,
+            y: height - 1,
+            width,
+            height: 1,
+        },
+        [0xb7, 0xc8, 0xdc, 0xc0],
+    );
+
+    let text_y = height.saturating_sub(14) / 2;
+    let mut primitive_count = 2;
+    primitive_count += draw_top_bar_brand_mark(&mut rgba, width, height);
+    draw_bitmap_text(
+        &mut rgba,
+        (width, height),
+        (46, text_y),
+        &state.product_label,
+        [0x16, 0x22, 0x32, 0xff],
+        1,
+    );
+    primitive_count += 1;
+
+    let clock_width = state.clock_label.chars().count() as u32 * 8;
+    draw_bitmap_text(
+        &mut rgba,
+        (width, height),
+        (width.saturating_sub(clock_width) / 2, text_y),
+        &state.clock_label,
+        [0x16, 0x22, 0x32, 0xff],
+        1,
+    );
+    primitive_count += 1;
+    primitive_count += draw_top_bar_status_icons(&mut rgba, width, height, state);
+
+    TopBarOverlay {
+        width,
+        height,
+        rgba,
+        primitive_count,
+    }
+}
+
+fn draw_top_bar_brand_mark(rgba: &mut [u8], width: u32, height: u32) -> usize {
+    let color = [0x08, 0x69, 0xc8, 0xff];
+    let center_y = height / 2;
+    for offset in 0..2 {
+        draw_transparent_line(
+            rgba,
+            width,
+            height,
+            (18 + offset, center_y + 9),
+            (27, center_y.saturating_sub(9) + offset),
+            2,
+            color,
+        );
+        draw_transparent_line(
+            rgba,
+            width,
+            height,
+            (27, center_y.saturating_sub(9) + offset),
+            (36 - offset, center_y + 9),
+            2,
+            color,
+        );
+    }
+    draw_transparent_line(
+        rgba,
+        width,
+        height,
+        (18, center_y + 9),
+        (27, center_y + 4),
+        2,
+        color,
+    );
+    draw_transparent_line(
+        rgba,
+        width,
+        height,
+        (27, center_y + 4),
+        (36, center_y + 9),
+        2,
+        color,
+    );
+    6
+}
+
+fn draw_top_bar_status_icons(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    state: &TopBarState,
+) -> usize {
+    let color = [0x16, 0x22, 0x32, 0xff];
+    let muted = [0x7f, 0x8c, 0x9d, 0xff];
+    let center_y = height / 2;
+    let start_x = width.saturating_sub(136);
+    let audio_color = if state.audio_available { color } else { muted };
+
+    fill_transparent_rect(
+        rgba,
+        width,
+        height,
+        Rect {
+            x: start_x,
+            y: center_y.saturating_sub(3),
+            width: 4,
+            height: 7,
+        },
+        audio_color,
+    );
+    draw_transparent_line(
+        rgba,
+        width,
+        height,
+        (start_x + 4, center_y.saturating_sub(3)),
+        (start_x + 9, center_y.saturating_sub(7)),
+        2,
+        audio_color,
+    );
+    draw_transparent_line(
+        rgba,
+        width,
+        height,
+        (start_x + 9, center_y.saturating_sub(7)),
+        (start_x + 9, center_y + 7),
+        2,
+        audio_color,
+    );
+    draw_transparent_line(
+        rgba,
+        width,
+        height,
+        (start_x + 9, center_y + 7),
+        (start_x + 4, center_y + 3),
+        2,
+        audio_color,
+    );
+    if state.audio_available {
+        draw_transparent_line(
+            rgba,
+            width,
+            height,
+            (start_x + 13, center_y.saturating_sub(4)),
+            (start_x + 16, center_y),
+            1,
+            audio_color,
+        );
+        draw_transparent_line(
+            rgba,
+            width,
+            height,
+            (start_x + 16, center_y),
+            (start_x + 13, center_y + 4),
+            1,
+            audio_color,
+        );
+    } else {
+        draw_transparent_line(
+            rgba,
+            width,
+            height,
+            (start_x + 12, center_y.saturating_sub(4)),
+            (start_x + 18, center_y + 4),
+            1,
+            muted,
+        );
+    }
+
+    let network_x = start_x + 40;
+    let network_color = if state.network_connected {
+        color
+    } else {
+        muted
+    };
+    for inset in 0..3 {
+        draw_transparent_line(
+            rgba,
+            width,
+            height,
+            (
+                network_x + inset * 3,
+                center_y.saturating_sub(7) + inset * 3,
+            ),
+            (network_x + 9, center_y + 2 + inset),
+            1,
+            network_color,
+        );
+        draw_transparent_line(
+            rgba,
+            width,
+            height,
+            (
+                network_x + 18 - inset * 3,
+                center_y.saturating_sub(7) + inset * 3,
+            ),
+            (network_x + 9, center_y + 2 + inset),
+            1,
+            network_color,
+        );
+    }
+    fill_transparent_circle(
+        rgba,
+        width,
+        height,
+        network_x + 9,
+        center_y + 7,
+        2,
+        network_color,
+    );
+
+    let battery_x = start_x + 76;
+    fill_transparent_rounded_rect(
+        rgba,
+        width,
+        height,
+        Rect {
+            x: battery_x,
+            y: center_y.saturating_sub(6),
+            width: 24,
+            height: 12,
+        },
+        2,
+        color,
+    );
+    fill_transparent_rect(
+        rgba,
+        width,
+        height,
+        Rect {
+            x: battery_x + 2,
+            y: center_y.saturating_sub(4),
+            width: 20,
+            height: 8,
+        },
+        [0xf8, 0xfb, 0xff, 0xff],
+    );
+    if let Some(percent) = state.battery_percent {
+        fill_transparent_rect(
+            rgba,
+            width,
+            height,
+            Rect {
+                x: battery_x + 3,
+                y: center_y.saturating_sub(3),
+                width: 18 * u32::from(percent) / 100,
+                height: 6,
+            },
+            [0x08, 0x69, 0xc8, 0xff],
+        );
+    }
+    fill_transparent_rect(
+        rgba,
+        width,
+        height,
+        Rect {
+            x: battery_x + 24,
+            y: center_y.saturating_sub(2),
+            width: 2,
+            height: 5,
+        },
+        color,
+    );
+
+    let power_x = start_x + 124;
+    fill_transparent_circle(rgba, width, height, power_x, center_y, 8, color);
+    fill_transparent_circle(
+        rgba,
+        width,
+        height,
+        power_x,
+        center_y,
+        5,
+        [0xf8, 0xfb, 0xff, 0xff],
+    );
+    draw_transparent_line(
+        rgba,
+        width,
+        height,
+        (power_x, center_y.saturating_sub(9)),
+        (power_x, center_y),
+        2,
+        color,
+    );
+    21
 }
 
 pub fn render_dock_rgba(width: u32, height: u32, state: &DockState) -> DockOverlay {
@@ -6936,6 +7258,24 @@ mod tests {
         assert_eq!(overlay.rgba.len(), 520 * 72 * 4);
         assert_eq!(overlay.running_item_count, 3);
         assert!(overlay.primitive_count > 40);
+        assert!(overlay.rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
+    }
+
+    #[test]
+    fn top_bar_overlay_renders_real_state_labels() {
+        let overlay = render_top_bar_rgba(
+            1536,
+            36,
+            &TopBarState {
+                product_label: "Aqua Linux".to_string(),
+                clock_label: "Thu, 27 Aug 2026  10:30 UTC".to_string(),
+                network_connected: true,
+                battery_percent: Some(87),
+                audio_available: true,
+            },
+        );
+        assert_eq!(overlay.rgba.len(), 1536 * 36 * 4);
+        assert!(overlay.primitive_count >= 30);
         assert!(overlay.rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
     }
 
