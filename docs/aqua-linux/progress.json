@@ -5,9 +5,9 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. The desktop now assigns every XDG toplevel to one of three workspaces, switches them through the bottom shell or keyboard, and moves focused windows without restarting applications. Dedicated Linux and QEMU acceptance cover focus, pointer targets, empty and populated rendering, process continuity, and visible scanout changes.",
+  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. The current QEMU runtime now has a reproducible public screenshot path for the clean desktop, Applications, Global Search, and concurrent Aqua Files plus Aqua Settings. Every published capture is tied to a successful graphical acceptance marker, clean session stop, fixed dimensions, and SHA-256 provenance manifest.",
   "updated": "2026-08-28",
-  "overallPercent": 89,
+  "overallPercent": 90,
   "rules": [
     "Aqua Linux v1.0 is treated as 100%.",
     "Overall progress is the rounded arithmetic mean of the 12 phase percentages so the public value is reproducible.",
@@ -107,14 +107,14 @@
     {
       "id": "m11",
       "name": "Polish and Public Readiness",
-      "percent": 70,
+      "percent": 80,
       "status": "in-progress",
       "updated": "2026-08-28",
-      "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, and persisted plus bounded live-refreshed LightWhite, Softtouch, Deepside, and Nightmare palettes across current application, shell, and all seven Installer setup screens. Three-workspace assignment, switching, focused-window movement, active-workspace rendering and input scoping, process continuity, and visible QEMU frame acceptance are complete. Broader current public OS screenshots, hardware status, final icon clearance, and issue workflow remain incomplete."
+      "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, four live-refreshed themes, and three real workspaces. A dedicated QEMU session now captures the clean desktop, Applications, Global Search, and concurrent Files plus Settings; publication requires the exact acceptance marker, clean stop, fixed dimensions, distinct nonblank frames, and SHA-256 manifest. Hardware status, final icon clearance, and issue workflow remain incomplete."
     }
   ],
   "nextSteps": [
-    "Publish a current, reproducible QEMU desktop screenshot set from the implemented runtime.",
+    "Document current QEMU and MSI Sword 17 hardware support status with explicit tested, untested, and deferred boundaries.",
     "Keep fallback TTY, boot_graphics=false, and autostart=false in the default development image."
   ]
 }

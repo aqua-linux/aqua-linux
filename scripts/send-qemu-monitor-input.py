@@ -56,6 +56,9 @@ MODES = {
         "sendkey n 100", "sendkey g 100", "sendkey s 100",
         "sendkey ret 100",
     ),
+    "public-applications": ("sendkey meta_l 100",),
+    "public-search": ("sendkey s 100", "sendkey e 100", "sendkey t 100"),
+    "public-launcher-dismiss": ("sendkey esc 100",),
     "workspace-move-right": ("sendkey ctrl-alt-shift-right 250",),
     "workspace-switch-right": ("sendkey ctrl-alt-right 250",),
     "settings-interaction": (

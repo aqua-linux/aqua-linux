@@ -116,3 +116,7 @@ not derive application icons by cropping private boards.
 Private reference boards are design-only and must not be committed or packaged
 into the root filesystem. The public contract in this document is sufficient
 for implementation and review.
+
+Current implementation evidence is maintained separately in
+[runtime-screenshots.md](runtime-screenshots.md). Those images are labeled QEMU
+captures and hash-verified; they do not replace this visual contract.

@@ -12,6 +12,11 @@ Unless a file has a separate license notice, no license is granted for:
 - Wallpapers under `docs/aqua-linux/assets/`.
 - Screenshots, videos, and other promotional artwork.
 
+Runtime screenshots under `docs/aqua-linux/assets/runtime/` are project
+documentation captures governed by this screenshot policy. Their manifest
+records technical provenance and integrity, not permission to reuse Aqua Linux
+branding independently.
+
 These files may not be reused as another product's identity or redistributed
 separately without permission from the relevant rights holder. Private concept
 boards are stored outside the public Git payload. They are design inputs, not

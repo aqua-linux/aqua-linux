@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "product": "Aqua Linux",
+  "environment": "QEMU x86_64 TCG",
+  "captureScript": "scripts/check-public-runtime-qemu.sh",
+  "publishScript": "scripts/publish-public-runtime-screenshots.sh",
+  "validationMarker": "[AQUA-TEST] stage=desktop-public-runtime-qemu status=ok captures=desktop,applications,search,windows clients=files,settings",
+  "runtimeSourceRevision": "94c2a89b4caf58f342c6046267df9fe994001e70",
+  "images": [
+    {
+      "file": "qemu-desktop.png",
+      "view": "Clean desktop",
+      "width": 1280,
+      "height": 800,
+      "sha256": "c37efd1cc2d312111d23f2fa80da391193df2a49a5d56ae50189e057e1b3661c"
+    },
+    {
+      "file": "qemu-applications.png",
+      "view": "Applications",
+      "width": 1280,
+      "height": 800,
+      "sha256": "81328928c5aab082174369c04564bc27215c9b6696d2e2f79f88fd71921b2888"
+    },
+    {
+      "file": "qemu-search.png",
+      "view": "Global Search query: set",
+      "width": 1280,
+      "height": 800,
+      "sha256": "ed07e6306f9decc980cff4fc117a49f63e148a2a73f06f509d5091e68c59dfe1"
+    },
+    {
+      "file": "qemu-first-party-windows.png",
+      "view": "Aqua Files and Aqua Settings",
+      "width": 1280,
+      "height": 800,
+      "sha256": "7ce87b00fe2dcc4ba27f92b275cc570d3c39fc3813bb4cfc9d8047874b439682"
+    }
+  ]
+}
