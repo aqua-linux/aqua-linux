@@ -195,6 +195,9 @@ drawing helper does not count as a shared component.
 - Third-party icons shown in references are composition examples only.
 - Core application and status roles use the permanent project-authored Aqua
   Core Icons. New icon roles require the same provenance and license review.
+- The required owner-production queue and SVG handoff rules are defined in
+  [icon-production.md](icon-production.md). Aqua Core Icons are not derived,
+  traced, recolored, or redistributed from elementary or another icon theme.
 
 ## Engineering Constraints
 

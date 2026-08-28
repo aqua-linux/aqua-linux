@@ -14,6 +14,9 @@ is outside this audit.
   Zlib, Unicode-3.0, and Unlicense combinations.
 - Aqua Core Icons are project-authored, MIT licensed, and isolated from private
   design-reference boards.
+- elementary Icons is not a source dependency or runtime asset. No elementary
+  SVG, path data, recolor, trace, or derivative is included; the owner-facing
+  Aqua production inventory defines functional roles and filenames only.
 - Noto Sans includes its SIL Open Font License 1.1 text.
 - The Weston simple-shm compatibility fixture is MIT licensed and is isolated
   from the Aqua desktop product stack.
