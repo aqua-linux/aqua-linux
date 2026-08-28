@@ -590,6 +590,22 @@ struct ClientTextureCacheEntry {
 
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
 impl LiveGpuCompositor {
+    fn set_theme(&mut self, theme: aqua_shell::AquaTheme) -> bool {
+        if self.theme == theme {
+            return false;
+        }
+        self.theme = theme;
+        self.launcher_state = None;
+        self.top_bar_state = None;
+        self.session_menu_state = None;
+        self.system_overview_state = None;
+        self.desktop_icons_state = None;
+        self.dock_state = None;
+        self.notification_state = aqua_shell::NotificationCenter::default();
+        println!("desktop_shell_theme_changed={}", theme.id());
+        true
+    }
+
     fn set_top_bar_state(&mut self, state: &aqua_shell::TopBarState) -> Result<(), String> {
         if self.top_bar_state.as_ref() == Some(state) {
             return Ok(());
@@ -4052,6 +4068,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     ));
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let runtime_repaint_sequence = Cell::new(0_u64);
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let runtime_theme = Cell::new(configured_runtime_theme());
 
     let result = present_drm_wayland_page_flip!(
         &device,
@@ -4327,13 +4345,29 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                     format!("cannot flush desktop Wayland clients: {error}")
                                 })?;
 
+                            let configured_theme = configured_runtime_theme();
+                            let theme_changed = runtime_theme.get() != configured_theme;
+                            if theme_changed {
+                                runtime_theme.set(configured_theme);
+                                #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+                                if let Some(compositor) =
+                                    live_gpu_wayland_compositor.borrow_mut().as_mut()
+                                {
+                                    compositor.set_theme(configured_theme);
+                                }
+                                println!(
+                                    "desktop_runtime_theme_broadcast={}",
+                                    configured_theme.id()
+                                );
+                            }
+
                             if installer_scenario {
                                 let mut snapshots =
                                     smithay_session.borrow().client_surface_snapshots();
                                 let revisions = desktop_surface_revisions(&snapshots);
                                 let surface_changed =
                                     *runtime_surface_revisions.borrow() != revisions;
-                                if surface_changed {
+                                if surface_changed || theme_changed {
                                     for snapshot in &mut snapshots {
                                         snapshot.x = 0;
                                         snapshot.y = 0;
@@ -4583,6 +4617,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                     || notification_changed
                                     || notification_ticked
                                     || shell_status_changed
+                                    || theme_changed
                                     || launched
                                     || surface_changed
                                     || process_exited)

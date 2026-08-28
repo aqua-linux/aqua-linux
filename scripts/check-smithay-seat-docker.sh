@@ -30,4 +30,6 @@ docker run --rm --platform linux/amd64 \
             smithay_notification_close_promotes_queue_and_timeout_hides_toast
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_first_party_surfaces_raise_by_xdg_app_id
+        cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
+            first_party_runtime_theme_transition_is_idempotent
     '
