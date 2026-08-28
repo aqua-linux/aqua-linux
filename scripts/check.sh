@@ -1146,6 +1146,11 @@ grep -Fq 'The bottom area is split into launcher/search controls, a centered run
 grep -Fq 'Theme selection for LightWhite, Softtouch, Deepside, or Nightmare.' docs/aqua-linux/visual-reference.md
 grep -Fq 'runningAppDock": "bottom-center"' docs/aqua-linux/design-tokens.json
 grep -Fq 'Third-party icons shown in references are composition examples only.' docs/aqua-linux/interface-style.md
+grep -Fq 'pub enum AquaTheme' crates/aqua-shell/src/lib.rs
+grep -Fq 'pub const NIGHTMARE_WINDOW_CHROME' crates/aqua-renderer/src/lib.rs
+grep -Fq 'render_files_window_rgba_with_theme' crates/aqua-renderer/src/lib.rs
+grep -Fq 'runtime_theme_palettes = "AquaTheme bounds LightWhite, Softtouch, Deepside, and Nightmare' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'theme=LightWhite' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'run-manual-nested-preview-execution' docs/aqua-linux/compositor.md
 grep -Fq 'aqua-visible-preview-request' docs/aqua-linux/compositor.md
 grep -Fq 'aqua-visible-preview-launch' docs/aqua-linux/compositor.md

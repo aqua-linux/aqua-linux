@@ -5,6 +5,37 @@ use std::path::{Path, PathBuf};
 
 pub const SETTINGS_CONFIG_VERSION: u8 = 1;
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum AquaTheme {
+    #[default]
+    LightWhite,
+    Softtouch,
+    Deepside,
+    Nightmare,
+}
+
+impl AquaTheme {
+    pub const ALL: [Self; 4] = [
+        Self::LightWhite,
+        Self::Softtouch,
+        Self::Deepside,
+        Self::Nightmare,
+    ];
+
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::LightWhite => "LightWhite",
+            Self::Softtouch => "Softtouch",
+            Self::Deepside => "Deepside",
+            Self::Nightmare => "Nightmare",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|theme| theme.id() == value)
+    }
+}
+
 pub const LAUNCHER_STATUS: &str = "interactive-launcher-model";
 pub const LAUNCHER_DESIGN_ERA: &str = "bright-aqua-desktop";
 pub const LAUNCHER_MATERIAL: &str = "aqua-light-surface";
@@ -741,6 +772,7 @@ pub struct SettingsWindowModel {
     pub network_interfaces: Vec<NetworkInterfaceStatus>,
     pub network_status_available: bool,
     pub keyboard_focus: bool,
+    pub theme: AquaTheme,
 }
 
 impl Default for SettingsWindowModel {
@@ -756,6 +788,7 @@ impl Default for SettingsWindowModel {
             network_interfaces: Vec::new(),
             network_status_available: false,
             keyboard_focus: false,
+            theme: AquaTheme::default(),
         }
     }
 }
@@ -786,6 +819,7 @@ impl SettingsWindowModel {
         let mut reduced_motion = None;
         let mut desktop_icons = None;
         let mut key_repeat = None;
+        let mut theme = None;
         for line in contents.lines() {
             let (key, value) = line
                 .split_once('=')
@@ -819,6 +853,12 @@ impl SettingsWindowModel {
                         _ => return Err(SettingsConfigError::InvalidFormat),
                     });
                 }
+                "theme" if theme.is_none() => {
+                    theme = AquaTheme::parse(value);
+                    if theme.is_none() {
+                        return Err(SettingsConfigError::InvalidFormat);
+                    }
+                }
                 _ => return Err(SettingsConfigError::InvalidFormat),
             }
         }
@@ -830,6 +870,7 @@ impl SettingsWindowModel {
             reduced_motion,
             desktop_icons: desktop_icons.unwrap_or(true),
             key_repeat: key_repeat.unwrap_or(true),
+            theme: theme.unwrap_or_default(),
             ..Self::default()
         })
     }
@@ -880,8 +921,11 @@ impl SettingsWindowModel {
 
     pub fn to_config(&self) -> String {
         format!(
-            "version={SETTINGS_CONFIG_VERSION}\nreduced_motion={}\ndesktop_icons={}\nkey_repeat={}\n",
-            self.reduced_motion, self.desktop_icons, self.key_repeat
+            "version={SETTINGS_CONFIG_VERSION}\nreduced_motion={}\ndesktop_icons={}\nkey_repeat={}\ntheme={}\n",
+            self.reduced_motion,
+            self.desktop_icons,
+            self.key_repeat,
+            self.theme.id()
         )
     }
 
@@ -896,6 +940,13 @@ impl SettingsWindowModel {
         if self.selected_category == 0 && (430..570).contains(&x) && (128..178).contains(&y) {
             self.reduced_motion = !self.reduced_motion;
             return SettingsUpdate::ReducedMotionChanged(self.reduced_motion);
+        }
+        if self.selected_category == 0 && (218..570).contains(&x) && (214..262).contains(&y) {
+            let index = ((x - 218) / 88) as usize;
+            if let Some(theme) = AquaTheme::ALL.get(index).copied() {
+                self.theme = theme;
+                return SettingsUpdate::ThemeChanged(theme);
+            }
         }
         if self.selected_category == 1 && (430..570).contains(&x) && (128..178).contains(&y) {
             self.desktop_icons = !self.desktop_icons;
@@ -1130,6 +1181,7 @@ pub enum SettingsUpdate {
     ReducedMotionChanged(bool),
     DesktopIconsChanged(bool),
     KeyRepeatChanged(bool),
+    ThemeChanged(AquaTheme),
 }
 
 impl SettingsUpdate {
@@ -2868,12 +2920,13 @@ mod tests {
         model.persist(&path).expect("settings should persist");
         assert_eq!(
             fs::read_to_string(&path).expect("persisted config"),
-            "version=1\nreduced_motion=true\ndesktop_icons=true\nkey_repeat=true\n"
+            "version=1\nreduced_motion=true\ndesktop_icons=true\nkey_repeat=true\ntheme=LightWhite\n"
         );
         let reloaded = SettingsWindowModel::load_or_default(&path).expect("settings should reload");
         assert!(reloaded.reduced_motion);
         assert!(reloaded.desktop_icons);
         assert!(reloaded.key_repeat);
+        assert_eq!(reloaded.theme, AquaTheme::LightWhite);
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -2896,7 +2949,29 @@ mod tests {
             .expect("version 1 config without later optional key should remain compatible");
         assert!(legacy.desktop_icons);
         assert!(legacy.key_repeat);
+        assert_eq!(legacy.theme, AquaTheme::LightWhite);
         fs::remove_dir_all(root).expect("remove settings fixture");
+    }
+
+    #[test]
+    fn settings_theme_selection_is_bounded_and_persistent() {
+        let mut model = SettingsWindowModel::default();
+        assert_eq!(
+            model.handle_pointer(410, 230),
+            SettingsUpdate::ThemeChanged(AquaTheme::Deepside)
+        );
+        assert_eq!(model.theme, AquaTheme::Deepside);
+        assert!(model.to_config().contains("theme=Deepside\n"));
+        assert_eq!(
+            SettingsWindowModel::from_config(&model.to_config())
+                .expect("theme config")
+                .theme,
+            AquaTheme::Deepside
+        );
+        assert!(matches!(
+            SettingsWindowModel::from_config("version=1\nreduced_motion=false\ntheme=Unknown\n"),
+            Err(SettingsConfigError::InvalidFormat)
+        ));
     }
 
     #[cfg(unix)]

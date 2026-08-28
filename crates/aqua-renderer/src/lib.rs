@@ -6,7 +6,7 @@ use aqua_installer::{
 };
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind};
 use aqua_shell::{
-    DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
+    AquaTheme, DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
     FilesWindowModel, LauncherCategory, LauncherMode, LauncherState, NotificationCenter,
     SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView,
     TopBarState, DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT,
@@ -51,6 +51,60 @@ pub const LIGHTWHITE_WINDOW_CHROME: WindowChromePalette = WindowChromePalette {
     hover: [0xe5, 0xec, 0xf5, 0xff],
     row_alternate: [0xf1, 0xf4, 0xf8, 0xff],
 };
+
+pub const SOFTTOUCH_WINDOW_CHROME: WindowChromePalette = WindowChromePalette {
+    surface: [0xf7, 0xf6, 0xf3, 0xff],
+    titlebar: [0xef, 0xee, 0xea, 0xff],
+    toolbar: [0xf2, 0xf1, 0xee, 0xff],
+    sidebar: [0xe7, 0xe6, 0xe2, 0xff],
+    field: [0xfb, 0xfa, 0xf7, 0xff],
+    border: [0xcf, 0xce, 0xc9, 0xff],
+    text: [0x20, 0x21, 0x24, 0xff],
+    secondary_text: [0x68, 0x69, 0x66, 0xff],
+    accent: [0x23, 0x7b, 0xe5, 0xff],
+    accent_soft: [0xd9, 0xe7, 0xf8, 0xff],
+    hover: [0xe0, 0xe1, 0xdf, 0xff],
+    row_alternate: [0xee, 0xed, 0xe9, 0xff],
+};
+
+pub const DEEPSIDE_WINDOW_CHROME: WindowChromePalette = WindowChromePalette {
+    surface: [0x0d, 0x27, 0x47, 0xff],
+    titlebar: [0x0a, 0x20, 0x3b, 0xff],
+    toolbar: [0x10, 0x2d, 0x50, 0xff],
+    sidebar: [0x12, 0x32, 0x58, 0xff],
+    field: [0x09, 0x20, 0x3c, 0xff],
+    border: [0x29, 0x4d, 0x73, 0xff],
+    text: [0xf6, 0xf9, 0xff, 0xff],
+    secondary_text: [0xa9, 0xbd, 0xd2, 0xff],
+    accent: [0x3d, 0x9c, 0xff, 0xff],
+    accent_soft: [0x17, 0x47, 0x78, 0xff],
+    hover: [0x16, 0x3b, 0x65, 0xff],
+    row_alternate: [0x10, 0x2d, 0x50, 0xff],
+};
+
+pub const NIGHTMARE_WINDOW_CHROME: WindowChromePalette = WindowChromePalette {
+    surface: [0x1a, 0x1c, 0x1f, 0xff],
+    titlebar: [0x15, 0x17, 0x19, 0xff],
+    toolbar: [0x20, 0x22, 0x26, 0xff],
+    sidebar: [0x24, 0x27, 0x2b, 0xff],
+    field: [0x16, 0x18, 0x1b, 0xff],
+    border: [0x39, 0x3d, 0x42, 0xff],
+    text: [0xf5, 0xf6, 0xf7, 0xff],
+    secondary_text: [0xad, 0xb1, 0xb7, 0xff],
+    accent: [0x4a, 0x92, 0xe8, 0xff],
+    accent_soft: [0x29, 0x3f, 0x5b, 0xff],
+    hover: [0x31, 0x34, 0x39, 0xff],
+    row_alternate: [0x20, 0x22, 0x26, 0xff],
+};
+
+pub const fn window_chrome_palette(theme: AquaTheme) -> WindowChromePalette {
+    match theme {
+        AquaTheme::LightWhite => LIGHTWHITE_WINDOW_CHROME,
+        AquaTheme::Softtouch => SOFTTOUCH_WINDOW_CHROME,
+        AquaTheme::Deepside => DEEPSIDE_WINDOW_CHROME,
+        AquaTheme::Nightmare => NIGHTMARE_WINDOW_CHROME,
+    }
+}
 
 pub fn embedded_ui_font_ready() -> bool {
     ui_font().is_some()
@@ -1906,6 +1960,15 @@ pub fn render_terminal_window_rgba(
     height: u32,
     view: &TerminalView,
 ) -> (Vec<u8>, TerminalWindowProbe) {
+    render_terminal_window_rgba_with_theme(width, height, view, AquaTheme::LightWhite)
+}
+
+pub fn render_terminal_window_rgba_with_theme(
+    width: u32,
+    height: u32,
+    view: &TerminalView,
+    theme: AquaTheme,
+) -> (Vec<u8>, TerminalWindowProbe) {
     let mut buffer = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     if width == 0 || height == 0 {
         return (
@@ -1933,8 +1996,16 @@ pub fn render_terminal_window_rgba(
         width,
         height: 48,
     };
-    let mut primitives =
-        draw_bright_window_chrome(&mut buffer, width, height, canvas, titlebar, "Terminal");
+    let palette = window_chrome_palette(theme);
+    let mut primitives = draw_bright_window_chrome(
+        &mut buffer,
+        width,
+        height,
+        canvas,
+        titlebar,
+        "Terminal",
+        palette,
+    );
 
     let scrim = Rect {
         x: 10,
@@ -2002,6 +2073,15 @@ pub fn render_properties_window_rgba(
     height: u32,
     model: &DesktopPropertiesModel,
 ) -> (Vec<u8>, PropertiesWindowProbe) {
+    render_properties_window_rgba_with_theme(width, height, model, AquaTheme::LightWhite)
+}
+
+pub fn render_properties_window_rgba_with_theme(
+    width: u32,
+    height: u32,
+    model: &DesktopPropertiesModel,
+    theme: AquaTheme,
+) -> (Vec<u8>, PropertiesWindowProbe) {
     let mut buffer = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     if width == 0 || height == 0 {
         return (
@@ -2029,9 +2109,16 @@ pub fn render_properties_window_rgba(
         width,
         height: 52,
     };
-    let palette = LIGHTWHITE_WINDOW_CHROME;
-    let mut primitives =
-        draw_bright_window_chrome(&mut buffer, width, height, canvas, titlebar, &model.title);
+    let palette = window_chrome_palette(theme);
+    let mut primitives = draw_bright_window_chrome(
+        &mut buffer,
+        width,
+        height,
+        canvas,
+        titlebar,
+        &model.title,
+        palette,
+    );
 
     let badge = Rect {
         x: 24,
@@ -2254,6 +2341,7 @@ pub fn render_installer_window_rgba(
         height,
         layout.titlebar,
         "Aqua Linux Kurulumu",
+        palette,
     );
 
     fill_rect(
@@ -3430,9 +3518,16 @@ pub fn render_settings_window_rgba(
         width,
         height: 58,
     };
-    let palette = LIGHTWHITE_WINDOW_CHROME;
-    let mut primitives =
-        draw_bright_window_chrome(&mut buffer, width, height, canvas, titlebar, model.title);
+    let palette = window_chrome_palette(model.theme);
+    let mut primitives = draw_bright_window_chrome(
+        &mut buffer,
+        width,
+        height,
+        canvas,
+        titlebar,
+        model.title,
+        palette,
+    );
 
     let sidebar = Rect {
         x: 2,
@@ -3525,7 +3620,8 @@ pub fn render_settings_window_rgba(
             },
             230,
         );
-        primitives += draw_system_surface_primitives(&mut buffer, width, height, toggle) + 1;
+        draw_rect_outline(&mut buffer, width, height, toggle, palette.border, 255);
+        primitives += 2;
         let knob_x = if model.reduced_motion { 528 } else { 480 };
         fill_rect(
             &mut buffer,
@@ -3541,6 +3637,44 @@ pub fn render_settings_window_rgba(
             255,
         );
         primitives += 1;
+        for (index, theme) in AquaTheme::ALL.into_iter().enumerate() {
+            let theme_palette = window_chrome_palette(theme);
+            let swatch = Rect {
+                x: 218 + index as u32 * 88,
+                y: 214,
+                width: 82,
+                height: 48,
+            };
+            fill_rect(
+                &mut buffer,
+                width,
+                height,
+                swatch,
+                theme_palette.surface,
+                255,
+            );
+            draw_rect_outline(
+                &mut buffer,
+                width,
+                height,
+                swatch,
+                if theme == model.theme {
+                    palette.accent
+                } else {
+                    theme_palette.border
+                },
+                255,
+            );
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (swatch.x + 5, swatch.y + 19),
+                theme.id(),
+                theme_palette.text,
+                1,
+            );
+            primitives += 3;
+        }
     } else if model.selected_category == 1 {
         draw_bitmap_text(
             &mut buffer,
@@ -3576,7 +3710,8 @@ pub fn render_settings_window_rgba(
             },
             230,
         );
-        primitives += draw_system_surface_primitives(&mut buffer, width, height, toggle) + 1;
+        draw_rect_outline(&mut buffer, width, height, toggle, palette.border, 255);
+        primitives += 2;
         let knob_x = if model.desktop_icons { 528 } else { 480 };
         fill_rect(
             &mut buffer,
@@ -3627,7 +3762,8 @@ pub fn render_settings_window_rgba(
             },
             230,
         );
-        primitives += draw_system_surface_primitives(&mut buffer, width, height, toggle) + 1;
+        draw_rect_outline(&mut buffer, width, height, toggle, palette.border, 255);
+        primitives += 2;
         let knob_x = if model.key_repeat { 528 } else { 480 };
         fill_rect(
             &mut buffer,
@@ -3748,6 +3884,15 @@ pub fn render_files_window_rgba(
     height: u32,
     model: &FilesWindowModel,
 ) -> (Vec<u8>, FilesWindowProbe) {
+    render_files_window_rgba_with_theme(width, height, model, AquaTheme::LightWhite)
+}
+
+pub fn render_files_window_rgba_with_theme(
+    width: u32,
+    height: u32,
+    model: &FilesWindowModel,
+    theme: AquaTheme,
+) -> (Vec<u8>, FilesWindowProbe) {
     let mut buffer = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     if width == 0 || height == 0 {
         return (
@@ -3776,9 +3921,16 @@ pub fn render_files_window_rgba(
         width,
         height: 48,
     };
-    let palette = LIGHTWHITE_WINDOW_CHROME;
-    let mut primitives =
-        draw_bright_window_chrome(&mut buffer, width, height, canvas, titlebar, model.title);
+    let palette = window_chrome_palette(theme);
+    let mut primitives = draw_bright_window_chrome(
+        &mut buffer,
+        width,
+        height,
+        canvas,
+        titlebar,
+        model.title,
+        palette,
+    );
 
     let toolbar = Rect {
         x: 2,
@@ -3803,7 +3955,8 @@ pub fn render_files_window_rgba(
         height: 32,
     };
     fill_rect(&mut buffer, width, height, location, palette.field, 255);
-    primitives += 2 + draw_system_surface_primitives(&mut buffer, width, height, location);
+    draw_rect_outline(&mut buffer, width, height, location, palette.border, 255);
+    primitives += 5;
     draw_bitmap_text(
         &mut buffer,
         (width, height),
@@ -5871,10 +6024,10 @@ fn draw_bright_window_chrome(
     window: Rect,
     titlebar: Rect,
     title: &str,
+    palette: WindowChromePalette,
 ) -> usize {
-    let palette = LIGHTWHITE_WINDOW_CHROME;
     fill_rect(buffer, width, height, window, palette.surface, 255);
-    let primitives = draw_bright_window_titlebar(buffer, width, height, titlebar, title);
+    let primitives = draw_bright_window_titlebar(buffer, width, height, titlebar, title, palette);
     draw_rect_outline(buffer, width, height, window, palette.border, 255);
     primitives + 2
 }
@@ -5885,8 +6038,8 @@ fn draw_bright_window_titlebar(
     height: u32,
     titlebar: Rect,
     title: &str,
+    palette: WindowChromePalette,
 ) -> usize {
-    let palette = LIGHTWHITE_WINDOW_CHROME;
     fill_rect(buffer, width, height, titlebar, palette.titlebar, 255);
     fill_rect(
         buffer,
@@ -7259,11 +7412,8 @@ mod tests {
     }
 
     #[test]
-    fn first_party_windows_share_lightwhite_titlebar_tokens() {
+    fn first_party_windows_share_each_selected_theme_titlebar() {
         let terminal_view = TerminalView::empty(18, 72);
-        let (terminal, _) = render_terminal_window_rgba(680, 430, &terminal_view);
-        let (files, _) = render_files_window_rgba(640, 420, &FilesWindowModel::default());
-        let (settings, _) = render_settings_window_rgba(640, 420, &SettingsWindowModel::default());
         let properties_model = DesktopPropertiesModel {
             icon_id: "files",
             title: "Files Properties".to_string(),
@@ -7275,19 +7425,34 @@ mod tests {
             enumeration_capped: false,
             refresh_generation: 1,
         };
-        let (properties, _) = render_properties_window_rgba(480, 300, &properties_model);
+        let mut files_checksums = Vec::new();
+        for theme in AquaTheme::ALL {
+            let palette = window_chrome_palette(theme);
+            let (terminal, _) =
+                render_terminal_window_rgba_with_theme(680, 430, &terminal_view, theme);
+            let (files, files_probe) =
+                render_files_window_rgba_with_theme(640, 420, &FilesWindowModel::default(), theme);
+            let settings_model = SettingsWindowModel {
+                theme,
+                ..SettingsWindowModel::default()
+            };
+            let (settings, _) = render_settings_window_rgba(640, 420, &settings_model);
+            let (properties, _) =
+                render_properties_window_rgba_with_theme(480, 300, &properties_model, theme);
 
-        for (pixels, width) in [
-            (&terminal, 680),
-            (&files, 640),
-            (&settings, 640),
-            (&properties, 480),
-        ] {
-            assert_eq!(
-                sample_pixel(pixels, width, 400, 40),
-                LIGHTWHITE_WINDOW_CHROME.titlebar
-            );
+            for (pixels, width) in [
+                (&terminal, 680),
+                (&files, 640),
+                (&settings, 640),
+                (&properties, 480),
+            ] {
+                assert_eq!(sample_pixel(pixels, width, 400, 40), palette.titlebar);
+            }
+            files_checksums.push(files_probe.checksum);
         }
+        files_checksums.sort_unstable();
+        files_checksums.dedup();
+        assert_eq!(files_checksums.len(), AquaTheme::ALL.len());
     }
 
     #[test]

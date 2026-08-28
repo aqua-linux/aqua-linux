@@ -24,6 +24,12 @@ LightWhite is the default. Themes change color tokens, not layout, dimensions,
 typography, control placement, or interaction behavior. The accent symbol may
 replace the normal theme symbol only for selected, focused, or active states.
 
+The current runtime implementation exposes all four choices in Aqua Settings,
+persists the selected theme in the v1 settings file, and applies it when Files,
+Settings, Terminal, or Properties starts. Existing settings files without a
+theme key continue as LightWhite. Live updates for already-running windows and
+theme application across the shell and Installer are not complete yet.
+
 - Desktop backgrounds use the selected theme's base color with low-contrast wave forms.
 - Primary and secondary surfaces use their matching theme tokens.
 - Text uses the paired primary and secondary contrast tokens.
