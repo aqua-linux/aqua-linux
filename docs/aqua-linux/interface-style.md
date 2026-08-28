@@ -29,9 +29,10 @@ persists the selected theme in the v1 settings file, and applies it when Files,
 Settings, Terminal, Properties, or a desktop session starts. The desktop theme
 covers the top bar, Applications, Search, bottom shell, desktop overlays,
 system overview, session menu, and notifications. Existing settings files
-without a theme key continue as LightWhite. Live updates for an already-running
-session are not complete yet. Installer loads the same persisted or
-`AQUA_THEME`-selected palette on launch across all setup screens.
+without a theme key continue as LightWhite. Installer loads the same persisted
+or `AQUA_THEME`-selected palette on launch across all setup screens. A running
+desktop polls the persisted selection at a bounded interval; Shell surfaces and
+open first-party windows redraw only when the selected theme actually changes.
 
 - Desktop backgrounds use the selected theme's base color with low-contrast wave forms.
 - Primary and secondary surfaces use their matching theme tokens.

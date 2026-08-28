@@ -4924,6 +4924,41 @@ impl XdgSmokeClientState {
             .unwrap_or_default()
     }
 
+    fn apply_runtime_theme(&mut self, theme: aqua_shell::AquaTheme) -> bool {
+        if self.theme == theme {
+            return false;
+        }
+        self.theme = theme;
+        if let Some(model) = self.settings_model.as_mut() {
+            model.theme = theme;
+        }
+        true
+    }
+
+    fn refresh_runtime_theme(&mut self, qh: &QueueHandle<Self>) -> bool {
+        let theme = Self::configured_theme();
+        if !self.apply_runtime_theme(theme) {
+            return false;
+        }
+        println!(
+            "aqua_runtime_theme_changed={} app_id={}",
+            theme.id(),
+            self.app_id
+        );
+        if self.installer_model.is_some() {
+            self.redraw_installer_buffer(qh);
+        } else if self.files_model.is_some() {
+            self.redraw_files_buffer(qh);
+        } else if self.settings_model.is_some() {
+            self.redraw_settings_buffer(qh);
+        } else if self.properties_model.is_some() {
+            self.redraw_properties_buffer(qh);
+        } else if self.terminal_session.is_some() {
+            self.redraw_terminal_buffer(qh);
+        }
+        true
+    }
+
     fn with_buffer_size(width: u32, height: u32) -> Self {
         Self {
             buffer_width: width,
@@ -5926,6 +5961,44 @@ impl XdgSmokeClientState {
             self.terminal_dirty = false;
         }
     }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn run_aqua_ui_event_loop(
+    connection: &ClientConnection,
+    event_queue: &mut wayland_client::EventQueue<XdgSmokeClientState>,
+    state: &mut XdgSmokeClientState,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::os::fd::AsFd as _;
+
+    let queue_handle = event_queue.handle();
+    let poller = polling::Poller::new()?;
+    unsafe {
+        poller.add_with_mode(
+            &event_queue.as_fd(),
+            polling::Event::readable(1),
+            polling::PollMode::Level,
+        )?;
+    }
+    let mut events = polling::Events::new();
+    while !state.close_event_received {
+        event_queue.dispatch_pending(state)?;
+        state.refresh_runtime_theme(&queue_handle);
+        connection.flush()?;
+        if state.close_event_received {
+            break;
+        }
+
+        let Some(read_guard) = event_queue.prepare_read() else {
+            continue;
+        };
+        events.clear();
+        if poller.wait(&mut events, Some(Duration::from_millis(100)))? > 0 {
+            read_guard.read()?;
+        }
+    }
+    poller.delete(event_queue.as_fd())?;
+    Ok(())
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -7133,10 +7206,7 @@ pub fn run_aqua_files_client(
     println!("[AQUA-FILES] stage=wayland-surface status=active");
     std::io::stdout().flush()?;
 
-    while !state.close_event_received {
-        event_queue.blocking_dispatch(&mut state)?;
-        connection.flush()?;
-    }
+    run_aqua_ui_event_loop(&connection, &mut event_queue, &mut state)?;
     println!("aqua_files_close_received=true");
     println!("[AQUA-FILES] stage=wayland-surface status=ok");
     Ok(())
@@ -7190,10 +7260,7 @@ pub fn run_aqua_properties_client(
     println!("[AQUA-PROPERTIES] stage=wayland-surface status=active");
     std::io::stdout().flush()?;
 
-    while !state.close_event_received {
-        event_queue.blocking_dispatch(&mut state)?;
-        connection.flush()?;
-    }
+    run_aqua_ui_event_loop(&connection, &mut event_queue, &mut state)?;
     println!("aqua_properties_close_received=true");
     println!("[AQUA-PROPERTIES] stage=wayland-surface status=ok");
     Ok(())
@@ -7286,10 +7353,7 @@ pub fn run_aqua_settings_client(
     println!("[AQUA-SETTINGS] stage=wayland-surface status=active");
     std::io::stdout().flush()?;
 
-    while !state.close_event_received {
-        event_queue.blocking_dispatch(&mut state)?;
-        connection.flush()?;
-    }
+    run_aqua_ui_event_loop(&connection, &mut event_queue, &mut state)?;
     if state.settings_persistence_failed {
         return Err("Aqua Settings could not persist its configuration".into());
     }
@@ -7333,10 +7397,7 @@ pub fn run_aqua_installer_client(
     println!("[AQUA-INSTALLER-UI] stage=wayland-surface status=active");
     std::io::stdout().flush()?;
 
-    while !state.close_event_received {
-        event_queue.blocking_dispatch(&mut state)?;
-        connection.flush()?;
-    }
+    run_aqua_ui_event_loop(&connection, &mut event_queue, &mut state)?;
     println!("aqua_installer_close_received=true");
     println!("[AQUA-INSTALLER-UI] stage=wayland-surface status=ok");
     Ok(())
@@ -7390,6 +7451,7 @@ pub fn run_aqua_terminal_client(
     let mut last_output_at = None;
     while !state.close_event_received {
         event_queue.dispatch_pending(&mut state)?;
+        state.refresh_runtime_theme(&queue_handle);
         connection.flush()?;
 
         let output_changed = state
@@ -9616,6 +9678,25 @@ mod tests {
             "settings"
         );
         assert!(!session.launcher_state_snapshot().is_open());
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn first_party_runtime_theme_transition_is_idempotent() {
+        let mut state = XdgSmokeClientState {
+            theme: aqua_shell::AquaTheme::LightWhite,
+            settings_model: Some(aqua_shell::SettingsWindowModel::default()),
+            ..XdgSmokeClientState::default()
+        };
+
+        assert!(!state.apply_runtime_theme(aqua_shell::AquaTheme::LightWhite));
+        assert!(state.apply_runtime_theme(aqua_shell::AquaTheme::Deepside));
+        assert_eq!(state.theme, aqua_shell::AquaTheme::Deepside);
+        assert_eq!(
+            state.settings_model.as_ref().map(|model| model.theme),
+            Some(aqua_shell::AquaTheme::Deepside)
+        );
+        assert!(!state.apply_runtime_theme(aqua_shell::AquaTheme::Deepside));
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
