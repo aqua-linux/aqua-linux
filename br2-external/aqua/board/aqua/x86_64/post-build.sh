@@ -36,6 +36,7 @@ version=1
 reduced_motion=false
 desktop_icons=true
 key_repeat=true
+theme=LightWhite
 EOF
 chmod 600 "${TARGET_DIR}/home/aqua/.config/aqua/settings.conf"
 

@@ -23,9 +23,9 @@ use aqua_installer::{
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_renderer::{
-    embedded_ui_font_ready, render_files_window_rgba, render_installer_window_rgba,
-    render_properties_window_rgba, render_settings_window_rgba, render_terminal_window_rgba,
-    InstallerImageSource, UI_FONT_FAMILY, UI_FONT_SOURCE,
+    embedded_ui_font_ready, render_files_window_rgba_with_theme, render_installer_window_rgba,
+    render_properties_window_rgba_with_theme, render_settings_window_rgba,
+    render_terminal_window_rgba_with_theme, InstallerImageSource, UI_FONT_FAMILY, UI_FONT_SOURCE,
 };
 pub use aqua_renderer::{
     export_composited_preview_png_with_client_layers,
@@ -4874,6 +4874,7 @@ struct XdgSmokeClientState {
     state_cycle_complete: bool,
     title: String,
     app_id: String,
+    theme: aqua_shell::AquaTheme,
     files_model: Option<aqua_shell::FilesWindowModel>,
     files_navigator: Option<aqua_shell::FilesNavigator>,
     files_scrollbar_dragging: bool,
@@ -4908,6 +4909,20 @@ struct XdgSmokeClientState {
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl XdgSmokeClientState {
+    fn configured_theme() -> aqua_shell::AquaTheme {
+        if let Ok(value) = std::env::var("AQUA_THEME") {
+            if let Some(theme) = aqua_shell::AquaTheme::parse(&value) {
+                return theme;
+            }
+        }
+        let config_path = std::env::var_os("AQUA_SETTINGS_CONFIG")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("/home/aqua/.config/aqua/settings.conf"));
+        aqua_shell::SettingsWindowModel::load_or_default(&config_path)
+            .map(|model| model.theme)
+            .unwrap_or_default()
+    }
+
     fn with_buffer_size(width: u32, height: u32) -> Self {
         Self {
             buffer_width: width,
@@ -4933,6 +4948,7 @@ impl XdgSmokeClientState {
             buffer_height: 420,
             title: "Files".to_string(),
             app_id: "aqua.files".to_string(),
+            theme: Self::configured_theme(),
             files_model: Some(files_model),
             files_navigator,
             ..Self::default()
@@ -4956,6 +4972,7 @@ impl XdgSmokeClientState {
             buffer_height: 400,
             title: "System Settings".to_string(),
             app_id: "aqua.settings".to_string(),
+            theme: settings_model.theme,
             settings_model: Some(settings_model),
             settings_config_path: Some(config_path),
             ..Self::default()
@@ -4970,6 +4987,7 @@ impl XdgSmokeClientState {
             buffer_height: 430,
             title: "Terminal".to_string(),
             app_id: "aqua.terminal".to_string(),
+            theme: Self::configured_theme(),
             terminal_session: Some(AquaTerminalSession::spawn(rows, cols)?),
             terminal_dirty: true,
             ..Self::default()
@@ -4990,6 +5008,7 @@ impl XdgSmokeClientState {
             buffer_height: 300,
             title: properties_model.title.clone(),
             app_id: "aqua.properties".to_string(),
+            theme: Self::configured_theme(),
             properties_model: Some(properties_model),
             properties_home_root: Some(home_root),
             properties_system_root: Some(system_root),
@@ -5641,13 +5660,13 @@ impl XdgSmokeClientState {
             self.render_installer_buffer()
                 .expect("Aqua Installer initial raster should render")
         } else if let Some(model) = self.files_model.as_ref() {
-            render_files_window_rgba(width, height, model).0
+            render_files_window_rgba_with_theme(width, height, model, self.theme).0
         } else if let Some(model) = self.settings_model.as_ref() {
             render_settings_window_rgba(width, height, model).0
         } else if let Some(model) = self.properties_model.as_ref() {
-            render_properties_window_rgba(width, height, model).0
+            render_properties_window_rgba_with_theme(width, height, model, self.theme).0
         } else if let Some(terminal) = self.terminal_session.as_ref() {
-            render_terminal_window_rgba(width, height, &terminal.view()).0
+            render_terminal_window_rgba_with_theme(width, height, &terminal.view(), self.theme).0
         } else {
             let variant = std::env::var("AQUA_WAYLAND_TEST_CLIENT_VARIANT")
                 .ok()
@@ -5697,7 +5716,7 @@ impl XdgSmokeClientState {
         let height = self.buffer_height.max(1);
         let stride = width * 4;
         let size = stride * height;
-        let pixels = render_files_window_rgba(width, height, model).0;
+        let pixels = render_files_window_rgba_with_theme(width, height, model, self.theme).0;
 
         use std::io::Write;
         use std::os::unix::io::AsFd;
@@ -5768,7 +5787,7 @@ impl XdgSmokeClientState {
         let height = self.buffer_height.max(1);
         let stride = width * 4;
         let size = stride * height;
-        let pixels = render_properties_window_rgba(width, height, model).0;
+        let pixels = render_properties_window_rgba_with_theme(width, height, model, self.theme).0;
 
         use std::io::Write;
         use std::os::unix::io::AsFd;
@@ -5809,7 +5828,7 @@ impl XdgSmokeClientState {
         let height = self.buffer_height.max(1);
         let stride = width * 4;
         let size = stride * height;
-        let pixels = render_terminal_window_rgba(width, height, &view).0;
+        let pixels = render_terminal_window_rgba_with_theme(width, height, &view, self.theme).0;
 
         use std::io::Write;
         use std::os::unix::io::AsFd;
@@ -7209,6 +7228,15 @@ pub fn run_aqua_settings_client(
             .is_some_and(|model| model.key_repeat)
     );
     println!(
+        "aqua_settings_loaded_theme={}",
+        state
+            .settings_model
+            .as_ref()
+            .map_or(aqua_shell::AquaTheme::default().id(), |model| model
+                .theme
+                .id())
+    );
+    println!(
         "aqua_settings_network_status_available={}",
         state
             .settings_model
@@ -8604,11 +8632,16 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
             {
                 let update = model.handle_key(settings_key);
                 println!("aqua_settings_keyboard key={key} update={update:?}");
+                if let aqua_shell::SettingsUpdate::ThemeChanged(theme) = update {
+                    state.theme = theme;
+                    println!("aqua_settings_theme={}", theme.id());
+                }
                 if matches!(
                     update,
                     aqua_shell::SettingsUpdate::ReducedMotionChanged(_)
                         | aqua_shell::SettingsUpdate::DesktopIconsChanged(_)
                         | aqua_shell::SettingsUpdate::KeyRepeatChanged(_)
+                        | aqua_shell::SettingsUpdate::ThemeChanged(_)
                 ) {
                     state.persist_settings();
                 }
@@ -8775,11 +8808,16 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                     state.pointer_surface_x.max(0.0) as u32,
                     state.pointer_surface_y.max(0.0) as u32
                 );
+                if let aqua_shell::SettingsUpdate::ThemeChanged(theme) = update {
+                    state.theme = theme;
+                    println!("aqua_settings_theme={}", theme.id());
+                }
                 if matches!(
                     update,
                     aqua_shell::SettingsUpdate::ReducedMotionChanged(_)
                         | aqua_shell::SettingsUpdate::DesktopIconsChanged(_)
                         | aqua_shell::SettingsUpdate::KeyRepeatChanged(_)
+                        | aqua_shell::SettingsUpdate::ThemeChanged(_)
                 ) {
                     state.persist_settings();
                 }
