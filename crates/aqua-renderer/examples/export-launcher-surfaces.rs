@@ -1,9 +1,9 @@
 use aqua_renderer::{
-    export_runtime_desktop_rgba_with_launcher, render_pale_wave_wallpaper_rgba,
+    export_runtime_desktop_rgba_with_launcher_and_theme, render_pale_wave_wallpaper_rgba,
     ClientLayerPaintPlan,
 };
 use aqua_scene::Viewport;
-use aqua_shell::LauncherState;
+use aqua_shell::{AquaTheme, LauncherState};
 use std::{env, fs, path::PathBuf};
 
 fn main() {
@@ -22,25 +22,30 @@ fn main() {
         steps: Vec::new(),
     };
 
-    let mut launcher = LauncherState::default();
-    launcher.open_applications();
-    export(
-        &output_dir.join("desktop-applications.png"),
-        viewport,
-        &wallpaper,
-        &client_plan,
-        &launcher,
-    );
+    for theme in AquaTheme::ALL {
+        let suffix = theme.id().to_ascii_lowercase();
+        let mut launcher = LauncherState::default();
+        launcher.open_applications();
+        export(
+            &output_dir.join(format!("desktop-applications-{suffix}.png")),
+            viewport,
+            &wallpaper,
+            &client_plan,
+            &launcher,
+            theme,
+        );
 
-    launcher.open_search();
-    launcher.set_query("settings");
-    export(
-        &output_dir.join("desktop-search.png"),
-        viewport,
-        &wallpaper,
-        &client_plan,
-        &launcher,
-    );
+        launcher.open_search();
+        launcher.set_query("settings");
+        export(
+            &output_dir.join(format!("desktop-search-{suffix}.png")),
+            viewport,
+            &wallpaper,
+            &client_plan,
+            &launcher,
+            theme,
+        );
+    }
 }
 
 fn export(
@@ -49,17 +54,24 @@ fn export(
     wallpaper: &[u8],
     client_plan: &ClientLayerPaintPlan,
     launcher: &LauncherState,
+    theme: AquaTheme,
 ) {
-    let (frame, probe) = export_runtime_desktop_rgba_with_launcher(
+    let (frame, probe) = export_runtime_desktop_rgba_with_launcher_and_theme(
         viewport,
         viewport.width,
         viewport.height,
         wallpaper,
         client_plan,
         launcher,
+        theme,
     )
     .expect("render launcher preview");
     assert!(probe.is_ready());
     fs::write(path, frame.to_png()).expect("write launcher preview PNG");
-    println!("{} mode={}", path.display(), probe.mode);
+    println!(
+        "{} mode={} theme={}",
+        path.display(),
+        probe.mode,
+        theme.id()
+    );
 }

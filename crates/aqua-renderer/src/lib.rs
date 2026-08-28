@@ -106,6 +106,78 @@ pub const fn window_chrome_palette(theme: AquaTheme) -> WindowChromePalette {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShellPalette {
+    pub surface: [u8; 4],
+    pub elevated: [u8; 4],
+    pub border: [u8; 4],
+    pub text: [u8; 4],
+    pub secondary_text: [u8; 4],
+    pub accent: [u8; 4],
+    pub selection: [u8; 4],
+}
+
+pub const fn shell_palette(theme: AquaTheme) -> ShellPalette {
+    let chrome = window_chrome_palette(theme);
+    ShellPalette {
+        surface: chrome.surface,
+        elevated: chrome.field,
+        border: chrome.border,
+        text: chrome.text,
+        secondary_text: chrome.secondary_text,
+        accent: chrome.accent,
+        selection: chrome.accent_soft,
+    }
+}
+
+fn apply_shell_palette(rgba: &mut [u8], theme: AquaTheme) {
+    if theme == AquaTheme::LightWhite {
+        return;
+    }
+    let palette = shell_palette(theme);
+    for pixel in rgba.chunks_exact_mut(4) {
+        if pixel[3] == 0 {
+            continue;
+        }
+        let replacement = match [pixel[0], pixel[1], pixel[2]] {
+            [0xf8, 0xfb, 0xff] | [0xf7, 0xfa, 0xfe] | [0xf4, 0xf8, 0xfc] => Some(palette.surface),
+            [0xff, 0xff, 0xff] => Some(palette.elevated),
+            [0xb7, 0xc8, 0xdc] | [0x86, 0xdd, 0xf3] | [0x58, 0x9c, 0xb7] => Some(palette.border),
+            [0x16, 0x22, 0x32] | [0x15, 0x26, 0x39] | [0x16, 0x24, 0x34] => Some(palette.text),
+            [0x42, 0x56, 0x6d]
+            | [0x7f, 0x8c, 0x9d]
+            | [0x9f, 0xd7, 0xe8]
+            | [0xb5, 0xde, 0xe8]
+            | [0xc8, 0xe3, 0xec]
+            | [0xd1, 0xe8, 0xef] => Some(palette.secondary_text),
+            [0xf1, 0xfb, 0xff]
+            | [0xf4, 0xfb, 0xff]
+            | [0xf4, 0xfd, 0xff]
+            | [0xf5, 0xfb, 0xff]
+            | [0xee, 0xfb, 0xff] => Some(palette.text),
+            [0xd8, 0xea, 0xff] | [0x16, 0x78, 0xa9] | [0x08, 0x45, 0x70] => Some(palette.selection),
+            [0x08, 0x69, 0xc8]
+            | [0x0b, 0x76, 0xe5]
+            | [0x27, 0xc8, 0xec]
+            | [0x30, 0xcf, 0xe9]
+            | [0x62, 0xdd, 0xf2]
+            | [0x72, 0xe3, 0xf5]
+            | [0x9b, 0xeb, 0xf7] => Some(palette.accent),
+            [0x02, 0x20, 0x36]
+            | [0x02, 0x1c, 0x32]
+            | [0x02, 0x18, 0x2b]
+            | [0x03, 0x18, 0x29]
+            | [0x03, 0x2c, 0x49]
+            | [0x01, 0x1b, 0x2c] => Some(palette.surface),
+            _ => None,
+        };
+        if let Some(mut color) = replacement {
+            color[3] = pixel[3];
+            pixel.copy_from_slice(&color);
+        }
+    }
+}
+
 pub fn embedded_ui_font_ready() -> bool {
     ui_font().is_some()
 }
@@ -334,6 +406,25 @@ pub fn render_notification_toast_rgba(
     height: u32,
     center: &NotificationCenter,
 ) -> NotificationToastOverlay {
+    render_notification_toast_rgba_with_theme(width, height, center, AquaTheme::LightWhite)
+}
+
+pub fn render_notification_toast_rgba_with_theme(
+    width: u32,
+    height: u32,
+    center: &NotificationCenter,
+    theme: AquaTheme,
+) -> NotificationToastOverlay {
+    let mut overlay = render_notification_toast_rgba_base(width, height, center);
+    apply_shell_palette(&mut overlay.rgba, theme);
+    overlay
+}
+
+fn render_notification_toast_rgba_base(
+    width: u32,
+    height: u32,
+    center: &NotificationCenter,
+) -> NotificationToastOverlay {
     let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     let Some(notification) = center.active() else {
         return NotificationToastOverlay {
@@ -477,6 +568,21 @@ pub struct TopBarOverlay {
 }
 
 pub fn render_top_bar_rgba(width: u32, height: u32, state: &TopBarState) -> TopBarOverlay {
+    render_top_bar_rgba_with_theme(width, height, state, AquaTheme::LightWhite)
+}
+
+pub fn render_top_bar_rgba_with_theme(
+    width: u32,
+    height: u32,
+    state: &TopBarState,
+    theme: AquaTheme,
+) -> TopBarOverlay {
+    let mut overlay = render_top_bar_rgba_base(width, height, state);
+    apply_shell_palette(&mut overlay.rgba, theme);
+    overlay
+}
+
+fn render_top_bar_rgba_base(width: u32, height: u32, state: &TopBarState) -> TopBarOverlay {
     let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     if width < 480 || height < 28 {
         return TopBarOverlay {
@@ -790,6 +896,21 @@ fn draw_top_bar_status_icons(
 }
 
 pub fn render_dock_rgba(width: u32, height: u32, state: &DockState) -> DockOverlay {
+    render_dock_rgba_with_theme(width, height, state, AquaTheme::LightWhite)
+}
+
+pub fn render_dock_rgba_with_theme(
+    width: u32,
+    height: u32,
+    state: &DockState,
+    theme: AquaTheme,
+) -> DockOverlay {
+    let mut overlay = render_dock_rgba_base(width, height, state);
+    apply_shell_palette(&mut overlay.rgba, theme);
+    overlay
+}
+
+fn render_dock_rgba_base(width: u32, height: u32, state: &DockState) -> DockOverlay {
     let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     if width < 640 || height < 48 {
         return DockOverlay {
@@ -963,6 +1084,25 @@ pub fn export_dock_png(width: u32, height: u32, state: &DockState) -> Vec<u8> {
 }
 
 pub fn render_desktop_icons_rgba(
+    width: u32,
+    height: u32,
+    state: &DesktopIconState,
+) -> DesktopIconsOverlay {
+    render_desktop_icons_rgba_with_theme(width, height, state, AquaTheme::LightWhite)
+}
+
+pub fn render_desktop_icons_rgba_with_theme(
+    width: u32,
+    height: u32,
+    state: &DesktopIconState,
+    theme: AquaTheme,
+) -> DesktopIconsOverlay {
+    let mut overlay = render_desktop_icons_rgba_base(width, height, state);
+    apply_shell_palette(&mut overlay.rgba, theme);
+    overlay
+}
+
+fn render_desktop_icons_rgba_base(
     width: u32,
     height: u32,
     state: &DesktopIconState,
@@ -1423,6 +1563,25 @@ pub fn render_system_overview_rgba(
     height: u32,
     model: &SystemOverviewModel,
 ) -> SystemOverviewOverlay {
+    render_system_overview_rgba_with_theme(width, height, model, AquaTheme::LightWhite)
+}
+
+pub fn render_system_overview_rgba_with_theme(
+    width: u32,
+    height: u32,
+    model: &SystemOverviewModel,
+    theme: AquaTheme,
+) -> SystemOverviewOverlay {
+    let mut overlay = render_system_overview_rgba_base(width, height, model);
+    apply_shell_palette(&mut overlay.rgba, theme);
+    overlay
+}
+
+fn render_system_overview_rgba_base(
+    width: u32,
+    height: u32,
+    model: &SystemOverviewModel,
+) -> SystemOverviewOverlay {
     let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     if width == 0 || height == 0 {
         return SystemOverviewOverlay {
@@ -1520,6 +1679,25 @@ pub fn render_system_overview_rgba(
 }
 
 pub fn render_session_menu_overlay_rgba(
+    width: u32,
+    height: u32,
+    menu: &SessionMenuState,
+) -> SessionMenuOverlay {
+    render_session_menu_overlay_rgba_with_theme(width, height, menu, AquaTheme::LightWhite)
+}
+
+pub fn render_session_menu_overlay_rgba_with_theme(
+    width: u32,
+    height: u32,
+    menu: &SessionMenuState,
+    theme: AquaTheme,
+) -> SessionMenuOverlay {
+    let mut overlay = render_session_menu_overlay_rgba_base(width, height, menu);
+    apply_shell_palette(&mut overlay.rgba, theme);
+    overlay
+}
+
+fn render_session_menu_overlay_rgba_base(
     width: u32,
     height: u32,
     menu: &SessionMenuState,
@@ -5399,6 +5577,26 @@ pub fn export_runtime_desktop_rgba_with_launcher(
     client_paint_plan: &ClientLayerPaintPlan,
     launcher: &LauncherState,
 ) -> Result<(RasterRgbaExport, LauncherOverlayProbe), String> {
+    export_runtime_desktop_rgba_with_launcher_and_theme(
+        viewport,
+        wallpaper_width,
+        wallpaper_height,
+        wallpaper_rgba,
+        client_paint_plan,
+        launcher,
+        AquaTheme::LightWhite,
+    )
+}
+
+pub fn export_runtime_desktop_rgba_with_launcher_and_theme(
+    viewport: aqua_scene::Viewport,
+    wallpaper_width: u32,
+    wallpaper_height: u32,
+    wallpaper_rgba: &[u8],
+    client_paint_plan: &ClientLayerPaintPlan,
+    launcher: &LauncherState,
+    theme: AquaTheme,
+) -> Result<(RasterRgbaExport, LauncherOverlayProbe), String> {
     let expected_bytes = wallpaper_width as usize * wallpaper_height as usize * 4;
     if wallpaper_width == 0 || wallpaper_height == 0 || wallpaper_rgba.len() != expected_bytes {
         return Err("runtime wallpaper must be non-empty rgba8888".to_string());
@@ -5423,7 +5621,7 @@ pub fn export_runtime_desktop_rgba_with_launcher(
         );
     }
 
-    let probe = draw_launcher_overlay(&mut image.rgba, viewport, launcher);
+    let probe = draw_launcher_overlay(&mut image.rgba, viewport, launcher, theme);
     let byte_count = image.rgba.len();
     let checksum = checksum_bytes(&image.rgba);
     Ok((
@@ -5440,6 +5638,22 @@ pub fn export_runtime_desktop_rgba_with_launcher(
         },
         probe,
     ))
+}
+
+pub fn render_launcher_overlay_rgba_with_theme(
+    viewport: aqua_scene::Viewport,
+    launcher: &LauncherState,
+    theme: AquaTheme,
+) -> (Vec<u8>, LauncherOverlayProbe) {
+    let mut rgba = vec![
+        0_u8;
+        viewport
+            .width
+            .saturating_mul(viewport.height)
+            .saturating_mul(4) as usize
+    ];
+    let probe = draw_launcher_overlay(&mut rgba, viewport, launcher, theme);
+    (rgba, probe)
 }
 
 pub fn export_software_raster_rgba_for_static_scene(
@@ -5564,6 +5778,7 @@ fn draw_launcher_overlay(
     buffer: &mut [u8],
     viewport: aqua_scene::Viewport,
     launcher: &LauncherState,
+    theme: AquaTheme,
 ) -> LauncherOverlayProbe {
     if !launcher.is_open() {
         return LauncherOverlayProbe {
@@ -5584,17 +5799,25 @@ fn draw_launcher_overlay(
         width: bounds.width,
         height: bounds.height,
     };
+    let palette = shell_palette(theme);
     let mut primitives = 0;
     fill_rect(
         buffer,
         viewport.width,
         viewport.height,
         panel,
-        [0xf4, 0xf8, 0xfc, 0xff],
+        palette.surface,
         244,
     );
-    primitives +=
-        1 + draw_system_surface_primitives(buffer, viewport.width, viewport.height, panel);
+    draw_rect_outline(
+        buffer,
+        viewport.width,
+        viewport.height,
+        panel,
+        palette.border,
+        255,
+    );
+    primitives += 2;
 
     draw_bitmap_text(
         buffer,
@@ -5604,7 +5827,7 @@ fn draw_launcher_overlay(
             LauncherMode::Applications => "APPLICATIONS",
             LauncherMode::Search => "SEARCH",
         },
-        [0x16, 0x24, 0x34, 0xff],
+        palette.text,
         2,
     );
 
@@ -5619,17 +5842,25 @@ fn draw_launcher_overlay(
         viewport.width,
         viewport.height,
         search,
-        [0xff, 0xff, 0xff, 0xff],
+        palette.elevated,
         230,
     );
-    primitives +=
-        1 + draw_system_surface_primitives(buffer, viewport.width, viewport.height, search);
+    draw_rect_outline(
+        buffer,
+        viewport.width,
+        viewport.height,
+        search,
+        palette.border,
+        255,
+    );
+    primitives += 2;
     draw_search_icon(
         buffer,
         viewport.width,
         viewport.height,
         search.x + 16,
         search.y + 12,
+        palette.secondary_text,
     );
     let search_label = if launcher.query().is_empty() {
         "SEARCH APPS..."
@@ -5641,7 +5872,7 @@ fn draw_launcher_overlay(
         (viewport.width, viewport.height),
         (search.x + 48, search.y + 14),
         search_label,
-        [0x42, 0x56, 0x6d, 0xff],
+        palette.secondary_text,
         1,
     );
 
@@ -5666,9 +5897,9 @@ fn draw_launcher_overlay(
                     viewport.height,
                     card,
                     if index == launcher.selected_index() {
-                        [0xd9, 0xeb, 0xff, 0xff]
+                        palette.selection
                     } else {
-                        [0xff, 0xff, 0xff, 0xff]
+                        palette.elevated
                     },
                     225,
                 );
@@ -5685,7 +5916,7 @@ fn draw_launcher_overlay(
                     (viewport.width, viewport.height),
                     (card.x + 60, card.y + 22),
                     app.name,
-                    [0x14, 0x22, 0x32, 0xff],
+                    palette.text,
                     1,
                 );
                 draw_bitmap_text(
@@ -5693,7 +5924,7 @@ fn draw_launcher_overlay(
                     (viewport.width, viewport.height),
                     (card.x + 14, card.y + 70),
                     app.description,
-                    [0x65, 0x76, 0x89, 0xff],
+                    palette.secondary_text,
                     1,
                 );
                 primitives += 2;
@@ -5711,7 +5942,7 @@ fn draw_launcher_overlay(
                     width: 1,
                     height: panel.height.saturating_sub(content_y - panel.y + 24),
                 },
-                [0xc8, 0xd4, 0xe2, 0xff],
+                palette.border,
                 180,
             );
             primitives += 1;
@@ -5720,7 +5951,7 @@ fn draw_launcher_overlay(
                 (viewport.width, viewport.height),
                 (panel.x + 24, content_y),
                 "RESULTS",
-                [0x5d, 0x70, 0x86, 0xff],
+                palette.secondary_text,
                 1,
             );
             for (index, app) in visible_apps.iter().take(5).enumerate() {
@@ -5736,7 +5967,7 @@ fn draw_launcher_overlay(
                         viewport.width,
                         viewport.height,
                         row,
-                        [0xd9, 0xeb, 0xff, 0xff],
+                        palette.selection,
                         230,
                     );
                     primitives += 1;
@@ -5754,7 +5985,7 @@ fn draw_launcher_overlay(
                     (viewport.width, viewport.height),
                     (row.x + 54, row.y + 10),
                     app.name,
-                    [0x14, 0x22, 0x32, 0xff],
+                    palette.text,
                     1,
                 );
                 draw_bitmap_text(
@@ -5762,7 +5993,7 @@ fn draw_launcher_overlay(
                     (viewport.width, viewport.height),
                     (row.x + 54, row.y + 29),
                     app.description,
-                    [0x65, 0x76, 0x89, 0xff],
+                    palette.secondary_text,
                     1,
                 );
                 primitives += 1;
@@ -5772,7 +6003,7 @@ fn draw_launcher_overlay(
                 (viewport.width, viewport.height),
                 (split_x + 22, content_y),
                 "QUICK ACTIONS",
-                [0x5d, 0x70, 0x86, 0xff],
+                palette.secondary_text,
                 1,
             );
             for (index, label) in ["OPEN APPLICATIONS", "SYSTEM SETTINGS", "BROWSE FILES"]
@@ -5790,7 +6021,7 @@ fn draw_launcher_overlay(
                     viewport.width,
                     viewport.height,
                     action,
-                    [0xff, 0xff, 0xff, 0xff],
+                    palette.elevated,
                     220,
                 );
                 draw_category_icon(
@@ -5806,7 +6037,7 @@ fn draw_launcher_overlay(
                     (viewport.width, viewport.height),
                     (action.x + 42, action.y + 18),
                     label,
-                    [0x24, 0x36, 0x49, 0xff],
+                    palette.text,
                     1,
                 );
                 primitives += 2;
@@ -5825,8 +6056,7 @@ fn draw_launcher_overlay(
     }
 }
 
-fn draw_search_icon(buffer: &mut [u8], width: u32, height: u32, x: u32, y: u32) {
-    let color = [0x42, 0x56, 0x6d, 0xff];
+fn draw_search_icon(buffer: &mut [u8], width: u32, height: u32, x: u32, y: u32, color: [u8; 4]) {
     fill_rect(
         buffer,
         width,
@@ -7516,6 +7746,45 @@ mod tests {
         assert_eq!(overlay.rgba.len(), 1536 * 36 * 4);
         assert!(overlay.primitive_count >= 30);
         assert!(overlay.rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
+    }
+
+    #[test]
+    fn shell_overlays_render_distinct_runtime_theme_palettes() {
+        let top_bar = TopBarState {
+            product_label: "Aqua Linux".to_string(),
+            clock_label: "Thu, 27 Aug 2026  10:30 UTC".to_string(),
+            network_connected: true,
+            battery_percent: Some(87),
+            audio_available: true,
+        };
+        let dock = DockState {
+            applications_open: true,
+            search_open: false,
+            files_running: true,
+            settings_running: false,
+            active_workspace: 1,
+        };
+        let viewport = Viewport::new(1536, 1024);
+        let mut launcher = LauncherState::default();
+        launcher.open();
+        let mut checksums = Vec::new();
+
+        for theme in AquaTheme::ALL {
+            let top_bar = render_top_bar_rgba_with_theme(1536, 36, &top_bar, theme);
+            let dock = render_dock_rgba_with_theme(760, 72, &dock, theme);
+            let (launcher, probe) =
+                render_launcher_overlay_rgba_with_theme(viewport, &launcher, theme);
+            assert!(probe.is_ready());
+            checksums.push((
+                checksum_bytes(&top_bar.rgba),
+                checksum_bytes(&dock.rgba),
+                checksum_bytes(&launcher),
+            ));
+        }
+
+        checksums.sort_unstable();
+        checksums.dedup();
+        assert_eq!(checksums.len(), AquaTheme::ALL.len());
     }
 
     #[test]

@@ -1123,7 +1123,7 @@ grep -Fq 'desktop_properties = "packaged Aqua Properties is a supervised 480x300
 grep -Fq 'desktop-properties-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'desktop-properties-refresh-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'desktop-input-burst-qemu status=ok' scripts/check-graphical-boot-qemu.sh
-grep -Fq 'render_session_menu_overlay_rgba(512, 293, state)' crates/aqua-compositor/src/main.rs
+grep -Fq 'render_session_menu_overlay_rgba_with_theme(512, 293, state, self.theme)' crates/aqua-compositor/src/main.rs
 grep -Fq 'session_menu_visual = "the current session menu uploads a native 512x293' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'desktop-properties-close-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'aqua-properties' br2-external/aqua/board/aqua/x86_64/post-build.sh
@@ -1150,6 +1150,10 @@ grep -Fq 'pub enum AquaTheme' crates/aqua-shell/src/lib.rs
 grep -Fq 'pub const NIGHTMARE_WINDOW_CHROME' crates/aqua-renderer/src/lib.rs
 grep -Fq 'render_files_window_rgba_with_theme' crates/aqua-renderer/src/lib.rs
 grep -Fq 'runtime_theme_palettes = "AquaTheme bounds LightWhite, Softtouch, Deepside, and Nightmare' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'runtime_shell_theme_palettes = "the compositor loads the persisted or AQUA_THEME-selected palette' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'pub struct ShellPalette' crates/aqua-renderer/src/lib.rs
+grep -Fq 'render_launcher_overlay_rgba_with_theme' crates/aqua-renderer/src/lib.rs
+grep -Fq 'desktop_shell_theme=' crates/aqua-compositor/src/main.rs
 grep -Fq 'theme=LightWhite' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'run-manual-nested-preview-execution' docs/aqua-linux/compositor.md
 grep -Fq 'aqua-visible-preview-request' docs/aqua-linux/compositor.md

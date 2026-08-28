@@ -5,9 +5,9 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. Runtime convergence now includes the compact top bar, pale-wave wallpaper, distinct Applications and Global Search surfaces, a three-group bottom shell, and persisted LightWhite, Softtouch, Deepside, and Nightmare palettes across Files, Settings, Terminal, and Properties. Full workspace window assignment, live theme broadcast, shell theming, and Installer theming remain ahead without changing the Buildroot or custom Wayland compositor architecture.",
+  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. Runtime convergence now includes persisted LightWhite, Softtouch, Deepside, and Nightmare palettes across Files, Settings, Terminal, Properties, the compact top bar, Applications, Global Search, the three-group bottom shell, desktop overlays, system overview, session menu, and notifications. Full workspace window assignment, live theme broadcast, and Installer theming remain ahead without changing the Buildroot or custom Wayland compositor architecture.",
   "updated": "2026-08-28",
-  "overallPercent": 85,
+  "overallPercent": 86,
   "rules": [
     "Aqua Linux v1.0 is treated as 100%.",
     "Overall progress is the rounded arithmetic mean of the 12 phase percentages so the public value is reproducible.",
@@ -107,14 +107,14 @@
     {
       "id": "m11",
       "name": "Polish and Public Readiness",
-      "percent": 30,
+      "percent": 35,
       "status": "early",
       "updated": "2026-08-28",
-      "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, and persisted LightWhite, Softtouch, Deepside, and Nightmare palettes across Files, Settings, Terminal, and Properties. Full workspace management, live updates for running windows, shell and Installer theme application, contributor guide, current public OS screenshots, hardware status, final icon clearance, and issue workflow are incomplete."
+      "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, and persisted LightWhite, Softtouch, Deepside, and Nightmare palettes across current application and shell surfaces. Full workspace management, live theme updates for running sessions and windows, Installer theme application, contributor guide, current public OS screenshots, hardware status, final icon clearance, and issue workflow are incomplete."
     }
   ],
   "nextSteps": [
-    "Apply the persisted theme selection to the top bar, Applications, Search, bottom shell, desktop overlays, and Installer, then refresh already-running first-party windows.",
+    "Apply the persisted theme selection to Installer, then add a compositor theme-change channel that refreshes the running shell and first-party windows without a session restart.",
     "Keep fallback TTY, boot_graphics=false, and autostart=false in the default development image."
   ]
 }

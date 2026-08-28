@@ -26,9 +26,11 @@ replace the normal theme symbol only for selected, focused, or active states.
 
 The current runtime implementation exposes all four choices in Aqua Settings,
 persists the selected theme in the v1 settings file, and applies it when Files,
-Settings, Terminal, or Properties starts. Existing settings files without a
-theme key continue as LightWhite. Live updates for already-running windows and
-theme application across the shell and Installer are not complete yet.
+Settings, Terminal, Properties, or a desktop session starts. The desktop theme
+covers the top bar, Applications, Search, bottom shell, desktop overlays,
+system overview, session menu, and notifications. Existing settings files
+without a theme key continue as LightWhite. Live updates for an already-running
+session and theme application across Installer are not complete yet.
 
 - Desktop backgrounds use the selected theme's base color with low-contrast wave forms.
 - Primary and secondary surfaces use their matching theme tokens.
