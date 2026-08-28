@@ -23,9 +23,10 @@ use aqua_installer::{
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_renderer::{
-    embedded_ui_font_ready, render_files_window_rgba_with_theme, render_installer_window_rgba,
-    render_properties_window_rgba_with_theme, render_settings_window_rgba,
-    render_terminal_window_rgba_with_theme, InstallerImageSource, UI_FONT_FAMILY, UI_FONT_SOURCE,
+    embedded_ui_font_ready, render_files_window_rgba_with_theme,
+    render_installer_window_rgba_with_theme, render_properties_window_rgba_with_theme,
+    render_settings_window_rgba, render_terminal_window_rgba_with_theme, InstallerImageSource,
+    InstallerRenderOptions, UI_FONT_FAMILY, UI_FONT_SOURCE,
 };
 pub use aqua_renderer::{
     export_composited_preview_png_with_client_layers,
@@ -5056,11 +5057,14 @@ impl XdgSmokeClientState {
         let mut model = InstallerModel::default();
         model.set_mode(InstallMode::Real);
         let ui = InstallerUiState::new(&model);
+        let theme = Self::configured_theme();
+        println!("aqua_installer_theme={}", theme.id());
         Ok(Self {
             buffer_width: 1280,
             buffer_height: 800,
             title: "Aqua Linux Kurulumu".to_string(),
             app_id: "aqua.installer".to_string(),
+            theme,
             installer_model: Some(model),
             installer_forms: Some(InstallerFormState::default()),
             installer_ui: Some(ui),
@@ -5093,14 +5097,17 @@ impl XdgSmokeClientState {
             self.installer_logo_height,
             &self.installer_logo_rgba,
         )?;
-        render_installer_window_rgba(
+        render_installer_window_rgba_with_theme(
             self.buffer_width,
             self.buffer_height,
             model,
             ui,
             forms,
-            self.installer_progress.as_ref(),
             logo,
+            InstallerRenderOptions {
+                progress: self.installer_progress.as_ref(),
+                theme: self.theme,
+            },
         )
         .map(|(pixels, _)| pixels)
     }
