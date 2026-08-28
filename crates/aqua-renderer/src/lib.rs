@@ -7,10 +7,10 @@ use aqua_installer::{
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind};
 use aqua_shell::{
     DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
-    FilesWindowModel, LauncherCategory, LauncherState, NotificationCenter, SessionAction,
-    SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView, TopBarState,
-    DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT, FILES_PREVIEW_VISIBLE_LINES,
-    FILES_VISIBLE_ROWS,
+    FilesWindowModel, LauncherCategory, LauncherMode, LauncherState, NotificationCenter,
+    SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView,
+    TopBarState, DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT,
+    FILES_PREVIEW_VISIBLE_LINES, FILES_VISIBLE_ROWS,
 };
 use fontdue::{Font, FontSettings};
 use std::sync::OnceLock;
@@ -217,6 +217,7 @@ pub fn select_renderer_backend(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LauncherOverlayProbe {
     pub rendered: bool,
+    pub mode: &'static str,
     pub category_count: usize,
     pub visible_app_count: usize,
     pub selected_index: usize,
@@ -4268,6 +4269,7 @@ pub fn render_files_window_rgba(
 impl LauncherOverlayProbe {
     pub fn is_ready(&self) -> bool {
         self.rendered
+            && matches!(self.mode, "applications" | "search")
             && self.category_count == LauncherCategory::ALL.len()
             && self.visible_app_count > 0
             && self.selected_index < self.visible_app_count
@@ -4958,6 +4960,10 @@ impl RasterPngExport {
 }
 
 impl RasterRgbaExport {
+    pub fn to_png(&self) -> Vec<u8> {
+        encode_png_rgba(self.width, self.height, &self.bytes)
+    }
+
     pub fn dump_lines(&self) -> Vec<String> {
         vec![
             format!("export_status={}", self.status),
@@ -5568,6 +5574,7 @@ fn draw_launcher_overlay(
     if !launcher.is_open() {
         return LauncherOverlayProbe {
             rendered: false,
+            mode: launcher.mode().id(),
             category_count: LauncherCategory::ALL.len(),
             visible_app_count: 0,
             selected_index: 0,
@@ -5576,11 +5583,12 @@ fn draw_launcher_overlay(
         };
     }
 
+    let bounds = launcher.panel_bounds(viewport.width, viewport.height);
     let panel = Rect {
-        x: 24,
-        y: 60,
-        width: 560_u32.min(viewport.width.saturating_sub(48)),
-        height: 520_u32.min(viewport.height.saturating_sub(160)),
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
     };
     let mut primitives = 0;
     fill_rect(
@@ -5588,25 +5596,37 @@ fn draw_launcher_overlay(
         viewport.width,
         viewport.height,
         panel,
-        [0x09, 0x42, 0x62, 0xff],
-        218,
+        [0xf4, 0xf8, 0xfc, 0xff],
+        244,
     );
     primitives +=
         1 + draw_system_surface_primitives(buffer, viewport.width, viewport.height, panel);
 
+    draw_bitmap_text(
+        buffer,
+        (viewport.width, viewport.height),
+        (panel.x + 24, panel.y + 24),
+        match launcher.mode() {
+            LauncherMode::Applications => "APPLICATIONS",
+            LauncherMode::Search => "SEARCH",
+        },
+        [0x16, 0x24, 0x34, 0xff],
+        2,
+    );
+
     let search = Rect {
-        x: panel.x + 22,
-        y: panel.y + 20,
-        width: panel.width - 44,
-        height: 48,
+        x: panel.x + 24,
+        y: panel.y + 54,
+        width: panel.width - 48,
+        height: 42,
     };
     fill_rect(
         buffer,
         viewport.width,
         viewport.height,
         search,
-        [0x02, 0x23, 0x38, 0xff],
-        178,
+        [0xff, 0xff, 0xff, 0xff],
+        230,
     );
     primitives +=
         1 + draw_system_surface_primitives(buffer, viewport.width, viewport.height, search);
@@ -5615,155 +5635,194 @@ fn draw_launcher_overlay(
         viewport.width,
         viewport.height,
         search.x + 16,
-        search.y + 15,
+        search.y + 12,
     );
     let search_label = if launcher.query().is_empty() {
-        "SEARCH..."
+        "SEARCH APPS..."
     } else {
         launcher.query()
     };
     draw_bitmap_text(
         buffer,
         (viewport.width, viewport.height),
-        (search.x + 48, search.y + 17),
+        (search.x + 48, search.y + 14),
         search_label,
-        [0xd9, 0xf5, 0xff, 0xff],
-        2,
-    );
-
-    let content_y = search.y + search.height + 16;
-    let sidebar_width = 220;
-    fill_rect(
-        buffer,
-        viewport.width,
-        viewport.height,
-        Rect {
-            x: panel.x + sidebar_width,
-            y: content_y,
-            width: 1,
-            height: panel.height.saturating_sub(content_y - panel.y + 64),
-        },
-        [0x8b, 0xd9, 0xf2, 0xff],
-        80,
-    );
-    primitives += 1;
-
-    for (index, category) in LauncherCategory::ALL.iter().copied().enumerate() {
-        let row = Rect {
-            x: panel.x + 14,
-            y: content_y + index as u32 * 38,
-            width: sidebar_width - 28,
-            height: 34,
-        };
-        if category == launcher.category() {
-            fill_rect(
-                buffer,
-                viewport.width,
-                viewport.height,
-                row,
-                [0x24, 0xa8, 0xe0, 0xff],
-                168,
-            );
-            primitives += 1;
-        }
-        draw_category_icon(
-            buffer,
-            viewport.width,
-            viewport.height,
-            row.x + 12,
-            row.y + 9,
-            index,
-        );
-        draw_bitmap_text(
-            buffer,
-            (viewport.width, viewport.height),
-            (row.x + 40, row.y + 10),
-            category.label(),
-            [0xee, 0xfb, 0xff, 0xff],
-            1,
-        );
-    }
-
-    let visible_apps = launcher.visible_apps();
-    let list_x = panel.x + sidebar_width + 18;
-    for (index, app) in visible_apps.iter().take(6).enumerate() {
-        let row = Rect {
-            x: list_x,
-            y: content_y + index as u32 * 62,
-            width: panel.x + panel.width - list_x - 16,
-            height: 56,
-        };
-        if index == launcher.selected_index() {
-            fill_rect(
-                buffer,
-                viewport.width,
-                viewport.height,
-                row,
-                [0x38, 0xba, 0xee, 0xff],
-                126,
-            );
-            primitives += 1;
-        }
-        draw_app_icon(
-            buffer,
-            viewport.width,
-            viewport.height,
-            row.x + 8,
-            row.y + 8,
-            index,
-        );
-        draw_bitmap_text(
-            buffer,
-            (viewport.width, viewport.height),
-            (row.x + 54, row.y + 10),
-            app.name,
-            [0xf7, 0xfd, 0xff, 0xff],
-            1,
-        );
-        draw_bitmap_text(
-            buffer,
-            (viewport.width, viewport.height),
-            (row.x + 54, row.y + 30),
-            app.description,
-            [0xa9, 0xd1, 0xdf, 0xff],
-            1,
-        );
-        primitives += 1;
-    }
-
-    fill_rect(
-        buffer,
-        viewport.width,
-        viewport.height,
-        Rect {
-            x: panel.x + 18,
-            y: panel.y + panel.height - 54,
-            width: panel.width - 36,
-            height: 1,
-        },
-        [0xa5, 0xe8, 0xfa, 0xff],
-        82,
-    );
-    draw_bitmap_text(
-        buffer,
-        (viewport.width, viewport.height),
-        (panel.x + 28, panel.y + panel.height - 34),
-        "AQUA",
-        [0xef, 0xfb, 0xff, 0xff],
-        2,
-    );
-    draw_bitmap_text(
-        buffer,
-        (viewport.width, viewport.height),
-        (panel.x + panel.width - 104, panel.y + panel.height - 31),
-        "LOCK  POWER",
-        [0xc7, 0xed, 0xf8, 0xff],
+        [0x42, 0x56, 0x6d, 0xff],
         1,
     );
-    primitives += 1;
+
+    let content_y = search.y + search.height + 18;
+    let visible_apps = launcher.visible_apps();
+    match launcher.mode() {
+        LauncherMode::Applications => {
+            let gap = 12;
+            let card_width = (panel.width.saturating_sub(48 + gap * 2)) / 3;
+            for (index, app) in visible_apps.iter().take(6).enumerate() {
+                let column = index as u32 % 3;
+                let row_index = index as u32 / 3;
+                let card = Rect {
+                    x: panel.x + 24 + column * (card_width + gap),
+                    y: content_y + row_index * 112,
+                    width: card_width,
+                    height: 100,
+                };
+                fill_rect(
+                    buffer,
+                    viewport.width,
+                    viewport.height,
+                    card,
+                    if index == launcher.selected_index() {
+                        [0xd9, 0xeb, 0xff, 0xff]
+                    } else {
+                        [0xff, 0xff, 0xff, 0xff]
+                    },
+                    225,
+                );
+                draw_app_icon(
+                    buffer,
+                    viewport.width,
+                    viewport.height,
+                    card.x + 14,
+                    card.y + 14,
+                    index,
+                );
+                draw_bitmap_text(
+                    buffer,
+                    (viewport.width, viewport.height),
+                    (card.x + 60, card.y + 22),
+                    app.name,
+                    [0x14, 0x22, 0x32, 0xff],
+                    1,
+                );
+                draw_bitmap_text(
+                    buffer,
+                    (viewport.width, viewport.height),
+                    (card.x + 14, card.y + 70),
+                    app.description,
+                    [0x65, 0x76, 0x89, 0xff],
+                    1,
+                );
+                primitives += 2;
+            }
+        }
+        LauncherMode::Search => {
+            let split_x = panel.x + panel.width / 2;
+            fill_rect(
+                buffer,
+                viewport.width,
+                viewport.height,
+                Rect {
+                    x: split_x,
+                    y: content_y,
+                    width: 1,
+                    height: panel.height.saturating_sub(content_y - panel.y + 24),
+                },
+                [0xc8, 0xd4, 0xe2, 0xff],
+                180,
+            );
+            primitives += 1;
+            draw_bitmap_text(
+                buffer,
+                (viewport.width, viewport.height),
+                (panel.x + 24, content_y),
+                "RESULTS",
+                [0x5d, 0x70, 0x86, 0xff],
+                1,
+            );
+            for (index, app) in visible_apps.iter().take(5).enumerate() {
+                let row = Rect {
+                    x: panel.x + 18,
+                    y: content_y + 24 + index as u32 * 58,
+                    width: panel.width / 2 - 30,
+                    height: 52,
+                };
+                if index == launcher.selected_index() {
+                    fill_rect(
+                        buffer,
+                        viewport.width,
+                        viewport.height,
+                        row,
+                        [0xd9, 0xeb, 0xff, 0xff],
+                        230,
+                    );
+                    primitives += 1;
+                }
+                draw_app_icon(
+                    buffer,
+                    viewport.width,
+                    viewport.height,
+                    row.x + 8,
+                    row.y + 6,
+                    index,
+                );
+                draw_bitmap_text(
+                    buffer,
+                    (viewport.width, viewport.height),
+                    (row.x + 54, row.y + 10),
+                    app.name,
+                    [0x14, 0x22, 0x32, 0xff],
+                    1,
+                );
+                draw_bitmap_text(
+                    buffer,
+                    (viewport.width, viewport.height),
+                    (row.x + 54, row.y + 29),
+                    app.description,
+                    [0x65, 0x76, 0x89, 0xff],
+                    1,
+                );
+                primitives += 1;
+            }
+            draw_bitmap_text(
+                buffer,
+                (viewport.width, viewport.height),
+                (split_x + 22, content_y),
+                "QUICK ACTIONS",
+                [0x5d, 0x70, 0x86, 0xff],
+                1,
+            );
+            for (index, label) in ["OPEN APPLICATIONS", "SYSTEM SETTINGS", "BROWSE FILES"]
+                .iter()
+                .enumerate()
+            {
+                let action = Rect {
+                    x: split_x + 18,
+                    y: content_y + 24 + index as u32 * 62,
+                    width: panel.width / 2 - 42,
+                    height: 50,
+                };
+                fill_rect(
+                    buffer,
+                    viewport.width,
+                    viewport.height,
+                    action,
+                    [0xff, 0xff, 0xff, 0xff],
+                    220,
+                );
+                draw_category_icon(
+                    buffer,
+                    viewport.width,
+                    viewport.height,
+                    action.x + 12,
+                    action.y + 17,
+                    index,
+                );
+                draw_bitmap_text(
+                    buffer,
+                    (viewport.width, viewport.height),
+                    (action.x + 42, action.y + 18),
+                    label,
+                    [0x24, 0x36, 0x49, 0xff],
+                    1,
+                );
+                primitives += 2;
+            }
+        }
+    }
 
     LauncherOverlayProbe {
         rendered: true,
+        mode: launcher.mode().id(),
         category_count: LauncherCategory::ALL.len(),
         visible_app_count: visible_apps.len(),
         selected_index: launcher.selected_index(),
@@ -5773,7 +5832,7 @@ fn draw_launcher_overlay(
 }
 
 fn draw_search_icon(buffer: &mut [u8], width: u32, height: u32, x: u32, y: u32) {
-    let color = [0xd6, 0xf5, 0xff, 0xff];
+    let color = [0x42, 0x56, 0x6d, 0xff];
     fill_rect(
         buffer,
         width,
@@ -7377,6 +7436,7 @@ mod tests {
 
         assert!(probe.is_ready());
         assert_eq!(probe.category_count, 9);
+        assert_eq!(probe.mode, "applications");
         assert_eq!(probe.visible_app_count, 6);
         assert_eq!(probe.selected_index, 0);
         assert!(!probe.query_visible);
@@ -7409,6 +7469,7 @@ mod tests {
         .expect("filtered launcher composition");
 
         assert!(probe.is_ready());
+        assert_eq!(probe.mode, "search");
         assert_eq!(probe.visible_app_count, 1);
         assert!(probe.query_visible);
     }

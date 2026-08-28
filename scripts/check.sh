@@ -1102,7 +1102,10 @@ grep -Fq 'installer_transaction_rehearsal = "a fingerprint-bound 20-step graph' 
 grep -Fq 'installer_fixture_executor = "an empty real directory under the system temporary root' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'installer_tool_shim_runner = "only executable non-symlink programs below a temporary capability root' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'Changing the target or install mode invalidates prior confirmation.' docs/aqua-linux/installer.md
-grep -Fq 'state-driven application launcher' docs/aqua-linux/progress.json
+grep -Fq 'centered Applications and Global Search modes' docs/aqua-linux/progress.json
+grep -Fq 'pub enum LauncherMode' crates/aqua-shell/src/lib.rs
+grep -Fq 'LauncherMode::Applications' crates/aqua-renderer/src/lib.rs
+grep -Fq 'LauncherMode::Search' crates/aqua-renderer/src/lib.rs
 grep -Fq 'Notifications, real system overview' docs/aqua-linux/progress.json
 grep -Fq 'notification_center = "bounded FIFO notification state' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'desktop-notification-qemu status=ok' scripts/check-graphical-boot-qemu.sh

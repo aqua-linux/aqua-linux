@@ -6520,7 +6520,12 @@ impl SmithayDrmSession {
                     .session
                     .wayland_state
                     .launcher_state
-                    .pointer_target(x as u32, y as u32);
+                    .pointer_target_in_viewport(
+                        x as u32,
+                        y as u32,
+                        self.session.wayland_state.output_width,
+                        self.session.wayland_state.output_height,
+                    );
                 println!(
                     "aqua_launcher_pointer x={} y={} target={target:?}",
                     x as u32, y as u32
@@ -6548,6 +6553,14 @@ impl SmithayDrmSession {
                                 update.launch_request;
                             self.session.wayland_state.launcher_app_click_count += 1;
                         }
+                    }
+                    Some(LauncherPointerTarget::QuickAction(action)) => {
+                        let update = self
+                            .session
+                            .wayland_state
+                            .launcher_state
+                            .activate_quick_action(action);
+                        self.session.wayland_state.launcher_launch_request = update.launch_request;
                     }
                     Some(LauncherPointerTarget::Panel) | None => {}
                 }
