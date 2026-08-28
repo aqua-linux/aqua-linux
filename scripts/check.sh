@@ -1153,6 +1153,9 @@ grep -Fq 'runtime_theme_palettes = "AquaTheme bounds LightWhite, Softtouch, Deep
 grep -Fq 'runtime_shell_theme_palettes = "the compositor loads the persisted or AQUA_THEME-selected palette' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'pub struct ShellPalette' crates/aqua-renderer/src/lib.rs
 grep -Fq 'render_launcher_overlay_rgba_with_theme' crates/aqua-renderer/src/lib.rs
+grep -Fq 'render_installer_window_rgba_with_theme' crates/aqua-renderer/src/lib.rs
+grep -Fq 'aqua_installer_theme=' crates/aqua-compositor/src/lib.rs
+grep -Fq 'installer_theme_palettes = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'desktop_shell_theme=' crates/aqua-compositor/src/main.rs
 grep -Fq 'theme=LightWhite' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'run-manual-nested-preview-execution' docs/aqua-linux/compositor.md

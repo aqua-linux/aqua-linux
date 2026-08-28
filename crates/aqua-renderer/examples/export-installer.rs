@@ -2,7 +2,10 @@ use aqua_installer::{
     DiskIdentity, InstallMode, InstallTarget, InstallerFormKey, InstallerFormState, InstallerModel,
     InstallerSummaryKey, InstallerUiState, InstallerUserFormKey,
 };
-use aqua_renderer::{export_installer_window_png, InstallerImageSource};
+use aqua_renderer::{
+    export_installer_window_png_with_theme, InstallerImageSource, InstallerRenderOptions,
+};
+use aqua_shell::AquaTheme;
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::{BufReader, Write};
@@ -20,6 +23,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         .next()
         .and_then(|value| value.into_string().ok())
         .unwrap_or_else(|| "welcome".to_string());
+    let theme = arguments
+        .next()
+        .and_then(|value| value.into_string().ok())
+        .map(|value| AquaTheme::parse(&value).ok_or("invalid Aqua theme"))
+        .transpose()?
+        .unwrap_or_default();
     let (logo_width, logo_height, logo_rgba) = decode_png_rgba(&logo_path)?;
     let logo = InstallerImageSource::new(logo_width, logo_height, &logo_rgba)?;
     let mut model = InstallerModel::default();
@@ -47,7 +56,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         other => return Err(format!("unsupported installer export step: {other}").into()),
     }
     let ui = InstallerUiState::new(&model);
-    let (png, probe) = export_installer_window_png(1280, 800, &model, &ui, &forms, None, logo)?;
+    let (png, probe) = export_installer_window_png_with_theme(
+        1280,
+        800,
+        &model,
+        &ui,
+        &forms,
+        logo,
+        InstallerRenderOptions {
+            progress: None,
+            theme,
+        },
+    )?;
 
     if let Some(parent) = output.parent() {
         fs::create_dir_all(parent)?;
@@ -57,6 +77,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("installer_layout_valid={}", probe.layout_valid);
     println!("installer_step={}", probe.step.id());
     println!("installer_focus={}", probe.focus.id());
+    println!("installer_theme={}", theme.id());
     println!("installer_logo_rendered={}", probe.logo_rendered);
     println!("installer_primitive_count={}", probe.primitive_count);
     println!("installer_checksum={:016x}", probe.checksum);

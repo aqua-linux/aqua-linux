@@ -2454,6 +2454,21 @@ impl InstallerWindowProbe {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct InstallerRenderOptions<'a> {
+    pub progress: Option<&'a InstallProgressEvent>,
+    pub theme: AquaTheme,
+}
+
+impl Default for InstallerRenderOptions<'_> {
+    fn default() -> Self {
+        Self {
+            progress: None,
+            theme: AquaTheme::LightWhite,
+        }
+    }
+}
+
 pub fn render_installer_window_rgba(
     width: u32,
     height: u32,
@@ -2463,6 +2478,30 @@ pub fn render_installer_window_rgba(
     progress: Option<&InstallProgressEvent>,
     logo: InstallerImageSource<'_>,
 ) -> Result<(Vec<u8>, InstallerWindowProbe), String> {
+    render_installer_window_rgba_with_theme(
+        width,
+        height,
+        model,
+        ui,
+        forms,
+        logo,
+        InstallerRenderOptions {
+            progress,
+            ..InstallerRenderOptions::default()
+        },
+    )
+}
+
+pub fn render_installer_window_rgba_with_theme(
+    width: u32,
+    height: u32,
+    model: &InstallerModel,
+    ui: &InstallerUiState,
+    forms: &InstallerFormState,
+    logo: InstallerImageSource<'_>,
+    options: InstallerRenderOptions<'_>,
+) -> Result<(Vec<u8>, InstallerWindowProbe), String> {
+    let InstallerRenderOptions { progress, theme } = options;
     if model.step() != ui.step() {
         return Err("installer UI step does not match installer model".to_string());
     }
@@ -2476,14 +2515,13 @@ pub fn render_installer_window_rgba(
         width,
         height,
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        canvas,
-        [0x9a, 0xb9, 0xd9, 0xff],
-        255,
-    );
+    let palette = window_chrome_palette(theme);
+    let canvas_color = if theme == AquaTheme::LightWhite {
+        [0x9a, 0xb9, 0xd9, 0xff]
+    } else {
+        palette.sidebar
+    };
+    fill_rect(&mut buffer, width, height, canvas, canvas_color, 255);
     let mut primitives = 1;
 
     let shadow = Rect {
@@ -2498,10 +2536,13 @@ pub fn render_installer_window_rgba(
         height,
         shadow,
         8,
-        [0x1d, 0x45, 0x72, 0xff],
+        if theme == AquaTheme::LightWhite {
+            [0x1d, 0x45, 0x72, 0xff]
+        } else {
+            palette.border
+        },
         72,
     );
-    let palette = LIGHTWHITE_WINDOW_CHROME;
     fill_rounded_rect(
         &mut buffer,
         width,
@@ -2543,7 +2584,7 @@ pub fn render_installer_window_rgba(
         width,
         height,
         layout.footer,
-        [0xe2, 0xec, 0xf7, 0xff],
+        palette.toolbar,
         236,
     );
     primitives += 3;
@@ -2559,21 +2600,13 @@ pub fn render_installer_window_rgba(
             height: row_height.saturating_sub(6),
         };
         if step == model.step() {
-            fill_rounded_rect(
-                &mut buffer,
-                width,
-                height,
-                row,
-                8,
-                [0xf8, 0xfb, 0xff, 0xff],
-                238,
-            );
+            fill_rounded_rect(&mut buffer, width, height, row, 8, palette.field, 238);
             primitives += 1;
         }
         let marker_color = if step == model.step() {
-            [0x26, 0x7d, 0xef, 0xff]
+            palette.accent
         } else {
-            [0x65, 0x77, 0x8e, 0xff]
+            palette.secondary_text
         };
         fill_transparent_circle(
             &mut buffer,
@@ -2592,7 +2625,7 @@ pub fn render_installer_window_rgba(
                 row.x + 17,
                 row.y + row.height / 2,
                 3,
-                [0xe9, 0xf7, 0xff, 0xff],
+                palette.surface,
             );
         }
         draw_bitmap_text(
@@ -2601,9 +2634,9 @@ pub fn render_installer_window_rgba(
             (row.x + 38, row.y + row.height.saturating_sub(26) / 2),
             step.label_tr(),
             if step == model.step() {
-                [0x16, 0x69, 0xd2, 0xff]
+                palette.accent
             } else {
-                [0x3f, 0x50, 0x64, 0xff]
+                palette.text
             },
             1,
         );
@@ -2624,11 +2657,11 @@ pub fn render_installer_window_rgba(
             forms,
             progress,
             logo,
+            palette,
         },
     );
-    primitives += draw_installer_footer(&mut buffer, width, height, &layout, ui);
-    primitives += draw_installer_focus(&mut buffer, width, height, &layout, ui.focus());
-
+    primitives += draw_installer_footer(&mut buffer, width, height, &layout, ui, palette);
+    primitives += draw_installer_focus(&mut buffer, width, height, &layout, ui.focus(), palette);
     let checksum = checksum_bytes(&buffer);
     Ok((
         buffer,
@@ -2655,8 +2688,31 @@ pub fn export_installer_window_png(
     progress: Option<&InstallProgressEvent>,
     logo: InstallerImageSource<'_>,
 ) -> Result<(Vec<u8>, InstallerWindowProbe), String> {
+    export_installer_window_png_with_theme(
+        width,
+        height,
+        model,
+        ui,
+        forms,
+        logo,
+        InstallerRenderOptions {
+            progress,
+            ..InstallerRenderOptions::default()
+        },
+    )
+}
+
+pub fn export_installer_window_png_with_theme(
+    width: u32,
+    height: u32,
+    model: &InstallerModel,
+    ui: &InstallerUiState,
+    forms: &InstallerFormState,
+    logo: InstallerImageSource<'_>,
+    options: InstallerRenderOptions<'_>,
+) -> Result<(Vec<u8>, InstallerWindowProbe), String> {
     let (rgba, probe) =
-        render_installer_window_rgba(width, height, model, ui, forms, progress, logo)?;
+        render_installer_window_rgba_with_theme(width, height, model, ui, forms, logo, options)?;
     Ok((encode_png_rgba(width, height, &rgba), probe))
 }
 
@@ -2666,6 +2722,7 @@ struct InstallerContentContext<'a> {
     forms: &'a InstallerFormState,
     progress: Option<&'a InstallProgressEvent>,
     logo: InstallerImageSource<'a>,
+    palette: WindowChromePalette,
 }
 
 fn draw_installer_content(
@@ -2680,6 +2737,7 @@ fn draw_installer_content(
         forms,
         progress,
         logo,
+        palette,
     } = context;
     let padding = layout.content_padding();
     let text_x = layout.content.x + padding;
@@ -2691,10 +2749,22 @@ fn draw_installer_content(
         width: logo_size,
         height: logo_size,
     };
+    let mut themed_logo = Vec::new();
+    let logo_rgba = if palette.text[0] > 0x80 {
+        themed_logo.extend_from_slice(logo.rgba);
+        for pixel in themed_logo.chunks_exact_mut(4) {
+            if pixel[3] > 0 && pixel[0].max(pixel[1]).max(pixel[2]) < 0x80 {
+                pixel[..3].copy_from_slice(&palette.text[..3]);
+            }
+        }
+        themed_logo.as_slice()
+    } else {
+        logo.rgba
+    };
     let source = RgbaImageSource {
         width: logo.width,
         height: logo.height,
-        rgba: logo.rgba,
+        rgba: logo_rgba,
     };
     let logo_visible = matches!(
         model.step(),
@@ -2712,7 +2782,7 @@ fn draw_installer_content(
                 (width, height),
                 (text_x, heading_y),
                 "Aqua Linux'a",
-                [0x1e, 0x2d, 0x42, 0xff],
+                palette.text,
                 2,
             );
             draw_bitmap_text(
@@ -2720,7 +2790,7 @@ fn draw_installer_content(
                 (width, height),
                 (text_x, heading_y + 42),
                 "Hoş Geldiniz",
-                [0x3f, 0x94, 0xec, 0xff],
+                palette.accent,
                 2,
             );
             draw_bitmap_text(
@@ -2728,7 +2798,7 @@ fn draw_installer_content(
                 (width, height),
                 (text_x, heading_y + 112),
                 "Aqua Linux; sadelik, performans ve",
-                [0x4d, 0x60, 0x78, 0xff],
+                palette.secondary_text,
                 1,
             );
             draw_bitmap_text(
@@ -2736,7 +2806,7 @@ fn draw_installer_content(
                 (width, height),
                 (text_x, heading_y + 136),
                 "özgürlük için tasarlandı.",
-                [0x4d, 0x60, 0x78, 0xff],
+                palette.secondary_text,
                 1,
             );
             draw_bitmap_text(
@@ -2744,7 +2814,7 @@ fn draw_installer_content(
                 (width, height),
                 (text_x, heading_y + 184),
                 "Kuruluma devam etmek için İleri'yi seçin.",
-                [0x4d, 0x60, 0x78, 0xff],
+                palette.secondary_text,
                 1,
             );
             primitives += 5;
@@ -2772,7 +2842,7 @@ fn draw_installer_content(
                         height: 58,
                     },
                     8,
-                    [0xf8, 0xfb, 0xff, 0xff],
+                    palette.field,
                     210,
                 );
                 draw_bitmap_text(
@@ -2780,7 +2850,7 @@ fn draw_installer_content(
                     (width, height),
                     (x + 12, feature_y + 9),
                     title,
-                    [0x26, 0x3b, 0x55, 0xff],
+                    palette.text,
                     1,
                 );
                 draw_bitmap_text(
@@ -2788,7 +2858,7 @@ fn draw_installer_content(
                     (width, height),
                     (x + 12, feature_y + 31),
                     detail,
-                    [0x6a, 0x7a, 0x8e, 0xff],
+                    palette.secondary_text,
                     1,
                 );
                 primitives += 3;
@@ -2807,6 +2877,7 @@ fn draw_installer_content(
                     options: &LANGUAGE_OPTIONS,
                     selected_index: forms.language_index(),
                     applied_value: model.locale(),
+                    palette,
                 },
             );
         }
@@ -2823,6 +2894,7 @@ fn draw_installer_content(
                     options: &KEYBOARD_OPTIONS,
                     selected_index: forms.keyboard_index(),
                     applied_value: model.keyboard_layout(),
+                    palette,
                 },
             );
         }
@@ -2837,6 +2909,7 @@ fn draw_installer_content(
                     y: heading_y,
                     forms,
                     applied_device: model.target().map(|target| target.disk.device()),
+                    palette,
                 },
             );
         }
@@ -2853,6 +2926,7 @@ fn draw_installer_content(
                     options: &TIMEZONE_OPTIONS,
                     selected_index: forms.timezone_index(),
                     applied_value: model.timezone(),
+                    palette,
                 },
             );
         }
@@ -2867,6 +2941,7 @@ fn draw_installer_content(
                     y: heading_y,
                     forms,
                     applied: model.user().is_some(),
+                    palette,
                 },
             );
         }
@@ -2881,11 +2956,20 @@ fn draw_installer_content(
                     y: heading_y,
                     model,
                     forms,
+                    palette,
                 },
             );
         }
         InstallerStep::Installation => {
-            draw_installer_step_heading(buffer, width, height, text_x, heading_y, model.step());
+            draw_installer_step_heading(
+                buffer,
+                width,
+                height,
+                text_x,
+                heading_y,
+                model.step(),
+                palette,
+            );
             let percent = progress.map(InstallProgressEvent::percent).unwrap_or(0);
             let phase_label = progress
                 .map(|progress| installer_progress_phase_label(progress.phase()))
@@ -2895,7 +2979,7 @@ fn draw_installer_content(
                 (width, height),
                 (text_x, heading_y + 74),
                 phase_label,
-                [0x31, 0x52, 0x78, 0xff],
+                palette.text,
                 2,
             );
             if let Some(progress) = progress {
@@ -2908,7 +2992,7 @@ fn draw_installer_content(
                         progress.completed_steps(),
                         progress.total_steps()
                     ),
-                    [0x66, 0x78, 0x8d, 0xff],
+                    palette.secondary_text,
                     1,
                 );
             }
@@ -2918,7 +3002,7 @@ fn draw_installer_content(
                 height,
                 layout.progress_track,
                 4,
-                [0xb7, 0xc8, 0xda, 0xff],
+                palette.border,
                 210,
             );
             if percent > 0 {
@@ -2931,7 +3015,7 @@ fn draw_installer_content(
                         ..layout.progress_track
                     },
                     4,
-                    [0x25, 0x8b, 0xf3, 0xff],
+                    palette.accent,
                     255,
                 );
             }
@@ -2940,19 +3024,27 @@ fn draw_installer_content(
                 (width, height),
                 (layout.progress_track.x, layout.progress_track.y + 24),
                 &format!("Kurulum ilerlemesi: %{percent}"),
-                [0x3f, 0x50, 0x64, 0xff],
+                palette.text,
                 1,
             );
             primitives += 6;
         }
         InstallerStep::Completed => {
-            draw_installer_step_heading(buffer, width, height, text_x, heading_y, model.step());
+            draw_installer_step_heading(
+                buffer,
+                width,
+                height,
+                text_x,
+                heading_y,
+                model.step(),
+                palette,
+            );
             draw_bitmap_text(
                 buffer,
                 (width, height),
                 (text_x, heading_y + 62),
                 "Aqua Linux kullanıma hazır.",
-                [0x4d, 0x60, 0x78, 0xff],
+                palette.secondary_text,
                 1,
             );
             primitives += 2;
@@ -2981,13 +3073,14 @@ fn draw_installer_step_heading(
     x: u32,
     y: u32,
     step: InstallerStep,
+    palette: WindowChromePalette,
 ) {
     draw_bitmap_text(
         buffer,
         (width, height),
         (x, y),
         step.label_tr(),
-        [0x1e, 0x2d, 0x42, 0xff],
+        palette.text,
         2,
     );
 }
@@ -3000,6 +3093,7 @@ struct InstallerChoiceForm<'a> {
     options: &'a [InstallerChoiceOption],
     selected_index: usize,
     applied_value: Option<&'a str>,
+    palette: WindowChromePalette,
 }
 
 fn draw_installer_choice_form(
@@ -3016,8 +3110,9 @@ fn draw_installer_choice_form(
         options,
         selected_index,
         applied_value,
+        palette,
     } = form;
-    draw_installer_step_heading(buffer, width, height, x, y, step);
+    draw_installer_step_heading(buffer, width, height, x, y, step, palette);
     draw_bitmap_text(
         buffer,
         (width, height),
@@ -3028,7 +3123,7 @@ fn draw_installer_choice_form(
             InstallerStep::TimeZone => "Bulunduğunuz zaman dilimini seçin.",
             _ => "Bir seçenek belirleyin.",
         },
-        [0x5a, 0x6d, 0x84, 0xff],
+        palette.secondary_text,
         1,
     );
     let mut primitives = 2;
@@ -3042,14 +3137,14 @@ fn draw_installer_choice_form(
             row,
             8,
             if selected {
-                [0xdc, 0xee, 0xff, 0xff]
+                palette.accent_soft
             } else {
-                [0xf8, 0xfb, 0xff, 0xff]
+                palette.field
             },
             if selected { 245 } else { 205 },
         );
         if selected {
-            draw_rect_outline(buffer, width, height, row, [0x46, 0x9b, 0xee, 0xff], 190);
+            draw_rect_outline(buffer, width, height, row, palette.accent, 190);
         }
         fill_transparent_circle(
             buffer,
@@ -3059,9 +3154,9 @@ fn draw_installer_choice_form(
             row.y + row.height / 2,
             8,
             if selected {
-                [0x28, 0x83, 0xed, 0xff]
+                palette.accent
             } else {
-                [0x9b, 0xaa, 0xba, 0xff]
+                palette.border
             },
         );
         if applied_value == Some(option.value) {
@@ -3080,7 +3175,7 @@ fn draw_installer_choice_form(
             (width, height),
             (row.x + 48, row.y + 10),
             option.label,
-            [0x22, 0x35, 0x4c, 0xff],
+            palette.text,
             1,
         );
         draw_bitmap_text(
@@ -3088,7 +3183,7 @@ fn draw_installer_choice_form(
             (width, height),
             (row.x + 48, row.y + 34),
             option.detail,
-            [0x6a, 0x7d, 0x91, 0xff],
+            palette.secondary_text,
             1,
         );
         primitives += 5;
@@ -3102,6 +3197,7 @@ struct InstallerDiskForm<'a> {
     y: u32,
     forms: &'a InstallerFormState,
     applied_device: Option<&'a str>,
+    palette: WindowChromePalette,
 }
 
 fn draw_installer_disk_form(
@@ -3117,13 +3213,14 @@ fn draw_installer_disk_form(
         form.x,
         form.y,
         InstallerStep::Partitions,
+        form.palette,
     );
     draw_bitmap_text(
         buffer,
         (width, height),
         (form.x, form.y + 38),
         "Aqua Linux'in kurulacağı diski seçin.",
-        [0x5a, 0x6d, 0x84, 0xff],
+        form.palette.secondary_text,
         1,
     );
     let list_y = form.y + 72;
@@ -3152,14 +3249,14 @@ fn draw_installer_disk_form(
             row,
             8,
             if selected && eligible {
-                [0xdc, 0xee, 0xff, 0xff]
+                form.palette.accent_soft
             } else {
-                [0xf6, 0xf9, 0xfc, 0xff]
+                form.palette.field
             },
             if eligible { 225 } else { 150 },
         );
         if selected && eligible {
-            draw_rect_outline(buffer, width, height, row, [0x46, 0x9b, 0xee, 0xff], 190);
+            draw_rect_outline(buffer, width, height, row, form.palette.accent, 190);
         }
         fill_transparent_circle(
             buffer,
@@ -3169,9 +3266,9 @@ fn draw_installer_disk_form(
             row.y + row.height / 2,
             8,
             if selected && eligible {
-                [0x28, 0x83, 0xed, 0xff]
+                form.palette.accent
             } else {
-                [0x9b, 0xaa, 0xba, 0xff]
+                form.palette.border
             },
         );
         draw_bitmap_text(
@@ -3180,9 +3277,9 @@ fn draw_installer_disk_form(
             (row.x + 46, row.y + 8),
             &format!("{}  {}", option.device(), option.model()),
             if eligible {
-                [0x22, 0x35, 0x4c, 0xff]
+                form.palette.text
             } else {
-                [0x7c, 0x87, 0x94, 0xff]
+                form.palette.secondary_text
             },
             1,
         );
@@ -3199,7 +3296,7 @@ fn draw_installer_disk_form(
             (width, height),
             (row.x + 46, row.y + 31),
             &detail,
-            [0x6a, 0x7d, 0x91, 0xff],
+            form.palette.secondary_text,
             1,
         );
         if form.applied_device == Some(option.device()) {
@@ -3225,15 +3322,7 @@ fn draw_installer_disk_form(
                 width: row_width,
                 height: 88,
             };
-            fill_rounded_rect(
-                buffer,
-                width,
-                height,
-                panel,
-                8,
-                [0xe8, 0xf2, 0xfb, 0xff],
-                210,
-            );
+            fill_rounded_rect(buffer, width, height, panel, 8, form.palette.toolbar, 210);
             draw_bitmap_text(
                 buffer,
                 (width, height),
@@ -3247,7 +3336,7 @@ fn draw_installer_disk_form(
                 (width, height),
                 (panel.x + 16, panel.y + 39),
                 &format!("{}  FAT32  {} MiB", INSTALL_ESP_LABEL, INSTALL_ESP_SIZE_MIB),
-                [0x32, 0x4c, 0x68, 0xff],
+                form.palette.text,
                 1,
             );
             draw_bitmap_text(
@@ -3255,7 +3344,7 @@ fn draw_installer_disk_form(
                 (width, height),
                 (panel.x + row_width / 2, panel.y + 39),
                 &format!("{}  ext4  kalan alan", INSTALL_ROOT_LABEL),
-                [0x32, 0x4c, 0x68, 0xff],
+                form.palette.text,
                 1,
             );
             primitives += 4;
@@ -3270,6 +3359,7 @@ struct InstallerUserForm<'a> {
     y: u32,
     forms: &'a InstallerFormState,
     applied: bool,
+    palette: WindowChromePalette,
 }
 
 fn draw_installer_user_form(
@@ -3285,13 +3375,14 @@ fn draw_installer_user_form(
         form.x,
         form.y,
         InstallerStep::UserInformation,
+        form.palette,
     );
     draw_bitmap_text(
         buffer,
         (width, height),
         (form.x, form.y + 38),
         "İlk kullanıcı hesabını oluşturun.",
-        [0x5a, 0x6d, 0x84, 0xff],
+        form.palette.secondary_text,
         1,
     );
     let user = form.forms.user();
@@ -3333,21 +3424,21 @@ fn draw_installer_user_form(
             row,
             8,
             if selected {
-                [0xdc, 0xee, 0xff, 0xff]
+                form.palette.accent_soft
             } else {
-                [0xf8, 0xfb, 0xff, 0xff]
+                form.palette.field
             },
             if selected { 245 } else { 205 },
         );
         if selected {
-            draw_rect_outline(buffer, width, height, row, [0x46, 0x9b, 0xee, 0xff], 190);
+            draw_rect_outline(buffer, width, height, row, form.palette.accent, 190);
         }
         draw_bitmap_text(
             buffer,
             (width, height),
             (row.x + 18, row.y + 9),
             label,
-            [0x65, 0x78, 0x8e, 0xff],
+            form.palette.secondary_text,
             1,
         );
         draw_bitmap_text(
@@ -3358,7 +3449,7 @@ fn draw_installer_user_form(
             if field == InstallerUserField::Password && !user.password_configured() {
                 [0x9b, 0x4b, 0x4b, 0xff]
             } else {
-                [0x22, 0x35, 0x4c, 0xff]
+                form.palette.text
             },
             1,
         );
@@ -3385,6 +3476,7 @@ struct InstallerSummaryView<'a> {
     y: u32,
     model: &'a InstallerModel,
     forms: &'a InstallerFormState,
+    palette: WindowChromePalette,
 }
 
 fn draw_installer_summary(
@@ -3400,13 +3492,14 @@ fn draw_installer_summary(
         view.x,
         view.y,
         InstallerStep::Summary,
+        view.palette,
     );
     draw_bitmap_text(
         buffer,
         (width, height),
         (view.x, view.y + 38),
         "Kurulum seçimleri",
-        [0x5a, 0x6d, 0x84, 0xff],
+        view.palette.secondary_text,
         1,
     );
     let target = view.model.target().expect("summary requires target");
@@ -3459,21 +3552,13 @@ fn draw_installer_summary(
             width: tile_width,
             height: tile_height,
         };
-        fill_rounded_rect(
-            buffer,
-            width,
-            height,
-            tile,
-            8,
-            [0xf8, 0xfb, 0xff, 0xff],
-            210,
-        );
+        fill_rounded_rect(buffer, width, height, tile, 8, view.palette.field, 210);
         draw_bitmap_text(
             buffer,
             (width, height),
             (tile.x + 14, tile.y + 7),
             label,
-            [0x6a, 0x7d, 0x91, 0xff],
+            view.palette.secondary_text,
             1,
         );
         draw_bitmap_text(
@@ -3481,7 +3566,7 @@ fn draw_installer_summary(
             (width, height),
             (tile.x + 14, tile.y + 29),
             value,
-            [0x22, 0x35, 0x4c, 0xff],
+            view.palette.text,
             1,
         );
         primitives += 3;
@@ -3493,17 +3578,20 @@ fn draw_installer_summary(
         width: available_width,
         height: 88,
     };
+    let confirmation_surface = if view.palette.text[0] > 0x80 {
+        view.palette.hover
+    } else if view.model.mode() == InstallMode::Real {
+        [0xff, 0xed, 0xe5, 0xff]
+    } else {
+        [0xe7, 0xf5, 0xed, 0xff]
+    };
     fill_rounded_rect(
         buffer,
         width,
         height,
         confirmation_panel,
         8,
-        if view.model.mode() == InstallMode::Real {
-            [0xff, 0xed, 0xe5, 0xff]
-        } else {
-            [0xe7, 0xf5, 0xed, 0xff]
-        },
+        confirmation_surface,
         220,
     );
     let (title, detail) = if view.model.mode() == InstallMode::Real {
@@ -3540,7 +3628,7 @@ fn draw_installer_summary(
         (width, height),
         (confirmation_panel.x + 16, confirmation_panel.y + 45),
         &detail,
-        [0x4d, 0x60, 0x78, 0xff],
+        view.palette.secondary_text,
         1,
     );
     if view.forms.summary().can_begin_install(view.model) {
@@ -3564,6 +3652,7 @@ fn draw_installer_footer(
     height: u32,
     layout: &InstallerWindowLayout,
     ui: &InstallerUiState,
+    palette: WindowChromePalette,
 ) -> usize {
     draw_installer_button(
         buffer,
@@ -3572,18 +3661,43 @@ fn draw_installer_footer(
         layout.language_control,
         "Türkçe",
         false,
+        palette,
     );
     let mut primitives = 2;
     if ui.cancel_visible() {
-        draw_installer_button(buffer, width, height, layout.cancel_button, "Vazgeç", false);
+        draw_installer_button(
+            buffer,
+            width,
+            height,
+            layout.cancel_button,
+            "Vazgeç",
+            false,
+            palette,
+        );
         primitives += 2;
     }
     if ui.back_visible() {
-        draw_installer_button(buffer, width, height, layout.back_button, "Geri", false);
+        draw_installer_button(
+            buffer,
+            width,
+            height,
+            layout.back_button,
+            "Geri",
+            false,
+            palette,
+        );
         primitives += 2;
     }
     if let Some(label) = ui.forward_label() {
-        draw_installer_button(buffer, width, height, layout.forward_button, label, true);
+        draw_installer_button(
+            buffer,
+            width,
+            height,
+            layout.forward_button,
+            label,
+            true,
+            palette,
+        );
         primitives += 2;
     }
     primitives
@@ -3596,6 +3710,7 @@ fn draw_installer_button(
     rect: Rect,
     label: &str,
     primary: bool,
+    palette: WindowChromePalette,
 ) {
     fill_rounded_rect(
         buffer,
@@ -3604,9 +3719,9 @@ fn draw_installer_button(
         rect,
         8,
         if primary {
-            [0x28, 0x83, 0xed, 0xff]
+            palette.accent
         } else {
-            [0xf5, 0xf8, 0xfc, 0xff]
+            palette.field
         },
         245,
     );
@@ -3623,7 +3738,7 @@ fn draw_installer_button(
         if primary {
             [0xff, 0xff, 0xff, 0xff]
         } else {
-            [0x3d, 0x4c, 0x60, 0xff]
+            palette.text
         },
         1,
     );
@@ -3635,6 +3750,7 @@ fn draw_installer_focus(
     height: u32,
     layout: &InstallerWindowLayout,
     focus: InstallerFocusTarget,
+    palette: WindowChromePalette,
 ) -> usize {
     let rect = match focus {
         InstallerFocusTarget::StepContent => layout.content,
@@ -3654,7 +3770,7 @@ fn draw_installer_focus(
             width: rect.width + 6,
             height: rect.height + 6,
         },
-        [0x20, 0x94, 0xff, 0xff],
+        palette.accent,
         220,
     );
     1
@@ -7343,6 +7459,47 @@ mod tests {
             export_installer_window_png(1280, 800, &model, &ui, &forms, None, logo).unwrap();
         assert_eq!(&png[..8], &[137, 80, 78, 71, 13, 10, 26, 10]);
         assert_eq!(png_probe.checksum, probe.checksum);
+    }
+
+    #[test]
+    fn installer_window_renders_all_runtime_theme_palettes() {
+        let model = InstallerModel::default();
+        let ui = InstallerUiState::new(&model);
+        let forms = InstallerFormState::default();
+        let logo_pixels = [0x18, 0x78, 0xc8, 0xff];
+        let logo = InstallerImageSource::new(1, 1, &logo_pixels).unwrap();
+        let layout = InstallerWindowLayout::for_viewport(Viewport::new(1280, 800)).unwrap();
+        let mut checksums = Vec::new();
+
+        for theme in AquaTheme::ALL {
+            let (rgba, probe) = render_installer_window_rgba_with_theme(
+                1280,
+                800,
+                &model,
+                &ui,
+                &forms,
+                logo,
+                InstallerRenderOptions {
+                    progress: None,
+                    theme,
+                },
+            )
+            .unwrap();
+            assert!(
+                probe.is_ready(),
+                "{} Installer render is not ready",
+                theme.id()
+            );
+            assert_eq!(
+                sample_pixel(&rgba, 1280, layout.titlebar.x + 400, layout.titlebar.y + 40,),
+                window_chrome_palette(theme).titlebar
+            );
+            checksums.push(probe.checksum);
+        }
+
+        checksums.sort_unstable();
+        checksums.dedup();
+        assert_eq!(checksums.len(), AquaTheme::ALL.len());
     }
 
     #[test]

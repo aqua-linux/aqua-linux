@@ -30,7 +30,8 @@ Settings, Terminal, Properties, or a desktop session starts. The desktop theme
 covers the top bar, Applications, Search, bottom shell, desktop overlays,
 system overview, session menu, and notifications. Existing settings files
 without a theme key continue as LightWhite. Live updates for an already-running
-session and theme application across Installer are not complete yet.
+session are not complete yet. Installer loads the same persisted or
+`AQUA_THEME`-selected palette on launch across all setup screens.
 
 - Desktop backgrounds use the selected theme's base color with low-contrast wave forms.
 - Primary and secondary surfaces use their matching theme tokens.
