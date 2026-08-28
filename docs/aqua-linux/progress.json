@@ -5,9 +5,9 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. Runtime convergence now includes the compositor-owned compact top bar, reproducible pale-wave wallpaper, and distinct Applications and Global Search surfaces with active-output pointer geometry and real Aqua app actions. Bottom shell groups, application chrome, installer presentation, and four-theme selection remain ahead without changing the Buildroot or custom Wayland compositor architecture.",
+  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. Runtime convergence now includes the compositor-owned compact top bar, reproducible pale-wave wallpaper, distinct Applications and Global Search surfaces, and a three-group bottom shell with app actions, running indicators, and bounded workspace selection. Application chrome, installer presentation, full workspace window assignment, and four-theme selection remain ahead without changing the Buildroot or custom Wayland compositor architecture.",
   "updated": "2026-08-28",
-  "overallPercent": 84,
+  "overallPercent": 85,
   "rules": [
     "Aqua Linux v1.0 is treated as 100%.",
     "Overall progress is the rounded arithmetic mean of the 12 phase percentages so the public value is reproducible.",
@@ -78,7 +78,7 @@
       "percent": 100,
       "status": "complete",
       "updated": "2026-08-16",
-      "summary": "The state-driven shell starts packaged Aqua Files and Aqua Settings through strict executable preflight and reusable process supervision. Production QEMU maps and raises first-party windows by XDG app_id, tracks damage, closes applications, reaps failures, and removes stale surfaces. Notifications, real system overview, desktop icon interactions, target-aware Properties, confined Trash, and the confirmed session menu are integrated. The prototype launcher is now split into centered Applications and Global Search modes with scaled pointer targets and real quick actions. The compositor-owned dock still needs convergence with the separate bottom controls and workspace references."
+      "summary": "The state-driven shell starts packaged Aqua Files and Aqua Settings through strict executable preflight and reusable process supervision. Production QEMU maps and raises first-party windows by XDG app_id, tracks damage, closes applications, reaps failures, and removes stale surfaces. Notifications, real system overview, desktop icon interactions, target-aware Properties, confined Trash, and the confirmed session menu are integrated. Applications and Global Search are separate centered modes with scaled pointer targets and real quick actions. The bottom shell now separates these controls from the centered app dock and bounded workspace selection; assigning and moving windows across workspaces remains later work."
     },
     {
       "id": "m8",
@@ -107,14 +107,13 @@
     {
       "id": "m11",
       "name": "Polish and Public Readiness",
-      "percent": 15,
+      "percent": 20,
       "status": "early",
       "updated": "2026-08-28",
-      "summary": "The v1 desktop and installer contracts are documented. The runtime now has a dedicated compact top bar, a bright reproducible pale-wave default wallpaper, and separate centered Applications and Global Search surfaces backed by the real app catalog. Remaining bottom shell controls, application chrome convergence, contributor guide, current public OS screenshots, hardware status, final icon clearance, and issue workflow are incomplete."
+      "summary": "The v1 desktop and installer contracts are documented. The runtime now has a compact top bar, a bright reproducible pale-wave wallpaper, separate Applications and Global Search surfaces, and three separated bottom shell groups for commands, apps, and workspace selection. Application chrome convergence, full workspace management, contributor guide, current public OS screenshots, hardware status, final icon clearance, and issue workflow are incomplete."
     }
   ],
   "nextSteps": [
-    "Rebuild the bottom shell controls as Applications/Search, centered pinned/running apps, and workspace thumbnails.",
     "Unify bright window chrome and controls across Files, Settings, Terminal, Properties, and Installer.",
     "Apply the four theme token sets to runtime shell and first-party window surfaces.",
     "Keep fallback TTY, boot_graphics=false, and autostart=false in the default development image."

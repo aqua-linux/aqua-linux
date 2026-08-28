@@ -22,7 +22,7 @@ MODES = {
         "mouse_move -387 -461", "mouse_button 1", "mouse_button 0",
         "mouse_move 233 0", "mouse_button 1", "mouse_button 0",
     ),
-    "dock-launcher-toggle": (
+    "bottom-applications-activate": (
         "mouse_move -301 208", "mouse_button 1", "mouse_button 0",
         "mouse_button 1", "mouse_button 0",
     ),

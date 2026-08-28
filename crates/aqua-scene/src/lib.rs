@@ -333,7 +333,7 @@ pub const SYSTEM_SURFACE_SURFACES: [&str; 5] = [
 pub fn static_shell_scene(viewport: Viewport) -> ShellScene {
     let margin = 24;
     let top_panel_height = 36;
-    let dock_width = 520_u32.min(viewport.width.saturating_sub(margin * 2));
+    let dock_width = 760_u32.min(viewport.width.saturating_sub(margin * 2));
     let dock_height = 72;
     let launcher_width = 560_u32.min(viewport.width.saturating_sub(margin * 2));
     let launcher_height = 520_u32.min(viewport.height.saturating_sub(160));

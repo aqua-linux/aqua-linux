@@ -451,7 +451,7 @@ check_output_contains "surface_border_sample=3d,72,8c,ff" cargo run -p aqua-comp
 check_output_contains "surface_highlight_sample=a3,d3,e7,ff" cargo run -p aqua-compositor -- probe-raster
 check_output_contains "surface_corner_sample=2a,6c,8c,ff" cargo run -p aqua-compositor -- probe-raster
 check_output_contains "surface_shadow_sample=33,86,aa,ff" cargo run -p aqua-compositor -- probe-raster
-check_output_contains "raster_checksum=1c7c4b843fb5dcff" cargo run -p aqua-compositor -- probe-raster
+check_output_contains "raster_checksum=701558d1539521df" cargo run -p aqua-compositor -- probe-raster
 check_output_contains "surface_primitive_count=15" cargo run -p aqua-compositor -- probe-raster
 check_output_contains "checksum_ready=ok" cargo run -p aqua-compositor -- probe-raster
 check_output_contains "surface_corner_sample_ready=ok" cargo run -p aqua-compositor -- probe-raster
@@ -463,7 +463,7 @@ check_output_contains "raster_backend=headless-command-plan" cargo run -p aqua-c
 check_output_contains "[AQUA-COMPOSITOR] stage=raster-export-probe status=ok" cargo run -p aqua-compositor -- probe-raster-export
 check_output_contains "export_format=ppm-p6-rgb888" cargo run -p aqua-compositor -- probe-raster-export
 check_output_contains "export_bytes=4718609" cargo run -p aqua-compositor -- probe-raster-export
-check_output_contains "export_checksum=a726a0419c5ac8d5" cargo run -p aqua-compositor -- probe-raster-export
+check_output_contains "export_checksum=efdcba78578c2cd5" cargo run -p aqua-compositor -- probe-raster-export
 check_output_contains "[AQUA-COMPOSITOR] stage=raster-export-dump status=ok" cargo run -p aqua-compositor -- dump-raster-export
 check_output_contains "[AQUA-COMPOSITOR] stage=raster-export status=ok" cargo run -p aqua-compositor -- export-raster-ppm "${TEMP_EXPORT}"
 test -f "${TEMP_EXPORT}"
@@ -471,7 +471,7 @@ test "$(wc -c < "${TEMP_EXPORT}" | tr -d ' ')" = "4718609"
 check_output_contains "[AQUA-COMPOSITOR] stage=raster-png-export-probe status=ok" cargo run -p aqua-compositor -- probe-raster-png-export
 check_output_contains "export_format=png-rgba8888" cargo run -p aqua-compositor -- probe-raster-png-export
 check_output_contains "export_bytes=6293028" cargo run -p aqua-compositor -- probe-raster-png-export
-check_output_contains "export_checksum=9cf9c9a8df8e2114" cargo run -p aqua-compositor -- probe-raster-png-export
+check_output_contains "export_checksum=2cdb1d86a1ba9300" cargo run -p aqua-compositor -- probe-raster-png-export
 check_output_contains "[AQUA-COMPOSITOR] stage=raster-png-export-dump status=ok" cargo run -p aqua-compositor -- dump-raster-png-export
 check_output_contains "[AQUA-COMPOSITOR] stage=raster-png-export status=ok" cargo run -p aqua-compositor -- export-raster-png "${TEMP_PNG_EXPORT}"
 test -f "${TEMP_PNG_EXPORT}"

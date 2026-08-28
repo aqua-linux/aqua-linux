@@ -32,7 +32,8 @@ pub const DESKTOP_CONTEXT_MENU_X: u32 = DESKTOP_ICON_X + 108;
 pub const DESKTOP_CONTEXT_MENU_WIDTH: u32 = 120;
 pub const DESKTOP_CONTEXT_MENU_ROW_HEIGHT: u32 = 36;
 pub const TRASH_ENTRY_LIMIT: usize = 256;
-pub const DOCK_ITEM_COUNT: usize = 4;
+pub const DOCK_ITEM_COUNT: usize = 3;
+pub const WORKSPACE_COUNT: usize = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalView {
@@ -57,19 +58,16 @@ impl TerminalView {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DockItem {
-    Launcher,
     Files,
     Settings,
     Trash,
 }
 
 impl DockItem {
-    pub const ALL: [Self; DOCK_ITEM_COUNT] =
-        [Self::Launcher, Self::Files, Self::Settings, Self::Trash];
+    pub const ALL: [Self; DOCK_ITEM_COUNT] = [Self::Files, Self::Settings, Self::Trash];
 
     pub const fn id(self) -> &'static str {
         match self {
-            Self::Launcher => "launcher",
             Self::Files => "files",
             Self::Settings => "settings",
             Self::Trash => "trash",
@@ -78,7 +76,6 @@ impl DockItem {
 
     pub const fn launch_request(self) -> Option<LaunchRequest> {
         match self {
-            Self::Launcher => None,
             Self::Files | Self::Trash => Some(LaunchRequest {
                 app_id: "files",
                 command: "/usr/bin/aqua-files",
@@ -95,19 +92,32 @@ impl DockItem {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DockState {
-    pub launcher_open: bool,
+    pub applications_open: bool,
+    pub search_open: bool,
     pub files_running: bool,
     pub settings_running: bool,
+    pub active_workspace: usize,
 }
 
 impl DockState {
     pub fn item_running(&self, item: DockItem) -> bool {
         match item {
-            DockItem::Launcher => self.launcher_open,
             DockItem::Files | DockItem::Trash => self.files_running,
             DockItem::Settings => self.settings_running,
         }
     }
+
+    pub fn workspace_active(&self, index: usize) -> bool {
+        index < WORKSPACE_COUNT && index == self.active_workspace
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BottomShellTarget {
+    Applications,
+    Search,
+    Application(DockItem),
+    Workspace(usize),
 }
 
 pub fn dock_pointer_target(
@@ -115,19 +125,34 @@ pub fn dock_pointer_target(
     local_y: u32,
     width: u32,
     height: u32,
-) -> Option<DockItem> {
-    if local_x >= width || local_y >= height || width < 240 || height < 48 {
+) -> Option<BottomShellTarget> {
+    if local_x >= width || local_y >= height || width < 640 || height < 48 {
         return None;
     }
+
+    if local_x < 64 {
+        return Some(BottomShellTarget::Applications);
+    }
+    if (68..132).contains(&local_x) {
+        return Some(BottomShellTarget::Search);
+    }
+
     let item_width = 72_u32;
     let content_width = item_width * DOCK_ITEM_COUNT as u32;
     let start_x = width.saturating_sub(content_width) / 2;
-    if !(start_x..start_x + content_width).contains(&local_x) {
-        return None;
+    if (start_x..start_x + content_width).contains(&local_x) {
+        return DockItem::ALL
+            .get(((local_x - start_x) / item_width) as usize)
+            .copied()
+            .map(BottomShellTarget::Application);
     }
-    DockItem::ALL
-        .get(((local_x - start_x) / item_width) as usize)
-        .copied()
+
+    let workspace_width = 60_u32;
+    let workspace_group_width = workspace_width * WORKSPACE_COUNT as u32;
+    let workspace_start = width.saturating_sub(workspace_group_width);
+    (workspace_start..width).contains(&local_x).then(|| {
+        BottomShellTarget::Workspace(((local_x - workspace_start) / workspace_width) as usize)
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3071,17 +3096,30 @@ mod tests {
     #[test]
     fn dock_hit_test_and_launch_requests_are_bounded() {
         assert_eq!(
-            dock_pointer_target(116, 36, 520, 72),
-            Some(DockItem::Launcher)
+            dock_pointer_target(24, 36, 760, 72),
+            Some(BottomShellTarget::Applications)
         );
-        assert_eq!(dock_pointer_target(188, 36, 520, 72), Some(DockItem::Files));
         assert_eq!(
-            dock_pointer_target(260, 36, 520, 72),
-            Some(DockItem::Settings)
+            dock_pointer_target(92, 36, 760, 72),
+            Some(BottomShellTarget::Search)
         );
-        assert_eq!(dock_pointer_target(332, 36, 520, 72), Some(DockItem::Trash));
-        assert_eq!(dock_pointer_target(24, 36, 520, 72), None);
-        assert_eq!(DockItem::Launcher.launch_request(), None);
+        assert_eq!(
+            dock_pointer_target(280, 36, 760, 72),
+            Some(BottomShellTarget::Application(DockItem::Files))
+        );
+        assert_eq!(
+            dock_pointer_target(352, 36, 760, 72),
+            Some(BottomShellTarget::Application(DockItem::Settings))
+        );
+        assert_eq!(
+            dock_pointer_target(424, 36, 760, 72),
+            Some(BottomShellTarget::Application(DockItem::Trash))
+        );
+        assert_eq!(
+            dock_pointer_target(650, 36, 760, 72),
+            Some(BottomShellTarget::Workspace(1))
+        );
+        assert_eq!(dock_pointer_target(200, 36, 760, 72), None);
         assert_eq!(
             DockItem::Settings.launch_request().unwrap().app_id,
             "settings"
@@ -3091,14 +3129,17 @@ mod tests {
     #[test]
     fn dock_running_state_tracks_real_application_ownership() {
         let state = DockState {
-            launcher_open: true,
+            applications_open: true,
+            search_open: false,
             files_running: true,
             settings_running: false,
+            active_workspace: 1,
         };
-        assert!(state.item_running(DockItem::Launcher));
         assert!(state.item_running(DockItem::Files));
         assert!(state.item_running(DockItem::Trash));
         assert!(!state.item_running(DockItem::Settings));
+        assert!(state.workspace_active(1));
+        assert!(!state.workspace_active(2));
     }
 
     #[test]
