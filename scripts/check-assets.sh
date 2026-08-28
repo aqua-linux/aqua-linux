@@ -49,6 +49,7 @@ need_file "${AQUA_ICON_DIR}/notification.svg"
 need_file "${AQUA_ICON_DIR}/updates.svg"
 
 need_file "${ROOT_DIR}/docs/aqua-linux/design-tokens.json"
+need_file "${ROOT_DIR}/docs/aqua-linux/icon-production.md"
 need_file "${ROOT_DIR}/docs/aqua-linux/runtime-assets.md"
 need_file "${ROOT_DIR}/THIRD_PARTY_LICENSES.md"
 
@@ -66,6 +67,11 @@ need_text "${ROOT_DIR}/docs/aqua-linux/design-tokens.json" "\"Softtouch\""
 need_text "${ROOT_DIR}/docs/aqua-linux/design-tokens.json" "\"Deepside\""
 need_text "${ROOT_DIR}/docs/aqua-linux/design-tokens.json" "\"Nightmare\""
 need_text "${ROOT_DIR}/docs/aqua-linux/design-tokens.json" "\"blurRequired\": false"
+need_text "${ROOT_DIR}/docs/aqua-linux/icon-production.md" "## Delivery 1: Shell And Window Essentials"
+need_text "${ROOT_DIR}/docs/aqua-linux/icon-production.md" '`applications.svg`'
+need_text "${ROOT_DIR}/docs/aqua-linux/icon-production.md" '`window-close.svg`'
+need_text "${ROOT_DIR}/docs/aqua-linux/icon-production.md" "Aqua does not derive, trace, recolor, or redistribute icons"
+need_text "${ROOT_DIR}/docs/aqua-linux/license-audit.md" "elementary Icons is not a source dependency or runtime asset"
 need_text "${ROOT_DIR}/docs/aqua-linux/runtime-assets.md" "/usr/share/aqua/"
 need_text "${AQUA_ICON_DIR}/README.md" "project-authored"
 

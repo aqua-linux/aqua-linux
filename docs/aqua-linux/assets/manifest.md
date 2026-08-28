@@ -72,9 +72,12 @@ extracted from a private board or another desktop environment.
 
 ## Final Assets Still Needed
 
-- Calendar, Photos, Music, Camera, application-overview, and search icons for
-  later first-party application expansion.
-- Additional file-type and sidebar icons as their corresponding features ship.
+- The authoritative SVG filename, priority, and delivery list is maintained in
+  [icon-production.md](../icon-production.md).
+- Delivery 1 covers shell, window, session, and shared-control icons that
+  replace current procedural glyphs.
+- Later deliveries cover status variants, Files/places, Settings categories,
+  and explicitly planned first-party application roles.
 
 ## Asset Rules
 
@@ -84,3 +87,5 @@ extracted from a private board or another desktop environment.
 - Reproduce the pale-wave master with `cargo run -p aqua-renderer --example export-pale-wallpaper -- <output.png>`.
 - Mock values must be identified in design-only output and must not enter runtime defaults.
 - Do not add assets from GNOME, KDE, XFCE, LXQt, Apple, or another desktop product as Aqua identity assets without explicit license and product review.
+- Do not derive, trace, recolor, or redistribute elementary icons as Aqua Core
+  Icons. The owner-production list defines roles and filenames only.
