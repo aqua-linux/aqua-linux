@@ -602,6 +602,15 @@ impl LiveGpuCompositor {
         self.desktop_icons_state = None;
         self.dock_state = None;
         self.notification_state = aqua_shell::NotificationCenter::default();
+        self.launcher_texture = None;
+        self.top_bar_texture = None;
+        self.session_menu_texture = None;
+        self.system_overview_texture = None;
+        self.desktop_icons_texture = None;
+        self.dock_texture = None;
+        self.notification_texture = None;
+        self.client_texture_cache.clear();
+        self.opaque_direct_bridge_ready = false;
         println!("desktop_shell_theme_changed={}", theme.id());
         true
     }
@@ -4681,6 +4690,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 println!("desktop_event_repaint=true");
                                 println!("desktop_event_repaint_sequence={repaint_sequence}");
                                 println!("desktop_event_repaint_checksum={checksum:016x}");
+                                println!("desktop_event_theme_changed={theme_changed}");
                                 println!(
                                     "desktop_event_surface_revision_changed={surface_changed}"
                                 );

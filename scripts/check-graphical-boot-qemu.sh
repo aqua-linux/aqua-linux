@@ -21,6 +21,11 @@ CLEAN_DESKTOP_SCREENSHOT="${CLEAN_DESKTOP_SCREENSHOT:-${ROOT_DIR}/build/qemu-cle
 CLEAN_DESKTOP_SCREENSHOT_PNG="${CLEAN_DESKTOP_SCREENSHOT_PNG:-${ROOT_DIR}/build/qemu-clean-desktop.png}"
 TERMINAL_SCREENSHOT="${TERMINAL_SCREENSHOT:-${ROOT_DIR}/build/qemu-aqua-terminal.ppm}"
 TERMINAL_SCREENSHOT_PNG="${TERMINAL_SCREENSHOT_PNG:-${ROOT_DIR}/build/qemu-aqua-terminal.png}"
+THEME_LIGHT_SCREENSHOT="${THEME_LIGHT_SCREENSHOT:-${ROOT_DIR}/build/qemu-theme-lightwhite.ppm}"
+THEME_LIGHT_SCREENSHOT_PNG="${THEME_LIGHT_SCREENSHOT_PNG:-${ROOT_DIR}/build/qemu-theme-lightwhite.png}"
+THEME_DEEP_SCREENSHOT="${THEME_DEEP_SCREENSHOT:-${ROOT_DIR}/build/qemu-theme-deepside.ppm}"
+THEME_DEEP_SCREENSHOT_PNG="${THEME_DEEP_SCREENSHOT_PNG:-${ROOT_DIR}/build/qemu-theme-deepside.png}"
+THEME_FRAME_CHECK="${ROOT_DIR}/scripts/check-qemu-theme-frame-delta.py"
 
 cleanup() {
     if [ -n "${INPUT_DAEMON_PID}" ]; then
@@ -50,6 +55,8 @@ rm -f "${SERIAL_LOG}" "${MONITOR_SOCKET}" "${INPUT_CONTROL_SOCKET}" "${INPUT_DAE
     "${SESSION_MENU_SCREENSHOT}" "${SESSION_MENU_SCREENSHOT_PNG}" \
     "${CLEAN_DESKTOP_SCREENSHOT}" "${CLEAN_DESKTOP_SCREENSHOT_PNG}"
 rm -f "${TERMINAL_SCREENSHOT}" "${TERMINAL_SCREENSHOT_PNG}"
+rm -f "${THEME_LIGHT_SCREENSHOT}" "${THEME_LIGHT_SCREENSHOT_PNG}" \
+    "${THEME_DEEP_SCREENSHOT}" "${THEME_DEEP_SCREENSHOT_PNG}"
 
 python3 "${INPUT_HELPER}" --serve "${MONITOR_SOCKET}" "${INPUT_CONTROL_SOCKET}" >"${INPUT_DAEMON_LOG}" 2>&1 &
 INPUT_DAEMON_PID=$!
@@ -71,6 +78,8 @@ export ROOT_DIR KERNEL ROOTFS SERIAL_LOG MEMORY CPUS TIMEOUT_SECONDS MONITOR_SOC
 export CAPTURE_HELPER SESSION_MENU_SCREENSHOT SESSION_MENU_SCREENSHOT_PNG
 export CLEAN_DESKTOP_SCREENSHOT CLEAN_DESKTOP_SCREENSHOT_PNG
 export TERMINAL_SCREENSHOT TERMINAL_SCREENSHOT_PNG
+export THEME_LIGHT_SCREENSHOT THEME_LIGHT_SCREENSHOT_PNG
+export THEME_DEEP_SCREENSHOT THEME_DEEP_SCREENSHOT_PNG THEME_FRAME_CHECK
 export AQUA_QEMU_INPUT_CONTROL_SOCKET="${INPUT_CONTROL_SOCKET}"
 expect "${ROOT_DIR}/scripts/check-graphical-boot-qemu.exp"
 
@@ -87,6 +96,9 @@ grep -Fq '[AQUA-TEST] stage=desktop-properties-qemu status=ok target=files surfa
 grep -Fq '[AQUA-TEST] stage=desktop-properties-refresh-qemu status=ok input=f5 action=refresh-contents generation=1 repaint=true clients=2' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-properties-close-qemu status=ok close=alt-f4 exit=clean stale_surface=removed restart=never clients=1' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-runtime-settings-qemu status=ok app=settings surface=aqua.settings clients=2 launcher_closed=true' "${SERIAL_LOG}"
+grep -Fq '[AQUA-TEST] stage=desktop-live-theme-qemu status=ok from=LightWhite to=Deepside shell=true apps=files,settings restart=false frame_delta=true' "${SERIAL_LOG}"
+test -s "${THEME_LIGHT_SCREENSHOT_PNG}"
+test -s "${THEME_DEEP_SCREENSHOT_PNG}"
 grep -Fq '[AQUA-TEST] stage=desktop-runtime-settings-focus-qemu status=ok app=settings input=home category=0' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-runtime-damage-qemu status=ok app=settings interaction=keyboard-category-selected repaint=incremented revision=changed' "${SERIAL_LOG}"
 grep -Eq '\[AQUA-TEST\] stage=desktop-input-burst-qemu status=ok keyboard_events=[2-9][0-9]+ pointer_commands=17 pointer_motion_events=[1-9][0-9]* pointer_coalescing=allowed category=4 monitor_connection=persistent' "${SERIAL_LOG}"
@@ -107,3 +119,5 @@ echo "Serial log: ${SERIAL_LOG}"
 echo "Clean desktop screenshot: ${CLEAN_DESKTOP_SCREENSHOT_PNG}"
 echo "Session menu screenshot: ${SESSION_MENU_SCREENSHOT_PNG}"
 echo "Terminal screenshot: ${TERMINAL_SCREENSHOT_PNG}"
+echo "LightWhite theme screenshot: ${THEME_LIGHT_SCREENSHOT_PNG}"
+echo "Deepside theme screenshot: ${THEME_DEEP_SCREENSHOT_PNG}"

@@ -7,6 +7,7 @@ IMAGE_DIR="${OUTPUT_DIR}/images"
 SERIAL_LOG="${ROOT_DIR}/build/qemu-serial-check.log"
 FBDEV_QEMU_LOG="${FBDEV_QEMU_LOG:-${ROOT_DIR}/build/qemu-fbdev-present-check.log}"
 GRAPHICAL_BOOT_QEMU_LOG="${GRAPHICAL_BOOT_QEMU_LOG:-${ROOT_DIR}/build/qemu-graphical-boot-check.log}"
+LIVE_THEME_QEMU_LOG="${LIVE_THEME_QEMU_LOG:-${ROOT_DIR}/build/qemu-live-theme-check.log}"
 FBDEV_QEMU_CAPTURE="${FBDEV_QEMU_CAPTURE:-${ROOT_DIR}/build/qemu-fbdev-present-capture.txt}"
 FBDEV_QEMU_PPM="${FBDEV_QEMU_PPM:-${ROOT_DIR}/build/qemu-fbdev-present.ppm}"
 FBDEV_QEMU_PNG="${FBDEV_QEMU_PNG:-${ROOT_DIR}/build/qemu-fbdev-present.png}"
@@ -501,6 +502,7 @@ graphics_desktop_runtime_launch_qemu=$(contract_file_contains "${GRAPHICAL_BOOT_
 graphics_desktop_runtime_launch_files=$(contract_file_contains "${GRAPHICAL_BOOT_QEMU_LOG}" "app=files surface=aqua.files")
 graphics_desktop_runtime_launch_repaint=$(contract_file_contains "${GRAPHICAL_BOOT_QEMU_LOG}" "repaint=true supervised=true")
 graphics_desktop_runtime_settings=$(contract_file_contains "${GRAPHICAL_BOOT_QEMU_LOG}" "[AQUA-TEST] stage=desktop-runtime-settings-qemu status=ok app=settings surface=aqua.settings clients=2 launcher_closed=true")
+graphics_desktop_live_theme=$(contract_file_contains "${LIVE_THEME_QEMU_LOG}" "[AQUA-TEST] stage=desktop-live-theme-qemu status=ok from=LightWhite to=Deepside shell=true apps=files,settings restart=false frame_delta=true")
 graphics_desktop_runtime_damage=$(contract_file_contains "${GRAPHICAL_BOOT_QEMU_LOG}" "[AQUA-TEST] stage=desktop-runtime-damage-qemu status=ok app=settings interaction=keyboard-category-selected repaint=incremented revision=changed")
 graphics_desktop_runtime_close=$(contract_file_contains "${GRAPHICAL_BOOT_QEMU_LOG}" "[AQUA-TEST] stage=desktop-runtime-close-qemu status=ok app=settings close=alt-f4 exit=clean stale_surface=removed restart=never clients=1")
 graphics_desktop_runtime_unexpected_exit=$(contract_file_contains "${GRAPHICAL_BOOT_QEMU_LOG}" "[AQUA-TEST] stage=desktop-runtime-unexpected-exit-qemu status=ok app=files exit=forced stale_surface=removed restart=never active_count=0 clients=0")
@@ -1740,6 +1742,7 @@ cat > "${MANIFEST_JSON}" <<EOF
     "graphics_desktop_runtime_launch_files": "$(contract_file_contains "${GRAPHICAL_BOOT_QEMU_LOG}" "app=files surface=aqua.files")",
     "graphics_desktop_runtime_launch_repaint": "$(contract_file_contains "${GRAPHICAL_BOOT_QEMU_LOG}" "repaint=true supervised=true")",
     "graphics_desktop_runtime_settings": "$(contract_file_contains "${GRAPHICAL_BOOT_QEMU_LOG}" "[AQUA-TEST] stage=desktop-runtime-settings-qemu status=ok app=settings surface=aqua.settings clients=2 launcher_closed=true")",
+    "graphics_desktop_live_theme": "$(contract_file_contains "${LIVE_THEME_QEMU_LOG}" "[AQUA-TEST] stage=desktop-live-theme-qemu status=ok from=LightWhite to=Deepside shell=true apps=files,settings restart=false frame_delta=true")",
     "graphics_desktop_runtime_damage": "$(contract_file_contains "${GRAPHICAL_BOOT_QEMU_LOG}" "[AQUA-TEST] stage=desktop-runtime-damage-qemu status=ok app=settings interaction=keyboard-category-selected repaint=incremented revision=changed")",
     "graphics_desktop_runtime_close": "$(contract_file_contains "${GRAPHICAL_BOOT_QEMU_LOG}" "[AQUA-TEST] stage=desktop-runtime-close-qemu status=ok app=settings close=alt-f4 exit=clean stale_surface=removed restart=never clients=1")",
     "graphics_desktop_runtime_unexpected_exit": "$(contract_file_contains "${GRAPHICAL_BOOT_QEMU_LOG}" "[AQUA-TEST] stage=desktop-runtime-unexpected-exit-qemu status=ok app=files exit=forced stale_surface=removed restart=never active_count=0 clients=0")",

@@ -4396,6 +4396,7 @@ struct WaylandSmokeState {
 #[derive(Clone)]
 struct ServerSurfaceRecord {
     surface: WlSurface,
+    buffer: wl_buffer::WlBuffer,
     sample_checksum: u64,
     sample_pixel: [u8; 4],
     sample_grid: [[u8; 4]; CLIENT_SAMPLE_GRID_PIXELS],
@@ -7774,9 +7775,21 @@ impl CompositorHandler for WaylandSmokeState {
             }
             self.pending_frame_callbacks
                 .append(&mut attributes.frame_callbacks);
-            if let Some(BufferAssignment::NewBuffer(buffer)) = attributes.buffer.as_ref() {
-                self.server_buffer_attach_count += 1;
-                self.mapped_surface = Some(surface.clone());
+            let new_buffer = match attributes.buffer.as_ref() {
+                Some(BufferAssignment::NewBuffer(buffer)) => Some(buffer.clone()),
+                _ => None,
+            };
+            let buffer = new_buffer.clone().or_else(|| {
+                self.mapped_surfaces
+                    .iter()
+                    .find(|record| record.surface == *surface)
+                    .map(|record| record.buffer.clone())
+            });
+            if let Some(buffer) = buffer {
+                if new_buffer.is_some() {
+                    self.server_buffer_attach_count += 1;
+                    self.mapped_surface = Some(surface.clone());
+                }
                 if let Ok((
                     sample_checksum,
                     sample_pixel,
@@ -7785,7 +7798,7 @@ impl CompositorHandler for WaylandSmokeState {
                     buffer_width,
                     buffer_height,
                     buffer_stride,
-                )) = with_buffer_contents(buffer, |ptr, len, metadata| {
+                )) = with_buffer_contents(&buffer, |ptr, len, metadata| {
                     let byte_count = (metadata.height as usize)
                         .saturating_mul(metadata.stride as usize)
                         .min(len);
@@ -7858,6 +7871,7 @@ impl CompositorHandler for WaylandSmokeState {
                         self.shm_buffer_stride = buffer_stride;
                         let record = ServerSurfaceRecord {
                             surface: surface.clone(),
+                            buffer,
                             sample_checksum,
                             sample_pixel,
                             sample_grid,
