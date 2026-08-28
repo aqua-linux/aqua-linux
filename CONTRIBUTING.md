@@ -16,6 +16,16 @@ its architecture and recovery guarantees.
 Substantial architecture changes should begin with an ADR under
 `docs/aqua-linux/`.
 
+## Issues And Triage
+
+Use the structured GitHub forms for bugs, feature proposals, and physical
+hardware observations. Blank issues are disabled. Security vulnerabilities
+must use private vulnerability reporting instead of a public issue.
+
+The complete intake, triage, priority, area, risk, and ready-state rules are in
+[contributor-workflow.md](docs/aqua-linux/contributor-workflow.md). Label names
+and descriptions are canonical in `.github/labels.yml`.
+
 ## Development Setup
 
 Install Rust stable, Docker or a Linux Buildroot toolchain, QEMU x86_64,
@@ -29,6 +39,7 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
 scripts/check.sh
 scripts/check-public-repo.sh
+scripts/check-contributor-workflow.sh
 ```
 
 Buildroot and QEMU changes should also run the narrowest relevant image check.
@@ -61,3 +72,7 @@ Use imperative commit subjects and explain the problem, changed contract,
 validation performed, and recovery/installer/hardware/licensing impact.
 Screenshots may support a change but cannot replace automated or serial-log
 evidence.
+
+Create focused branches from current `main`. Pull requests should reference an
+accepted issue except for narrow typo or test-maintenance fixes, complete the
+repository pull request checklist, and avoid combining unrelated milestones.

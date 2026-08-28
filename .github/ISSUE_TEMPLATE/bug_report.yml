@@ -1,0 +1,83 @@
+name: Bug report
+description: Report reproducible behavior in the current Aqua Linux source or QEMU image.
+title: "[Bug]: "
+labels:
+  - type:bug
+  - status:needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Aqua Linux is a pre-release system. Report only observed behavior and do not claim physical hardware support from a QEMU result.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Boot and recovery
+        - Compositor and Wayland
+        - Shell and first-party applications
+        - Installer
+        - Build and CI
+        - Documentation and assets
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Tested revision
+      description: Commit SHA or branch name used for the test.
+      placeholder: 0123456789abcdef
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - QEMU x86_64
+        - Host-side test or preview
+        - Buildroot build container
+        - Physical hardware observation only
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include the exact safe command sequence and relevant serial markers.
+      placeholder: |
+        1. Build with ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Paste bounded logs or link a provenance-recorded QEMU capture. Remove secrets and unique hardware identifiers.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I did not run a destructive installer path against a physical disk.
+          required: true
+        - label: This report contains no password, serial number, MAC address, hostname, UUID, private key, or personal data.
+          required: true
+        - label: This is not an undisclosed security vulnerability.
+          required: true

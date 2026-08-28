@@ -5,7 +5,7 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. The default image now packages the permanent project-authored Aqua Core Icons for core applications and status surfaces. All temporary Lucide assets, runtime paths, fetch tooling, and third-party notices have been removed; the scene contract rejects temporary icon bindings.",
+  "currentStage": "Milestone 11 is complete. The public repository now has structured bug, feature, and sanitized physical-hardware issue forms; private security routing; a canonical label taxonomy; a pull request safety checklist; and CI-enforced contributor workflow contracts. Remaining v1 progress is physical MSI Sword 17 validation, which stays unauthorized until read-only evidence is reviewed.",
   "updated": "2026-08-28",
   "overallPercent": 92,
   "rules": [
@@ -107,13 +107,13 @@
     {
       "id": "m11",
       "name": "Polish and Public Readiness",
-      "percent": 99,
-      "status": "in-progress",
+      "percent": 100,
+      "status": "complete",
       "updated": "2026-08-28",
-      "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, permanent Aqua Core Icons, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, four live-refreshed themes, and three real workspaces. Current QEMU captures carry a provenance manifest, the public hardware matrix prevents physical support overclaims, and the default-image gate enforces recovery-safe startup. A bounded read-only MSI inventory collector records non-unique platform metadata without modifying devices or authorizing support and installation. The contributor issue workflow remains incomplete."
+      "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, permanent Aqua Core Icons, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, four live-refreshed themes, and three real workspaces. Current QEMU captures carry a provenance manifest, the public hardware matrix prevents physical support overclaims, and the default-image gate enforces recovery-safe startup. Structured issue forms, private security routing, canonical labels, a pull request safety checklist, and CI-enforced contributor contracts now define public intake and triage."
     }
   ],
   "nextSteps": [
-    "Publish the contributor issue workflow and label taxonomy for remaining v1 work."
+    "Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation."
   ]
 }

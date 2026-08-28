@@ -26,6 +26,7 @@ cargo test --workspace
 scripts/check-graphical-session-supervisor.sh
 scripts/check-default-recovery-safety.sh
 scripts/check-graphical-session-stop.sh
+scripts/check-contributor-workflow.sh
 check_output_contains '[AQUA-HOST] stage=qemu-visible-manual-preflight status=print-only' env AQUA_QEMU_VISIBLE_PREFLIGHT_PRINT_ONLY=true scripts/preflight-qemu-visible-manual.sh
 check_output_contains 'preflight_ready=true' env AQUA_QEMU_VISIBLE_PREFLIGHT_PRINT_ONLY=true scripts/preflight-qemu-visible-manual.sh
 check_output_contains '[AQUA-HOST] stage=qemu-visible-readiness-watch status=print-only' env AQUA_QEMU_VISIBLE_WATCH_PRINT_ONLY=true scripts/watch-qemu-visible-readiness.sh
@@ -1037,6 +1038,8 @@ assert phases["m8"]["percent"] == 100
 assert phases["m8"]["status"] == "complete"
 assert phases["m9"]["percent"] == 100
 assert phases["m9"]["status"] == "complete"
+assert phases["m11"]["percent"] == 100
+assert phases["m11"]["status"] == "complete"
 PY
 test -f crates/aqua-installer/Cargo.toml
 test -f crates/aqua-installer/src/lib.rs

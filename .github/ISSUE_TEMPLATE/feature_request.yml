@@ -1,0 +1,62 @@
+name: Feature proposal
+description: Propose a bounded change that preserves Aqua Linux architecture and recovery guarantees.
+title: "[Proposal]: "
+labels:
+  - type:enhancement
+  - status:needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Proposals must retain Buildroot, the custom Smithay compositor, QEMU-first validation, and the recovery shell. Architecture changes may require an ADR before implementation.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Boot and recovery
+        - Compositor and Wayland
+        - Shell and first-party applications
+        - Installer
+        - Hardware validation
+        - Documentation and assets
+        - Build and release engineering
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the user or engineering problem without prescribing an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable, testable completion conditions.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Recovery, installer, hardware, and licensing impact
+      description: State which safety boundaries are affected and how they remain testable.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Architecture confirmation
+      options:
+        - label: This proposal does not replace Buildroot or the custom compositor with another distribution or desktop environment.
+          required: true
+        - label: This proposal preserves an explicit recovery path and does not weaken installer confirmation gates.
+          required: true

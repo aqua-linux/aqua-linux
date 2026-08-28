@@ -11,6 +11,10 @@ for file in LICENSE ASSET_LICENSE.md THIRD_PARTY_LICENSES.md CONTRIBUTING.md SEC
     }
 done
 
+scripts/check-contributor-workflow.sh >/dev/null
+grep -Fq 'contributor-workflow.md' CONTRIBUTING.md
+grep -Fq 'contributor workflow' README.md
+
 grep -Fq '/website/' .gitignore
 grep -Fq '/target/' .gitignore
 grep -Fq '/build/' .gitignore

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/aqua-linux/aqua-linux/security/advisories/new
+    about: Report exploitable boot, installer, privilege, filesystem, or session issues privately.
+  - name: Contribution guide
+    url: https://github.com/aqua-linux/aqua-linux/blob/main/CONTRIBUTING.md
+    about: Read the architecture, safety, testing, and asset requirements before contributing.

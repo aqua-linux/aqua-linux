@@ -33,7 +33,6 @@ not part of the Aqua Linux runtime image.
 ## Not Finished
 
 - Runtime convergence with the canonical Aqua interface contract.
-- Contributor issue workflow and label taxonomy.
 - Production login/first-run experience.
 - Audio, Wi-Fi, Bluetooth, battery, suspend/resume, and update UX.
 - MSI Sword 17 hardware validation.
@@ -184,6 +183,11 @@ See [visual-reference.md](docs/aqua-linux/visual-reference.md) and
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Small,
 testable changes that preserve the Buildroot base, recovery path, and custom
 compositor architecture are preferred.
+
+Bug, feature, and physical-hardware reports use structured GitHub forms. The
+[contributor workflow](docs/aqua-linux/contributor-workflow.md) defines triage,
+priority, ownership, risk labels, and the evidence required before work is
+marked ready.
 
 Security issues should follow [SECURITY.md](SECURITY.md), not public issue
 threads.
