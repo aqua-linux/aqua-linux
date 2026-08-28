@@ -20,10 +20,11 @@ use aqua_renderer::{
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_renderer::{
-    export_runtime_desktop_rgba_with_launcher, plan_client_layer_paint_steps,
-    plan_client_surface_sources, render_desktop_icons_rgba, render_dock_rgba,
-    render_notification_toast_rgba, render_session_menu_overlay_rgba, render_system_overview_rgba,
-    render_top_bar_rgba, ClientLayerPaintPlan, ClientSurfaceSource,
+    export_runtime_desktop_rgba_with_launcher_and_theme, plan_client_layer_paint_steps,
+    plan_client_surface_sources, render_desktop_icons_rgba_with_theme, render_dock_rgba_with_theme,
+    render_launcher_overlay_rgba_with_theme, render_notification_toast_rgba_with_theme,
+    render_session_menu_overlay_rgba_with_theme, render_system_overview_rgba_with_theme,
+    render_top_bar_rgba_with_theme, ClientLayerPaintPlan, ClientSurfaceSource,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_scene::{static_shell_scene, MaterialKind, Rect};
@@ -553,6 +554,10 @@ struct LiveGpuCompositor {
     target: GlesTexture,
     target_size: (u32, u32),
     scene: aqua_scene::ShellScene,
+    theme: aqua_shell::AquaTheme,
+    launcher_texture: Option<GlesTexture>,
+    launcher_state: Option<aqua_shell::LauncherState>,
+    launcher_texture_size: (u32, u32),
     top_bar_texture: Option<GlesTexture>,
     top_bar_state: Option<aqua_shell::TopBarState>,
     top_bar_texture_size: (u32, u32),
@@ -589,7 +594,8 @@ impl LiveGpuCompositor {
         if self.top_bar_state.as_ref() == Some(state) {
             return Ok(());
         }
-        let overlay = render_top_bar_rgba(self.scene.viewport.width, 36, state);
+        let overlay =
+            render_top_bar_rgba_with_theme(self.scene.viewport.width, 36, state, self.theme);
         self.top_bar_texture = Some(
             self.renderer
                 .import_memory(
@@ -635,9 +641,41 @@ impl LiveGpuCompositor {
         );
     }
 
-    fn set_launcher_visible(&mut self, visible: bool) {
+    fn set_launcher_state(&mut self, state: &aqua_shell::LauncherState) -> Result<(), String> {
+        if self.launcher_state.as_ref() == Some(state) {
+            return Ok(());
+        }
+        let visible = state.is_open();
         self.scene
             .set_surface_visible(aqua_scene::SurfaceKind::Launcher, visible);
+        if !visible {
+            self.launcher_texture = None;
+            self.launcher_state = Some(state.clone());
+            return Ok(());
+        }
+        let (rgba, probe) =
+            render_launcher_overlay_rgba_with_theme(self.scene.viewport, state, self.theme);
+        if !probe.is_ready() {
+            return Err("launcher overlay did not satisfy its render contract".to_string());
+        }
+        self.launcher_texture = Some(
+            self.renderer
+                .import_memory(
+                    &rgba,
+                    Fourcc::Abgr8888,
+                    (
+                        self.scene.viewport.width as i32,
+                        self.scene.viewport.height as i32,
+                    )
+                        .into(),
+                    false,
+                )
+                .map_err(|error| format!("cannot upload launcher texture: {error}"))?,
+        );
+        self.launcher_state = Some(state.clone());
+        self.launcher_texture_size = (self.scene.viewport.width, self.scene.viewport.height);
+        println!("desktop_launcher_theme={}", self.theme.id());
+        Ok(())
     }
 
     fn set_desktop_icons_state(
@@ -647,10 +685,11 @@ impl LiveGpuCompositor {
         if self.desktop_icons_state.as_ref() == Some(state) {
             return Ok(());
         }
-        let overlay = render_desktop_icons_rgba(
+        let overlay = render_desktop_icons_rgba_with_theme(
             aqua_shell::DESKTOP_ICON_LAYER_WIDTH,
             aqua_shell::DESKTOP_ICON_LAYER_HEIGHT,
             state,
+            self.theme,
         );
         self.desktop_icons_texture = Some(
             self.renderer
@@ -684,7 +723,7 @@ impl LiveGpuCompositor {
         if self.dock_state.as_ref() == Some(state) {
             return Ok(());
         }
-        let overlay = render_dock_rgba(760, 72, state);
+        let overlay = render_dock_rgba_with_theme(760, 72, state, self.theme);
         self.dock_texture = Some(
             self.renderer
                 .import_memory(
@@ -719,7 +758,7 @@ impl LiveGpuCompositor {
             self.session_menu_state = None;
             return Ok(());
         }
-        let overlay = render_session_menu_overlay_rgba(512, 293, state);
+        let overlay = render_session_menu_overlay_rgba_with_theme(512, 293, state, self.theme);
         println!("desktop_session_menu_overlay_texture_ready=true");
         println!(
             "desktop_session_menu_overlay_selected={}",
@@ -755,7 +794,7 @@ impl LiveGpuCompositor {
         if self.system_overview_state.as_ref() == Some(state) {
             return Ok(());
         }
-        let overlay = render_system_overview_rgba(512, 352, state);
+        let overlay = render_system_overview_rgba_with_theme(512, 352, state, self.theme);
         self.system_overview_texture = Some(
             self.renderer
                 .import_memory(
@@ -790,7 +829,7 @@ impl LiveGpuCompositor {
             self.notification_state = state.clone();
             return Ok(());
         }
-        let overlay = render_notification_toast_rgba(420, 112, state);
+        let overlay = render_notification_toast_rgba_with_theme(420, 112, state, self.theme);
         self.notification_texture = Some(
             self.renderer
                 .import_memory(
@@ -909,6 +948,8 @@ impl LiveGpuCompositor {
         scene.set_surface_visible(aqua_scene::SurfaceKind::SystemOverview, true);
         scene.set_surface_visible(aqua_scene::SurfaceKind::DesktopIconColumn, true);
         scene.set_surface_visible(aqua_scene::SurfaceKind::NotificationToast, false);
+        let theme = configured_runtime_theme();
+        println!("desktop_shell_theme={}", theme.id());
         Ok(Self {
             renderer,
             wallpaper_texture,
@@ -919,6 +960,10 @@ impl LiveGpuCompositor {
             target,
             target_size: (320, 240),
             scene,
+            theme,
+            launcher_texture: None,
+            launcher_state: None,
+            launcher_texture_size: (0, 0),
             top_bar_texture: None,
             top_bar_state: None,
             top_bar_texture_size: (0, 0),
@@ -1023,6 +1068,8 @@ impl LiveGpuCompositor {
             &self.scene,
             client_plan,
             &client_textures,
+            self.launcher_texture.as_ref(),
+            self.launcher_texture_size,
             self.top_bar_texture.as_ref(),
             self.top_bar_texture_size,
             self.desktop_icons_texture.as_ref(),
@@ -1051,6 +1098,8 @@ impl LiveGpuCompositor {
             &self.scene,
             client_plan,
             &client_textures,
+            self.launcher_texture.as_ref(),
+            self.launcher_texture_size,
             self.top_bar_texture.as_ref(),
             self.top_bar_texture_size,
             self.desktop_icons_texture.as_ref(),
@@ -1136,6 +1185,8 @@ impl LiveGpuCompositor {
             &self.scene,
             client_plan,
             &client_textures,
+            self.launcher_texture.as_ref(),
+            self.launcher_texture_size,
             self.top_bar_texture.as_ref(),
             self.top_bar_texture_size,
             self.desktop_icons_texture.as_ref(),
@@ -1731,6 +1782,8 @@ fn render_gpu_scene(
     scene: &aqua_scene::ShellScene,
     client_plan: &aqua_renderer::ClientLayerPaintPlan,
     client_textures: &[GlesTexture],
+    launcher_texture: Option<&GlesTexture>,
+    launcher_texture_size: (u32, u32),
     top_bar_texture: Option<&GlesTexture>,
     top_bar_texture_size: (u32, u32),
     desktop_icons_texture: Option<&GlesTexture>,
@@ -1893,11 +1946,20 @@ fn render_gpu_scene(
                 )
             })?;
     }
-    for surface in scene
-        .surfaces
-        .iter()
-        .filter(|surface| surface.visible && surface.material == MaterialKind::SystemSurface)
-    {
+    for surface in scene.surfaces.iter().filter(|surface| {
+        surface.visible
+            && surface.material == MaterialKind::SystemSurface
+            && match surface.kind {
+                aqua_scene::SurfaceKind::TopPanel => top_bar_texture.is_none(),
+                aqua_scene::SurfaceKind::Launcher => launcher_texture.is_none(),
+                aqua_scene::SurfaceKind::Dock => dock_texture.is_none(),
+                aqua_scene::SurfaceKind::SystemOverview => {
+                    system_overview_texture.is_none() && session_menu_texture.is_none()
+                }
+                aqua_scene::SurfaceKind::NotificationToast => notification_texture.is_none(),
+                _ => true,
+            }
+    }) {
         let rect = Rectangle::new(
             (
                 (surface.rect.x * render_width / scene.viewport.width) as i32,
@@ -1946,6 +2008,29 @@ fn render_gpu_scene(
                 &uniforms,
             )
             .map_err(|error| format!("cannot shade GPU surface surface {}: {error}", surface.id))?;
+    }
+    if let Some(texture) = launcher_texture {
+        let rect = Rectangle::from_size((render_width as i32, render_height as i32).into());
+        frame
+            .render_texture_from_to(
+                texture,
+                Rectangle::new(
+                    (0.0, 0.0).into(),
+                    (
+                        launcher_texture_size.0 as f64,
+                        launcher_texture_size.1 as f64,
+                    )
+                        .into(),
+                ),
+                rect,
+                &[Rectangle::from_size(rect.size)],
+                &[],
+                Transform::Normal,
+                1.0,
+                None,
+                &[],
+            )
+            .map_err(|error| format!("cannot composite launcher content: {error}"))?;
     }
     if let (Some(texture), Some(surface)) = (
         top_bar_texture,
@@ -4001,6 +4086,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         compositor.set_shell_chrome_visible(false);
                         println!("installer_wayland_shell_chrome_visible=false");
                     } else {
+                        compositor.set_launcher_state(&runtime_launcher_state.borrow())?;
                         compositor.set_top_bar_state(&runtime_top_bar.borrow())?;
                         compositor.set_desktop_icons_state(&runtime_desktop_icon_state.borrow())?;
                         compositor.set_dock_state(&runtime_dock_state.borrow())?;
@@ -4506,7 +4592,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                     if let Some(compositor) =
                                         live_gpu_wayland_compositor.borrow_mut().as_mut()
                                     {
-                                        compositor.set_launcher_visible(launcher_state.is_open());
+                                        compositor.set_launcher_state(&launcher_state)?;
                                         compositor.set_top_bar_state(&top_bar_state)?;
                                         compositor.set_desktop_icons_state(&desktop_icon_state)?;
                                         compositor.set_dock_state(&dock_state)?;
@@ -7890,13 +7976,14 @@ fn render_fbdev_frame_with_external_clients(
         None
     };
     let frame = if let Some(wallpaper) = &wallpaper {
-        let (frame, launcher_probe) = export_runtime_desktop_rgba_with_launcher(
+        let (frame, launcher_probe) = export_runtime_desktop_rgba_with_launcher_and_theme(
             viewport,
             wallpaper.width,
             wallpaper.height,
             &wallpaper.rgba,
             &paint_plan,
             launcher,
+            configured_runtime_theme(),
         )
         .map_err(|error| format!("external client composition failed: {error}"))?;
         if launcher.is_open() && !launcher_probe.is_ready() {
@@ -7908,6 +7995,21 @@ fn render_fbdev_frame_with_external_clients(
     };
     let target = pack_rgba_frame(&frame.bytes, frame.width, frame.height, width, height, 32)?;
     Ok((target, frame.checksum, wallpaper.is_some()))
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn configured_runtime_theme() -> aqua_shell::AquaTheme {
+    if let Ok(value) = env::var("AQUA_THEME") {
+        if let Some(theme) = aqua_shell::AquaTheme::parse(&value) {
+            return theme;
+        }
+    }
+    let config_path = env::var_os("AQUA_SETTINGS_CONFIG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/home/aqua/.config/aqua/settings.conf"));
+    aqua_shell::SettingsWindowModel::load_or_default(&config_path)
+        .map(|model| model.theme)
+        .unwrap_or_default()
 }
 
 fn pack_rgba_frame(
