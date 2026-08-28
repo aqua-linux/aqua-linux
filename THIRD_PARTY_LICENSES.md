@@ -6,13 +6,6 @@ release obligations are authoritative in its generated `legal-info` output.
 
 ## Committed Assets
 
-### Lucide Icons
-
-- Use: temporary development icons.
-- Source: <https://lucide.dev/>
-- License: ISC.
-- Local text: `docs/aqua-linux/assets/temp-icons/lucide/LICENSE`.
-
 ### Noto Sans
 
 - Use: embedded UI text in the software renderer and first-party applications.

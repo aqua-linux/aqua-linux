@@ -9058,8 +9058,8 @@ fn probe_scene() {
         state(probe.required_assets_present)
     );
     println!(
-        "temporary_assets_labeled={}",
-        state(probe.temporary_assets_labeled)
+        "permanent_assets_only={}",
+        state(probe.permanent_assets_only)
     );
     println!(
         "required_material_tokens_present={}",
@@ -9226,8 +9226,8 @@ fn probe_assets(root: PathBuf) {
         "design_tokens_scene_materials={}",
         state(token_materials_ok)
     );
-    println!("temp_home_icon={}", state(probe.temp_home_icon));
-    println!("temp_license={}", state(probe.temp_license));
+    println!("aqua_home_icon={}", state(probe.aqua_home_icon));
+    println!("aqua_icon_license={}", state(probe.aqua_icon_license));
 
     if probe.is_ready() && token_product_ok && token_materials_ok {
         println!("[AQUA-COMPOSITOR] stage=asset-probe status=ok");

@@ -33,7 +33,7 @@ not part of the Aqua Linux runtime image.
 ## Not Finished
 
 - Runtime convergence with the canonical Aqua interface contract.
-- Final Aqua-owned application and status icons.
+- Contributor issue workflow and label taxonomy.
 - Production login/first-run experience.
 - Audio, Wi-Fi, Bluetooth, battery, suspend/resume, and update UX.
 - MSI Sword 17 hardware validation.

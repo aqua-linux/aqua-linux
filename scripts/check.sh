@@ -1029,7 +1029,8 @@ from pathlib import Path
 
 data = json.loads(Path("docs/aqua-linux/progress.json").read_text())
 phases = {phase["id"]: phase for phase in data["phases"]}
-assert phases["m2"]["percent"] == 95
+assert phases["m2"]["percent"] == 100
+assert phases["m2"]["status"] == "complete"
 assert phases["m4"]["percent"] == 100
 assert phases["m7"]["percent"] == 100
 assert phases["m8"]["percent"] == 100
@@ -1265,7 +1266,7 @@ test -f docs/aqua-linux/adr-0001-compositor-foundation.md
 grep -Fq 'NAME="Aqua Linux"' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'ID=aqua' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq '/usr/share/aqua/wallpapers' br2-external/aqua/board/aqua/x86_64/post-build.sh
-grep -Fq '/usr/share/aqua/icons/temp/lucide' br2-external/aqua/board/aqua/x86_64/post-build.sh
+grep -Fq '/usr/share/aqua/icons/aqua' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq '/usr/share/doc/aqua/third-party-licenses.md' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'target/x86_64-unknown-linux-musl/release/aqua-compositor' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'aqua-compositor-preview-exec' br2-external/aqua/board/aqua/x86_64/post-build.sh
@@ -1572,7 +1573,7 @@ grep -Fq 'session_bootstrap = "config-driven runtime directory preparation witho
 grep -Fq 'session_run_once = "AquaCompositorSession run-once smoke accepts one local client, dispatches, flushes, and cleans up"' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'session_loop = "AquaCompositorSession bounded loop smoke runs three dispatch/flush passes after accepting one local client"' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'static_shell_scene = "wallpaper, top panel, desktop icon column, dock, launcher, system overview, and notification toast geometry"' docs/aqua-linux/compositor-foundation.toml
-grep -Fq 'scene_asset_bindings = "runtime wallpaper, brand, and temporary Lucide icon paths are part of the scene dump contract"' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'scene_asset_bindings = "runtime wallpaper, brand, and permanent Aqua Core Icon paths are part of the scene dump contract"' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'scene_material_tokens = "bright Aqua surfaces reference shared surface, border, shadow, color, and layout token paths; blurRequired=false"' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'renderer_plan = "aqua-renderer produces headless draw command plans without drawing or boot graphics"' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'frame_plan = "aqua-renderer defines rgba8888 frame size, stride, buffer byte count, clear color, and full damage rect without allocating display output"' docs/aqua-linux/compositor-foundation.toml

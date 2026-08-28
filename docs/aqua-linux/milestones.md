@@ -353,7 +353,7 @@ Goal: prepare the project for public code release and outside contributors.
 Tasks:
 
 - Converge desktop, Applications, Search, Terminal, Files, Settings, installer, window chrome, and shared controls on the canonical visual/UI contracts.
-- Replace temporary icon placeholders with Aqua-owned or independently licensed assets matching the new direction.
+- Expand the permanent Aqua Core Icons as new first-party features require them.
 - Validate real localized clock/date, account, status, disk, and progress values; no mock values may appear in runtime acceptance captures.
 - Capture desktop, Applications, and Search at desktop and compact supported viewports and compare composition against the canonical references.
 - Rename remaining legacy Espresso components where practical.

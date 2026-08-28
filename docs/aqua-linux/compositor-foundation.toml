@@ -52,7 +52,7 @@ session_bootstrap = "config-driven runtime directory preparation without composi
 session_run_once = "AquaCompositorSession run-once smoke accepts one local client, dispatches, flushes, and cleans up"
 session_loop = "AquaCompositorSession bounded loop smoke runs three dispatch/flush passes after accepting one local client"
 static_shell_scene = "wallpaper, top panel, desktop icon column, dock, launcher, system overview, and notification toast geometry"
-scene_asset_bindings = "runtime wallpaper, brand, and temporary Lucide icon paths are part of the scene dump contract"
+scene_asset_bindings = "runtime wallpaper, brand, and permanent Aqua Core Icon paths are part of the scene dump contract"
 scene_material_tokens = "bright Aqua surfaces reference shared surface, border, shadow, color, and layout token paths; blurRequired=false"
 renderer_plan = "aqua-renderer produces headless draw command plans without drawing or boot graphics"
 paint_plan = "aqua-renderer produces deterministic paint order, opacity, blend, and legacy effect steps without drawing pixels"

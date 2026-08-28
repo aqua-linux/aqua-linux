@@ -30,7 +30,7 @@ Expected first exports:
 | `docs/aqua-linux/assets/aqua-wordmark-primary.png` | `/usr/share/aqua/brand/aqua-wordmark-primary.png` | Two-line wordmark |
 | `docs/aqua-linux/assets/aqua-logo-primary.png` | `/usr/share/aqua/brand/aqua-logo-primary.png` | Combined logo for installer, About, and future splash use |
 | `docs/aqua-linux/design-tokens.json` | `/usr/share/aqua/tokens/design-tokens.json` | Token source for shell/render code |
-| `docs/aqua-linux/assets/temp-icons/lucide/*.svg` | `/usr/share/aqua/icons/temp/lucide/*.svg` | Temporary Lucide placeholders only |
+| `docs/aqua-linux/assets/icons/aqua/*.svg` | `/usr/share/aqua/icons/aqua/*.svg` | Permanent project-authored Aqua Core Icons |
 
 ## Export Rules
 
@@ -38,7 +38,7 @@ Expected first exports:
 - Preserve the alpha channel in every derived brand export; never flatten a symbol or wordmark onto a matte.
 - Preserve wallpaper aspect ratio; scale with a centered cover crop and never stretch.
 - Generate runtime-size variants only from committed source assets.
-- Keep temporary Lucide icons in a separate runtime namespace until final Aqua icons replace them.
+- Keep Aqua Core Icons in the permanent `/usr/share/aqua/icons/aqua/` namespace.
 - Do not claim boot splash support until a boot splash process or kernel/userspace splash path exists.
 - Do not claim real blur/refraction until the compositor or renderer implements it.
 - Keep private design and brand-source boards under the Git-ignored `docs/aqua-linux/local-references/` tree. Do not install or publish complete boards, and do not crop runtime icons from interface references. Only the approved transparent brand exports belong in the public/runtime asset set.

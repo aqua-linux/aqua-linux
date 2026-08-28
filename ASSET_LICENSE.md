@@ -25,8 +25,8 @@ other embedded artwork from them.
 
 ## Separately Licensed Assets
 
-- Lucide development icons are ISC licensed. See
-  `docs/aqua-linux/assets/temp-icons/lucide/LICENSE`.
+- Aqua Core Icons are project-authored and MIT licensed. See
+  `docs/aqua-linux/assets/icons/aqua/LICENSE`.
 - Noto Sans is SIL Open Font License 1.1. See
   `docs/aqua-linux/assets/fonts/OFL.txt`.
 

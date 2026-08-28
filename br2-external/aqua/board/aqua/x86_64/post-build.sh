@@ -350,7 +350,7 @@ if [ -d "${ASSET_SOURCE_DIR}" ] && [ -f "${TOKEN_SOURCE}" ]; then
     mkdir -p \
         "${TARGET_DIR}/usr/share/aqua/wallpapers" \
         "${TARGET_DIR}/usr/share/aqua/brand" \
-        "${TARGET_DIR}/usr/share/aqua/icons/temp/lucide" \
+        "${TARGET_DIR}/usr/share/aqua/icons/aqua" \
         "${TARGET_DIR}/usr/share/aqua/fonts" \
         "${TARGET_DIR}/usr/share/aqua/tokens" \
         "${TARGET_DIR}/usr/share/doc/aqua"
@@ -369,11 +369,11 @@ if [ -d "${ASSET_SOURCE_DIR}" ] && [ -f "${TOKEN_SOURCE}" ]; then
     cp "${TOKEN_SOURCE}" "${TARGET_DIR}/usr/share/aqua/tokens/design-tokens.json"
     cp "${ASSET_SOURCE_DIR}/manifest.md" "${TARGET_DIR}/usr/share/doc/aqua/asset-manifest.md"
     cp "${REPO_DIR}/docs/aqua-linux/runtime-assets.md" "${TARGET_DIR}/usr/share/doc/aqua/runtime-assets.md"
-    cp "${ASSET_SOURCE_DIR}/temp-icons/README.md" "${TARGET_DIR}/usr/share/doc/aqua/temp-icons.md"
+    cp "${ASSET_SOURCE_DIR}/icons/aqua/README.md" "${TARGET_DIR}/usr/share/doc/aqua/aqua-icons.md"
     cp "${REPO_DIR}/THIRD_PARTY_LICENSES.md" "${TARGET_DIR}/usr/share/doc/aqua/third-party-licenses.md"
 
-    cp "${ASSET_SOURCE_DIR}/temp-icons/lucide/"*.svg "${TARGET_DIR}/usr/share/aqua/icons/temp/lucide/"
-    cp "${ASSET_SOURCE_DIR}/temp-icons/lucide/LICENSE" "${TARGET_DIR}/usr/share/aqua/icons/temp/lucide/LICENSE"
+    cp "${ASSET_SOURCE_DIR}/icons/aqua/"*.svg "${TARGET_DIR}/usr/share/aqua/icons/aqua/"
+    cp "${ASSET_SOURCE_DIR}/icons/aqua/LICENSE" "${TARGET_DIR}/usr/share/aqua/icons/aqua/LICENSE"
     cp "${ASSET_SOURCE_DIR}/fonts/NotoSans-Regular.ttf" "${TARGET_DIR}/usr/share/aqua/fonts/NotoSans-Regular.ttf"
     cp "${ASSET_SOURCE_DIR}/fonts/OFL.txt" "${TARGET_DIR}/usr/share/aqua/fonts/OFL.txt"
 fi
