@@ -1166,6 +1166,14 @@ grep -Fq 'check-qemu-theme-frame-delta.py' scripts/check-graphical-boot-qemu.sh
 test -x scripts/check-live-theme-qemu.sh
 test -x scripts/check-live-theme-qemu.exp
 test -x scripts/check-qemu-theme-frame-delta.py
+test -x scripts/check-workspaces-qemu.sh
+test -x scripts/check-workspaces-qemu.exp
+grep -Fq 'desktop-workspaces-qemu status=ok' scripts/check-workspaces-qemu.sh
+grep -Fq 'workspace_window_assignment = ' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'workspace_input = ' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'workspace_qemu = ' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'workspace-move-right' scripts/send-qemu-monitor-input.py
+grep -Fq 'workspace-switch-right' scripts/send-qemu-monitor-input.py
 grep -Fq 'desktop_shell_theme=' crates/aqua-compositor/src/main.rs
 grep -Fq 'theme=LightWhite' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'run-manual-nested-preview-execution' docs/aqua-linux/compositor.md

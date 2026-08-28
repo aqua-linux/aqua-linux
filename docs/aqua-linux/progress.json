@@ -5,9 +5,9 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. QEMU now proves a user-visible LightWhite-to-Deepside transition across the shell, Files, and Settings without restarting either application; the captured frames differ across 37.30% of pixels. Full workspace window assignment and movement remain ahead without changing the Buildroot or custom Wayland compositor architecture.",
+  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. The desktop now assigns every XDG toplevel to one of three workspaces, switches them through the bottom shell or keyboard, and moves focused windows without restarting applications. Dedicated Linux and QEMU acceptance cover focus, pointer targets, empty and populated rendering, process continuity, and visible scanout changes.",
   "updated": "2026-08-28",
-  "overallPercent": 88,
+  "overallPercent": 89,
   "rules": [
     "Aqua Linux v1.0 is treated as 100%.",
     "Overall progress is the rounded arithmetic mean of the 12 phase percentages so the public value is reproducible.",
@@ -78,7 +78,7 @@
       "percent": 100,
       "status": "complete",
       "updated": "2026-08-16",
-      "summary": "The state-driven shell starts packaged Aqua Files and Aqua Settings through strict executable preflight and reusable process supervision. Production QEMU maps and raises first-party windows by XDG app_id, tracks damage, closes applications, reaps failures, and removes stale surfaces. Notifications, real system overview, desktop icon interactions, target-aware Properties, confined Trash, and the confirmed session menu are integrated. Applications and Global Search are separate centered modes with scaled pointer targets and real quick actions. The bottom shell now separates these controls from the centered app dock and bounded workspace selection; assigning and moving windows across workspaces remains later work."
+      "summary": "The state-driven shell starts packaged Aqua Files and Aqua Settings through strict executable preflight and reusable process supervision. Production QEMU maps and raises first-party windows by XDG app_id, tracks damage, closes applications, reaps failures, and removes stale surfaces. Notifications, real system overview, desktop icon interactions, target-aware Properties, confined Trash, and the confirmed session menu are integrated. Applications and Global Search are separate centered modes with scaled pointer targets and real quick actions. The bottom shell separates these controls from the centered app dock and three real workspaces; keyboard and pointer paths activate workspaces, and focused windows can move between them."
     },
     {
       "id": "m8",
@@ -107,14 +107,14 @@
     {
       "id": "m11",
       "name": "Polish and Public Readiness",
-      "percent": 55,
+      "percent": 70,
       "status": "in-progress",
       "updated": "2026-08-28",
-      "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, and persisted plus bounded live-refreshed LightWhite, Softtouch, Deepside, and Nightmare palettes across current application, shell, and all seven Installer setup screens. Dedicated QEMU acceptance now changes the shell, Files, and Settings from LightWhite to Deepside without process restarts and requires a visible frame delta. Full workspace management, broader current public OS screenshots, hardware status, final icon clearance, and issue workflow are incomplete."
+      "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, and persisted plus bounded live-refreshed LightWhite, Softtouch, Deepside, and Nightmare palettes across current application, shell, and all seven Installer setup screens. Three-workspace assignment, switching, focused-window movement, active-workspace rendering and input scoping, process continuity, and visible QEMU frame acceptance are complete. Broader current public OS screenshots, hardware status, final icon clearance, and issue workflow remain incomplete."
     }
   ],
   "nextSteps": [
-    "Implement full workspace window assignment and movement with keyboard, pointer, and QEMU acceptance coverage.",
+    "Publish a current, reproducible QEMU desktop screenshot set from the implemented runtime.",
     "Keep fallback TTY, boot_graphics=false, and autostart=false in the default development image."
   ]
 }

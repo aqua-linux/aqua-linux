@@ -45,6 +45,7 @@ pub use aqua_shell::{
     DesktopIconState, DesktopPointerButton, DockItem, DockState, LaunchRequest, LauncherCategory,
     LauncherEvent, LauncherPointerTarget, LauncherState, NotificationCenter, SessionAction,
     SessionMenuEvent, SessionMenuState, TrashModel, NOTIFICATION_DEFAULT_TIMEOUT_MS,
+    WORKSPACE_COUNT,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4389,7 +4390,11 @@ struct WaylandSmokeState {
     launcher_app_click_count: usize,
     launcher_launch_request: Option<LaunchRequest>,
     session_action_request: Option<SessionAction>,
+    ctrl_pressed: bool,
+    shift_pressed: bool,
     alt_pressed: bool,
+    workspace_switch_count: usize,
+    workspace_move_count: usize,
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -4397,6 +4402,7 @@ struct WaylandSmokeState {
 struct ServerSurfaceRecord {
     surface: WlSurface,
     buffer: wl_buffer::WlBuffer,
+    workspace: usize,
     sample_checksum: u64,
     sample_pixel: [u8; 4],
     sample_grid: [[u8; 4]; CLIENT_SAMPLE_GRID_PIXELS],
@@ -4500,8 +4506,74 @@ impl WaylandSmokeState {
             launcher_app_click_count: 0,
             launcher_launch_request: None,
             session_action_request: None,
+            ctrl_pressed: false,
+            shift_pressed: false,
             alt_pressed: false,
+            workspace_switch_count: 0,
+            workspace_move_count: 0,
         })
+    }
+
+    fn focus_top_surface_in_active_workspace(&mut self, serial: u32) {
+        self.mapped_surface = self
+            .mapped_surfaces
+            .iter()
+            .rev()
+            .find(|record| record.workspace == self.active_workspace)
+            .map(|record| record.surface.clone());
+        if let Some(keyboard) = self.seat.get_keyboard() {
+            keyboard.set_focus(
+                self,
+                self.mapped_surface.clone(),
+                Serial::from(serial.max(1)),
+            );
+        }
+        self.keyboard_focus_assigned = self.mapped_surface.is_some();
+        self.pointer_focus_surface = None;
+        self.pointer_focus_assigned = false;
+    }
+
+    fn activate_workspace(&mut self, workspace: usize, serial: u32) -> bool {
+        if workspace >= WORKSPACE_COUNT || workspace == self.active_workspace {
+            return false;
+        }
+        let previous = self.active_workspace;
+        self.active_workspace = workspace;
+        self.workspace_switch_count += 1;
+        self.focus_top_surface_in_active_workspace(serial);
+        let visible_clients = self
+            .mapped_surfaces
+            .iter()
+            .filter(|record| record.workspace == workspace)
+            .count();
+        println!(
+            "desktop_workspace_switched from={previous} to={workspace} visible_clients={visible_clients} count={}",
+            self.workspace_switch_count
+        );
+        true
+    }
+
+    fn move_active_surface_to_workspace(&mut self, workspace: usize, serial: u32) -> bool {
+        if workspace >= WORKSPACE_COUNT || workspace == self.active_workspace {
+            return false;
+        }
+        let Some(active_surface) = self.mapped_surface.clone() else {
+            return false;
+        };
+        let Some(record) = self.mapped_surfaces.iter_mut().find(|record| {
+            record.surface == active_surface && record.workspace == self.active_workspace
+        }) else {
+            return false;
+        };
+        let previous = record.workspace;
+        record.workspace = workspace;
+        self.workspace_move_count += 1;
+        println!(
+            "desktop_window_workspace_moved from={previous} to={workspace} count={}",
+            self.workspace_move_count
+        );
+        self.focus_top_surface_in_active_workspace(serial);
+        true
     }
 
     fn apply_launcher_event(&mut self, event: LauncherEvent) {
@@ -6037,6 +6109,7 @@ pub struct SmithayBackendInputSnapshot {
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SmithayClientSurfaceSnapshot {
+    pub workspace: usize,
     pub commit_count: usize,
     pub buffer_attach_count: usize,
     pub shm_import_count: usize,
@@ -6107,6 +6180,18 @@ impl SmithayDrmSession {
 
     pub fn active_workspace(&self) -> usize {
         self.session.wayland_state.active_workspace
+    }
+
+    pub fn activate_workspace(&mut self, workspace: usize, serial: u32) -> bool {
+        self.session
+            .wayland_state
+            .activate_workspace(workspace, serial)
+    }
+
+    pub fn move_active_toplevel_to_workspace(&mut self, workspace: usize, serial: u32) -> bool {
+        self.session
+            .wayland_state
+            .move_active_surface_to_workspace(workspace, serial)
     }
 
     pub fn desktop_icon_state_snapshot(&self) -> DesktopIconState {
@@ -6450,8 +6535,32 @@ impl SmithayDrmSession {
             time,
             |state, _, _| {
                 state.keyboard_event_count += 1;
-                if code == 56 {
+                if code == 29 {
+                    state.ctrl_pressed = pressed;
+                    FilterResult::Intercept(())
+                } else if code == 42 || code == 54 {
+                    state.shift_pressed = pressed;
+                    FilterResult::Intercept(())
+                } else if code == 56 {
                     state.alt_pressed = pressed;
+                    FilterResult::Intercept(())
+                } else if state.ctrl_pressed && state.alt_pressed && matches!(code, 105 | 106) {
+                    if pressed {
+                        let destination = if code == 105 {
+                            state.active_workspace.checked_sub(1)
+                        } else {
+                            (state.active_workspace + 1 < WORKSPACE_COUNT)
+                                .then_some(state.active_workspace + 1)
+                        };
+                        if let Some(destination) = destination {
+                            if state.shift_pressed {
+                                state.move_active_surface_to_workspace(destination, time);
+                            } else {
+                                state.activate_workspace(destination, time);
+                            }
+                        }
+                    }
+                    state.keyboard_shortcut_intercept_count += 1;
                     FilterResult::Intercept(())
                 } else if code == 62 && pressed && state.alt_pressed {
                     let close_sent = state.close_active_toplevel();
@@ -6514,6 +6623,7 @@ impl SmithayDrmSession {
             .mapped_surfaces
             .iter()
             .rev()
+            .filter(|record| record.workspace == self.session.wayland_state.active_workspace)
             .find_map(|record| {
                 let origin_x = f64::from(record.x);
                 let origin_y = f64::from(record.y);
@@ -6619,7 +6729,7 @@ impl SmithayDrmSession {
                             .apply_launcher_event(LauncherEvent::Dismiss);
                     }
                     BottomShellTarget::Workspace(index) => {
-                        self.session.wayland_state.active_workspace = index;
+                        self.session.wayland_state.activate_workspace(index, time);
                     }
                 }
                 self.session.wayland_state.pointer_button_count += 1;
@@ -6849,6 +6959,7 @@ impl SmithayDrmSession {
     pub fn client_surface_snapshot(&self) -> SmithayClientSurfaceSnapshot {
         let state = &self.session.wayland_state;
         SmithayClientSurfaceSnapshot {
+            workspace: state.active_workspace,
             commit_count: state.surface_commit_count,
             buffer_attach_count: state.server_buffer_attach_count,
             shm_import_count: state.server_shm_buffer_import_count,
@@ -6894,6 +7005,7 @@ impl SmithayDrmSession {
             .mapped_surfaces
             .iter()
             .map(|surface| SmithayClientSurfaceSnapshot {
+                workspace: surface.workspace,
                 commit_count: state.surface_commit_count,
                 buffer_attach_count: state.server_buffer_attach_count,
                 shm_import_count: state.server_shm_buffer_import_count,
@@ -6931,6 +7043,14 @@ impl SmithayDrmSession {
                 fullscreen_request_count: state.fullscreen_request_count,
                 unfullscreen_request_count: state.unfullscreen_request_count,
             })
+            .collect()
+    }
+
+    pub fn visible_client_surface_snapshots(&self) -> Vec<SmithayClientSurfaceSnapshot> {
+        let active_workspace = self.session.wayland_state.active_workspace;
+        self.client_surface_snapshots()
+            .into_iter()
+            .filter(|surface| surface.workspace == active_workspace)
             .collect()
     }
 
@@ -6999,6 +7119,7 @@ impl SmithayDrmSession {
             return false;
         };
         let record = self.session.wayland_state.mapped_surfaces.remove(index);
+        self.session.wayland_state.active_workspace = record.workspace;
         self.session.wayland_state.mapped_surface = Some(record.surface.clone());
         self.session.wayland_state.mapped_surfaces.push(record);
         true
@@ -7035,6 +7156,7 @@ impl SmithayDrmSession {
             return false;
         };
         let record = self.session.wayland_state.mapped_surfaces.remove(index);
+        self.session.wayland_state.active_workspace = record.workspace;
         self.session.wayland_state.mapped_surface = Some(record.surface.clone());
         self.session.wayland_state.mapped_surfaces.push(record);
         true
@@ -7788,7 +7910,6 @@ impl CompositorHandler for WaylandSmokeState {
             if let Some(buffer) = buffer {
                 if new_buffer.is_some() {
                     self.server_buffer_attach_count += 1;
-                    self.mapped_surface = Some(surface.clone());
                 }
                 if let Ok((
                     sample_checksum,
@@ -7872,6 +7993,7 @@ impl CompositorHandler for WaylandSmokeState {
                         let record = ServerSurfaceRecord {
                             surface: surface.clone(),
                             buffer,
+                            workspace: self.active_workspace,
                             sample_checksum,
                             sample_pixel,
                             sample_grid,
@@ -7896,7 +8018,9 @@ impl CompositorHandler for WaylandSmokeState {
                             let display_width = existing.display_width;
                             let display_height = existing.display_height;
                             let restore_geometry = existing.restore_geometry;
+                            let workspace = existing.workspace;
                             *existing = record;
+                            existing.workspace = workspace;
                             existing.x = x;
                             existing.y = y;
                             existing.display_width = display_width;
@@ -7910,8 +8034,18 @@ impl CompositorHandler for WaylandSmokeState {
                             }
                         } else {
                             self.mapped_surfaces.push(record);
-                            let count = self.mapped_surfaces.len();
-                            for (index, record) in self.mapped_surfaces.iter_mut().enumerate() {
+                            let workspace = self.active_workspace;
+                            let count = self
+                                .mapped_surfaces
+                                .iter()
+                                .filter(|record| record.workspace == workspace)
+                                .count();
+                            for (index, record) in self
+                                .mapped_surfaces
+                                .iter_mut()
+                                .filter(|record| record.workspace == workspace)
+                                .enumerate()
+                            {
                                 let (x, y) = SmithayDrmSession::surface_geometry(
                                     index,
                                     count,
@@ -7933,6 +8067,11 @@ impl CompositorHandler for WaylandSmokeState {
                                     record.display_height = buffer_height;
                                 }
                             }
+                        }
+                        if self.mapped_surfaces.iter().any(|record| {
+                            record.surface == *surface && record.workspace == self.active_workspace
+                        }) {
+                            self.mapped_surface = Some(surface.clone());
                         }
                     }
                 }
@@ -7956,7 +8095,9 @@ impl CompositorHandler for WaylandSmokeState {
         if destroyed_surface_was_active {
             self.mapped_surface = self
                 .mapped_surfaces
-                .last()
+                .iter()
+                .rev()
+                .find(|record| record.workspace == self.active_workspace)
                 .map(|record| record.surface.clone());
             if let Some(keyboard) = self.seat.get_keyboard() {
                 keyboard.set_focus(
@@ -9747,7 +9888,7 @@ mod tests {
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     #[test]
-    fn smithay_first_party_surfaces_raise_by_xdg_app_id() {
+    fn smithay_first_party_surfaces_raise_and_move_between_workspaces() {
         let mut session = SmithayDrmSession::new().expect("Smithay session should start");
         let (files_server, files_client) =
             std::os::unix::net::UnixStream::pair().expect("Files Wayland stream pair should open");
@@ -9810,6 +9951,44 @@ mod tests {
             session.active_toplevel_app_id().as_deref(),
             Some("aqua.settings")
         );
+        assert_eq!(session.active_workspace(), 0);
+        assert_eq!(session.visible_client_surface_snapshots().len(), 2);
+        assert!(session.move_active_toplevel_to_workspace(1, 90));
+        assert_eq!(session.active_workspace(), 0);
+        assert_eq!(session.visible_client_surface_snapshots().len(), 1);
+        assert_eq!(
+            session.active_toplevel_app_id().as_deref(),
+            Some("aqua.files")
+        );
+        assert!(session.activate_workspace(1, 91));
+        assert_eq!(session.visible_client_surface_snapshots().len(), 1);
+        assert_eq!(
+            session.active_toplevel_app_id().as_deref(),
+            Some("aqua.settings")
+        );
+        assert!(session.dispatch_keyboard_key(29, true, 92));
+        assert!(session.dispatch_keyboard_key(56, true, 93));
+        assert!(session.dispatch_keyboard_key(105, true, 94));
+        assert!(session.dispatch_keyboard_key(105, false, 95));
+        assert!(session.dispatch_keyboard_key(56, false, 96));
+        assert!(session.dispatch_keyboard_key(29, false, 97));
+        assert_eq!(session.active_workspace(), 0);
+
+        assert!(session.activate_workspace(1, 98));
+        let dock = static_shell_scene(Viewport::new(800, 600))
+            .surface_rect(SurfaceKind::Dock)
+            .expect("Dock geometry should exist");
+        let canonical_x = dock.width - 60 * WORKSPACE_COUNT as u32 + 30;
+        let pointer_x = (dock.x + canonical_x) * 1536 / 800;
+        let pointer_y = (dock.y + dock.height / 2) * 1024 / 600;
+        let input = session.input_snapshot();
+        assert!(session.dispatch_pointer_motion(
+            f64::from(pointer_x) - f64::from(input.pointer_x),
+            f64::from(pointer_y) - f64::from(input.pointer_y),
+            99,
+        ));
+        assert!(session.dispatch_pointer_button(0x110, true, 100));
+        assert_eq!(session.active_workspace(), 0);
         assert!(session.present_client_surface(100));
         let input = session.input_snapshot();
         assert_eq!(input.pointer_x, 768);
@@ -9817,7 +9996,7 @@ mod tests {
         assert!(!session.raise_surface_with_app_id("aqua.unknown"));
         assert_eq!(
             session.active_toplevel_app_id().as_deref(),
-            Some("aqua.settings")
+            Some("aqua.files")
         );
     }
 

@@ -1395,7 +1395,11 @@ fn render_live_gpu_wayland_frame(
         .ok_or_else(|| "live GPU compositor is unavailable".to_string())?;
     let revisions = snapshots
         .iter()
-        .map(|snapshot| snapshot.commit_count as u64)
+        .map(|snapshot| {
+            (snapshot.commit_count as u64)
+                ^ snapshot.sample_checksum.rotate_left(17)
+                ^ (snapshot.workspace as u64).rotate_left(41)
+        })
         .collect::<Vec<_>>();
     let opaque_sources = snapshots
         .iter()
@@ -1485,6 +1489,7 @@ fn render_live_gpu_wayland_frame(
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DesktopSurfaceRevision {
+    workspace: usize,
     commit_count: usize,
     damage_commit_count: usize,
     damage_rect_count: usize,
@@ -1506,6 +1511,7 @@ fn desktop_surface_revisions(
     snapshots
         .iter()
         .map(|snapshot| DesktopSurfaceRevision {
+            workspace: snapshot.workspace,
             commit_count: snapshot.commit_count,
             damage_commit_count: snapshot.damage_commit_count,
             damage_rect_count: snapshot.damage_rect_count,
@@ -4073,7 +4079,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     let desktop_session_started_at = std::time::Instant::now();
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let runtime_surface_revisions = RefCell::new(desktop_surface_revisions(
-        &smithay_session.borrow().client_surface_snapshots(),
+        &smithay_session.borrow().visible_client_surface_snapshots(),
     ));
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let runtime_repaint_sequence = Cell::new(0_u64);
@@ -4615,7 +4621,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 *runtime_session_menu_state.borrow() != session_menu_state;
                             let notification_changed =
                                 *runtime_notification_state.borrow() != notification_state;
-                            let snapshots = smithay_session.borrow().client_surface_snapshots();
+                            let snapshots =
+                                smithay_session.borrow().visible_client_surface_snapshots();
                             let revisions = desktop_surface_revisions(&snapshots);
                             let surface_changed = *runtime_surface_revisions.borrow() != revisions;
                             if session_action.is_none()
@@ -4683,7 +4690,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 let checksum = _repaint(repaint_frame)?;
                                 let _ = smithay_session.borrow_mut().present_client_surface(20_000);
                                 let presented_revisions = desktop_surface_revisions(
-                                    &smithay_session.borrow().client_surface_snapshots(),
+                                    &smithay_session.borrow().visible_client_surface_snapshots(),
                                 );
                                 let repaint_sequence = runtime_repaint_sequence.get() + 1;
                                 runtime_repaint_sequence.set(repaint_sequence);
