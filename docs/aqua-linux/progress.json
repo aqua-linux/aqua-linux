@@ -5,7 +5,7 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. Public hardware status now separates automated QEMU evidence from unvalidated drivers, deferred workflows, and the entirely untested MSI Sword 17 target. Physical installation and daily-use claims remain prohibited until named-device validation exists.",
+  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. The default development image now has a source-tree safety gate that regenerates and checks its recovery policy, preserves both console gettys, rejects graphical opt-in from default QEMU and GRUB command lines, and proves invalid or unsafe graphics profiles cannot start the supervisor.",
   "updated": "2026-08-28",
   "overallPercent": 90,
   "rules": [
@@ -107,14 +107,14 @@
     {
       "id": "m11",
       "name": "Polish and Public Readiness",
-      "percent": 85,
+      "percent": 90,
       "status": "in-progress",
       "updated": "2026-08-28",
-      "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, four live-refreshed themes, and three real workspaces. A dedicated QEMU session publishes validated current captures with a provenance manifest. The public hardware matrix separates proven QEMU behavior, present but unvalidated drivers, deferred workflows, and wholly untested MSI Sword 17 hardware without advancing Milestone 10. Final icon clearance and issue workflow remain incomplete."
+      "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, four live-refreshed themes, and three real workspaces. Current QEMU captures carry a provenance manifest, and the public hardware matrix prevents physical support overclaims. A dedicated default-image gate now enforces recovery-safe generated session values, tty1 and serial gettys, opt-in-free default QEMU and GRUB command lines, and fail-closed graphical launch profiles. Final icon clearance and issue workflow remain incomplete."
     }
   ],
   "nextSteps": [
-    "Keep fallback TTY, boot_graphics=false, and autostart=false in the default development image.",
-    "Define a read-only MSI Sword 17 hardware inventory record before any physical boot or installation claim."
+    "Define a read-only MSI Sword 17 hardware inventory record before any physical boot or installation claim.",
+    "Replace remaining temporary application and status icons with cleared Aqua-owned assets."
   ]
 }

@@ -98,6 +98,19 @@ recovery_tty_required=true
 
 This file keeps Milestone 1 recovery behavior stable while explicit graphical validation profiles switch individual fields deliberately.
 
+The source-tree safety gate is:
+
+```sh
+scripts/check-default-recovery-safety.sh
+```
+
+It regenerates the default session files, requires exactly one recovery-safe
+value for `autostart`, `boot_graphics`, and the fallback TTY, confirms both
+console gettys remain supervised, and rejects a default QEMU or GRUB command
+line containing `aqua.boot_graphics=1`. Its launcher fixture also proves that
+the compositor supervisor is not invoked when the kernel opt-in is absent, the
+graphics profile is missing, or the fallback TTY requirement is disabled.
+
 Boot creates `/run/aqua` from this contract before checking the compositor binary. Graphical profiles use it for the Aqua Wayland socket and session runtime files.
 
 The image also writes the derived session environment to:
