@@ -5,7 +5,7 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. The current QEMU runtime now has a reproducible public screenshot path for the clean desktop, Applications, Global Search, and concurrent Aqua Files plus Aqua Settings. Every published capture is tied to a successful graphical acceptance marker, clean session stop, fixed dimensions, and SHA-256 provenance manifest.",
+  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. Public hardware status now separates automated QEMU evidence from unvalidated drivers, deferred workflows, and the entirely untested MSI Sword 17 target. Physical installation and daily-use claims remain prohibited until named-device validation exists.",
   "updated": "2026-08-28",
   "overallPercent": 90,
   "rules": [
@@ -107,14 +107,14 @@
     {
       "id": "m11",
       "name": "Polish and Public Readiness",
-      "percent": 80,
+      "percent": 85,
       "status": "in-progress",
       "updated": "2026-08-28",
-      "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, four live-refreshed themes, and three real workspaces. A dedicated QEMU session now captures the clean desktop, Applications, Global Search, and concurrent Files plus Settings; publication requires the exact acceptance marker, clean stop, fixed dimensions, distinct nonblank frames, and SHA-256 manifest. Hardware status, final icon clearance, and issue workflow remain incomplete."
+      "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, four live-refreshed themes, and three real workspaces. A dedicated QEMU session publishes validated current captures with a provenance manifest. The public hardware matrix separates proven QEMU behavior, present but unvalidated drivers, deferred workflows, and wholly untested MSI Sword 17 hardware without advancing Milestone 10. Final icon clearance and issue workflow remain incomplete."
     }
   ],
   "nextSteps": [
-    "Document current QEMU and MSI Sword 17 hardware support status with explicit tested, untested, and deferred boundaries.",
-    "Keep fallback TTY, boot_graphics=false, and autostart=false in the default development image."
+    "Keep fallback TTY, boot_graphics=false, and autostart=false in the default development image.",
+    "Define a read-only MSI Sword 17 hardware inventory record before any physical boot or installation claim."
   ]
 }
