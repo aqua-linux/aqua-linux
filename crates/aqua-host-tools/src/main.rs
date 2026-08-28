@@ -909,7 +909,7 @@ mod tests {
         assert!(export.is_ready());
         assert_eq!(export.format, "raw-rgba8888");
         assert_eq!(export.byte_count, 6_291_456);
-        assert_eq!(export.checksum, 0x1c7c_4b84_3fb5_dcff);
+        assert_eq!(export.checksum, 0x7015_58d1_5395_21df);
     }
 
     #[test]
@@ -922,7 +922,7 @@ mod tests {
         assert_eq!(export.byte_count, 6_291_456);
         assert_eq!(export.bytes.len(), 6_291_456);
         assert_ne!(export.checksum, 0);
-        assert_ne!(export.checksum, 0x1c7c_4b84_3fb5_dcff);
+        assert_ne!(export.checksum, 0x7015_58d1_5395_21df);
     }
 
     #[test]

@@ -95,13 +95,13 @@ expect {
     eof { puts stderr "QEMU exited after system overview verification"; exit 1 }
 }
 
-run_shell_check {ok=1; grep -Fq 'desktop_dock_texture_ready=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_dock_item_count=4' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_dock_running_indicators=0' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the functional dock GPU layer"
-send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-dock-qemu status=ok items=4 gpu_texture=true running_indicators=true'}
+run_shell_check {ok=1; grep -Fq 'desktop_dock_texture_ready=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_dock_item_count=3' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_bottom_shell_group_count=3' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_workspace_active=0' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_dock_running_indicators=0' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the functional bottom shell GPU layer"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-bottom-shell-qemu status=ok apps=3 groups=3 workspaces=3 gpu_texture=true'}
 send -- "\r"
 
 expect {
-    -exact {[AQUA-TEST] stage=desktop-dock-qemu status=ok items=4 gpu_texture=true running_indicators=true} {}
-    timeout { puts stderr "Dock content was not GPU composited"; exit 1 }
+    -exact {[AQUA-TEST] stage=desktop-bottom-shell-qemu status=ok apps=3 groups=3 workspaces=3 gpu_texture=true} {}
+    timeout { puts stderr "Bottom shell content was not GPU composited"; exit 1 }
     eof { puts stderr "QEMU exited before dock verification"; exit 1 }
 }
 
@@ -117,19 +117,19 @@ if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(CLEAN_DE
     exit 1
 }
 
-if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) dock-launcher-toggle} input_error]} {
-    puts stderr "QEMU dock launcher input injection failed: $input_error"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) bottom-applications-activate} input_error]} {
+    puts stderr "QEMU bottom Applications input injection failed: $input_error"
     exit 1
 }
 
-run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'desktop_dock_activation=launcher' /run/aqua/graphical-session-supervisor.log)" -lt 2 ]; do sleep 1; i=$((i + 1)); done} "waiting for dock launcher toggles"
-run_shell_check {ok=1; [ "$(grep -Fc 'desktop_dock_activation=launcher' /run/aqua/graphical-session-supervisor.log)" -ge 2 ] || ok=0} "checking dock launcher input"
-send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-dock-input-qemu status=ok item=launcher toggles=2 bounded=true'}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'desktop_bottom_shell_activation=Applications' /run/aqua/graphical-session-supervisor.log)" -lt 2 ]; do sleep 1; i=$((i + 1)); done} "waiting for bottom Applications activations"
+run_shell_check {ok=1; [ "$(grep -Fc 'desktop_bottom_shell_activation=Applications' /run/aqua/graphical-session-supervisor.log)" -ge 2 ] || ok=0} "checking bottom Applications input"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-bottom-shell-input-qemu status=ok target=applications activations=2 bounded=true'}
 send -- "\r"
 
 expect {
-    -exact {[AQUA-TEST] stage=desktop-dock-input-qemu status=ok item=launcher toggles=2 bounded=true} {}
-    timeout { puts stderr "Dock launcher input did not toggle twice"; exit 1 }
+    -exact {[AQUA-TEST] stage=desktop-bottom-shell-input-qemu status=ok target=applications activations=2 bounded=true} {}
+    timeout { puts stderr "Bottom Applications input did not activate twice"; exit 1 }
     eof { puts stderr "QEMU exited before dock input verification"; exit 1 }
 }
 

@@ -684,7 +684,7 @@ impl LiveGpuCompositor {
         if self.dock_state.as_ref() == Some(state) {
             return Ok(());
         }
-        let overlay = render_dock_rgba(520, 72, state);
+        let overlay = render_dock_rgba(760, 72, state);
         self.dock_texture = Some(
             self.renderer
                 .import_memory(
@@ -699,6 +699,8 @@ impl LiveGpuCompositor {
         self.dock_texture_size = (overlay.width, overlay.height);
         println!("desktop_dock_texture_ready=true");
         println!("desktop_dock_item_count={}", aqua_shell::DOCK_ITEM_COUNT);
+        println!("desktop_bottom_shell_group_count={}", overlay.group_count);
+        println!("desktop_workspace_active={}", overlay.active_workspace);
         println!(
             "desktop_dock_running_indicators={}",
             overlay.running_item_count
@@ -1459,11 +1461,15 @@ fn first_party_surface_app_id(app_id: &str) -> Option<&'static str> {
 fn current_dock_state(
     launcher: &aqua_shell::LauncherState,
     supervisor: &FirstPartyProcessSupervisor,
+    active_workspace: usize,
 ) -> aqua_shell::DockState {
     aqua_shell::DockState {
-        launcher_open: launcher.is_open(),
+        applications_open: launcher.is_open()
+            && launcher.mode() == aqua_shell::LauncherMode::Applications,
+        search_open: launcher.is_open() && launcher.mode() == aqua_shell::LauncherMode::Search,
         files_running: supervisor.contains("files"),
         settings_running: supervisor.contains("settings"),
+        active_workspace,
     }
 }
 
@@ -3918,6 +3924,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     let runtime_dock_state = RefCell::new(current_dock_state(
         &runtime_launcher_state.borrow(),
         &runtime_process_supervisor.borrow(),
+        smithay_session.borrow().active_workspace(),
     ));
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let runtime_desktop_icon_state =
@@ -4460,6 +4467,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                             let dock_state = current_dock_state(
                                 &launcher_state,
                                 &runtime_process_supervisor.borrow(),
+                                smithay_session.borrow().active_workspace(),
                             );
                             let desktop_icon_state =
                                 smithay_session.borrow().desktop_icon_state_snapshot();

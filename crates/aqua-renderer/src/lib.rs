@@ -10,7 +10,7 @@ use aqua_shell::{
     FilesWindowModel, LauncherCategory, LauncherMode, LauncherState, NotificationCenter,
     SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView,
     TopBarState, DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT,
-    FILES_PREVIEW_VISIBLE_LINES, FILES_VISIBLE_ROWS,
+    FILES_PREVIEW_VISIBLE_LINES, FILES_VISIBLE_ROWS, WORKSPACE_COUNT,
 };
 use fontdue::{Font, FontSettings};
 use std::sync::OnceLock;
@@ -378,6 +378,8 @@ pub struct DockOverlay {
     pub height: u32,
     pub rgba: Vec<u8>,
     pub running_item_count: usize,
+    pub active_workspace: usize,
+    pub group_count: usize,
     pub primitive_count: usize,
 }
 
@@ -704,47 +706,168 @@ fn draw_top_bar_status_icons(
 
 pub fn render_dock_rgba(width: u32, height: u32, state: &DockState) -> DockOverlay {
     let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
-    if width < 240 || height < 48 {
+    if width < 640 || height < 48 {
         return DockOverlay {
             width,
             height,
             rgba,
             running_item_count: 0,
+            active_workspace: 0,
+            group_count: 0,
             primitive_count: 0,
         };
     }
+    let surface = [0xf7, 0xfa, 0xfe, 0xe8];
+    let selected = [0xd8, 0xea, 0xff, 0xff];
+    let ink = [0x15, 0x26, 0x39, 0xff];
+    let left_width = 132;
     let item_width = 72_u32;
     let content_width = item_width * DOCK_ITEM_COUNT as u32;
     let start_x = width.saturating_sub(content_width) / 2;
-    let icon_y = height.saturating_sub(64) / 2;
-    let mut primitives = 0;
+    let workspace_width = 60_u32;
+    let workspace_group_width = workspace_width * WORKSPACE_COUNT as u32;
+    let workspace_start = width.saturating_sub(workspace_group_width);
+    let mut primitives = 3;
     let mut running_item_count = 0;
-    for (index, item) in DockItem::ALL.iter().copied().enumerate() {
-        let x = start_x + index as u32 * item_width + 4;
-        if item == DockItem::Launcher {
-            primitives += draw_aqua_dock_icon(&mut rgba, width, height, x, icon_y);
-        } else {
-            primitives += draw_desktop_icon(&mut rgba, width, height, x, icon_y, item.id());
+
+    for rect in [
+        Rect {
+            x: 0,
+            y: 0,
+            width: left_width,
+            height,
+        },
+        Rect {
+            x: start_x,
+            y: 0,
+            width: content_width,
+            height,
+        },
+        Rect {
+            x: workspace_start,
+            y: 0,
+            width: workspace_group_width,
+            height,
+        },
+    ] {
+        fill_transparent_rounded_rect(&mut rgba, width, height, rect, 12, surface);
+    }
+
+    if state.applications_open {
+        fill_transparent_rounded_rect(
+            &mut rgba,
+            width,
+            height,
+            Rect {
+                x: 6,
+                y: 6,
+                width: 52,
+                height: height - 12,
+            },
+            9,
+            selected,
+        );
+        primitives += 1;
+    }
+    for row in 0..3 {
+        for column in 0..3 {
+            fill_transparent_circle(
+                &mut rgba,
+                width,
+                height,
+                18 + column * 12,
+                22 + row * 12,
+                3,
+                ink,
+            );
+            primitives += 1;
         }
+    }
+
+    if state.search_open {
+        fill_transparent_rounded_rect(
+            &mut rgba,
+            width,
+            height,
+            Rect {
+                x: 72,
+                y: 6,
+                width: 54,
+                height: height - 12,
+            },
+            9,
+            selected,
+        );
+        primitives += 1;
+    }
+    fill_transparent_circle(&mut rgba, width, height, 96, 32, 12, ink);
+    fill_transparent_circle(&mut rgba, width, height, 96, 32, 8, surface);
+    draw_transparent_line(&mut rgba, width, height, (104, 41), (115, 52), 3, ink);
+    primitives += 3;
+
+    let icon_y = height.saturating_sub(56) / 2;
+    for (index, item) in DockItem::ALL.iter().copied().enumerate() {
+        let x = start_x + index as u32 * item_width + 8;
+        primitives += draw_desktop_icon(&mut rgba, width, height, x, icon_y, item.id());
         if state.item_running(item) {
             running_item_count += 1;
             fill_transparent_circle(
                 &mut rgba,
                 width,
                 height,
-                x + 32,
+                x + 28,
                 height.saturating_sub(4),
                 3,
-                [0xc8, 0xf8, 0xff, 0xff],
+                [0x0b, 0x76, 0xe5, 0xff],
             );
             primitives += 1;
         }
+    }
+
+    for index in 0..WORKSPACE_COUNT {
+        let x = workspace_start + index as u32 * workspace_width + 5;
+        let active = state.workspace_active(index);
+        fill_transparent_rounded_rect(
+            &mut rgba,
+            width,
+            height,
+            Rect {
+                x,
+                y: 10,
+                width: 50,
+                height: height - 20,
+            },
+            8,
+            if active {
+                selected
+            } else {
+                [0xff, 0xff, 0xff, 0xb8]
+            },
+        );
+        if active {
+            fill_transparent_rect(
+                &mut rgba,
+                width,
+                height,
+                Rect {
+                    x: x + 5,
+                    y: height - 13,
+                    width: 40,
+                    height: 3,
+                },
+                [0x0b, 0x76, 0xe5, 0xff],
+            );
+            primitives += 1;
+        }
+        primitives += 1;
     }
     DockOverlay {
         width,
         height,
         rgba,
         running_item_count,
+        active_workspace: state.active_workspace.min(WORKSPACE_COUNT - 1),
+        group_count: 3,
         primitive_count: primitives,
     }
 }
@@ -752,65 +875,6 @@ pub fn render_dock_rgba(width: u32, height: u32, state: &DockState) -> DockOverl
 pub fn export_dock_png(width: u32, height: u32, state: &DockState) -> Vec<u8> {
     let overlay = render_dock_rgba(width, height, state);
     encode_png_rgba(overlay.width, overlay.height, &overlay.rgba)
-}
-
-fn draw_aqua_dock_icon(rgba: &mut [u8], width: u32, height: u32, x: u32, y: u32) -> usize {
-    fill_transparent_rounded_rect(
-        rgba,
-        width,
-        height,
-        Rect {
-            x,
-            y,
-            width: 64,
-            height: 64,
-        },
-        12,
-        [0x07, 0x58, 0x86, 0xe0],
-    );
-    fill_transparent_rounded_rect(
-        rgba,
-        width,
-        height,
-        Rect {
-            x: x + 4,
-            y: y + 4,
-            width: 56,
-            height: 8,
-        },
-        4,
-        [0xd5, 0xf8, 0xff, 0x98],
-    );
-    for offset in [0, 1, 2] {
-        draw_transparent_line(
-            rgba,
-            width,
-            height,
-            (x + 17 + offset, y + 49),
-            (x + 32, y + 14 + offset),
-            3,
-            [0xb8, 0xf2, 0xff, 0xff],
-        );
-        draw_transparent_line(
-            rgba,
-            width,
-            height,
-            (x + 32, y + 14 + offset),
-            (x + 49 - offset, y + 49),
-            3,
-            [0x45, 0xd4, 0xf5, 0xff],
-        );
-    }
-    draw_transparent_line(
-        rgba,
-        width,
-        height,
-        (x + 25, y + 38),
-        (x + 41, y + 38),
-        4,
-        [0xf2, 0xfd, 0xff, 0xff],
-    );
-    9
 }
 
 pub fn render_desktop_icons_rgba(
@@ -4898,7 +4962,7 @@ impl SoftwareRasterProbe {
             && self.surface_highlight_sample == [0xa3, 0xd3, 0xe7, 0xff]
             && self.surface_corner_sample == [0x2a, 0x6c, 0x8c, 0xff]
             && self.surface_shadow_sample == [0x33, 0x86, 0xaa, 0xff]
-            && self.raster_checksum == 0x1c7c_4b84_3fb5_dcff
+            && self.raster_checksum == 0x7015_58d1_5395_21df
             && self.surface_primitive_count == 15
             && self.buffer_bytes == u64::from(self.width) * u64::from(self.height) * 4
             && !self.renderer_started
@@ -4928,7 +4992,7 @@ impl RasterPpmExport {
             && self.header == "P6\n1536 1024\n255\n"
             && self.byte_count == 4_718_609
             && self.bytes.len() == self.byte_count
-            && self.checksum == 0xa726_a041_9c5a_c8d5
+            && self.checksum == 0xefdc_ba78_578c_2cd5
             && !self.renderer_started
     }
 }
@@ -4954,7 +5018,7 @@ impl RasterPngExport {
             && self.format == "png-rgba8888"
             && self.byte_count == self.bytes.len()
             && self.byte_count == 6_293_028
-            && self.checksum == 0x9cf9_c9a8_df8e_2114
+            && self.checksum == 0x2cdb_1d86_a1ba_9300
             && !self.renderer_started
     }
 }
@@ -7380,16 +7444,20 @@ mod tests {
     #[test]
     fn dock_overlay_renders_items_and_running_indicators() {
         let overlay = render_dock_rgba(
-            520,
+            760,
             72,
             &DockState {
-                launcher_open: true,
+                applications_open: true,
+                search_open: false,
                 files_running: true,
                 settings_running: false,
+                active_workspace: 1,
             },
         );
-        assert_eq!(overlay.rgba.len(), 520 * 72 * 4);
-        assert_eq!(overlay.running_item_count, 3);
+        assert_eq!(overlay.rgba.len(), 760 * 72 * 4);
+        assert_eq!(overlay.running_item_count, 2);
+        assert_eq!(overlay.active_workspace, 1);
+        assert_eq!(overlay.group_count, 3);
         assert!(overlay.primitive_count > 40);
         assert!(overlay.rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
     }
@@ -7976,7 +8044,7 @@ mod tests {
             "png-rgba8888-composited-client-preview"
         );
         assert_eq!(composited_export.byte_count, static_export.byte_count);
-        assert_eq!(composited_export.checksum, 0xe11f_c5be_361f_0f85);
+        assert_eq!(composited_export.checksum, 0x3a53_6b4f_39fb_7751);
         assert_ne!(composited_export.checksum, static_export.checksum);
         assert!(!composited_export.renderer_started);
     }
@@ -8131,7 +8199,7 @@ mod tests {
         assert_eq!(probe.surface_highlight_sample, [0xa3, 0xd3, 0xe7, 0xff]);
         assert_eq!(probe.surface_corner_sample, [0x2a, 0x6c, 0x8c, 0xff]);
         assert_eq!(probe.surface_shadow_sample, [0x33, 0x86, 0xaa, 0xff]);
-        assert_eq!(probe.raster_checksum, 0x1c7c_4b84_3fb5_dcff);
+        assert_eq!(probe.raster_checksum, 0x7015_58d1_5395_21df);
         assert_eq!(probe.surface_primitive_count, 15);
         assert!(!probe.renderer_started);
     }
@@ -8149,7 +8217,7 @@ mod tests {
         assert!(lines.contains(&"surface_highlight_sample=a3,d3,e7,ff".to_string()));
         assert!(lines.contains(&"surface_corner_sample=2a,6c,8c,ff".to_string()));
         assert!(lines.contains(&"surface_shadow_sample=33,86,aa,ff".to_string()));
-        assert!(lines.contains(&"raster_checksum=1c7c4b843fb5dcff".to_string()));
+        assert!(lines.contains(&"raster_checksum=701558d1539521df".to_string()));
     }
 
     #[test]
@@ -8160,7 +8228,7 @@ mod tests {
         assert_eq!(export.format, "ppm-p6-rgb888");
         assert_eq!(export.header, "P6\n1536 1024\n255\n");
         assert_eq!(export.byte_count, 4_718_609);
-        assert_eq!(export.checksum, 0xa726_a041_9c5a_c8d5);
+        assert_eq!(export.checksum, 0xefdc_ba78_578c_2cd5);
         assert!(!export.renderer_started);
     }
 
@@ -8172,7 +8240,7 @@ mod tests {
         assert_eq!(lines[0], "export_status=ppm-ready");
         assert!(lines.contains(&"export_format=ppm-p6-rgb888".to_string()));
         assert!(lines.contains(&"export_bytes=4718609".to_string()));
-        assert!(lines.contains(&"export_checksum=a726a0419c5ac8d5".to_string()));
+        assert!(lines.contains(&"export_checksum=efdcba78578c2cd5".to_string()));
     }
 
     #[test]
@@ -8182,7 +8250,7 @@ mod tests {
         assert!(export.is_ready());
         assert_eq!(export.format, "png-rgba8888");
         assert_eq!(export.byte_count, 6_293_028);
-        assert_eq!(export.checksum, 0x9cf9_c9a8_df8e_2114);
+        assert_eq!(export.checksum, 0x2cdb_1d86_a1ba_9300);
         assert_eq!(&export.bytes[0..8], &[137, 80, 78, 71, 13, 10, 26, 10]);
         assert!(!export.renderer_started);
     }
@@ -8195,7 +8263,7 @@ mod tests {
         assert_eq!(lines[0], "export_status=png-ready");
         assert!(lines.contains(&"export_format=png-rgba8888".to_string()));
         assert!(lines.contains(&"export_bytes=6293028".to_string()));
-        assert!(lines.contains(&"export_checksum=9cf9c9a8df8e2114".to_string()));
+        assert!(lines.contains(&"export_checksum=2cdb1d86a1ba9300".to_string()));
     }
 
     #[test]
@@ -8206,7 +8274,7 @@ mod tests {
         assert_eq!(export.format, "raw-rgba8888");
         assert_eq!(export.byte_count, 6_291_456);
         assert_eq!(export.bytes.len(), 6_291_456);
-        assert_eq!(export.checksum, 0x1c7c_4b84_3fb5_dcff);
+        assert_eq!(export.checksum, 0x7015_58d1_5395_21df);
         assert!(!export.renderer_started);
     }
 
@@ -8218,6 +8286,6 @@ mod tests {
         assert_eq!(lines[0], "export_status=rgba-ready");
         assert!(lines.contains(&"export_format=raw-rgba8888".to_string()));
         assert!(lines.contains(&"export_bytes=6291456".to_string()));
-        assert!(lines.contains(&"export_checksum=1c7c4b843fb5dcff".to_string()));
+        assert!(lines.contains(&"export_checksum=701558d1539521df".to_string()));
     }
 }

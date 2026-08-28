@@ -1167,15 +1167,15 @@ raster_surface_highlight_sample=$(contract_file_contains "${CONTRACT_DIR}/raster
 raster_surface_corner_sample=$(contract_file_contains "${CONTRACT_DIR}/raster-probe.txt" "surface_corner_sample=2a,6c,8c,ff")
 raster_surface_shadow_sample=$(contract_file_contains "${CONTRACT_DIR}/raster-probe.txt" "surface_shadow_sample=33,86,aa,ff")
 surface_primitives=$(contract_file_contains "${CONTRACT_DIR}/raster-probe.txt" "surface_primitive_count=15")
-raster_checksum=$(contract_file_contains "${CONTRACT_DIR}/raster-probe.txt" "raster_checksum=1c7c4b843fb5dcff")
+raster_checksum=$(contract_file_contains "${CONTRACT_DIR}/raster-probe.txt" "raster_checksum=701558d1539521df")
 raster_export=$(contract_file_contains "${CONTRACT_DIR}/raster-export-probe.txt" "[AQUA-COMPOSITOR] stage=raster-export-probe status=ok")
 raster_export_format=$(contract_file_contains "${CONTRACT_DIR}/raster-export-probe.txt" "export_format=ppm-p6-rgb888")
 raster_export_bytes=$(contract_file_contains "${CONTRACT_DIR}/raster-export-probe.txt" "export_bytes=4718609")
-raster_export_checksum=$(contract_file_contains "${CONTRACT_DIR}/raster-export-probe.txt" "export_checksum=a726a0419c5ac8d5")
+raster_export_checksum=$(contract_file_contains "${CONTRACT_DIR}/raster-export-probe.txt" "export_checksum=efdcba78578c2cd5")
 raster_png_export=$(contract_file_contains "${CONTRACT_DIR}/raster-png-export-probe.txt" "[AQUA-COMPOSITOR] stage=raster-png-export-probe status=ok")
 raster_png_export_format=$(contract_file_contains "${CONTRACT_DIR}/raster-png-export-probe.txt" "export_format=png-rgba8888")
 raster_png_export_bytes=$(contract_file_contains "${CONTRACT_DIR}/raster-png-export-probe.txt" "export_bytes=6293028")
-raster_png_export_checksum=$(contract_file_contains "${CONTRACT_DIR}/raster-png-export-probe.txt" "export_checksum=9cf9c9a8df8e2114")
+raster_png_export_checksum=$(contract_file_contains "${CONTRACT_DIR}/raster-png-export-probe.txt" "export_checksum=2cdb1d86a1ba9300")
 session_loop=$(contract_file_contains "${CONTRACT_DIR}/session-loop.txt" "[AQUA-COMPOSITOR] stage=session-loop status=ok")
 session_loop_iterations=$(contract_file_contains "${CONTRACT_DIR}/session-loop.txt" "loop_iterations=3")
 session_loop_dispatch=$(contract_file_contains "${CONTRACT_DIR}/session-loop.txt" "dispatch_passes=3")
@@ -2447,15 +2447,15 @@ cat > "${MANIFEST_JSON}" <<EOF
     "raster_surface_corner_sample": "$(contract_file_contains "${CONTRACT_DIR}/raster-probe.txt" "surface_corner_sample=2a,6c,8c,ff")",
     "raster_surface_shadow_sample": "$(contract_file_contains "${CONTRACT_DIR}/raster-probe.txt" "surface_shadow_sample=33,86,aa,ff")",
     "surface_primitives": "$(contract_file_contains "${CONTRACT_DIR}/raster-probe.txt" "surface_primitive_count=15")",
-    "raster_checksum": "$(contract_file_contains "${CONTRACT_DIR}/raster-probe.txt" "raster_checksum=1c7c4b843fb5dcff")",
+    "raster_checksum": "$(contract_file_contains "${CONTRACT_DIR}/raster-probe.txt" "raster_checksum=701558d1539521df")",
     "raster_export": "$(contract_file_contains "${CONTRACT_DIR}/raster-export-probe.txt" "[AQUA-COMPOSITOR] stage=raster-export-probe status=ok")",
     "raster_export_format": "$(contract_file_contains "${CONTRACT_DIR}/raster-export-probe.txt" "export_format=ppm-p6-rgb888")",
     "raster_export_bytes": "$(contract_file_contains "${CONTRACT_DIR}/raster-export-probe.txt" "export_bytes=4718609")",
-    "raster_export_checksum": "$(contract_file_contains "${CONTRACT_DIR}/raster-export-probe.txt" "export_checksum=a726a0419c5ac8d5")",
+    "raster_export_checksum": "$(contract_file_contains "${CONTRACT_DIR}/raster-export-probe.txt" "export_checksum=efdcba78578c2cd5")",
     "raster_png_export": "$(contract_file_contains "${CONTRACT_DIR}/raster-png-export-probe.txt" "[AQUA-COMPOSITOR] stage=raster-png-export-probe status=ok")",
     "raster_png_export_format": "$(contract_file_contains "${CONTRACT_DIR}/raster-png-export-probe.txt" "export_format=png-rgba8888")",
     "raster_png_export_bytes": "$(contract_file_contains "${CONTRACT_DIR}/raster-png-export-probe.txt" "export_bytes=6293028")",
-    "raster_png_export_checksum": "$(contract_file_contains "${CONTRACT_DIR}/raster-png-export-probe.txt" "export_checksum=9cf9c9a8df8e2114")",
+    "raster_png_export_checksum": "$(contract_file_contains "${CONTRACT_DIR}/raster-png-export-probe.txt" "export_checksum=2cdb1d86a1ba9300")",
     "session_loop": "$(contract_file_contains "${CONTRACT_DIR}/session-loop.txt" "[AQUA-COMPOSITOR] stage=session-loop status=ok")",
     "desktop_shell": "not_started"
   },

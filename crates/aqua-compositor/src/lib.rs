@@ -40,10 +40,10 @@ pub use aqua_renderer::{
 };
 pub use aqua_scene::{static_shell_scene, ShellScene, SurfaceKind, Viewport, SCENE_STATUS};
 pub use aqua_shell::{
-    dock_pointer_target, properties_launch_request, DesktopContextAction, DesktopIconState,
-    DesktopPointerButton, DockItem, DockState, LaunchRequest, LauncherCategory, LauncherEvent,
-    LauncherPointerTarget, LauncherState, NotificationCenter, SessionAction, SessionMenuEvent,
-    SessionMenuState, TrashModel, NOTIFICATION_DEFAULT_TIMEOUT_MS,
+    dock_pointer_target, properties_launch_request, BottomShellTarget, DesktopContextAction,
+    DesktopIconState, DesktopPointerButton, DockItem, DockState, LaunchRequest, LauncherCategory,
+    LauncherEvent, LauncherPointerTarget, LauncherState, NotificationCenter, SessionAction,
+    SessionMenuEvent, SessionMenuState, TrashModel, NOTIFICATION_DEFAULT_TIMEOUT_MS,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3411,7 +3411,7 @@ pub fn probe_static_software_raster(viewport: Viewport) -> SoftwareRasterContrac
         surface_highlight_sample_ready: probe.surface_highlight_sample == [0xa3, 0xd3, 0xe7, 0xff],
         surface_corner_sample_ready: probe.surface_corner_sample == [0x2a, 0x6c, 0x8c, 0xff],
         surface_shadow_sample_ready: probe.surface_shadow_sample == [0x33, 0x86, 0xaa, 0xff],
-        checksum_ready: probe.raster_checksum == 0x1c7c_4b84_3fb5_dcff,
+        checksum_ready: probe.raster_checksum == 0x7015_58d1_5395_21df,
         surface_primitives_ready: probe.surface_primitive_count == 15,
         renderer_started: probe.renderer_started,
         boot_graphics: false,
@@ -3425,7 +3425,7 @@ pub fn probe_static_raster_export(viewport: Viewport) -> RasterExportContractPro
     RasterExportContractProbe {
         format_ready: export.format == "ppm-p6-rgb888",
         byte_count_ready: export.byte_count == 4_718_609,
-        checksum_ready: export.checksum == 0xa726_a041_9c5a_c8d5,
+        checksum_ready: export.checksum == 0xefdc_ba78_578c_2cd5,
         renderer_started: export.renderer_started,
         boot_graphics: false,
         export,
@@ -3438,7 +3438,7 @@ pub fn probe_static_raster_png_export(viewport: Viewport) -> RasterPngExportCont
     RasterPngExportContractProbe {
         format_ready: export.format == "png-rgba8888",
         byte_count_ready: export.byte_count == 6_293_028 && export.byte_count == export.bytes.len(),
-        checksum_ready: export.checksum == 0x9cf9_c9a8_df8e_2114,
+        checksum_ready: export.checksum == 0x2cdb_1d86_a1ba_9300,
         renderer_started: export.renderer_started,
         boot_graphics: false,
         export,
@@ -4337,6 +4337,7 @@ struct WaylandSmokeState {
     pointer_location: (f64, f64),
     output_width: u32,
     output_height: u32,
+    active_workspace: usize,
     toplevel_callbacks_bound: bool,
     popup_callbacks_bound: bool,
     toplevel_count: usize,
@@ -4446,6 +4447,7 @@ impl WaylandSmokeState {
             pointer_location: (768.0, 512.0),
             output_width: 1536,
             output_height: 1024,
+            active_workspace: 0,
             toplevel_callbacks_bound: true,
             popup_callbacks_bound: true,
             toplevel_count: 0,
@@ -6003,6 +6005,10 @@ impl SmithayDrmSession {
         self.session.wayland_state.launcher_state.clone()
     }
 
+    pub fn active_workspace(&self) -> usize {
+        self.session.wayland_state.active_workspace
+    }
+
     pub fn desktop_icon_state_snapshot(&self) -> DesktopIconState {
         self.session.wayland_state.desktop_icon_state.clone()
     }
@@ -6495,18 +6501,25 @@ impl SmithayDrmSession {
                     })
                     .flatten()
                 });
-            if let Some(item) = dock_target {
-                println!("desktop_dock_activation={}", item.id());
-                match item {
-                    DockItem::Launcher => self
+            if let Some(target) = dock_target {
+                println!("desktop_bottom_shell_activation={target:?}");
+                match target {
+                    BottomShellTarget::Applications => self
                         .session
                         .wayland_state
-                        .apply_launcher_event(LauncherEvent::Toggle),
-                    _ => {
+                        .apply_launcher_event(LauncherEvent::OpenApplications),
+                    BottomShellTarget::Search => self
+                        .session
+                        .wayland_state
+                        .apply_launcher_event(LauncherEvent::OpenSearch),
+                    BottomShellTarget::Application(item) => {
                         self.session.wayland_state.launcher_launch_request = item.launch_request();
                         self.session
                             .wayland_state
                             .apply_launcher_event(LauncherEvent::Dismiss);
+                    }
+                    BottomShellTarget::Workspace(index) => {
+                        self.session.wayland_state.active_workspace = index;
                     }
                 }
                 self.session.wayland_state.pointer_button_count += 1;
