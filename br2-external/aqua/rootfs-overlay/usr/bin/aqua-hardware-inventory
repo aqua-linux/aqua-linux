@@ -1,0 +1,150 @@
+#!/bin/sh
+
+set -u
+
+SYS_ROOT="${AQUA_INVENTORY_SYS_ROOT:-/sys}"
+PROC_ROOT="${AQUA_INVENTORY_PROC_ROOT:-/proc}"
+MAX_ENTRIES="${AQUA_INVENTORY_MAX_ENTRIES:-128}"
+
+case "${MAX_ENTRIES}" in
+    ''|*[!0-9]*) MAX_ENTRIES=128 ;;
+esac
+if [ "${MAX_ENTRIES}" -lt 1 ] || [ "${MAX_ENTRIES}" -gt 256 ]; then
+    MAX_ENTRIES=128
+fi
+
+clean_value() {
+    value="$1"
+    value="$(printf '%s' "${value}" | tr '\r\n|=' '    ' | cut -c 1-160)"
+    [ -n "${value}" ] || value=unknown
+    printf '%s' "${value}"
+}
+
+read_value() {
+    path="$1"
+    if [ -r "${path}" ]; then
+        clean_value "$(head -c 160 "${path}" 2>/dev/null)"
+    else
+        printf 'unknown'
+    fi
+}
+
+driver_name() {
+    path="$1"
+    if [ -L "${path}" ]; then
+        clean_value "$(basename "$(readlink "${path}" 2>/dev/null)")"
+    else
+        printf 'none'
+    fi
+}
+
+within_limit() {
+    [ "$1" -lt "${MAX_ENTRIES}" ]
+}
+
+echo 'schema=1'
+echo 'target_expected=MSI Sword 17'
+echo 'collection_mode=read-only'
+echo 'support_claim=false'
+echo 'installation_authorized=false'
+echo 'identifiers_excluded=serial,mac,hostname,uuid'
+echo 'sources=sysfs,procfs'
+
+for field in sys_vendor product_name product_version board_name bios_vendor bios_version; do
+    value="$(read_value "${SYS_ROOT}/class/dmi/id/${field}")"
+    echo "dmi|field=${field}|value=${value}"
+done
+
+cpu_model=unknown
+if [ -r "${PROC_ROOT}/cpuinfo" ]; then
+    cpu_model="$(awk -F: '/^(model name|Hardware)[[:space:]]*:/ {sub(/^[[:space:]]+/, "", $2); print $2; exit}' "${PROC_ROOT}/cpuinfo" 2>/dev/null)"
+    cpu_model="$(clean_value "${cpu_model}")"
+fi
+echo "cpu|model=${cpu_model}"
+
+if [ -d "${SYS_ROOT}/firmware/efi" ]; then
+    echo 'firmware|uefi=true'
+else
+    echo 'firmware|uefi=false'
+fi
+
+count=0
+for path in "${SYS_ROOT}"/bus/pci/devices/*; do
+    [ -d "${path}" ] || continue
+    within_limit "${count}" || break
+    address="$(clean_value "$(basename "${path}")")"
+    vendor="$(read_value "${path}/vendor")"
+    device="$(read_value "${path}/device")"
+    class="$(read_value "${path}/class")"
+    driver="$(driver_name "${path}/driver")"
+    echo "pci|address=${address}|vendor=${vendor}|device=${device}|class=${class}|driver=${driver}"
+    count=$((count + 1))
+done
+echo "pci_count=${count}"
+
+count=0
+for path in "${SYS_ROOT}"/bus/usb/devices/*; do
+    [ -d "${path}" ] || continue
+    [ -r "${path}/idVendor" ] || continue
+    [ -r "${path}/idProduct" ] || continue
+    within_limit "${count}" || break
+    node="$(clean_value "$(basename "${path}")")"
+    vendor="$(read_value "${path}/idVendor")"
+    product_id="$(read_value "${path}/idProduct")"
+    product="$(read_value "${path}/product")"
+    echo "usb|node=${node}|vendor=${vendor}|product_id=${product_id}|product=${product}"
+    count=$((count + 1))
+done
+echo "usb_count=${count}"
+
+count=0
+for path in "${SYS_ROOT}"/class/drm/card*-*; do
+    [ -d "${path}" ] || continue
+    within_limit "${count}" || break
+    connector="$(clean_value "$(basename "${path}")")"
+    status="$(read_value "${path}/status")"
+    mode="$(read_value "${path}/modes")"
+    echo "drm|connector=${connector}|status=${status}|first_mode=${mode}"
+    count=$((count + 1))
+done
+echo "drm_connector_count=${count}"
+
+count=0
+for path in "${SYS_ROOT}"/class/input/event*; do
+    [ -d "${path}" ] || continue
+    within_limit "${count}" || break
+    event="$(clean_value "$(basename "${path}")")"
+    name="$(read_value "${path}/device/name")"
+    echo "input|event=${event}|name=${name}"
+    count=$((count + 1))
+done
+echo "input_count=${count}"
+
+count=0
+for path in "${SYS_ROOT}"/class/block/*; do
+    [ -d "${path}" ] || continue
+    [ ! -e "${path}/partition" ] || continue
+    within_limit "${count}" || break
+    name="$(clean_value "$(basename "${path}")")"
+    model="$(read_value "${path}/device/model")"
+    size_sectors="$(read_value "${path}/size")"
+    read_only="$(read_value "${path}/ro")"
+    removable="$(read_value "${path}/removable")"
+    echo "block|name=${name}|model=${model}|size_sectors=${size_sectors}|read_only=${read_only}|removable=${removable}"
+    count=$((count + 1))
+done
+echo "block_count=${count}"
+
+count=0
+for path in "${SYS_ROOT}"/class/power_supply/*; do
+    [ -d "${path}" ] || continue
+    within_limit "${count}" || break
+    name="$(clean_value "$(basename "${path}")")"
+    type="$(read_value "${path}/type")"
+    status="$(read_value "${path}/status")"
+    capacity="$(read_value "${path}/capacity")"
+    echo "power|name=${name}|type=${type}|status=${status}|capacity=${capacity}"
+    count=$((count + 1))
+done
+echo "power_supply_count=${count}"
+echo 'collection_complete=true'

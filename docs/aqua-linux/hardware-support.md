@@ -43,6 +43,10 @@ No MSI Sword 17 hardware validation has started. The exact machine variant and
 device identifiers have not been recorded, so Aqua Linux does not currently
 claim support for any MSI Sword 17 configuration.
 
+The [hardware inventory contract](hardware-inventory.md) defines the bounded
+read-only record that must be collected and reviewed before these rows can
+advance. Its existence does not change the current support status.
+
 | Area | Status | Required before a support claim |
 | --- | --- | --- |
 | UEFI boot and Secure Boot posture | Not tested | Record firmware mode, decide the unsigned-development-image procedure, and prove recovery boot from removable media. |
