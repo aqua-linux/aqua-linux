@@ -76,6 +76,35 @@ Every interactive surface must define:
 8. Empty state where applicable.
 9. Error and recovery.
 
+State changes must use the shared motion tokens and must not resize or shift a
+control. Components that do not support a listed state document why it is not
+applicable. Hover, pointer press, keyboard focus, selected, and disabled are
+separate states even when two states currently share colors.
+
+## Visual Fidelity Acceptance
+
+The v1 interface is not visually complete until all of these contracts pass:
+
+- Typography: shaped Unicode runs, kerning, fallback, grapheme-safe wrapping
+  and truncation, stable baselines, and scale-native rasterization pass the
+  fixture set defined by [interface-style.md](interface-style.md).
+- Elevation: shared shadow levels produce consistent stacking, rounded edges,
+  damage bounds, and frame-time behavior for windows, panels, menus, and
+  dialogs in every theme.
+- Icons: reviewed SVG masters rasterize without bitmap enlargement at every
+  required logical size and supported scale; theme and state variants preserve
+  a stable layout box.
+- Motion: opening, closing, focus, selection, attention, progress, and workspace
+  transitions pass start, midpoint, completion, interruption, reversal, and
+  reduced-motion checks.
+- Components: every shared component declares anatomy, tokens, input behavior,
+  accessibility semantics, content bounds, and its applicable state matrix.
+
+Acceptance evidence includes deterministic renderer fixtures plus packaged
+QEMU captures at 800x600, 1280x800, and 1536x1024. At least one fractional-scale
+fixture is required for typography and iconography. A static mockup, token-only
+definition, or single idle-state screenshot is not completion evidence.
+
 ## Accessibility And Localization
 
 - Complete primary workflows with keyboard only.
@@ -83,6 +112,8 @@ Every interactive surface must define:
 - Keep hit targets stable at supported output scales.
 - Allow Turkish and English text expansion without overlap or truncating critical actions.
 - Respect reduced-motion settings for panel and workspace transitions.
+- Preserve logical reading order, baseline alignment, and focus indication when
+  font fallback or bidirectional shaping is active.
 
 ## Acceptance Order
 

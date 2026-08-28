@@ -1040,6 +1040,8 @@ assert phases["m9"]["percent"] == 100
 assert phases["m9"]["status"] == "complete"
 assert phases["m11"]["percent"] == 100
 assert phases["m11"]["status"] == "complete"
+assert phases["m12"]["percent"] == 0
+assert phases["m12"]["status"] == "not-started"
 PY
 test -f crates/aqua-installer/Cargo.toml
 test -f crates/aqua-installer/src/lib.rs
@@ -1141,7 +1143,7 @@ grep -Fq '"id": "m5"' docs/aqua-linux/progress.json
 grep -Fq 'upstream Weston simple-shm C reference client' docs/aqua-linux/progress.json
 grep -Fq 'weston-simple-shm' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'libweston-12' br2-external/aqua/board/aqua/x86_64/post-build.sh
-grep -Fq 'rounded arithmetic mean of the 12 phase percentages' docs/aqua-linux/progress.json
+grep -Fq 'rounded arithmetic mean of the 13 phase percentages' docs/aqua-linux/progress.json
 grep -Fq 'Aqua Linux v1.0 is treated as 100%.' docs/aqua-linux/progress.json
 test -f docs/aqua-linux/ui-contract.md
 grep -Fxq '/docs/aqua-linux/local-references/' .gitignore
@@ -1150,6 +1152,15 @@ grep -Fq 'The bottom area is split into launcher/search controls, a centered run
 grep -Fq 'Theme selection for LightWhite, Softtouch, Deepside, or Nightmare.' docs/aqua-linux/visual-reference.md
 grep -Fq 'runningAppDock": "bottom-center"' docs/aqua-linux/design-tokens.json
 grep -Fq 'Third-party icons shown in references are composition examples only.' docs/aqua-linux/interface-style.md
+grep -Fq '## Elevation And Shadows' docs/aqua-linux/interface-style.md
+grep -Fq '## Scalable Iconography' docs/aqua-linux/interface-style.md
+grep -Fq '## Motion' docs/aqua-linux/interface-style.md
+grep -Fq 'unicodeShapingRequired' docs/aqua-linux/design-tokens.json
+grep -Fq 'scaleNativeRasterization' docs/aqua-linux/design-tokens.json
+grep -Fq 'frameCallbackDriven' docs/aqua-linux/design-tokens.json
+grep -Fq 'stableLayoutAcrossStates' docs/aqua-linux/design-tokens.json
+grep -Fq '## Visual Fidelity Acceptance' docs/aqua-linux/ui-contract.md
+grep -Fq '## Milestone 12: Visual Fidelity And Component System' docs/aqua-linux/milestones.md
 grep -Fq 'pub enum AquaTheme' crates/aqua-shell/src/lib.rs
 grep -Fq 'pub const NIGHTMARE_WINDOW_CHROME' crates/aqua-renderer/src/lib.rs
 grep -Fq 'render_files_window_rgba_with_theme' crates/aqua-renderer/src/lib.rs

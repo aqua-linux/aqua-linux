@@ -39,13 +39,13 @@ elif not 0 <= data["overallPercent"] <= 100:
     errors.append("overallPercent must be between 0 and 100")
 
 phases = data.get("phases")
-if not isinstance(phases, list) or len(phases) != 12:
-    errors.append("progress report must track 12 v1 phases")
+if not isinstance(phases, list) or len(phases) != 13:
+    errors.append("progress report must track 13 v1 phases")
 else:
-    expected_ids = [f"m{i}" for i in range(12)]
+    expected_ids = [f"m{i}" for i in range(13)]
     actual_ids = [phase.get("id") for phase in phases]
     if actual_ids != expected_ids:
-        errors.append("phase ids must be m0 through m11 in order")
+        errors.append("phase ids must be m0 through m12 in order")
     for phase in phases:
         percent = phase.get("percent")
         if not isinstance(percent, int) or not 0 <= percent <= 100:
