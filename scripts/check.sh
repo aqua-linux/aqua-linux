@@ -1183,6 +1183,8 @@ grep -Fq 'public_runtime_screenshots = ' docs/aqua-linux/compositor-foundation.t
 grep -Fq 'Current QEMU Runtime' README.md
 grep -Fq 'These images are captures of the current Aqua Linux runtime in QEMU' docs/aqua-linux/runtime-screenshots.md
 scripts/check-public-runtime-screenshots.sh
+test -x scripts/check-hardware-support-status.sh
+scripts/check-hardware-support-status.sh
 grep -Fq 'desktop_shell_theme=' crates/aqua-compositor/src/main.rs
 grep -Fq 'theme=LightWhite' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'run-manual-nested-preview-execution' docs/aqua-linux/compositor.md

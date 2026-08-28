@@ -323,6 +323,8 @@ Goal: test Aqua Linux on the real target machine.
 
 Tasks:
 
+- Keep the public support matrix explicit about QEMU evidence and physical
+  hardware unknowns.
 - Identify CPU, GPU, Wi-Fi, audio, touchpad, keyboard, storage, and display hardware.
 - Confirm UEFI boot path.
 - Decide Secure Boot posture.
@@ -333,6 +335,8 @@ Tasks:
 Expected output:
 
 - Aqua Linux boots on MSI Sword 17.
+- Current status before physical testing: `hardware-support.md` records every
+  MSI area as not tested and prohibits a physical support claim.
 
 Done when:
 

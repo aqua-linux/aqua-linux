@@ -43,7 +43,9 @@ not part of the Aqua Linux runtime image.
 The detailed roadmap is in
 [milestones.md](docs/aqua-linux/milestones.md). The generated progress report
 uses explicit milestone percentages and is available at
-[progress.md](docs/aqua-linux/progress.md).
+[progress.md](docs/aqua-linux/progress.md). The current virtual and physical
+target boundaries are recorded in
+[hardware-support.md](docs/aqua-linux/hardware-support.md).
 
 ## Architecture
 
@@ -172,6 +174,8 @@ See [visual-reference.md](docs/aqua-linux/visual-reference.md) and
   milestone percentages in `progress.json`.
 - Host-side mockups and website work do not count as OS completion.
 - Hardware support is not claimed until it is validated on the named hardware.
+- QEMU validation applies only to the declared virtual devices and is not a
+  support claim for MSI Sword 17 or other physical machines.
 - Release images are not offered until Buildroot legal information and
   corresponding-source obligations are reviewed.
 
