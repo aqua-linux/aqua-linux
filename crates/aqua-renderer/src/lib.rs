@@ -21,6 +21,37 @@ const UI_FONT_BYTES: &[u8] =
     include_bytes!("../../../docs/aqua-linux/assets/fonts/NotoSans-Regular.ttf");
 static UI_FONT: OnceLock<Option<Font>> = OnceLock::new();
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WindowChromePalette {
+    pub surface: [u8; 4],
+    pub titlebar: [u8; 4],
+    pub toolbar: [u8; 4],
+    pub sidebar: [u8; 4],
+    pub field: [u8; 4],
+    pub border: [u8; 4],
+    pub text: [u8; 4],
+    pub secondary_text: [u8; 4],
+    pub accent: [u8; 4],
+    pub accent_soft: [u8; 4],
+    pub hover: [u8; 4],
+    pub row_alternate: [u8; 4],
+}
+
+pub const LIGHTWHITE_WINDOW_CHROME: WindowChromePalette = WindowChromePalette {
+    surface: [0xf8, 0xfa, 0xfc, 0xff],
+    titlebar: [0xf2, 0xf5, 0xf9, 0xff],
+    toolbar: [0xf6, 0xf8, 0xfb, 0xff],
+    sidebar: [0xed, 0xf2, 0xf7, 0xff],
+    field: [0xff, 0xff, 0xff, 0xff],
+    border: [0xc8, 0xd2, 0xde, 0xff],
+    text: [0x16, 0x20, 0x2f, 0xff],
+    secondary_text: [0x5e, 0x6b, 0x7d, 0xff],
+    accent: [0x16, 0x77, 0xff, 0xff],
+    accent_soft: [0xdb, 0xe9, 0xfd, 0xff],
+    hover: [0xe5, 0xec, 0xf5, 0xff],
+    row_alternate: [0xf1, 0xf4, 0xf8, 0xff],
+};
+
 pub fn embedded_ui_font_ready() -> bool {
     ui_font().is_some()
 }
@@ -1896,39 +1927,14 @@ pub fn render_terminal_window_rgba(
         width,
         height,
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        canvas,
-        [0x07, 0x32, 0x50, 0xff],
-        255,
-    );
-    let mut primitives = 1 + draw_system_surface_primitives(&mut buffer, width, height, canvas);
     let titlebar = Rect {
-        x: 2,
-        y: 2,
-        width: width.saturating_sub(4),
+        x: 0,
+        y: 0,
+        width,
         height: 48,
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        titlebar,
-        [0x2d, 0xa8, 0xda, 0xff],
-        178,
-    );
-    draw_bitmap_text(
-        &mut buffer,
-        (width, height),
-        (24, 18),
-        "Terminal",
-        [0xf4, 0xfe, 0xff, 0xff],
-        2,
-    );
-    draw_window_controls(&mut buffer, width, height, width.saturating_sub(78), 17);
-    primitives += 4;
+    let mut primitives =
+        draw_bright_window_chrome(&mut buffer, width, height, canvas, titlebar, "Terminal");
 
     let scrim = Rect {
         x: 10,
@@ -2017,39 +2023,15 @@ pub fn render_properties_window_rgba(
         width,
         height,
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        canvas,
-        [0x08, 0x39, 0x5b, 0xff],
-        255,
-    );
-    let mut primitives = 1 + draw_system_surface_primitives(&mut buffer, width, height, canvas);
     let titlebar = Rect {
-        x: 2,
-        y: 2,
-        width: width.saturating_sub(4),
+        x: 0,
+        y: 0,
+        width,
         height: 52,
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        titlebar,
-        [0x2d, 0xa8, 0xda, 0xff],
-        178,
-    );
-    draw_bitmap_text(
-        &mut buffer,
-        (width, height),
-        (22, 18),
-        &model.title,
-        [0xf4, 0xfe, 0xff, 0xff],
-        2,
-    );
-    draw_window_controls(&mut buffer, width, height, width.saturating_sub(78), 18);
-    primitives += 4;
+    let palette = LIGHTWHITE_WINDOW_CHROME;
+    let mut primitives =
+        draw_bright_window_chrome(&mut buffer, width, height, canvas, titlebar, &model.title);
 
     let badge = Rect {
         x: 24,
@@ -2057,14 +2039,7 @@ pub fn render_properties_window_rgba(
         width: 86,
         height: 86,
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        badge,
-        [0x36, 0xc5, 0xec, 0xff],
-        150,
-    );
+    fill_rect(&mut buffer, width, height, badge, palette.accent_soft, 255);
     let glyph = match model.icon_id {
         "files" => "DIR",
         "settings" => "SET",
@@ -2076,7 +2051,7 @@ pub fn render_properties_window_rgba(
         (width, height),
         (42, 112),
         glyph,
-        [0xf5, 0xfe, 0xff, 0xff],
+        palette.accent,
         2,
     );
     draw_bitmap_text(
@@ -2084,7 +2059,7 @@ pub fn render_properties_window_rgba(
         (width, height),
         (132, 84),
         model.name,
-        [0xf5, 0xfe, 0xff, 0xff],
+        palette.text,
         2,
     );
     draw_bitmap_text(
@@ -2092,7 +2067,7 @@ pub fn render_properties_window_rgba(
         (width, height),
         (132, 116),
         model.kind,
-        [0xa8, 0xd9, 0xe8, 0xff],
+        palette.secondary_text,
         1,
     );
     draw_bitmap_text(
@@ -2100,7 +2075,7 @@ pub fn render_properties_window_rgba(
         (width, height),
         (132, 140),
         model.status,
-        [0x71, 0xe4, 0xf5, 0xff],
+        palette.accent,
         1,
     );
     primitives += 2;
@@ -2111,20 +2086,14 @@ pub fn render_properties_window_rgba(
         width: width.saturating_sub(48),
         height: height.saturating_sub(208),
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        details,
-        [0x03, 0x26, 0x40, 0xff],
-        205,
-    );
+    fill_rect(&mut buffer, width, height, details, palette.field, 255);
+    draw_rect_outline(&mut buffer, width, height, details, palette.border, 255);
     draw_bitmap_text(
         &mut buffer,
         (width, height),
         (40, 198),
         "Location",
-        [0xa8, 0xd9, 0xe8, 0xff],
+        palette.secondary_text,
         1,
     );
     draw_bitmap_text(
@@ -2132,7 +2101,7 @@ pub fn render_properties_window_rgba(
         (width, height),
         (128, 198),
         &model.location,
-        [0xf5, 0xfe, 0xff, 0xff],
+        palette.text,
         1,
     );
     if let Some(item_count) = model.item_count {
@@ -2141,7 +2110,7 @@ pub fn render_properties_window_rgba(
             (width, height),
             (40, 220),
             "Items",
-            [0xa8, 0xd9, 0xe8, 0xff],
+            palette.secondary_text,
             1,
         );
         let suffix = if model.enumeration_capped { "+" } else { "" };
@@ -2150,7 +2119,7 @@ pub fn render_properties_window_rgba(
             (width, height),
             (128, 220),
             &format!("{item_count}{suffix}"),
-            [0xf5, 0xfe, 0xff, 0xff],
+            palette.text,
             1,
         );
     }
@@ -2160,14 +2129,7 @@ pub fn render_properties_window_rgba(
         width: 138,
         height: 30,
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        action,
-        [0x18, 0x8e, 0xc4, 0xff],
-        230,
-    );
+    fill_rect(&mut buffer, width, height, action, palette.accent, 255);
     draw_bitmap_text(
         &mut buffer,
         (width, height),
@@ -2176,7 +2138,7 @@ pub fn render_properties_window_rgba(
             aqua_shell::DesktopPropertiesAction::RefreshContents => "Refresh (F5)",
             aqua_shell::DesktopPropertiesAction::VerifyApplication => "Verify (F5)",
         },
-        [0xf5, 0xfe, 0xff, 0xff],
+        [0xff, 0xff, 0xff, 0xff],
         1,
     );
     draw_bitmap_text(
@@ -2184,7 +2146,7 @@ pub fn render_properties_window_rgba(
         (width, height),
         (40, 252),
         &format!("Updated {}", model.refresh_generation),
-        [0x71, 0xe4, 0xf5, 0xff],
+        palette.secondary_text,
         1,
     );
     primitives += 3;
@@ -2274,71 +2236,41 @@ pub fn render_installer_window_rgba(
         [0x1d, 0x45, 0x72, 0xff],
         72,
     );
+    let palette = LIGHTWHITE_WINDOW_CHROME;
     fill_rounded_rect(
         &mut buffer,
         width,
         height,
         layout.window,
         8,
-        [0xee, 0xf6, 0xff, 0xff],
-        246,
+        palette.surface,
+        255,
     );
     primitives += 2 + draw_system_surface_primitives(&mut buffer, width, height, layout.window);
 
-    fill_rounded_rect(
+    primitives += draw_bright_window_titlebar(
         &mut buffer,
         width,
         height,
         layout.titlebar,
-        8,
-        [0xe2, 0xec, 0xf7, 0xff],
-        232,
-    );
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        Rect {
-            x: layout.titlebar.x,
-            y: layout.titlebar.bottom() - 1,
-            width: layout.titlebar.width,
-            height: 1,
-        },
-        [0xa8, 0xbd, 0xd2, 0xff],
-        150,
-    );
-    draw_window_controls(
-        &mut buffer,
-        width,
-        height,
-        layout.titlebar.x + 24,
-        layout.titlebar.y + 22,
-    );
-    draw_bitmap_text(
-        &mut buffer,
-        (width, height),
-        (width / 2 - 82, layout.titlebar.y + 18),
         "Aqua Linux Kurulumu",
-        [0x22, 0x32, 0x47, 0xff],
-        1,
     );
-    primitives += 5;
 
     fill_rect(
         &mut buffer,
         width,
         height,
         layout.step_rail,
-        [0xd6, 0xe2, 0xef, 0xff],
-        206,
+        palette.sidebar,
+        255,
     );
     fill_rect(
         &mut buffer,
         width,
         height,
         layout.content,
-        [0xf4, 0xf9, 0xff, 0xff],
-        214,
+        palette.surface,
+        255,
     );
     fill_rect(
         &mut buffer,
@@ -3492,39 +3424,15 @@ pub fn render_settings_window_rgba(
         width,
         height,
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        canvas,
-        [0x08, 0x39, 0x5b, 0xff],
-        255,
-    );
-    let mut primitives = 1 + draw_system_surface_primitives(&mut buffer, width, height, canvas);
     let titlebar = Rect {
-        x: 2,
-        y: 2,
-        width: width.saturating_sub(4),
+        x: 0,
+        y: 0,
+        width,
         height: 58,
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        titlebar,
-        [0x2d, 0xa8, 0xda, 0xff],
-        178,
-    );
-    draw_bitmap_text(
-        &mut buffer,
-        (width, height),
-        (24, 21),
-        model.title,
-        [0xf4, 0xfe, 0xff, 0xff],
-        2,
-    );
-    draw_window_controls(&mut buffer, width, height, width.saturating_sub(78), 21);
-    primitives += 4;
+    let palette = LIGHTWHITE_WINDOW_CHROME;
+    let mut primitives =
+        draw_bright_window_chrome(&mut buffer, width, height, canvas, titlebar, model.title);
 
     let sidebar = Rect {
         x: 2,
@@ -3532,14 +3440,7 @@ pub fn render_settings_window_rgba(
         width: 188,
         height: height.saturating_sub(62),
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        sidebar,
-        [0x07, 0x42, 0x68, 0xff],
-        214,
-    );
+    fill_rect(&mut buffer, width, height, sidebar, palette.sidebar, 255);
     primitives += 1;
     for (index, category) in model.categories.iter().enumerate() {
         let row = Rect {
@@ -3549,24 +3450,10 @@ pub fn render_settings_window_rgba(
             height: 42,
         };
         if model.selected_category == index {
-            fill_rect(
-                &mut buffer,
-                width,
-                height,
-                row,
-                [0x39, 0xb9, 0xeb, 0xff],
-                180,
-            );
+            fill_rect(&mut buffer, width, height, row, palette.accent_soft, 255);
             primitives += 1;
         } else if model.hovered_category == Some(index) {
-            fill_rect(
-                &mut buffer,
-                width,
-                height,
-                row,
-                [0x52, 0xc8, 0xee, 0xff],
-                72,
-            );
+            fill_rect(&mut buffer, width, height, row, palette.hover, 255);
             primitives += 1;
         }
         draw_category_icon(&mut buffer, width, height, row.x + 10, row.y + 10, index);
@@ -3575,7 +3462,7 @@ pub fn render_settings_window_rgba(
             (width, height),
             (row.x + 38, row.y + 14),
             category,
-            [0xee, 0xfb, 0xff, 0xff],
+            palette.text,
             1,
         );
         primitives += 2;
@@ -3590,8 +3477,8 @@ pub fn render_settings_window_rgba(
             width: 1,
             height: height.saturating_sub(62),
         },
-        [0xb9, 0xea, 0xf2, 0xff],
-        96,
+        palette.border,
+        255,
     );
 
     let heading = model.categories[model.selected_category];
@@ -3600,7 +3487,7 @@ pub fn render_settings_window_rgba(
         (width, height),
         (218, 92),
         heading,
-        [0xf4, 0xfe, 0xff, 0xff],
+        palette.text,
         2,
     );
     if model.selected_category == 0 {
@@ -3609,7 +3496,7 @@ pub fn render_settings_window_rgba(
             (width, height),
             (218, 142),
             "REDUCED MOTION",
-            [0xd8, 0xf5, 0xfc, 0xff],
+            palette.text,
             1,
         );
         draw_bitmap_text(
@@ -3617,7 +3504,7 @@ pub fn render_settings_window_rgba(
             (width, height),
             (218, 164),
             "Limit desktop animation",
-            [0x9f, 0xd5, 0xe2, 0xff],
+            palette.secondary_text,
             1,
         );
         let toggle = Rect {
@@ -3632,9 +3519,9 @@ pub fn render_settings_window_rgba(
             height,
             toggle,
             if model.reduced_motion {
-                [0x29, 0xc7, 0xd9, 0xff]
+                palette.accent
             } else {
-                [0x05, 0x2c, 0x49, 0xff]
+                palette.border
             },
             230,
         );
@@ -3650,7 +3537,7 @@ pub fn render_settings_window_rgba(
                 width: 24,
                 height: 24,
             },
-            [0xe9, 0xfb, 0xff, 0xff],
+            palette.field,
             255,
         );
         primitives += 1;
@@ -3660,7 +3547,7 @@ pub fn render_settings_window_rgba(
             (width, height),
             (218, 142),
             "SHOW DESKTOP ICONS",
-            [0xd8, 0xf5, 0xfc, 0xff],
+            palette.text,
             1,
         );
         draw_bitmap_text(
@@ -3668,7 +3555,7 @@ pub fn render_settings_window_rgba(
             (width, height),
             (218, 164),
             "Show home and storage items",
-            [0x9f, 0xd5, 0xe2, 0xff],
+            palette.secondary_text,
             1,
         );
         let toggle = Rect {
@@ -3683,9 +3570,9 @@ pub fn render_settings_window_rgba(
             height,
             toggle,
             if model.desktop_icons {
-                [0x29, 0xc7, 0xd9, 0xff]
+                palette.accent
             } else {
-                [0x05, 0x2c, 0x49, 0xff]
+                palette.border
             },
             230,
         );
@@ -3701,7 +3588,7 @@ pub fn render_settings_window_rgba(
                 width: 24,
                 height: 24,
             },
-            [0xe9, 0xfb, 0xff, 0xff],
+            palette.field,
             255,
         );
         primitives += 1;
@@ -3711,7 +3598,7 @@ pub fn render_settings_window_rgba(
             (width, height),
             (218, 142),
             "KEY REPEAT",
-            [0xd8, 0xf5, 0xfc, 0xff],
+            palette.text,
             1,
         );
         draw_bitmap_text(
@@ -3719,7 +3606,7 @@ pub fn render_settings_window_rgba(
             (width, height),
             (218, 164),
             "Repeat held keyboard keys",
-            [0x9f, 0xd5, 0xe2, 0xff],
+            palette.secondary_text,
             1,
         );
         let toggle = Rect {
@@ -3734,9 +3621,9 @@ pub fn render_settings_window_rgba(
             height,
             toggle,
             if model.key_repeat {
-                [0x29, 0xc7, 0xd9, 0xff]
+                palette.accent
             } else {
-                [0x05, 0x2c, 0x49, 0xff]
+                palette.border
             },
             230,
         );
@@ -3752,7 +3639,7 @@ pub fn render_settings_window_rgba(
                 width: 24,
                 height: 24,
             },
-            [0xe9, 0xfb, 0xff, 0xff],
+            palette.field,
             255,
         );
         primitives += 1;
@@ -3762,7 +3649,7 @@ pub fn render_settings_window_rgba(
             (width, height),
             (218, 142),
             "NETWORK STATUS",
-            [0xd8, 0xf5, 0xfc, 0xff],
+            palette.text,
             1,
         );
         let (adapter, state) = if !model.network_status_available {
@@ -3780,7 +3667,7 @@ pub fn render_settings_window_rgba(
             (width, height),
             (218, 174),
             &adapter,
-            [0xf4, 0xfe, 0xff, 0xff],
+            palette.text,
             2,
         );
         draw_bitmap_text(
@@ -3788,7 +3675,7 @@ pub fn render_settings_window_rgba(
             (width, height),
             (218, 208),
             &state,
-            [0x69, 0xe1, 0xee, 0xff],
+            palette.accent,
             1,
         );
         draw_bitmap_text(
@@ -3796,7 +3683,7 @@ pub fn render_settings_window_rgba(
             (width, height),
             (218, 246),
             "Configuration disabled",
-            [0x9f, 0xd5, 0xe2, 0xff],
+            palette.secondary_text,
             1,
         );
         primitives += 4;
@@ -3806,7 +3693,7 @@ pub fn render_settings_window_rgba(
             (width, height),
             (218, 142),
             "SETTINGS WILL APPEAR HERE",
-            [0x9f, 0xd5, 0xe2, 0xff],
+            palette.secondary_text,
             1,
         );
         primitives += 1;
@@ -3822,8 +3709,8 @@ pub fn render_settings_window_rgba(
                 width: width.saturating_sub(218),
                 height: 1,
             },
-            [0x8e, 0xeb, 0xff, 0xff],
-            180,
+            palette.accent,
+            255,
         );
         primitives += 1;
     }
@@ -3883,41 +3770,15 @@ pub fn render_files_window_rgba(
         width,
         height,
     };
-    let mut primitives = 0;
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        canvas,
-        [0x08, 0x39, 0x5b, 0xff],
-        255,
-    );
-    primitives += 1 + draw_system_surface_primitives(&mut buffer, width, height, canvas);
-
     let titlebar = Rect {
-        x: 2,
-        y: 2,
-        width: width.saturating_sub(4),
+        x: 0,
+        y: 0,
+        width,
         height: 48,
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        titlebar,
-        [0x2d, 0xa8, 0xda, 0xff],
-        178,
-    );
-    draw_bitmap_text(
-        &mut buffer,
-        (width, height),
-        (24, 18),
-        model.title,
-        [0xf4, 0xfe, 0xff, 0xff],
-        2,
-    );
-    draw_window_controls(&mut buffer, width, height, width.saturating_sub(78), 17);
-    primitives += 4;
+    let palette = LIGHTWHITE_WINDOW_CHROME;
+    let mut primitives =
+        draw_bright_window_chrome(&mut buffer, width, height, canvas, titlebar, model.title);
 
     let toolbar = Rect {
         x: 2,
@@ -3925,14 +3786,7 @@ pub fn render_files_window_rgba(
         width: width.saturating_sub(4),
         height: 58,
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        toolbar,
-        [0x05, 0x2c, 0x49, 0xff],
-        220,
-    );
+    fill_rect(&mut buffer, width, height, toolbar, palette.toolbar, 255);
     draw_back_forward(
         &mut buffer,
         width,
@@ -3948,21 +3802,14 @@ pub fn render_files_window_rgba(
         width: width.saturating_sub(118),
         height: 32,
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        location,
-        [0x02, 0x1e, 0x34, 0xff],
-        210,
-    );
+    fill_rect(&mut buffer, width, height, location, palette.field, 255);
     primitives += 2 + draw_system_surface_primitives(&mut buffer, width, height, location);
     draw_bitmap_text(
         &mut buffer,
         (width, height),
         (location.x + 14, location.y + 10),
         &model.location,
-        [0xd8, 0xf5, 0xfc, 0xff],
+        palette.text,
         1,
     );
 
@@ -3973,14 +3820,7 @@ pub fn render_files_window_rgba(
         width: sidebar_width,
         height: height.saturating_sub(110),
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        sidebar,
-        [0x07, 0x42, 0x68, 0xff],
-        214,
-    );
+    fill_rect(&mut buffer, width, height, sidebar, palette.sidebar, 255);
     primitives += 1;
     for (index, item) in model.sidebar_items.iter().enumerate() {
         let row = Rect {
@@ -3990,24 +3830,10 @@ pub fn render_files_window_rgba(
             height: 38,
         };
         if index == model.selected_sidebar {
-            fill_rect(
-                &mut buffer,
-                width,
-                height,
-                row,
-                [0x39, 0xb9, 0xeb, 0xff],
-                180,
-            );
+            fill_rect(&mut buffer, width, height, row, palette.accent_soft, 255);
             primitives += 1;
         } else if model.hovered_sidebar == Some(index) {
-            fill_rect(
-                &mut buffer,
-                width,
-                height,
-                row,
-                [0x52, 0xc8, 0xee, 0xff],
-                72,
-            );
+            fill_rect(&mut buffer, width, height, row, palette.hover, 255);
             primitives += 1;
         }
         draw_sidebar_icon(&mut buffer, width, height, row.x + 10, row.y + 9, index);
@@ -4016,7 +3842,7 @@ pub fn render_files_window_rgba(
             (width, height),
             (row.x + 36, row.y + 12),
             item,
-            [0xee, 0xfb, 0xff, 0xff],
+            palette.text,
             1,
         );
     }
@@ -4031,8 +3857,8 @@ pub fn render_files_window_rgba(
             width: 1,
             height: height.saturating_sub(110),
         },
-        [0xb9, 0xea, 0xf2, 0xff],
-        96,
+        palette.border,
+        255,
     );
     primitives += 1;
     let list_x = sidebar_width + 18;
@@ -4043,7 +3869,7 @@ pub fn render_files_window_rgba(
             (width, height),
             (list_x + 54, 142),
             &preview.name,
-            [0xf4, 0xfe, 0xff, 0xff],
+            palette.text,
             1,
         );
         for (line_index, line) in preview
@@ -4059,7 +3885,7 @@ pub fn render_files_window_rgba(
                 (width, height),
                 (list_x + 16, 194 + line_index as u32 * 22),
                 &bounded,
-                [0xc6, 0xed, 0xf5, 0xff],
+                palette.text,
                 1,
             );
         }
@@ -4068,7 +3894,7 @@ pub fn render_files_window_rgba(
             (width, height),
             (list_x + 16, 340),
             "READ ONLY",
-            [0x64, 0xd8, 0xf5, 0xff],
+            palette.secondary_text,
             1,
         );
         let line_count = preview.content.lines().count();
@@ -4080,14 +3906,7 @@ pub fn render_files_window_rgba(
                 width: 5,
                 height: 136,
             };
-            fill_rect(
-                &mut buffer,
-                width,
-                height,
-                track,
-                [0x04, 0x2a, 0x43, 0xff],
-                190,
-            );
+            fill_rect(&mut buffer, width, height, track, palette.border, 255);
             let thumb_height =
                 (track.height as usize * FILES_PREVIEW_VISIBLE_LINES / line_count).max(24) as u32;
             let max_offset = line_count
@@ -4106,8 +3925,8 @@ pub fn render_files_window_rgba(
                     width: track.width,
                     height: thumb_height,
                 },
-                [0x70, 0xd7, 0xee, 0xff],
-                220,
+                palette.accent,
+                255,
             );
             primitives += 2;
         }
@@ -4125,7 +3944,7 @@ pub fn render_files_window_rgba(
             (width, height),
             (width / 2 - 50, 252),
             "EMPTY FOLDER",
-            [0xb9, 0xea, 0xf2, 0xff],
+            palette.secondary_text,
             1,
         );
         primitives += 2;
@@ -4145,32 +3964,11 @@ pub fn render_files_window_rgba(
                 height: 56,
             };
             if model.selected_entry == Some(index) {
-                fill_rect(
-                    &mut buffer,
-                    width,
-                    height,
-                    row,
-                    [0x32, 0xb6, 0xe9, 0xff],
-                    160,
-                );
+                fill_rect(&mut buffer, width, height, row, palette.accent_soft, 255);
             } else if model.hovered_entry == Some(index) {
-                fill_rect(
-                    &mut buffer,
-                    width,
-                    height,
-                    row,
-                    [0x45, 0xb9, 0xdd, 0xff],
-                    82,
-                );
+                fill_rect(&mut buffer, width, height, row, palette.hover, 255);
             } else if index % 2 == 0 {
-                fill_rect(
-                    &mut buffer,
-                    width,
-                    height,
-                    row,
-                    [0x16, 0x70, 0x94, 0xff],
-                    72,
-                );
+                fill_rect(&mut buffer, width, height, row, palette.row_alternate, 255);
             }
             match entry.kind {
                 FilesEntryKind::Folder => draw_folder_icon(
@@ -4190,7 +3988,7 @@ pub fn render_files_window_rgba(
                 (width, height),
                 (row.x + 62, row.y + 12),
                 &entry.name,
-                [0xf4, 0xfe, 0xff, 0xff],
+                palette.text,
                 1,
             );
             draw_bitmap_text(
@@ -4198,7 +3996,7 @@ pub fn render_files_window_rgba(
                 (width, height),
                 (row.x + 62, row.y + 32),
                 &entry.detail,
-                [0x9f, 0xd5, 0xe2, 0xff],
+                palette.secondary_text,
                 1,
             );
             primitives += 2;
@@ -4210,14 +4008,7 @@ pub fn render_files_window_rgba(
                 width: 5,
                 height: 248,
             };
-            fill_rect(
-                &mut buffer,
-                width,
-                height,
-                track,
-                [0x04, 0x2a, 0x43, 0xff],
-                190,
-            );
+            fill_rect(&mut buffer, width, height, track, palette.border, 255);
             let thumb_height =
                 (track.height as usize * FILES_VISIBLE_ROWS / model.entries.len()).max(24) as u32;
             let max_offset = model
@@ -4238,8 +4029,8 @@ pub fn render_files_window_rgba(
                     width: track.width,
                     height: thumb_height,
                 },
-                [0x70, 0xd7, 0xee, 0xff],
-                220,
+                palette.accent,
+                255,
             );
             primitives += 2;
         }
@@ -4278,14 +4069,7 @@ pub fn render_files_window_rgba(
                 height: focus.height,
             },
         ] {
-            fill_rect(
-                &mut buffer,
-                width,
-                height,
-                edge,
-                [0x8e, 0xeb, 0xff, 0xff],
-                150,
-            );
+            fill_rect(&mut buffer, width, height, edge, palette.accent, 255);
             primitives += 1;
         }
     }
@@ -4296,21 +4080,14 @@ pub fn render_files_window_rgba(
         width: width.saturating_sub(sidebar_width + 5),
         height: 32,
     };
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        status,
-        [0x03, 0x25, 0x3d, 0xff],
-        220,
-    );
+    fill_rect(&mut buffer, width, height, status, palette.toolbar, 255);
     let status_text = format!("{} ITEMS", model.entries.len());
     draw_bitmap_text(
         &mut buffer,
         (width, height),
         (status.x + 14, status.y + 11),
         &status_text,
-        [0xa8, 0xd9, 0xe5, 0xff],
+        palette.secondary_text,
         1,
     );
     primitives += 1;
@@ -6063,27 +5840,86 @@ fn draw_window_controls(buffer: &mut [u8], width: u32, height: u32, x: u32, y: u
     .into_iter()
     .enumerate()
     {
-        let control = Rect {
-            x: x + index as u32 * 22,
-            y,
-            width: 14,
-            height: 14,
-        };
-        fill_rect(buffer, width, height, control, color, 245);
-        fill_rect(
+        let center_x = x + 7 + index as u32 * 22;
+        let center_y = y + 7;
+        fill_transparent_circle(
             buffer,
             width,
             height,
-            Rect {
-                x: control.x + 3,
-                y: control.y + 2,
-                width: 8,
-                height: 2,
-            },
-            [0xff, 0xff, 0xff, 0xff],
-            130,
+            center_x,
+            center_y,
+            7,
+            [0xa7, 0xb2, 0xbf, 0xff],
+        );
+        fill_transparent_circle(buffer, width, height, center_x, center_y, 6, color);
+        fill_transparent_circle(
+            buffer,
+            width,
+            height,
+            center_x.saturating_sub(2),
+            center_y.saturating_sub(2),
+            2,
+            [0xff, 0xff, 0xff, 0x78],
         );
     }
+}
+
+fn draw_bright_window_chrome(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    window: Rect,
+    titlebar: Rect,
+    title: &str,
+) -> usize {
+    let palette = LIGHTWHITE_WINDOW_CHROME;
+    fill_rect(buffer, width, height, window, palette.surface, 255);
+    let primitives = draw_bright_window_titlebar(buffer, width, height, titlebar, title);
+    draw_rect_outline(buffer, width, height, window, palette.border, 255);
+    primitives + 2
+}
+
+fn draw_bright_window_titlebar(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    titlebar: Rect,
+    title: &str,
+) -> usize {
+    let palette = LIGHTWHITE_WINDOW_CHROME;
+    fill_rect(buffer, width, height, titlebar, palette.titlebar, 255);
+    fill_rect(
+        buffer,
+        width,
+        height,
+        Rect {
+            x: titlebar.x,
+            y: titlebar.bottom().saturating_sub(1),
+            width: titlebar.width,
+            height: 1,
+        },
+        palette.border,
+        255,
+    );
+    draw_window_controls(
+        buffer,
+        width,
+        height,
+        titlebar.x + 18,
+        titlebar.y + titlebar.height.saturating_sub(14) / 2,
+    );
+    draw_bitmap_text(
+        buffer,
+        (width, height),
+        (
+            titlebar.x + 92,
+            titlebar.y + titlebar.height.saturating_sub(14) / 2,
+        ),
+        title,
+        palette.text,
+        1,
+    );
+    6
 }
 
 fn draw_back_forward(
@@ -6873,7 +6709,7 @@ fn checksum_bytes(buffer: &[u8]) -> u64 {
     })
 }
 
-fn encode_png_rgba(width: u32, height: u32, rgba: &[u8]) -> Vec<u8> {
+pub fn encode_png_rgba(width: u32, height: u32, rgba: &[u8]) -> Vec<u8> {
     let row_bytes = width as usize * 4;
     let mut raw = Vec::with_capacity((row_bytes + 1) * height as usize);
 
@@ -7113,6 +6949,11 @@ mod tests {
         assert_ne!(
             sample_pixel(&rgba, 1280, 640, 400),
             [0x9a, 0xb9, 0xd9, 0xff]
+        );
+        let layout = InstallerWindowLayout::for_viewport(Viewport::new(1280, 800)).unwrap();
+        assert_eq!(
+            sample_pixel(&rgba, 1280, layout.titlebar.x + 400, layout.titlebar.y + 40),
+            LIGHTWHITE_WINDOW_CHROME.titlebar
         );
 
         let (png, png_probe) =
@@ -7415,6 +7256,38 @@ mod tests {
         assert!(probe.primitive_count >= 7);
         assert_ne!(probe.checksum, 0);
         assert_eq!(pixels.len(), 680 * 430 * 4);
+    }
+
+    #[test]
+    fn first_party_windows_share_lightwhite_titlebar_tokens() {
+        let terminal_view = TerminalView::empty(18, 72);
+        let (terminal, _) = render_terminal_window_rgba(680, 430, &terminal_view);
+        let (files, _) = render_files_window_rgba(640, 420, &FilesWindowModel::default());
+        let (settings, _) = render_settings_window_rgba(640, 420, &SettingsWindowModel::default());
+        let properties_model = DesktopPropertiesModel {
+            icon_id: "files",
+            title: "Files Properties".to_string(),
+            name: "Files",
+            kind: "Folder",
+            location: "/home/aqua".to_string(),
+            status: "Available",
+            item_count: Some(4),
+            enumeration_capped: false,
+            refresh_generation: 1,
+        };
+        let (properties, _) = render_properties_window_rgba(480, 300, &properties_model);
+
+        for (pixels, width) in [
+            (&terminal, 680),
+            (&files, 640),
+            (&settings, 640),
+            (&properties, 480),
+        ] {
+            assert_eq!(
+                sample_pixel(pixels, width, 400, 40),
+                LIGHTWHITE_WINDOW_CHROME.titlebar
+            );
+        }
     }
 
     #[test]
