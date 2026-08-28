@@ -1,0 +1,96 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+proc run_shell_check {command description} {
+    send -- "$command\r"
+    expect {
+        -exact {# } {}
+        timeout { puts stderr "Timed out while $description"; exit 1 }
+        eof { puts stderr "QEMU exited while $description"; exit 1 }
+    }
+}
+
+proc send_input {mode description} {
+    global env
+    if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) $mode} input_error]} {
+        puts stderr "$description failed: $input_error"
+        exit 1
+    }
+}
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp $env(CPUS) \
+    -m $env(MEMORY) \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.boot_graphics=1} \
+    -serial stdio \
+    -monitor unix:$env(MONITOR_SOCKET),server=on,wait=off \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -device virtio-keyboard-pci \
+    -netdev user,id=net0 \
+    -device virtio-net-pci,netdev=net0 \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=graphical-session-activation status=started mode=supervised boot_graphics=true recovery_tty=true} {}
+    timeout { puts stderr "Timed out waiting for graphical boot"; exit 1 }
+    eof { puts stderr "QEMU exited before graphical boot"; exit 1 }
+}
+expect -exact {aqua-linux login: }
+send -- "root\r"
+expect -exact {# }
+
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'stage=drm-wayland-session status=active' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'stage=drm-wayland-session status=active' /run/aqua/graphical-session-supervisor.log} "waiting for the desktop"
+
+send_input files-launch-fast "Files launch"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_launch_surface_app_id=aqua.files' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_launch_surface_app_id=aqua.files' /run/aqua/graphical-session-supervisor.log} "waiting for Files"
+send_input settings-launch-fast "Settings launch"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_launch_surface_app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_launch_surface_app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log} "waiting for Settings"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_client_surface_count=2' ]; do sleep 1; i=$((i + 1)); done; files_pid_before="$(pidof aqua-files)"; settings_pid_before="$(pidof aqua-settings)"; test -n "$files_pid_before"; test -n "$settings_pid_before"} "recording two-window state"
+
+send_input workspace-move-right "Workspace window move"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_window_workspace_moved from=0 to=1' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_window_workspace_moved from=0 to=1' /run/aqua/graphical-session-supervisor.log} "waiting for window assignment"
+send_input workspace-move-right "Second workspace window move"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_window_workspace_moved from=0 to=1 count=2' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_window_workspace_moved from=0 to=1 count=2' /run/aqua/graphical-session-supervisor.log} "waiting for the second window assignment"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_client_surface_count=0' ]; do sleep 1; i=$((i + 1)); done} "waiting for empty first workspace repaint"
+after 4000
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(FIRST_SCREENSHOT) $env(FIRST_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "First workspace capture failed: $capture_error"
+    exit 1
+}
+
+run_shell_check {repaint_before_switch="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the first workspace frame"
+send_input workspace-switch-right "Keyboard workspace switch"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_workspace_switched from=0 to=1 visible_clients=2' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_workspace_switched from=0 to=1 visible_clients=2' /run/aqua/graphical-session-supervisor.log} "waiting for keyboard workspace switch"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$repaint_before_switch" ]; do sleep 1; i=$((i + 1)); done; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$repaint_before_switch" ]} "waiting for second workspace frame"
+after 4000
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(SECOND_SCREENSHOT) $env(SECOND_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "Second workspace capture failed: $capture_error"
+    exit 1
+}
+if {[catch {exec python3 $env(FRAME_CHECK) $env(FIRST_SCREENSHOT) $env(SECOND_SCREENSHOT)} delta_error]} {
+    puts stderr "Workspace frame comparison failed: $delta_error"
+    exit 1
+}
+
+send_input workspace-switch-right "Second keyboard workspace switch"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_workspace_switched from=1 to=2 visible_clients=0' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_workspace_switched from=1 to=2 visible_clients=0' /run/aqua/graphical-session-supervisor.log} "waiting for the second keyboard workspace switch"
+run_shell_check {processes_ok=1; [ "$(pidof aqua-files)" = "$files_pid_before" ] || processes_ok=0; [ "$(pidof aqua-settings)" = "$settings_pid_before" ] || processes_ok=0; workspace_ok=1; grep -Fq 'desktop_workspace_switched from=1 to=2 visible_clients=0' /run/aqua/graphical-session-supervisor.log || workspace_ok=0; echo "workspace_processes_ok=$processes_ok workspace_transition_ok=$workspace_ok"; grep -E 'desktop_(window_workspace_moved|workspace_switched|bottom_shell_activation|event_client_surface_count)' /run/aqua/graphical-session-supervisor.log | tail -n 28} "checking workspace evidence"
+
+send -- {marker='[AQUA-TEST] stage=desktop-'; marker="${marker}workspaces-qemu status=ok"; [ "$processes_ok" = 1 ] && [ "$workspace_ok" = 1 ] && echo "$marker"}
+send -- "\r"
+expect -exact {[AQUA-TEST] stage=desktop-workspaces-qemu status=ok}
+expect -exact {# }
+
+send -- "/usr/bin/aqua-graphical-session-stop\r"
+expect -exact {[AQUA-SESSION] stage=graphical-session-stop status=ok supervisor_stopped=true pid_cleaned=true kms_restored=true clients_stopped=true recovery_return=ok}
+expect -exact {# }
+send -- "poweroff\r"
+expect eof

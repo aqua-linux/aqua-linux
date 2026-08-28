@@ -56,6 +56,8 @@ MODES = {
         "sendkey n 100", "sendkey g 100", "sendkey s 100",
         "sendkey ret 100",
     ),
+    "workspace-move-right": ("sendkey ctrl-alt-shift-right 250",),
+    "workspace-switch-right": ("sendkey ctrl-alt-right 250",),
     "settings-interaction": (
         "sendkey down 100", "sendkey down 100", "sendkey down 100",
         "sendkey down 100",
