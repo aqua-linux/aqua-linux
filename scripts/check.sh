@@ -1109,6 +1109,9 @@ grep -Fq 'LauncherMode::Search' crates/aqua-renderer/src/lib.rs
 grep -Fq 'pub enum BottomShellTarget' crates/aqua-shell/src/lib.rs
 grep -Fq 'desktop_bottom_shell_group_count' crates/aqua-compositor/src/main.rs
 grep -Fq 'bottom-applications-activate' scripts/send-qemu-monitor-input.py
+grep -Fq 'pub const LIGHTWHITE_WINDOW_CHROME' crates/aqua-renderer/src/lib.rs
+grep -Fq 'fn draw_bright_window_titlebar' crates/aqua-renderer/src/lib.rs
+grep -Fq 'first_party_bright_window_chrome' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'Notifications, real system overview' docs/aqua-linux/progress.json
 grep -Fq 'notification_center = "bounded FIFO notification state' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'desktop-notification-qemu status=ok' scripts/check-graphical-boot-qemu.sh

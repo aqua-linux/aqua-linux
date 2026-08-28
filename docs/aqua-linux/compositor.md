@@ -508,7 +508,7 @@ Not implemented yet:
 
 - `aqua-terminal` is packaged as a first-party `aqua.terminal` xdg-toplevel and uses the existing strict launch preflight, duplicate rejection/raise behavior, process supervision, and stale-surface cleanup.
 - `portable-pty` owns a real `/bin/sh` pseudo-terminal while `vt100` provides terminal escape parsing and a bounded 1,000-line scrollback buffer.
-- The renderer provides Aqua window chrome, a dark readable terminal scrim, terminal rows, and a visible cursor. Client redraws are frame-coalesced so input bursts do not create one expensive QEMU GPU repaint per key.
+- The renderer provides one shared LightWhite window-chrome palette and title-bar primitive across Files, Settings, Terminal, Properties, and Installer. Terminal content keeps a dark readable monospace scrim while its frame matches every other first-party application. Client redraws are frame-coalesced so input bursts do not create one expensive QEMU GPU repaint per key.
 - Resize updates the kernel PTY dimensions and VT parser grid together. The packaged `aqua-terminal --probe-pty` path executes a shell command and validates resize without requiring a display.
 - Aqua `rcS` mounts `devpts`, exposes `/dev/ptmx`, and emits `stage=devpts-ready`; this is OS runtime infrastructure rather than a host-only test dependency.
 - QEMU confirms the shell prompt in a normal Aqua window. Terminal launches omit the redundant application-opened notification, and the compositor caches client revisions after frame presentation so a delivered frame callback does not force a false follow-up repaint.
