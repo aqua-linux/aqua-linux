@@ -1,0 +1,108 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+proc run_shell_check {command description} {
+    send -- "$command\r"
+    expect {
+        -exact {# } {}
+        timeout { puts stderr "Timed out while $description"; exit 1 }
+        eof { puts stderr "QEMU exited while $description"; exit 1 }
+    }
+}
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp $env(CPUS) \
+    -m $env(MEMORY) \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.boot_graphics=1} \
+    -serial stdio \
+    -monitor unix:$env(MONITOR_SOCKET),server=on,wait=off \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -device virtio-keyboard-pci \
+    -netdev user,id=net0 \
+    -device virtio-net-pci,netdev=net0 \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=graphical-session-activation status=started mode=supervised boot_graphics=true recovery_tty=true} {}
+    timeout { puts stderr "Timed out waiting for graphical boot"; exit 1 }
+    eof { puts stderr "QEMU exited before graphical boot"; exit 1 }
+}
+expect {
+    -exact {aqua-linux login: } {}
+    timeout { puts stderr "Timed out waiting for serial login"; exit 1 }
+    eof { puts stderr "QEMU exited before serial login"; exit 1 }
+}
+send -- "root\r"
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Timed out waiting for recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery shell"; exit 1 }
+}
+
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'stage=drm-wayland-session status=active' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'stage=drm-wayland-session status=active' /run/aqua/graphical-session-supervisor.log} "waiting for the desktop"
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) files-launch-fast} input_error]} {
+    puts stderr "QEMU Files launch failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_launch_surface_app_id=aqua.files' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_launch_surface_app_id=aqua.files' /run/aqua/graphical-session-supervisor.log} "waiting for Files"
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) settings-launch-fast} input_error]} {
+    puts stderr "QEMU Settings launch failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_launch_surface_app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_launch_surface_app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log} "waiting for Settings"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_client_surface_count=2' ]; do sleep 1; i=$((i + 1)); done} "waiting for both client surfaces"
+
+after 500
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(LIGHT_SCREENSHOT) $env(LIGHT_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU LightWhite screendump failed: $capture_error"
+    exit 1
+}
+
+run_shell_check {files_pid_before="$(pidof aqua-files)"; settings_pid_before="$(pidof aqua-settings)"; repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; test -n "$files_pid_before"; test -n "$settings_pid_before"} "recording process state"
+run_shell_check {config=/home/aqua/.config/aqua/settings.conf; temporary="${config}.theme-test"; sed 's/^theme=.*/theme=Deepside/' "$config" > "$temporary" && chmod 600 "$temporary" && mv "$temporary" "$config"} "selecting Deepside"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_runtime_theme_broadcast=Deepside' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_runtime_theme_broadcast=Deepside' /run/aqua/graphical-session-supervisor.log} "waiting for Shell theme broadcast"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_runtime_theme_changed=Deepside app_id=aqua.files' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'aqua_runtime_theme_changed=Deepside app_id=aqua.files' /run/aqua/graphical-session-supervisor.log} "waiting for Files redraw"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_runtime_theme_changed=Deepside app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'aqua_runtime_theme_changed=Deepside app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log} "waiting for Settings redraw"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_event_theme_changed=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_event_theme_changed=true' /run/aqua/graphical-session-supervisor.log} "waiting for the presented theme frame"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$repaint_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for Deepside repaint"
+run_shell_check {ok=1; grep -Fq 'desktop_shell_theme_changed=Deepside' /run/aqua/graphical-session-supervisor.log || ok=0; [ "$(pidof aqua-files)" = "$files_pid_before" ] || ok=0; [ "$(pidof aqua-settings)" = "$settings_pid_before" ] || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$repaint_before" ] || ok=0} "checking live redraw without restart"
+run_shell_check {grep -E 'desktop_(runtime_theme_broadcast|shell_theme_changed|event_(theme_changed|repaint_(sequence|checksum)))=|aqua_runtime_theme_changed=' /run/aqua/graphical-session-supervisor.log | tail -n 28} "reporting live theme repaint evidence"
+
+after 500
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(DEEP_SCREENSHOT) $env(DEEP_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU Deepside screendump failed: $capture_error"
+    exit 1
+}
+if {[catch {exec python3 $env(THEME_FRAME_CHECK) $env(LIGHT_SCREENSHOT) $env(DEEP_SCREENSHOT)} delta_error]} {
+    puts stderr "QEMU theme frame comparison failed: $delta_error"
+    exit 1
+}
+
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-live-theme-qemu status=ok from=LightWhite to=Deepside shell=true apps=files,settings restart=false frame_delta=true'}
+send -- "\r"
+expect {
+    -exact {[AQUA-TEST] stage=desktop-live-theme-qemu status=ok from=LightWhite to=Deepside shell=true apps=files,settings restart=false frame_delta=true} {}
+    timeout { puts stderr "Live theme marker missing"; exit 1 }
+    eof { puts stderr "QEMU exited before live theme marker"; exit 1 }
+}
+expect -exact {# }
+
+send -- "/usr/bin/aqua-graphical-session-stop\r"
+expect {
+    -exact {[AQUA-SESSION] stage=graphical-session-stop status=ok supervisor_stopped=true pid_cleaned=true kms_restored=true clients_stopped=true recovery_return=ok} {}
+    timeout { puts stderr "Graphical session did not stop cleanly"; exit 1 }
+    eof { puts stderr "QEMU exited before graphical cleanup"; exit 1 }
+}
+expect -exact {# }
+send -- "poweroff\r"
+expect eof

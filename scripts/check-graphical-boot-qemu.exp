@@ -339,6 +339,45 @@ expect {
     eof { puts stderr "QEMU exited after runtime Settings verification"; exit 1 }
 }
 
+after 500
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(THEME_LIGHT_SCREENSHOT) $env(THEME_LIGHT_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU LightWhite theme screendump failed: $capture_error"
+    exit 1
+}
+
+run_shell_check {files_pid_before="$(pidof aqua-files)"; settings_pid_before="$(pidof aqua-settings)"; repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; test -n "$files_pid_before"; test -n "$settings_pid_before"} "recording live theme process and repaint state"
+run_shell_check {config=/home/aqua/.config/aqua/settings.conf; temporary="${config}.theme-test"; sed 's/^theme=.*/theme=Deepside/' "$config" > "$temporary" && chmod 600 "$temporary" && mv "$temporary" "$config"} "atomically selecting the Deepside theme"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_runtime_theme_broadcast=Deepside' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the desktop theme broadcast"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_runtime_theme_changed=Deepside app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Settings theme redraw"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_runtime_theme_changed=Deepside app_id=aqua.files' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Files theme redraw"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_event_theme_changed=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the presented theme frame"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$repaint_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Deepside frame repaint"
+run_shell_check {ok=1; grep -Fq 'desktop_shell_theme_changed=Deepside' /run/aqua/graphical-session-supervisor.log || ok=0; [ "$(pidof aqua-files)" = "$files_pid_before" ] || ok=0; [ "$(pidof aqua-settings)" = "$settings_pid_before" ] || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$repaint_before" ] || ok=0} "checking live theme redraw without process restart"
+
+after 500
+if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(THEME_DEEP_SCREENSHOT) $env(THEME_DEEP_SCREENSHOT_PNG)} capture_error]} {
+    puts stderr "QEMU Deepside theme screendump failed: $capture_error"
+    exit 1
+}
+if {[catch {exec python3 $env(THEME_FRAME_CHECK) $env(THEME_LIGHT_SCREENSHOT) $env(THEME_DEEP_SCREENSHOT)} delta_error]} {
+    puts stderr "QEMU live theme frame comparison failed: $delta_error"
+    exit 1
+}
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-live-theme-qemu status=ok from=LightWhite to=Deepside shell=true apps=files,settings restart=false frame_delta=true'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-live-theme-qemu status=ok from=LightWhite to=Deepside shell=true apps=files,settings restart=false frame_delta=true} {}
+    timeout { puts stderr "Live theme switch was not visibly completed"; exit 1 }
+    eof { puts stderr "QEMU exited before live theme verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Live theme verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after live theme verification"; exit 1 }
+}
+
 run_shell_check {before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; settings_before="$(grep -Fc 'aqua_settings_keyboard' /run/aqua/graphical-session-supervisor.log)"} "recording the pre-reset Settings state"
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) settings-reset} input_error]} {
     puts stderr "QEMU Settings reset input injection failed: $input_error"

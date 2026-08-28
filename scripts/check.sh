@@ -1157,8 +1157,15 @@ grep -Fq 'render_installer_window_rgba_with_theme' crates/aqua-renderer/src/lib.
 grep -Fq 'aqua_installer_theme=' crates/aqua-compositor/src/lib.rs
 grep -Fq 'installer_theme_palettes = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'runtime_live_theme_broadcast = ' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'runtime_live_theme_qemu = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'desktop_runtime_theme_broadcast=' crates/aqua-compositor/src/main.rs
 grep -Fq 'aqua_runtime_theme_changed=' crates/aqua-compositor/src/lib.rs
+grep -Fq 'desktop-live-theme-qemu status=ok' scripts/check-graphical-boot-qemu.sh
+grep -Fq 'desktop-live-theme-qemu status=ok' scripts/check-live-theme-qemu.sh
+grep -Fq 'check-qemu-theme-frame-delta.py' scripts/check-graphical-boot-qemu.sh
+test -x scripts/check-live-theme-qemu.sh
+test -x scripts/check-live-theme-qemu.exp
+test -x scripts/check-qemu-theme-frame-delta.py
 grep -Fq 'desktop_shell_theme=' crates/aqua-compositor/src/main.rs
 grep -Fq 'theme=LightWhite' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'run-manual-nested-preview-execution' docs/aqua-linux/compositor.md

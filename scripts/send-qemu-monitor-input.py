@@ -45,6 +45,17 @@ MODES = {
         "sendkey ret 100",
     ),
     "settings": (),
+    "files-launch-fast": (
+        "sendkey meta_l 100", "sendkey f 100", "sendkey i 100",
+        "sendkey l 100", "sendkey e 100", "sendkey s 100",
+        "sendkey ret 100",
+    ),
+    "settings-launch-fast": (
+        "sendkey meta_l 100", "sendkey s 100", "sendkey e 100",
+        "sendkey t 100", "sendkey t 100", "sendkey i 100",
+        "sendkey n 100", "sendkey g 100", "sendkey s 100",
+        "sendkey ret 100",
+    ),
     "settings-interaction": (
         "sendkey down 100", "sendkey down 100", "sendkey down 100",
         "sendkey down 100",

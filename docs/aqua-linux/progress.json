@@ -5,9 +5,9 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. Runtime convergence now includes persisted and live-refreshed LightWhite, Softtouch, Deepside, and Nightmare palettes across Files, Settings, Terminal, Properties, all seven Installer setup screens, the compact top bar, Applications, Global Search, the three-group bottom shell, desktop overlays, system overview, session menu, and notifications. Full workspace window assignment and QEMU user-visible theme-switch evidence remain ahead without changing the Buildroot or custom Wayland compositor architecture.",
+  "currentStage": "Milestone 9 remains complete and the packaged installer performance path is validated. QEMU now proves a user-visible LightWhite-to-Deepside transition across the shell, Files, and Settings without restarting either application; the captured frames differ across 37.30% of pixels. Full workspace window assignment and movement remain ahead without changing the Buildroot or custom Wayland compositor architecture.",
   "updated": "2026-08-28",
-  "overallPercent": 87,
+  "overallPercent": 88,
   "rules": [
     "Aqua Linux v1.0 is treated as 100%.",
     "Overall progress is the rounded arithmetic mean of the 12 phase percentages so the public value is reproducible.",
@@ -107,14 +107,14 @@
     {
       "id": "m11",
       "name": "Polish and Public Readiness",
-      "percent": 45,
-      "status": "early",
+      "percent": 55,
+      "status": "in-progress",
       "updated": "2026-08-28",
-      "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, and persisted plus bounded live-refreshed LightWhite, Softtouch, Deepside, and Nightmare palettes across current application, shell, and all seven Installer setup screens. Full workspace management, QEMU user-visible theme-switch evidence, contributor guide, current public OS screenshots, hardware status, final icon clearance, and issue workflow are incomplete."
+      "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, and persisted plus bounded live-refreshed LightWhite, Softtouch, Deepside, and Nightmare palettes across current application, shell, and all seven Installer setup screens. Dedicated QEMU acceptance now changes the shell, Files, and Settings from LightWhite to Deepside without process restarts and requires a visible frame delta. Full workspace management, broader current public OS screenshots, hardware status, final icon clearance, and issue workflow are incomplete."
     }
   ],
   "nextSteps": [
-    "Validate a user-visible live theme switch in QEMU, then implement full workspace window assignment and movement.",
+    "Implement full workspace window assignment and movement with keyboard, pointer, and QEMU acceptance coverage.",
     "Keep fallback TTY, boot_graphics=false, and autostart=false in the default development image."
   ]
 }
