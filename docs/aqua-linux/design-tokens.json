@@ -65,10 +65,27 @@
   },
   "typography": {
     "uiFamily": "Noto Sans, system-ui, sans-serif",
+    "uiFallbackFamilies": ["Noto Sans", "sans-serif"],
     "monoFamily": "ui-monospace, monospace",
     "baseSize": 14,
     "smallSize": 12,
-    "titleSize": 18
+    "titleSize": 18,
+    "roles": {
+      "caption": { "size": 12, "weight": 400, "lineHeight": 16 },
+      "body": { "size": 14, "weight": 400, "lineHeight": 20 },
+      "control": { "size": 14, "weight": 500, "lineHeight": 20 },
+      "title": { "size": 18, "weight": 600, "lineHeight": 24 },
+      "display": { "size": 24, "weight": 600, "lineHeight": 32 }
+    },
+    "shaping": {
+      "unicodeShapingRequired": true,
+      "kerningRequired": true,
+      "fontFallbackRequired": true,
+      "bidirectionalTextRequired": true,
+      "graphemeSafeTruncation": true,
+      "scaleNativeRasterization": true
+    },
+    "supportedOutputScales": [1.0, 1.25, 1.5, 2.0]
   },
   "spacing": {
     "xs": 4,
@@ -91,6 +108,84 @@
     "shadow": "rgba(42, 65, 94, 0.18)",
     "optionalBlurRadius": 8,
     "blurRequired": false
+  },
+  "elevation": {
+    "control": {
+      "offsetY": 1,
+      "blurRadius": 3,
+      "spread": 0,
+      "ambient": "rgba(42, 65, 94, 0.10)",
+      "key": "rgba(42, 65, 94, 0.12)"
+    },
+    "panel": {
+      "offsetY": 4,
+      "blurRadius": 14,
+      "spread": 0,
+      "ambient": "rgba(42, 65, 94, 0.12)",
+      "key": "rgba(42, 65, 94, 0.16)"
+    },
+    "dialog": {
+      "offsetY": 8,
+      "blurRadius": 24,
+      "spread": 1,
+      "ambient": "rgba(24, 42, 66, 0.16)",
+      "key": "rgba(24, 42, 66, 0.20)"
+    },
+    "activeWindow": {
+      "offsetY": 10,
+      "blurRadius": 30,
+      "spread": 1,
+      "ambient": "rgba(24, 42, 66, 0.16)",
+      "key": "rgba(24, 42, 66, 0.22)"
+    }
+  },
+  "iconography": {
+    "sourceFormat": "svg",
+    "requiredLogicalSizes": [16, 20, 24, 32, 48, 64, 128],
+    "supportedOutputScales": [1.0, 1.25, 1.5, 2.0],
+    "scaleNativeRasterization": true,
+    "bitmapEnlargementAllowed": false,
+    "cacheKey": ["sourceRevision", "role", "theme", "state", "logicalSize", "outputScale"],
+    "fallbackAsset": "aqua-symbol-primary.png"
+  },
+  "motion": {
+    "durationMs": {
+      "immediate": 0,
+      "feedback": 90,
+      "short": 140,
+      "standard": 200,
+      "spatial": 280
+    },
+    "easing": {
+      "standard": [0.2, 0.0, 0.0, 1.0],
+      "enter": [0.0, 0.0, 0.0, 1.0],
+      "exit": [0.3, 0.0, 1.0, 1.0]
+    },
+    "interruptible": true,
+    "frameCallbackDriven": true,
+    "reducedMotion": {
+      "spatialDurationMs": 0,
+      "repeatingMotionAllowed": false,
+      "stateFeedbackRequired": true
+    }
+  },
+  "componentContract": {
+    "requiredStates": [
+      "idle",
+      "hover",
+      "keyboardFocus",
+      "pressed",
+      "selected",
+      "disabled",
+      "loading",
+      "empty",
+      "error",
+      "success",
+      "attention"
+    ],
+    "stableLayoutAcrossStates": true,
+    "sharedTokensRequired": true,
+    "screenSpecificDrawingCountsAsShared": false
   },
   "layout": {
     "topBarHeight": 44,

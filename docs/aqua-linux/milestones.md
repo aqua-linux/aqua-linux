@@ -80,8 +80,10 @@ Tasks:
 
 - Preserve and index private desktop and installer boards in the Git-ignored local reference library.
 - Import wallpaper, logo, app icon, boot mark, and first icon set.
-- Define surface, color, typography, spacing, radius, shadow, and state tokens.
-- Define color tokens, typography, spacing, radius, shadows, and glow.
+- Define surface, color, typography, spacing, radius, elevation, motion, icon,
+  and component-state tokens.
+- Record text shaping, font fallback, scale-native rasterization, icon export,
+  reduced-motion, and visual-fixture requirements.
 - Create a static visual spec from the reference desktop.
 - Mark any mock values as mock.
 
@@ -148,8 +150,15 @@ Tasks:
 - Add `aqua-scene` or equivalent module.
 - Implement shared panel and window primitives.
 - Implement fill, border, separator, shadow, and rounded clipping.
+- Implement tokenized elevation levels with bounded shadow damage and reusable
+  masks or textures.
 - Add optional low-cost translucency without making blur a dependency.
-- Add text contrast and focus-ring rules.
+- Add shaped text layout, fallback, scale-native glyph caching, text contrast,
+  and focus-ring rules.
+- Add reviewed SVG loading, symbolic recoloring, scale-native icon
+  rasterization, fallback diagnostics, and bounded icon caching.
+- Add frame-callback-driven, interruptible state transitions with a
+  deterministic reduced-motion path.
 - Add progress bars, list rows, search field, dock shelf, and notification surface primitives.
 
 Expected output:
@@ -160,6 +169,8 @@ Done when:
 
 - Top bar, applications, search, dock, workspaces, windows, and toast use the same component system.
 - Optional effects are documented and do not define acceptance.
+- Text, icons, elevation, and motion pass deterministic fixtures at supported
+  integer and fractional output scales.
 
 Current implementation note:
 
@@ -379,3 +390,83 @@ Done when:
 - QEMU demo can be reproduced.
 - Known missing features are documented honestly.
 - Public README matches the actual state of the code.
+
+## Milestone 12: Visual Fidelity And Component System
+
+Goal: replace prototype-grade drawing with a production-quality visual and
+interaction foundation shared by the compositor and first-party applications.
+
+### Workstream 1: Advanced Typography
+
+- Introduce one shared Unicode shaping and text-layout path.
+- Support kerning, ligatures, combining marks, bidirectional runs, Turkish
+  case behavior, deterministic fallback, grapheme-safe wrapping, and ellipsis.
+- Cache glyphs by font identity, glyph, rendering mode, and output scale.
+- Rasterize from source metrics at 1.0, 1.25, 1.5, and 2.0 scales.
+- Validate named caption, body, control, title, display, and monospace roles.
+
+Done when shaped fixture text has stable baselines and bounds in all four
+themes and supported scales, long localized labels do not overlap critical
+actions, and shell and first-party applications use the same text service.
+
+### Workstream 2: Elevation And Shadow Quality
+
+- Implement control, panel, dialog, and active-window elevation tokens.
+- Use reusable shadow masks or textures keyed by geometry, scale, theme, and
+  elevation.
+- Expand compositor damage by the full shadow extent and preserve correct
+  rounded clipping and stacking.
+- Measure isolated and overlapping surface rendering against the documented
+  frame budget.
+
+Done when deterministic captures show consistent neutral depth without glow,
+corner seams, clipping, or viewport-edge artifacts in all four themes.
+
+### Workstream 3: Scalable Icon Processing
+
+- Treat reviewed Aqua Core SVG files as canonical masters.
+- Rasterize requested logical sizes directly for each output scale; never
+  enlarge a smaller cached bitmap.
+- Support symbolic theme/state coloring, full-color application icons, alpha,
+  source revision invalidation, and one documented diagnostic fallback.
+- Validate 16, 20, 24, 32, 48, 64, and 128 pixel roles at integer and
+  fractional scales.
+
+Done when every shipped icon role has reviewed provenance and remains crisp,
+aligned, identifiable, and layout-stable in each theme and interaction state.
+
+### Workstream 4: Detailed State Motion
+
+- Implement semantic duration and easing tokens for feedback, panels, menus,
+  windows, workspaces, notifications, progress, and attention.
+- Drive motion from compositor frame callbacks and allow interruption and
+  reversal from the currently rendered value.
+- Stop hidden repeating motion and provide a deterministic reduced-motion path.
+- Keep input targets and component geometry stable throughout transitions.
+
+Done when start, midpoint, completion, interruption, reversal, and
+reduced-motion tests pass without jumps, stuck input, or unbounded timers.
+
+### Workstream 5: Complete Design Components
+
+- Create a catalog for every shared component named in
+  [interface-style.md](interface-style.md).
+- Record anatomy, content bounds, token dependencies, keyboard/pointer
+  behavior, accessibility semantics, and applicable state matrix.
+- Remove screen-specific copies once the equivalent shared primitive passes.
+- Add deterministic fixtures for all themes, supported scales, compact and
+  desktop viewports, localization expansion, and applicable states.
+
+Done when desktop, Applications, Search, Terminal, Files, Settings, and the
+installer consume the shared catalog; visual regression evidence covers the
+component matrix; and no screen claims completion from an idle-state mockup or
+one-off drawing helper.
+
+Expected output:
+
+- Production-quality text, icons, elevation, and state transitions in the
+  booted Aqua session.
+- A reusable component system with deterministic and packaged QEMU evidence.
+
+Milestone completion requires all five workstreams. Token definitions and
+static mockups establish the contract but do not count as runtime completion.

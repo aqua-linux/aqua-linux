@@ -214,6 +214,9 @@ The Aqua desktop should be split into independent components:
 
 - `aqua-compositor`: Wayland compositor and shell process.
 - `aqua-scene`: rendering primitives, shared surfaces, animation, shadows, and wallpaper composition.
+- `aqua-text`: Unicode shaping, font fallback, text layout, and scale-native glyph caching shared by shell and first-party applications.
+- `aqua-icons`: reviewed SVG loading, symbolic recoloring, scale-native rasterization, fallback diagnostics, and bounded icon caching.
+- `aqua-components`: shared component anatomy, state machines, input semantics, motion, and deterministic visual fixtures.
 - `aqua-shell`: desktop UI surfaces such as panel, launcher, window chrome, notifications, and session menu.
 - `aqua-settings`: first-party settings app.
 - `aqua-files`: first-party file manager.
@@ -223,6 +226,10 @@ The Aqua desktop should be split into independent components:
 The installer state and safety contract is documented in [installer.md](installer.md).
 - `aqua-session`: session startup, environment setup, and fallback behavior.
 - `aqua-assets`: packaged icons, wallpapers, cursors, sounds, and themes.
+
+The text, icon, and component names above describe owned logical modules. They
+may initially live inside existing crates and should be split into independent
+crates only when reuse or compile-time ownership makes that boundary useful.
 
 The existing `espresso-*` crate names can stay temporarily while the prototype is still moving, but new architecture should use Aqua naming unless there is a compatibility reason not to.
 
@@ -269,6 +276,11 @@ The interface needs:
 - Shared sidebars, toolbars, search fields, segmented controls, rows, grids, buttons, and dialogs.
 - Real localized system data and complete keyboard navigation.
 - An asset pipeline for PNG input and framebuffer/GPU-ready runtime formats.
+- Unicode shaping, kerning, fallback, grapheme-safe layout, and scale-native text rasterization.
+- SVG-master icon rasterization and caching for every required logical size, theme, state, and output scale.
+- Tokenized elevation levels with bounded shadow damage and measured rendering cost.
+- Interruptible state motion with deterministic reduced-motion behavior.
+- A complete reusable component catalog with state-matrix and visual-regression coverage.
 
 ## Asset Requirements
 
@@ -326,6 +338,8 @@ Pick packaging base:
 - Finalize Aqua Linux name and visible copy.
 - Import supplied logo, icons, and wallpaper.
 - Define color, surface, typography, spacing, radius, shadow, and animation tokens.
+- Define typography roles and shaping/fallback acceptance, elevation levels,
+  scalable icon processing, semantic motion, and the complete component state matrix.
 - Treat the private desktop and installer boards as design inputs and the public visual/UI contracts as the implementation source of truth.
 - Convert their shared top bar, bottom controls, windows, applications, search, sidebar, toolbar, icon, and control anatomy into renderer tokens and component contracts.
 - Document which visual effects are simulated and which are real.

@@ -75,6 +75,87 @@ Exact dimensions remain responsive renderer tokens. UI content must fit at 800x6
 - Use weight and spacing for hierarchy; do not use glow, outlines, or oversized headings.
 - Use a monospace font only inside terminal and code content.
 
+Production typography is a renderer contract, not a collection of hard-coded
+pixel labels. The shared text pipeline must:
+
+- shape Unicode text before rasterization, including kerning, ligatures,
+  combining marks, bidirectional runs, and Turkish dotted/dotless I behavior;
+- use deterministic font fallback without changing the baseline or control
+  height when a fallback face is selected;
+- expose named caption, body, control, title, and display roles with shared
+  size, weight, and line-height tokens;
+- rasterize from source metrics at every supported output scale instead of
+  scaling a previously rendered bitmap;
+- truncate only at grapheme boundaries and perform wrapping, ellipsis, and
+  alignment after shaping; and
+- preserve readable grayscale antialiasing in all four themes. Subpixel color
+  antialiasing must not be required because output order and rotation vary.
+
+Typography acceptance covers 1.0, 1.25, 1.5, and 2.0 output scales, Turkish
+and English UI strings, mixed Latin/Arabic fixture text, long labels, disabled
+text, and keyboard-focus states. Baselines must remain stable when content or
+state changes.
+
+## Elevation And Shadows
+
+Shadows communicate ownership and elevation; they are not decoration. Use the
+shared elevation levels for controls, floating panels, menus/dialogs, and
+active windows. Each level defines ambient color, key color, offset, blur, and
+spread. Theme palettes may adjust shadow opacity, but not elevation geometry.
+
+- Shadows must be soft, neutral, and bounded. Do not substitute cyan glow,
+  gloss, or a dark halo.
+- Active and inactive windows keep identical geometry; elevation and border
+  emphasis may change without reducing text contrast.
+- Rounded clipping and shadow bounds must agree so corners do not show seams.
+- Damage tracking must include the full shadow extent, and shadow textures or
+  masks must be cached by geometry, scale, theme, and elevation.
+- Overlapping surfaces must preserve a readable stacking order in every theme
+  without relying on blur or wallpaper darkness.
+
+Acceptance captures exercise isolated surfaces, overlapping windows, menus,
+dialogs, and compact viewport edges at every supported output scale. Shadow
+rendering must stay inside the compositor's documented frame budget.
+
+## Scalable Iconography
+
+Aqua Core Icons use reviewed SVG masters with a valid `viewBox` as their source
+of truth. The runtime icon pipeline must rasterize a master for the requested
+logical size and output scale, then cache the result by source revision, role,
+theme, state, logical size, and scale. A small raster must never be enlarged to
+serve a larger request.
+
+- Required logical sizes are 16, 20, 24, 32, 48, 64, and 128 pixels.
+- Symbolic status and control icons use token-driven foreground colors.
+- Full-color application icons preserve their authored palette and alpha.
+- Idle, hover, focused, selected, disabled, attention, and destructive roles
+  must remain distinguishable without changing the icon's layout box.
+- Missing or invalid assets use one documented Aqua fallback mark and emit a
+  diagnostic; they must not silently display third-party artwork.
+- Pixel alignment, stroke survival, alpha edges, and clear space are inspected
+  at 1.0, 1.25, 1.5, and 2.0 scales in all four themes.
+
+## Motion
+
+Motion explains state changes and preserves spatial continuity. It must never
+delay input, hide an error, or compensate for unstable layout. Use shared
+duration and easing tokens for hover/press feedback, panel and menu entry,
+window state changes, workspace movement, notifications, progress, and
+attention states.
+
+- State transitions begin from the currently rendered value so interruption
+  and reversal do not jump.
+- Layout dimensions remain stable during hover, focus, press, and selection.
+- Input routing follows the interactive destination throughout a transition.
+- Continuous and repeating animation pauses when fully occluded or inactive.
+- Reduced-motion mode removes spatial travel and repeated attention motion
+  while retaining immediate opacity, focus, progress, and error feedback.
+- Animation scheduling uses compositor frame callbacks and must not create an
+  independent unbounded timer loop.
+
+Every animated component requires deterministic start, midpoint, end,
+interruption, reversal, and reduced-motion acceptance cases.
+
 ## Interaction States
 
 Every control requires idle, hover, pressed, keyboard-focus, selected, disabled, and error states where relevant. Focus rings use the blue accent and must remain visible on pale surfaces. Selected navigation rows use a pale blue fill with dark text. Destructive actions use red text or fill and require explicit confirmation when data loss is possible.
@@ -95,6 +176,15 @@ Every control requires idle, hover, pressed, keyboard-focus, selected, disabled,
 - Notification and confirmation dialog
 
 The compositor and first-party applications must consume the same tokens and geometry contracts instead of duplicating one-off drawing logic.
+
+Each shared component is complete only when its anatomy, content constraints,
+keyboard and pointer behavior, token dependencies, accessibility semantics,
+and applicable state matrix are documented and implemented. Required states
+are idle, hover, keyboard focus, pressed, selected/active, disabled, loading,
+empty, error, success, and attention where the component's behavior permits
+them. Components must have deterministic renders for all four themes, compact
+and desktop viewports, and every supported output scale. A screen-specific
+drawing helper does not count as a shared component.
 
 ## Asset Policy
 

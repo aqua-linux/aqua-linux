@@ -5,12 +5,12 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 11 is complete. The public repository now has structured bug, feature, and sanitized physical-hardware issue forms; private security routing; a canonical label taxonomy; a pull request safety checklist; and CI-enforced contributor workflow contracts. Remaining v1 progress is physical MSI Sword 17 validation, which stays unauthorized until read-only evidence is reviewed.",
+  "currentStage": "Milestone 12 now defines the previously implicit visual-fidelity work: advanced text shaping, tokenized elevation and shadows, scale-native Aqua Core Icon processing, interruptible state motion, and a complete shared component catalog. These contracts are documented but have no runtime completion credit yet. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
   "updated": "2026-08-28",
-  "overallPercent": 92,
+  "overallPercent": 85,
   "rules": [
     "Aqua Linux v1.0 is treated as 100%.",
-    "Overall progress is the rounded arithmetic mean of the 12 phase percentages so the public value is reproducible.",
+    "Overall progress is the rounded arithmetic mean of the 13 phase percentages so the public value is reproducible.",
     "Progress advances only when bootable OS, compositor, installer, or validation contracts move forward.",
     "Host mockups and website work do not count as OS completion unless they become packaged runtime assets.",
     "The project remains Buildroot-based and does not use Ubuntu, Debian, KDE, GNOME, XFCE, LXQt, or a theme-pack base."
@@ -111,9 +111,22 @@
       "status": "complete",
       "updated": "2026-08-28",
       "summary": "The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, permanent Aqua Core Icons, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, four live-refreshed themes, and three real workspaces. Current QEMU captures carry a provenance manifest, the public hardware matrix prevents physical support overclaims, and the default-image gate enforces recovery-safe startup. Structured issue forms, private security routing, canonical labels, a pull request safety checklist, and CI-enforced contributor contracts now define public intake and triage."
+    },
+    {
+      "id": "m12",
+      "name": "Visual Fidelity and Component System",
+      "percent": 0,
+      "status": "not-started",
+      "updated": "2026-08-28",
+      "summary": "The production contracts now cover Unicode shaping and fallback, scale-native text and Aqua Core Icon rasterization, tokenized elevation and bounded shadows, interruptible frame-driven motion with reduced-motion behavior, and a complete shared component state matrix. Runtime implementation and acceptance evidence have not started, so documentation alone receives no completion credit."
     }
   ],
   "nextSteps": [
+    "Implement the shared Unicode shaping, fallback, layout, and scale-native glyph cache contract.",
+    "Implement tokenized elevation levels with bounded damage and reusable shadow masks.",
+    "Implement reviewed SVG loading and scale-native Aqua Core Icon rasterization and caching.",
+    "Implement semantic, interruptible, frame-driven state motion and reduced-motion behavior.",
+    "Build the complete shared component catalog and deterministic visual-regression matrix.",
     "Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation."
   ]
 }
