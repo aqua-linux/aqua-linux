@@ -1,0 +1,63 @@
+- name: type:bug
+  color: d73a4a
+  description: Reproducible behavior that violates a current contract.
+- name: type:enhancement
+  color: 1686f5
+  description: Bounded product or engineering improvement.
+- name: type:task
+  color: 6f7f91
+  description: Maintainer work with explicit acceptance criteria.
+- name: status:needs-triage
+  color: f2cc60
+  description: Needs scope, ownership, risk, and evidence review.
+- name: status:ready
+  color: 2da44e
+  description: Accepted scope with testable completion criteria.
+- name: status:blocked
+  color: 8c6daf
+  description: Cannot proceed until a named dependency is resolved.
+- name: priority:p0
+  color: b60205
+  description: Data-loss, security, or recovery-path emergency.
+- name: priority:p1
+  color: d93f0b
+  description: Release-blocking failure in a supported development path.
+- name: priority:p2
+  color: fbca04
+  description: Important planned work without immediate release impact.
+- name: priority:p3
+  color: c5def5
+  description: Deferred improvement or cleanup.
+- name: area:boot
+  color: 0052cc
+  description: Kernel, init, recovery, bootloader, or session startup.
+- name: area:compositor
+  color: 0e8a16
+  description: Smithay, Wayland protocols, rendering, input, or output.
+- name: area:shell
+  color: 1d76db
+  description: Desktop shell and first-party applications.
+- name: area:installer
+  color: e99695
+  description: Storage discovery, installation planning, execution, or recovery.
+- name: area:hardware
+  color: 5319e7
+  description: Physical-device evidence and validation planning.
+- name: area:build
+  color: 006b75
+  description: Buildroot, CI, QEMU, packaging, or release tooling.
+- name: area:docs
+  color: 0075ca
+  description: Public documentation, contracts, or progress records.
+- name: area:assets
+  color: bfdadc
+  description: Brand, icons, wallpapers, fonts, or asset licensing.
+- name: risk:destructive
+  color: 7a0000
+  description: Requires explicit review of disk, firmware, or data-loss risk.
+- name: risk:hardware-only
+  color: 4a148c
+  description: Evidence applies only to named physical hardware and is not a support claim.
+- name: good-first-issue
+  color: 7057ff
+  description: Small accepted change with a maintainer-defined test path.

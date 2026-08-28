@@ -48,5 +48,6 @@ jobs:
         run: |
           scripts/check-assets.sh
           scripts/check-visual-preview.sh
+          scripts/check-contributor-workflow.sh
           scripts/check-progress-report.sh
           scripts/check-public-repo.sh

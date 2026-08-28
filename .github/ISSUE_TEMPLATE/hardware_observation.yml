@@ -1,0 +1,60 @@
+name: Physical hardware observation
+description: Record sanitized, non-destructive observations without creating a support or installation claim.
+title: "[Hardware observation]: "
+labels:
+  - area:hardware
+  - status:needs-triage
+  - risk:hardware-only
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This form records evidence only. It does not authorize installation, mark hardware supported, or replace the hardware validation plan. Never include serial numbers, MAC addresses, hostnames, UUIDs, or personal data.
+  - type: input
+    id: model
+    attributes:
+      label: Public model name
+      description: Manufacturer and retail model only. Do not enter serial or asset identifiers.
+      placeholder: MSI Sword 17
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Aqua Linux revision
+      placeholder: Commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: collection
+    attributes:
+      label: Observation method
+      options:
+        - Read-only aqua-hardware-inventory collector
+        - Firmware or boot-menu observation
+        - Recovery-shell observation without disk writes
+    validations:
+      required: true
+  - type: textarea
+    id: observation
+    attributes:
+      label: Sanitized observation
+      description: Include only bounded, non-unique platform information and the exact read-only method.
+    validations:
+      required: true
+  - type: textarea
+    id: failures
+    attributes:
+      label: Failures or missing devices
+      description: State what did not work. Absence of a failure is not proof of support.
+  - type: checkboxes
+    id: authorization
+    attributes:
+      label: Required confirmation
+      options:
+        - label: No installer transaction, partitioning, formatting, mount, firmware write, or device write was performed.
+          required: true
+        - label: Unique identifiers and personal data were removed.
+          required: true
+        - label: I understand this observation does not authorize installation or establish hardware support.
+          required: true
