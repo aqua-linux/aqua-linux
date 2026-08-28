@@ -89,7 +89,7 @@ fi
 
 if [ -f /usr/share/aqua/tokens/design-tokens.json ] && \
    [ -f /usr/share/aqua/wallpapers/default-wallpaper.png ] && \
-   [ -f /usr/share/aqua/icons/temp/lucide/home.svg ]; then
+   [ -f /usr/share/aqua/icons/aqua/home.svg ]; then
     mark '[AQUA-BOOT] stage=runtime-assets-ready milestone=2 status=ok'
 else
     mark '[AQUA-BOOT] stage=runtime-assets-ready milestone=2 status=missing'

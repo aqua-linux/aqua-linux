@@ -103,7 +103,8 @@ The compositor and first-party applications must consume the same tokens and geo
 - Use `aqua-symbol-primary.png` on bright surfaces, `aqua-symbol-inverse.png` on dark surfaces, and `aqua-symbol-accent.png` only for active or focused states.
 - Preserve transparent pixels and clear space. Do not add a tile, glow, shadow, gradient, or background to the symbol itself.
 - Third-party icons shown in references are composition examples only.
-- Temporary Lucide icons remain acceptable during implementation and must be replaced by Aqua-owned or independently licensed final icons before v1.
+- Core application and status roles use the permanent project-authored Aqua
+  Core Icons. New icon roles require the same provenance and license review.
 
 ## Engineering Constraints
 

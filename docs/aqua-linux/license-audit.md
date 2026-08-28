@@ -1,6 +1,6 @@
 # Aqua Linux License Audit
 
-Audit date: 2026-08-27
+Audit date: 2026-08-28
 
 Scope: the OS repository, Rust workspace, Buildroot external tree, committed
 fonts/icons, and design assets. The separately maintained `website/` repository
@@ -12,7 +12,8 @@ is outside this audit.
 - Cargo metadata reports a license expression for every locked Rust package.
 - Observed Rust licenses are permissive: MIT, Apache-2.0, BSD-2-Clause, 0BSD,
   Zlib, Unicode-3.0, and Unlicense combinations.
-- Lucide placeholders include their ISC license.
+- Aqua Core Icons are project-authored, MIT licensed, and isolated from private
+  design-reference boards.
 - Noto Sans includes its SIL Open Font License 1.1 text.
 - The Weston simple-shm compatibility fixture is MIT licensed and is isolated
   from the Aqua desktop product stack.

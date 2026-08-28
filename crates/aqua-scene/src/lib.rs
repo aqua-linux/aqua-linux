@@ -173,18 +173,17 @@ impl ShellScene {
             "wallpaper",
             "/usr/share/aqua/wallpapers/default-wallpaper.png",
         ) && self.has_asset("launcher", "/usr/share/aqua/brand/aqua-symbol-primary.png")
-            && self.has_asset("dock", "/usr/share/aqua/icons/temp/lucide/browser.svg")
+            && self.has_asset("dock", "/usr/share/aqua/icons/aqua/browser.svg")
             && self.has_asset(
                 "notification-toast",
-                "/usr/share/aqua/icons/temp/lucide/updates.svg",
+                "/usr/share/aqua/icons/aqua/updates.svg",
             )
     }
 
-    pub fn temporary_assets_are_labeled(&self) -> bool {
+    pub fn permanent_assets_only(&self) -> bool {
         self.assets
             .iter()
-            .filter(|asset| asset.runtime_path.contains("/icons/temp/"))
-            .all(|asset| asset.temporary)
+            .all(|asset| !asset.temporary && !asset.runtime_path.contains("/icons/temp/"))
     }
 
     pub fn required_material_tokens_present(&self) -> bool {
@@ -278,7 +277,7 @@ impl ShellScene {
             && self.launcher_avoids_dock()
             && self.mock_surfaces_are_labeled()
             && self.required_assets_present()
-            && self.temporary_assets_are_labeled()
+            && self.permanent_assets_only()
             && self.required_material_tokens_present()
             && self.simulated_surface_is_labeled()
     }
@@ -487,26 +486,26 @@ fn scene_assets() -> Vec<SceneAssetUse> {
         asset(
             "desktop-icons",
             "home-icon",
-            "/usr/share/aqua/icons/temp/lucide/home.svg",
-            true,
+            "/usr/share/aqua/icons/aqua/home.svg",
+            false,
         ),
         asset(
             "desktop-icons",
             "files-icon",
-            "/usr/share/aqua/icons/temp/lucide/files.svg",
-            true,
+            "/usr/share/aqua/icons/aqua/files.svg",
+            false,
         ),
         asset(
             "desktop-icons",
             "drive-icon",
-            "/usr/share/aqua/icons/temp/lucide/aqua-drive.svg",
-            true,
+            "/usr/share/aqua/icons/aqua/aqua-drive.svg",
+            false,
         ),
         asset(
             "desktop-icons",
             "trash-icon",
-            "/usr/share/aqua/icons/temp/lucide/trash.svg",
-            true,
+            "/usr/share/aqua/icons/aqua/trash.svg",
+            false,
         ),
         asset(
             "dock",
@@ -517,38 +516,38 @@ fn scene_assets() -> Vec<SceneAssetUse> {
         asset(
             "dock",
             "browser-icon",
-            "/usr/share/aqua/icons/temp/lucide/browser.svg",
-            true,
+            "/usr/share/aqua/icons/aqua/browser.svg",
+            false,
         ),
         asset(
             "dock",
             "terminal-icon",
-            "/usr/share/aqua/icons/temp/lucide/terminal.svg",
-            true,
+            "/usr/share/aqua/icons/aqua/terminal.svg",
+            false,
         ),
         asset(
             "dock",
             "settings-icon",
-            "/usr/share/aqua/icons/temp/lucide/settings.svg",
-            true,
+            "/usr/share/aqua/icons/aqua/settings.svg",
+            false,
         ),
         asset(
             "system-overview",
             "wifi-icon",
-            "/usr/share/aqua/icons/temp/lucide/wifi.svg",
-            true,
+            "/usr/share/aqua/icons/aqua/wifi.svg",
+            false,
         ),
         asset(
             "system-overview",
             "volume-icon",
-            "/usr/share/aqua/icons/temp/lucide/volume.svg",
-            true,
+            "/usr/share/aqua/icons/aqua/volume.svg",
+            false,
         ),
         asset(
             "system-overview",
             "battery-icon",
-            "/usr/share/aqua/icons/temp/lucide/battery.svg",
-            true,
+            "/usr/share/aqua/icons/aqua/battery.svg",
+            false,
         ),
         asset(
             "launcher",
@@ -559,8 +558,8 @@ fn scene_assets() -> Vec<SceneAssetUse> {
         asset(
             "notification-toast",
             "update-icon",
-            "/usr/share/aqua/icons/temp/lucide/updates.svg",
-            true,
+            "/usr/share/aqua/icons/aqua/updates.svg",
+            false,
         ),
     ]
 }
@@ -643,7 +642,7 @@ mod tests {
         assert!(scene.toast_avoids_dock());
         assert!(scene.launcher_avoids_dock());
         assert!(scene.required_assets_present());
-        assert!(scene.temporary_assets_are_labeled());
+        assert!(scene.permanent_assets_only());
         assert!(scene.required_material_tokens_present());
         assert!(scene.simulated_surface_is_labeled());
     }
@@ -674,7 +673,7 @@ mod tests {
                 .to_string()
         ));
         assert!(lines.contains(
-            &"asset surface=dock role=browser-icon path=/usr/share/aqua/icons/temp/lucide/browser.svg temporary=true"
+            &"asset surface=dock role=browser-icon path=/usr/share/aqua/icons/aqua/browser.svg temporary=false"
                 .to_string()
         ));
         assert!(lines

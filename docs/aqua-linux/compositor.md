@@ -500,7 +500,7 @@ Not implemented yet:
 
 - Broader third-party toolkit coverage beyond the packaged upstream
   `weston-simple-shm` xdg-toplevel compatibility fixture.
-- Final Aqua-owned icon artwork replacing temporary Lucide-derived glyphs.
+- Additional Aqua-owned icon artwork for later first-party applications.
 - Runtime visual convergence with the canonical Aqua visual/UI contracts.
 - MSI Sword 17 DRM, input, suspend, networking, audio, and storage validation.
 

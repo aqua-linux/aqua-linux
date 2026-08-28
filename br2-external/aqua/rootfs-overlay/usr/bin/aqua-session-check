@@ -104,7 +104,7 @@ fi
 
 need_file runtime-assets "$(root_path /usr/share/aqua/tokens/design-tokens.json)" 'tokens=present'
 need_file runtime-assets "$(root_path /usr/share/aqua/wallpapers/default-wallpaper.png)" 'wallpaper=present'
-need_file runtime-assets "$(root_path /usr/share/aqua/icons/temp/lucide/home.svg)" 'temp_icons=present'
+need_file runtime-assets "$(root_path /usr/share/aqua/icons/aqua/home.svg)" 'aqua_icons=present'
 need_file manual-launch-tool "$(root_path /usr/bin/aqua-compositor-manual-launch)" 'manual_launch_tool=present'
 need_file guarded-run-tool "$(root_path /usr/bin/aqua-compositor-guarded-run)" 'guarded_run_tool=present'
 need_file graphical-session-supervisor-tool "$(root_path /usr/bin/aqua-graphical-session-supervisor)" 'graphical_session_supervisor_tool=present'

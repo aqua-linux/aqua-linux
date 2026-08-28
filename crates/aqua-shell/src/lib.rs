@@ -1862,7 +1862,7 @@ pub const DEFAULT_APPS: [LauncherApp; 6] = [
         category: LauncherCategory::Utilities,
         favorite: true,
         command: "/usr/bin/aqua-files",
-        icon_path: "/usr/share/aqua/icons/temp/lucide/files.svg",
+        icon_path: "/usr/share/aqua/icons/aqua/files.svg",
     },
     LauncherApp {
         id: "browser",
@@ -1871,7 +1871,7 @@ pub const DEFAULT_APPS: [LauncherApp; 6] = [
         category: LauncherCategory::Internet,
         favorite: true,
         command: "/usr/bin/aqua-browser",
-        icon_path: "/usr/share/aqua/icons/temp/lucide/browser.svg",
+        icon_path: "/usr/share/aqua/icons/aqua/browser.svg",
     },
     LauncherApp {
         id: "terminal",
@@ -1880,7 +1880,7 @@ pub const DEFAULT_APPS: [LauncherApp; 6] = [
         category: LauncherCategory::System,
         favorite: true,
         command: "/usr/bin/aqua-terminal",
-        icon_path: "/usr/share/aqua/icons/temp/lucide/terminal.svg",
+        icon_path: "/usr/share/aqua/icons/aqua/terminal.svg",
     },
     LauncherApp {
         id: "settings",
@@ -1889,7 +1889,7 @@ pub const DEFAULT_APPS: [LauncherApp; 6] = [
         category: LauncherCategory::Settings,
         favorite: true,
         command: "/usr/bin/aqua-settings",
-        icon_path: "/usr/share/aqua/icons/temp/lucide/settings.svg",
+        icon_path: "/usr/share/aqua/icons/aqua/settings.svg",
     },
     LauncherApp {
         id: "software",
@@ -1898,7 +1898,7 @@ pub const DEFAULT_APPS: [LauncherApp; 6] = [
         category: LauncherCategory::System,
         favorite: true,
         command: "/usr/bin/aqua-software",
-        icon_path: "/usr/share/aqua/icons/temp/lucide/software.svg",
+        icon_path: "/usr/share/aqua/icons/aqua/software.svg",
     },
     LauncherApp {
         id: "updates",
@@ -1907,7 +1907,7 @@ pub const DEFAULT_APPS: [LauncherApp; 6] = [
         category: LauncherCategory::System,
         favorite: true,
         command: "/usr/bin/aqua-updates",
-        icon_path: "/usr/share/aqua/icons/temp/lucide/updates.svg",
+        icon_path: "/usr/share/aqua/icons/aqua/updates.svg",
     },
 ];
 

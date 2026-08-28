@@ -93,6 +93,6 @@ Every interactive surface must define:
 5. Settings.
 6. Installer restyle.
 7. Calendar and Photos visual primitives.
-8. Final Aqua-owned application and status icon replacement.
+8. Expand Aqua Core Icons only when corresponding first-party features ship.
 
 Shared appearance rules are defined in [interface-style.md](interface-style.md).

@@ -400,7 +400,7 @@ check_output_contains "smithay_launcher_seat_ready=ok" cargo run -p aqua-composi
 check_output_contains "[AQUA-COMPOSITOR] stage=scene-probe status=ok" cargo run -p aqua-compositor -- probe-scene
 check_output_contains "required_surfaces=7" cargo run -p aqua-compositor -- probe-scene
 check_output_contains "required_assets_present=ok" cargo run -p aqua-compositor -- probe-scene
-check_output_contains "temporary_assets_labeled=ok" cargo run -p aqua-compositor -- probe-scene
+check_output_contains "permanent_assets_only=ok" cargo run -p aqua-compositor -- probe-scene
 check_output_contains "required_material_tokens_present=ok" cargo run -p aqua-compositor -- probe-scene
 check_output_contains "simulated_surface_labeled=ok" cargo run -p aqua-compositor -- probe-scene
 check_output_contains "boot_graphics=false" cargo run -p aqua-compositor -- probe-scene
@@ -408,7 +408,7 @@ check_output_contains "[AQUA-COMPOSITOR] stage=scene-dump status=ok" cargo run -
 check_output_contains "surface id=launcher kind=launcher material=system-surface" cargo run -p aqua-compositor -- dump-scene
 check_output_contains "surface id=notification-toast kind=notification-toast material=system-surface" cargo run -p aqua-compositor -- dump-scene
 check_output_contains "asset surface=wallpaper role=background path=/usr/share/aqua/wallpapers/default-wallpaper.png temporary=false" cargo run -p aqua-compositor -- dump-scene
-check_output_contains "asset surface=dock role=browser-icon path=/usr/share/aqua/icons/temp/lucide/browser.svg temporary=true" cargo run -p aqua-compositor -- dump-scene
+check_output_contains "asset surface=dock role=browser-icon path=/usr/share/aqua/icons/aqua/browser.svg temporary=false" cargo run -p aqua-compositor -- dump-scene
 check_output_contains "material surface=launcher role=fill token=surface.panelFill" cargo run -p aqua-compositor -- dump-scene
 check_output_contains "material surface=notification-toast role=effect token=surface.layeredSurface" cargo run -p aqua-compositor -- dump-scene
 check_output_contains "[AQUA-COMPOSITOR] stage=render-plan-probe status=ok" cargo run -p aqua-compositor -- probe-render-plan

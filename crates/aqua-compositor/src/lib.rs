@@ -2747,7 +2747,7 @@ pub struct SceneProbe {
     pub launcher_avoids_dock: bool,
     pub mock_surfaces_labeled: bool,
     pub required_assets_present: bool,
-    pub temporary_assets_labeled: bool,
+    pub permanent_assets_only: bool,
     pub required_material_tokens_present: bool,
     pub simulated_surface_labeled: bool,
     pub boot_graphics: bool,
@@ -3056,7 +3056,7 @@ impl SceneProbe {
             && self.launcher_avoids_dock
             && self.mock_surfaces_labeled
             && self.required_assets_present
-            && self.temporary_assets_labeled
+            && self.permanent_assets_only
             && self.required_material_tokens_present
             && self.simulated_surface_labeled
             && !self.boot_graphics
@@ -3075,7 +3075,7 @@ pub fn probe_static_shell_scene(viewport: Viewport) -> SceneProbe {
         launcher_avoids_dock: scene.launcher_avoids_dock(),
         mock_surfaces_labeled: scene.mock_surfaces_are_labeled(),
         required_assets_present: scene.required_assets_present(),
-        temporary_assets_labeled: scene.temporary_assets_are_labeled(),
+        permanent_assets_only: scene.permanent_assets_only(),
         required_material_tokens_present: scene.required_material_tokens_present(),
         simulated_surface_labeled: scene.simulated_surface_is_labeled(),
         boot_graphics: false,
@@ -3452,13 +3452,13 @@ pub struct RuntimeAssetProbe {
     pub root: PathBuf,
     pub wallpaper: bool,
     pub design_tokens: bool,
-    pub temp_home_icon: bool,
-    pub temp_license: bool,
+    pub aqua_home_icon: bool,
+    pub aqua_icon_license: bool,
 }
 
 impl RuntimeAssetProbe {
     pub fn is_ready(&self) -> bool {
-        self.wallpaper && self.design_tokens && self.temp_home_icon && self.temp_license
+        self.wallpaper && self.design_tokens && self.aqua_home_icon && self.aqua_icon_license
     }
 }
 
@@ -3468,8 +3468,8 @@ pub fn probe_runtime_assets(root: impl AsRef<Path>) -> RuntimeAssetProbe {
     RuntimeAssetProbe {
         wallpaper: root.join("wallpapers/default-wallpaper.png").is_file(),
         design_tokens: root.join("tokens/design-tokens.json").is_file(),
-        temp_home_icon: root.join("icons/temp/lucide/home.svg").is_file(),
-        temp_license: root.join("icons/temp/lucide/LICENSE").is_file(),
+        aqua_home_icon: root.join("icons/aqua/home.svg").is_file(),
+        aqua_icon_license: root.join("icons/aqua/LICENSE").is_file(),
         root,
     }
 }

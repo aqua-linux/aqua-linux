@@ -913,7 +913,7 @@ grep -Fq "boot_graphics=false" "${CONTRACT_DIR}/xdg-toplevel-window-model-probe.
 grep -Fq "[AQUA-COMPOSITOR] stage=xdg-toplevel-window-model status=ok" "${CONTRACT_DIR}/xdg-toplevel-window-model-probe.txt"
 grep -Fq "required_surfaces=7" "${CONTRACT_DIR}/scene-probe.txt"
 grep -Fq "required_assets_present=ok" "${CONTRACT_DIR}/scene-probe.txt"
-grep -Fq "temporary_assets_labeled=ok" "${CONTRACT_DIR}/scene-probe.txt"
+grep -Fq "permanent_assets_only=ok" "${CONTRACT_DIR}/scene-probe.txt"
 grep -Fq "required_material_tokens_present=ok" "${CONTRACT_DIR}/scene-probe.txt"
 grep -Fq "simulated_surface_labeled=ok" "${CONTRACT_DIR}/scene-probe.txt"
 grep -Fq "boot_graphics=false" "${CONTRACT_DIR}/scene-probe.txt"

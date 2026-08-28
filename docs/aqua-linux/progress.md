@@ -2,7 +2,7 @@
 
 > Generated from `docs/aqua-linux/progress.json`. Update the changed phase date, then run `scripts/write-progress-report.sh`.
 
-**Overall progress: 91%**
+**Overall progress: 92%**
 
 | Field | Value |
 | --- | --- |
@@ -14,7 +14,7 @@
 
 ## Current Stage
 
-Milestone 9 remains complete and the packaged installer performance path is validated. The image now includes a bounded read-only MSI Sword 17 inventory collector for DMI, CPU, UEFI, PCI, USB, DRM, input, block, and power metadata. It excludes serial, MAC, hostname, UUID, and user data, performs no device writes, and explicitly grants neither support nor installation authorization.
+Milestone 9 remains complete and the packaged installer performance path is validated. The default image now packages the permanent project-authored Aqua Core Icons for core applications and status surfaces. All temporary Lucide assets, runtime paths, fetch tooling, and third-party notices have been removed; the scene contract rejects temporary icon bindings.
 
 ## Phases
 
@@ -22,8 +22,8 @@ Phases are ordered by their most recent update.
 
 | Updated | Phase | Status | Progress | Summary |
 | --- | --- | --- | ---: | --- |
-| 2026-08-28 | M2: Asset and Visual System Intake | In Progress | 95% | Public contracts capture the permanent desktop, application, search, first-party app, installer, completion, and four-theme direction derived from private Git-ignored boards. Approved transparent brand exports are used by the runtime. A deterministic pale-wave wallpaper master is now the packaged default and can be reproduced from renderer source. Final Aqua-owned application and status icons are still required. |
-| 2026-08-28 | M11: Polish and Public Readiness | In Progress | 95% | The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, four live-refreshed themes, and three real workspaces. Current QEMU captures carry a provenance manifest, the public hardware matrix prevents physical support overclaims, and the default-image gate enforces recovery-safe startup. A bounded read-only MSI inventory collector now records non-unique platform metadata without modifying devices or authorizing support and installation. Final icon clearance and issue workflow remain incomplete. |
+| 2026-08-28 | M2: Asset and Visual System Intake | Complete | 100% | Public contracts capture the permanent desktop, application, search, first-party app, installer, completion, and four-theme direction derived from private Git-ignored boards. Approved transparent brand exports and the reproducible pale-wave wallpaper are used by the runtime. Thirteen project-authored Aqua Core Icons permanently cover core application, desktop, notification, and status roles with explicit MIT licensing; no temporary icon package remains. |
+| 2026-08-28 | M11: Polish and Public Readiness | In Progress | 99% | The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, permanent Aqua Core Icons, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, four live-refreshed themes, and three real workspaces. Current QEMU captures carry a provenance manifest, the public hardware matrix prevents physical support overclaims, and the default-image gate enforces recovery-safe startup. A bounded read-only MSI inventory collector records non-unique platform metadata without modifying devices or authorizing support and installation. The contributor issue workflow remains incomplete. |
 | 2026-08-22 | M4: Scene and Surface Renderer | Complete | 100% | The Smithay GLES2 renderer composes the packaged wallpaper, shared surfaces, optional two-pass blur, and live wl_shm textures at the native output size. Physical DRM retains XRGB8888 GBM front/back dma-buf scanout. QEMU keeps GLES readback for the desktop, but a full-output client that explicitly supplies a complete Wayland opaque region may use the dumb-buffer bridge after one GPU validation frame. Packaged installer acceptance measured 30 bridged frames at a 61 ms median total while preserving distinct 1280x800 captures. |
 | 2026-08-21 | M9: Graphical Installer MVP | Complete | 100% | The packaged installer executes and boots the complete separately gated installation, proves failure cleanup, and emits QEMU-validated transaction progress. Seven deterministic Rust-rendered setup screens feed a packaged aqua.installer wl_shm xdg-toplevel client; QEMU proves full-output composition and navigation from Welcome through Completed. An explicit presentation-only rehearsal consumes the canonical non-executing 20-step graph, renders progress at 40%, 65%, and 95%, reaches Completed at 100%, emits seven distinct screendumps, and proves transaction_executed=false. Real virtio pointer input activates the Welcome footer and selects a Language row through renderer-shared geometry before keyboard navigation resumes. Full-output input origin now matches presentation origin, blocked disks and hidden controls reject hits, and disk/profile application retains explicit activation. |
 | 2026-08-16 | M8: Terminal App | Complete | 100% | A packaged aqua-terminal opens as a supervised aqua.terminal xdg-toplevel with Aqua chrome and a dark readable scrim. It uses portable-pty for a real /bin/sh session and vt100 for mature terminal parsing, renders the prompt, coalesces PTY output into bounded redraws, and resizes both the PTY and parser grid. Aqua boot mounts devpts and provides /dev/ptmx. QEMU forwards all 40 press/release events for 'echo aquaterminalok', observes Enter, parses output, applies Alt+F8 resize through a real xdg configure to a 640x478 buffer and 74x21 grid, resizes the PTY, repaints, captures the window, closes with Alt+F4, reaps the process, and confirms restart=never. Pointer titlebar and bottom-right resize requests are implemented; broader key and clipboard support remain later enhancements. |
@@ -45,5 +45,4 @@ Phases are ordered by their most recent update.
 
 ## Next Developments
 
-1. Replace remaining temporary application and status icons with cleared Aqua-owned assets.
-2. Publish the contributor issue workflow and label taxonomy for remaining v1 work.
+1. Publish the contributor issue workflow and label taxonomy for remaining v1 work.

@@ -62,20 +62,24 @@ legacy material.
 | UI font | `assets/fonts/NotoSans-Regular.ttf` | present | First-party UI text |
 | UI font license | `assets/fonts/OFL.txt` | present | SIL OFL license copy |
 
-## Temporary Icons
+## Aqua Core Icons
 
-Lucide icons under `assets/temp-icons/lucide/` have `temporary` status as licensed development placeholders. They can support current implementation but are not the final Aqua icon identity.
+The 13 SVGs under `assets/icons/aqua/` are project-authored permanent runtime
+assets. They cover Home, Files, Aqua Drive, Trash, Browser, Terminal, Settings,
+Software, Wi-Fi, volume, battery, notifications, and updates. Every icon uses
+a 64 x 64 view box, flat colors, and the adjacent MIT license. No icon was
+extracted from a private board or another desktop environment.
 
 ## Final Assets Still Needed
 
-- Aqua-owned or independently licensed Files, Terminal, Browser, Calendar, Photos, Music, Camera, Settings, Trash, application-overview, and search icons.
-- Status icons for network, volume, battery/power, locale, and notifications.
-- File-type and sidebar icons for first-party applications.
+- Calendar, Photos, Music, Camera, application-overview, and search icons for
+  later first-party application expansion.
+- Additional file-type and sidebar icons as their corresponding features ship.
 
 ## Asset Rules
 
 - New runtime artwork must follow [../interface-style.md](../interface-style.md).
-- Keep placeholders explicitly marked until an approved replacement exists.
+- Package only permanent or explicitly reviewed assets in the default image.
 - Preserve aspect ratio for wallpapers; use a centered cover crop instead of stretching.
 - Reproduce the pale-wave master with `cargo run -p aqua-renderer --example export-pale-wallpaper -- <output.png>`.
 - Mock values must be identified in design-only output and must not enter runtime defaults.
