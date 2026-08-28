@@ -1,0 +1,90 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+proc run_shell_check {command description} {
+    send -- "$command\r"
+    expect {
+        -exact {# } {}
+        timeout { puts stderr "Timed out while $description"; exit 1 }
+        eof { puts stderr "QEMU exited while $description"; exit 1 }
+    }
+}
+
+proc send_input {mode description} {
+    global env
+    if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) $mode} input_error]} {
+        puts stderr "$description failed: $input_error"
+        exit 1
+    }
+}
+
+proc capture {ppm png description} {
+    global env
+    after 12000
+    if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $ppm $png} capture_error]} {
+        puts stderr "$description failed: $capture_error"
+        exit 1
+    }
+}
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp $env(CPUS) \
+    -m $env(MEMORY) \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.boot_graphics=1} \
+    -serial stdio \
+    -monitor unix:$env(MONITOR_SOCKET),server=on,wait=off \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -device virtio-keyboard-pci \
+    -netdev user,id=net0 \
+    -device virtio-net-pci,netdev=net0 \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=graphical-session-activation status=started mode=supervised boot_graphics=true recovery_tty=true} {}
+    timeout { puts stderr "Timed out waiting for graphical boot"; exit 1 }
+    eof { puts stderr "QEMU exited before graphical boot"; exit 1 }
+}
+expect -exact {aqua-linux login: }
+send -- "root\r"
+expect -exact {# }
+
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'stage=drm-wayland-session status=active' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'stage=drm-wayland-session status=active' /run/aqua/graphical-session-supervisor.log} "waiting for the desktop"
+capture $env(DESKTOP_PPM) $env(DESKTOP_PNG) "Clean desktop capture"
+
+run_shell_check {repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the clean desktop frame"
+send_input public-applications "Applications input"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_launcher_visible=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_launcher_visible=true' ]; do sleep 1; i=$((i + 1)); done; [ "$(grep -F 'desktop_event_launcher_visible=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_launcher_visible=true' ]; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$repaint_before" ]} "waiting for Applications"
+capture $env(APPLICATIONS_PPM) $env(APPLICATIONS_PNG) "Applications capture"
+
+run_shell_check {repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Applications frame"
+send_input public-search "Global Search input"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_launcher_keyboard_code=20 query=set' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_launcher_keyboard_code=20 query=set' /run/aqua/graphical-session-supervisor.log; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$repaint_before" ]} "waiting for Global Search"
+capture $env(SEARCH_PPM) $env(SEARCH_PNG) "Global Search capture"
+
+send_input public-launcher-dismiss "Launcher dismissal"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_launcher_visible=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_launcher_visible=false' ]; do sleep 1; i=$((i + 1)); done} "waiting for launcher dismissal"
+send_input files-launch-fast "Files launch"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_launch_surface_app_id=aqua.files' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_launch_surface_app_id=aqua.files' /run/aqua/graphical-session-supervisor.log} "waiting for Files"
+send_input settings-launch-fast "Settings launch"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_launch_surface_app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=2' ]} "waiting for Files and Settings"
+capture $env(WINDOWS_PPM) $env(WINDOWS_PNG) "First-party windows capture"
+
+run_shell_check {ok=1; grep -Fq 'desktop_launcher_keyboard_code=20 query=set' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_surface_app_id=aqua.files' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_surface_app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log || ok=0; [ "$(pidof aqua-files | wc -w)" = 1 ] || ok=0; [ "$(pidof aqua-settings | wc -w)" = 1 ] || ok=0} "checking public runtime evidence"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-public-runtime-qemu status=ok captures=desktop,applications,search,windows clients=files,settings'}
+send -- "\r"
+expect -exact {[AQUA-TEST] stage=desktop-public-runtime-qemu status=ok captures=desktop,applications,search,windows clients=files,settings}
+expect -exact {# }
+
+send -- "/usr/bin/aqua-graphical-session-stop\r"
+expect -exact {[AQUA-SESSION] stage=graphical-session-stop status=ok supervisor_stopped=true pid_cleaned=true kms_restored=true clients_stopped=true recovery_return=ok}
+expect -exact {# }
+send -- "poweroff\r"
+expect eof

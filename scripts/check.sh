@@ -1174,6 +1174,15 @@ grep -Fq 'workspace_input = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'workspace_qemu = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'workspace-move-right' scripts/send-qemu-monitor-input.py
 grep -Fq 'workspace-switch-right' scripts/send-qemu-monitor-input.py
+test -x scripts/check-public-runtime-qemu.sh
+test -x scripts/check-public-runtime-qemu.exp
+test -x scripts/publish-public-runtime-screenshots.sh
+test -x scripts/check-public-runtime-screenshots.sh
+grep -Fq 'desktop-public-runtime-qemu status=ok' scripts/check-public-runtime-qemu.sh
+grep -Fq 'public_runtime_screenshots = ' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'Current QEMU Runtime' README.md
+grep -Fq 'These images are captures of the current Aqua Linux runtime in QEMU' docs/aqua-linux/runtime-screenshots.md
+scripts/check-public-runtime-screenshots.sh
 grep -Fq 'desktop_shell_theme=' crates/aqua-compositor/src/main.rs
 grep -Fq 'theme=LightWhite' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'run-manual-nested-preview-execution' docs/aqua-linux/compositor.md

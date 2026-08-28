@@ -153,6 +153,14 @@ Current OS screenshots must be labeled as QEMU captures and generated through
 the QEMU validation/capture scripts. Third-party icons visible in concept boards
 must not be extracted into Aqua Linux.
 
+### Current QEMU Runtime
+
+![Aqua Files and Aqua Settings running in the Aqua Linux QEMU session](docs/aqua-linux/assets/runtime/qemu-first-party-windows.png)
+
+The [runtime screenshot set](docs/aqua-linux/runtime-screenshots.md) contains
+the clean desktop, Applications, Global Search, and first-party windows. Each
+committed PNG is tied to a successful QEMU marker and SHA-256 manifest.
+
 See [visual-reference.md](docs/aqua-linux/visual-reference.md) and
 [ASSET_LICENSE.md](ASSET_LICENSE.md).
 
