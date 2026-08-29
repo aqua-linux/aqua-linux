@@ -1,6 +1,6 @@
 use aqua_components::{
-    ComponentState, IconButton, IconButtonGlyph, Menu, SearchField, SectionGroup, SegmentedControl,
-    SidebarNavigation, SwitchControl, Toolbar,
+    ComponentState, IconButton, IconButtonGlyph, Menu, MetadataRow, SearchField, SectionGroup,
+    SegmentedControl, SidebarNavigation, SwitchControl, Toolbar,
 };
 use aqua_scene::Rect;
 use std::collections::VecDeque;
@@ -761,6 +761,22 @@ impl DesktopPropertiesModel {
             2,
         )
         .with_structure(0, 34, 16, 8, 18, 4)
+    }
+
+    pub fn details_metadata_row<'a>(
+        &self,
+        width: u32,
+        height: u32,
+        index: usize,
+        label: &'a str,
+        value: &'a str,
+    ) -> MetadataRow<'a> {
+        MetadataRow::new(
+            self.details_section_group(width, height).row_rect(index),
+            label,
+            value,
+        )
+        .with_columns(80, 8)
     }
 
     pub fn refresh(
@@ -3443,6 +3459,11 @@ mod tests {
         assert!(details.is_valid());
         assert_eq!(details.row_rect(0).y, 192);
         assert_eq!(details.footer_trailing_rect(138, 30).x, 302);
+        let location = files.details_metadata_row(480, 300, 0, "Location", &files.location);
+        assert!(location.is_valid());
+        assert_eq!(location.slots().label.width, 80);
+        assert_eq!(location.slots().value.x, 128);
+        assert_eq!(location.accessibility().role, "definition");
 
         let mut settings = DesktopPropertiesModel::load("settings", &home, &system)
             .expect("load Settings properties");

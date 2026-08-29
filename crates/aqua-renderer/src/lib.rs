@@ -2050,29 +2050,58 @@ fn render_system_overview_rgba_base(
         [0x72, 0xe3, 0xf5, 0xff],
         scale,
     );
-    let rows = [
-        format!("HOST  {}", model.hostname),
-        format!("KERNEL  {}", model.kernel),
-        format!("UPTIME  {}", model.uptime_label()),
+    let labels = ["HOST", "KERNEL", "UPTIME", "LOAD", "MEMORY"];
+    let values = [
+        model.hostname.clone(),
+        model.kernel.clone(),
+        model.uptime_label(),
         format!(
-            "LOAD  {}.{:02}",
+            "{}.{:02}",
             model.load_average_x100 / 100,
             model.load_average_x100 % 100
         ),
-        format!("MEMORY  {}%", model.memory_used_percent()),
+        format!("{}%", model.memory_used_percent()),
     ];
-    for (index, text) in rows.iter().enumerate() {
-        draw_bitmap_text(
-            &mut rgba,
-            (width, height),
-            (padding, padding + row * (index as u32 + 1)),
-            text,
-            if index == rows.len() - 1 {
-                [0x9b, 0xeb, 0xf7, 0xff]
-            } else {
-                [0xd1, 0xe8, 0xef, 0xff]
+    let metadata_height = if high_resolution { 28 } else { 18 };
+    let label_width = if high_resolution { 104 } else { 64 };
+    for (index, value) in values.iter().enumerate() {
+        let metadata = MetadataRow::new(
+            Rect {
+                x: padding,
+                y: padding
+                    .saturating_add(row * (index as u32 + 1))
+                    .saturating_sub(if high_resolution { 5 } else { 3 }),
+                width: width.saturating_sub(padding * 2),
+                height: metadata_height,
             },
-            scale,
+            labels[index],
+            value,
+        )
+        .with_columns(label_width, if high_resolution { 12 } else { 8 })
+        .with_emphasis(index == values.len() - 1);
+        draw_metadata_row(
+            &mut rgba,
+            width,
+            height,
+            metadata,
+            MetadataRowStyle {
+                label_color: [0xd1, 0xe8, 0xef, 0xff],
+                value_color: if metadata.emphasized {
+                    [0x9b, 0xeb, 0xf7, 0xff]
+                } else {
+                    [0xd1, 0xe8, 0xef, 0xff]
+                },
+                role: if high_resolution {
+                    TextRole::Caption
+                } else {
+                    TextRole::Body
+                },
+                scale: if high_resolution {
+                    OutputScale::Two
+                } else {
+                    OutputScale::One
+                },
+            },
         );
     }
     let track = Rect {
@@ -2097,7 +2126,7 @@ fn render_system_overview_rgba_base(
         height,
         rgba,
         memory_used_percent: model.memory_used_percent(),
-        primitive_count: 10,
+        primitive_count: 15,
     }
 }
 
@@ -2747,42 +2776,35 @@ pub fn render_properties_window_rgba_with_theme(
 
     let details = model.details_section_group(width, height);
     primitives += draw_section_group(&mut buffer, width, height, details, theme);
-    let location_row = details.row_rect(0);
-    let items_row = details.row_rect(1);
     let footer = details.footer_rect();
-    draw_bitmap_text(
+    let location = model.details_metadata_row(width, height, 0, "Location", &model.location);
+    primitives += draw_metadata_row(
         &mut buffer,
-        (width, height),
-        (location_row.x, location_row.y + 6),
-        "Location",
-        palette.secondary_text,
-        1,
-    );
-    draw_bitmap_text(
-        &mut buffer,
-        (width, height),
-        (location_row.x + 88, location_row.y + 6),
-        &model.location,
-        palette.text,
-        1,
+        width,
+        height,
+        location,
+        MetadataRowStyle {
+            label_color: palette.secondary_text,
+            value_color: palette.text,
+            role: TextRole::Body,
+            scale: OutputScale::One,
+        },
     );
     if let Some(item_count) = model.item_count {
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (items_row.x, items_row.y + 6),
-            "Items",
-            palette.secondary_text,
-            1,
-        );
         let suffix = if model.enumeration_capped { "+" } else { "" };
-        draw_bitmap_text(
+        let value = format!("{item_count}{suffix}");
+        let items = model.details_metadata_row(width, height, 1, "Items", &value);
+        primitives += draw_metadata_row(
             &mut buffer,
-            (width, height),
-            (items_row.x + 88, items_row.y + 6),
-            &format!("{item_count}{suffix}"),
-            palette.text,
-            1,
+            width,
+            height,
+            items,
+            MetadataRowStyle {
+                label_color: palette.secondary_text,
+                value_color: palette.text,
+                role: TextRole::Body,
+                scale: OutputScale::One,
+            },
         );
     }
     let action = details.footer_trailing_rect(138, 30);
@@ -8428,7 +8450,7 @@ mod tests {
         let overlay = render_system_overview_rgba(512, 352, &model);
         assert_eq!(overlay.rgba.len(), 512 * 352 * 4);
         assert_eq!(overlay.memory_used_percent, 37);
-        assert_eq!(overlay.primitive_count, 10);
+        assert_eq!(overlay.primitive_count, 15);
         assert!(overlay.rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
     }
 

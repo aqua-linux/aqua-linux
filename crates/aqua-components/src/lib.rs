@@ -86,6 +86,7 @@ impl SharedComponentKind {
             self,
             Self::WindowFrame
                 | Self::Menu
+                | Self::MetadataRow
                 | Self::SectionGroup
                 | Self::Toolbar
                 | Self::SegmentedControl
@@ -1041,6 +1042,102 @@ impl<'a> Menu<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MetadataRowAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub value: &'a str,
+    pub read_only: bool,
+    pub emphasized: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MetadataRowSlots {
+    pub label: Rect,
+    pub value: Rect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MetadataRow<'a> {
+    pub rect: Rect,
+    pub label: &'a str,
+    pub value: &'a str,
+    pub label_width: u32,
+    pub column_gap: u32,
+    pub emphasized: bool,
+}
+
+impl<'a> MetadataRow<'a> {
+    pub const fn new(rect: Rect, label: &'a str, value: &'a str) -> Self {
+        Self {
+            rect,
+            label,
+            value,
+            label_width: 80,
+            column_gap: 8,
+            emphasized: false,
+        }
+    }
+
+    pub const fn with_columns(mut self, label_width: u32, column_gap: u32) -> Self {
+        self.label_width = label_width;
+        self.column_gap = column_gap;
+        self
+    }
+
+    pub const fn with_emphasis(mut self, emphasized: bool) -> Self {
+        self.emphasized = emphasized;
+        self
+    }
+
+    pub const fn slots(self) -> MetadataRowSlots {
+        let label_width = min_u32(self.label_width, self.rect.width);
+        let value_x = self
+            .rect
+            .x
+            .saturating_add(label_width)
+            .saturating_add(self.column_gap);
+        MetadataRowSlots {
+            label: Rect {
+                x: self.rect.x,
+                y: self.rect.y,
+                width: label_width,
+                height: self.rect.height,
+            },
+            value: Rect {
+                x: value_x,
+                y: self.rect.y,
+                width: self.rect.right().saturating_sub(value_x),
+                height: self.rect.height,
+            },
+        }
+    }
+
+    pub const fn is_valid(self) -> bool {
+        !self.label.is_empty()
+            && !self.value.is_empty()
+            && self.rect.width > 0
+            && self.rect.height > 0
+            && self.label_width > 0
+            && self.label_width.saturating_add(self.column_gap) < self.rect.width
+            && self.slots().value.width > 0
+    }
+
+    pub const fn accepts_input(self) -> bool {
+        false
+    }
+
+    pub const fn accessibility(self) -> MetadataRowAccessibility<'a> {
+        MetadataRowAccessibility {
+            role: "definition",
+            name: self.label,
+            value: self.value,
+            read_only: true,
+            emphasized: self.emphasized,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SectionGroupAccessibility<'a> {
     pub role: &'static str,
     pub name: &'a str,
@@ -1467,7 +1564,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_eleven_shared_primitives() {
+    fn catalog_tracks_the_twelve_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -1485,6 +1582,7 @@ mod tests {
                 SharedComponentKind::Switch,
                 SharedComponentKind::Menu,
                 SharedComponentKind::ListRow,
+                SharedComponentKind::MetadataRow,
                 SharedComponentKind::SectionGroup,
             ]
         );
@@ -1574,6 +1672,7 @@ mod tests {
         let toolbar = Toolbar::new(rect, "");
         let navigation = SidebarNavigation::new(rect, "", rect, 40);
         let menu = Menu::new(rect, "", 2, 0, 0, 20, 0);
+        let metadata = MetadataRow::new(rect, "", "Value");
         let section = SectionGroup::new(rect, "", 1);
         assert!(!button.can_activate());
         assert!(!row.can_activate());
@@ -1584,6 +1683,7 @@ mod tests {
         assert!(!toolbar.is_valid());
         assert!(!navigation.is_valid());
         assert!(!menu.is_valid());
+        assert!(!metadata.is_valid());
         assert!(!section.is_valid());
         assert_eq!(navigation.hit_test(11, 21, 1), None);
     }
@@ -1769,5 +1869,32 @@ mod tests {
         assert_eq!(section.row_at(40, 212), None);
         assert_eq!(section.accessibility().role, "group");
         assert!(section.accessibility().focused);
+    }
+
+    #[test]
+    fn metadata_row_bounds_read_only_label_and_value_columns() {
+        let row = MetadataRow::new(
+            Rect {
+                x: 40,
+                y: 192,
+                width: 400,
+                height: 18,
+            },
+            "Location",
+            "/home/aqua",
+        )
+        .with_columns(80, 8)
+        .with_emphasis(true);
+        assert!(row.is_valid());
+        assert_eq!(row.slots().label.width, 80);
+        assert_eq!(row.slots().value.x, 128);
+        assert_eq!(row.slots().value.right(), row.rect.right());
+        assert!(!row.accepts_input());
+        let semantics = row.accessibility();
+        assert_eq!(semantics.role, "definition");
+        assert_eq!(semantics.name, "Location");
+        assert_eq!(semantics.value, "/home/aqua");
+        assert!(semantics.read_only);
+        assert!(semantics.emphasized);
     }
 }
