@@ -32,7 +32,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Global search | Shared host-proven primitive | Split result list, quick-action panel, and exact pointer geometry; packaged-QEMU acceptance remains open |
 | Running-app dock | Shared host-proven primitive | Centered Files, Settings, and Trash targets with running indicators; packaged-QEMU acceptance remains open |
 | Workspace switcher | Shared host-proven primitive | Three real workspace targets, thumbnails, and active indicator; packaged-QEMU acceptance remains open |
-| Notification | Planned | Shell notification center |
+| Notification | Shared host-proven primitive | Shell toast content, dismissal target, timeout/queue model, and compositor pointer routing; packaged-QEMU acceptance remains open |
 | Confirmation dialog | Planned | Destructive and session confirmation paths |
 
 “Planned” means that runtime behavior may exist, but its current one-off path
@@ -505,7 +505,39 @@ indicator containment, accessibility semantics, four themes, and the three
 required viewports including fractional scale. Packaged-QEMU acceptance remains
 open.
 
+## Notification Contract
+
+### Anatomy And Geometry
+
+- A notification owns one bounded toast surface plus icon, title, body, source,
+  dismiss target, and centered dismiss-glyph slots. The current shell surface
+  uses the spacious 360-by-88 layout; the contract also retains a bounded
+  compact layout down to 240-by-72.
+- Content slots leave the entire trailing dismiss target unobstructed. Empty
+  source or title values, undersized surfaces, and overflowing slots fail
+  closed; an empty body remains valid for short status announcements.
+- Runtime text stays bounded by the existing notification-center limits and
+  control-character filtering. Queue promotion and expiry timing remain owned
+  by the shell model rather than presentation geometry.
+
+### Input, Semantics, And Consumption
+
+- Pointer dismissal accepts only the exact half-open dismiss rectangle. The
+  compositor now resolves this rectangle from the same primitive used by the
+  renderer instead of maintaining a separate top-right calculation.
+- Escape dismisses an active notification. Enter and Space activate the
+  focused dismiss control; other keys do not dismiss it.
+- The toast exposes a polite live `status` with title, body, and source values.
+  Its independently named dismiss control exposes the `button` role.
+- Placeholder and cached Aqua Core icon render paths consume the same icon and
+  content slots. Existing notification IDs, bounded queue, timeout promotion,
+  compositor motion, and surface visibility behavior remain unchanged.
+
+The deterministic matrix covers content containment, exact dismiss boundaries,
+keyboard dismissal, live-region semantics, four themes, and the three required
+viewports including fractional scale. Packaged-QEMU acceptance remains open.
+
 ## Next Extraction Order
 
-1. Notification and confirmation dialog.
+1. Confirmation dialog.
 2. Checkbox and slider remain deferred until real option and bounded-value models exist.

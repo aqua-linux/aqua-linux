@@ -11,7 +11,7 @@ use std::sync::mpsc::{self, Receiver};
 use std::sync::Arc;
 use std::time::Duration;
 
-use aqua_components::{WindowControl, WindowFrame};
+use aqua_components::{NotificationToast, WindowControl, WindowFrame};
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_installer::{
     build_dry_run_plan, build_install_transaction_graph, compile_install_commands,
@@ -68,6 +68,17 @@ pub fn top_system_bar_session_hit(viewport: Viewport, pointer_x: u32, pointer_y:
         .is_some_and(|rect| {
             top_system_bar(rect.width, rect.height).session_hit(pointer_x, pointer_y)
         })
+}
+
+pub fn notification_dismiss_hit(
+    rect: Rect,
+    source: &str,
+    title: &str,
+    body: &str,
+    pointer_x: u32,
+    pointer_y: u32,
+) -> bool {
+    NotificationToast::new(rect, source, title, body).dismiss_hit(pointer_x, pointer_y)
 }
 
 pub fn first_party_window_action(
@@ -4703,18 +4714,23 @@ impl WaylandSmokeState {
     }
 
     fn notification_close_hit(&self, x: u32, y: u32) -> bool {
-        self.notification_center.active().is_some()
-            && self
-                .launcher_scene
-                .surfaces
-                .iter()
-                .find(|surface| surface.kind == SurfaceKind::NotificationToast)
-                .is_some_and(|surface| {
-                    x >= surface.rect.x + surface.rect.width.saturating_sub(48)
-                        && x < surface.rect.x + surface.rect.width
-                        && y >= surface.rect.y
-                        && y < surface.rect.y + 48
-                })
+        let Some(notification) = self.notification_center.active() else {
+            return false;
+        };
+        self.launcher_scene
+            .surfaces
+            .iter()
+            .find(|surface| surface.kind == SurfaceKind::NotificationToast)
+            .is_some_and(|surface| {
+                notification_dismiss_hit(
+                    surface.rect,
+                    &notification.source,
+                    &notification.title,
+                    &notification.body,
+                    x,
+                    y,
+                )
+            })
     }
 
     fn close_active_toplevel(&mut self) -> bool {
@@ -6651,6 +6667,17 @@ impl SmithayDrmSession {
                     28 => state.apply_session_menu_event(SessionMenuEvent::Activate),
                     _ => {}
                 }
+            }
+            return true;
+        }
+        if code == 1 && state.notification_center.active().is_some() {
+            state.keyboard_event_count += 1;
+            state.keyboard_shortcut_intercept_count += 1;
+            if pressed {
+                state.notification_now_ms = u64::from(time);
+                state.notification_center.dismiss(u64::from(time));
+                state.sync_notification_visibility();
+                println!("desktop_notification_dismissed_by_escape=true");
             }
             return true;
         }
@@ -9329,6 +9356,48 @@ mod tests {
         assert!(!top_system_bar_session_hit(viewport, 1535, 36));
     }
 
+    #[test]
+    fn shared_notification_routes_only_the_dismiss_control() {
+        let rect = Rect {
+            x: 1152,
+            y: 824,
+            width: 360,
+            height: 88,
+        };
+        assert!(!notification_dismiss_hit(
+            rect,
+            "Aqua System",
+            "Update ready",
+            "Restart later.",
+            1463,
+            824,
+        ));
+        assert!(notification_dismiss_hit(
+            rect,
+            "Aqua System",
+            "Update ready",
+            "Restart later.",
+            1464,
+            824,
+        ));
+        assert!(notification_dismiss_hit(
+            rect,
+            "Aqua System",
+            "Update ready",
+            "Restart later.",
+            1511,
+            871,
+        ));
+        assert!(!notification_dismiss_hit(
+            rect,
+            "Aqua System",
+            "Update ready",
+            "Restart later.",
+            1512,
+            871,
+        ));
+    }
+
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     #[test]
     fn installer_wayland_client_state_renders_packaged_welcome_surface() {
@@ -10122,7 +10191,12 @@ mod tests {
         );
         assert_eq!(promoted.queued_count(), 0);
 
-        assert!(session.tick_notifications(30_200));
+        assert!(session.dispatch_keyboard_key(1, true, 250));
+        assert!(session.dispatch_keyboard_key(1, false, 251));
+        assert!(session.notification_center_snapshot().active().is_none());
+
+        assert!(session.post_notification(300, "Aqua Files", "Opened", "Home is ready."));
+        assert!(session.tick_notifications(30_300));
         assert!(session.notification_center_snapshot().active().is_none());
     }
 

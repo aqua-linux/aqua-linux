@@ -665,19 +665,31 @@ pub fn render_notification_toast_rgba_with_cached_icons(
 ) -> Result<NotificationToastOverlay, icons::IconError> {
     let mut overlay = render_notification_toast_rgba_base(width, height, center, false);
     apply_shell_palette(&mut overlay.rgba, theme);
-    if center.active().is_some() && width > 0 && height > 0 {
-        let high_resolution = width >= 360;
-        let padding = if high_resolution { 18 } else { 10 };
-        let logical_size = if high_resolution { 48 } else { 32 };
+    if let Some(notification) = center.active() {
+        let toast = NotificationToast::new(
+            Rect {
+                x: 0,
+                y: 0,
+                width,
+                height,
+            },
+            &notification.source,
+            &notification.title,
+            &notification.body,
+        );
+        if !toast.is_valid() {
+            return Ok(overlay);
+        }
+        let icon = toast.slots().icon;
         let key = icons::IconRasterKey::new(
             icons::IconRole::Notification,
             theme,
             icons::IconState::Normal,
-            logical_size,
+            u16::try_from(icon.width).expect("notification icon size fits u16"),
             aqua_text::OutputScale::One,
         )?;
-        let icon = cache.get_or_render(key)?;
-        icons::composite_icon(&mut overlay.rgba, width, height, padding, padding, &icon);
+        let raster = cache.get_or_render(key)?;
+        icons::composite_icon(&mut overlay.rgba, width, height, icon.x, icon.y, &raster);
         overlay.primitive_count += 1;
     }
     Ok(overlay)
@@ -709,19 +721,38 @@ fn render_notification_toast_rgba_base(
         };
     }
 
-    let high_resolution = width >= 360;
-    let scale = if high_resolution { 2 } else { 1 };
-    let padding = if high_resolution { 18 } else { 10 };
-    let icon_size = if high_resolution { 48 } else { 30 };
-    fill_transparent_rect(
-        &mut rgba,
-        width,
-        height,
+    let toast = NotificationToast::new(
         Rect {
             x: 0,
             y: 0,
             width,
             height,
+        },
+        &notification.source,
+        &notification.title,
+        &notification.body,
+    );
+    if !toast.is_valid() {
+        return NotificationToastOverlay {
+            width,
+            height,
+            rgba,
+            notification_id: Some(notification.id),
+            primitive_count: 0,
+        };
+    }
+    let high_resolution = width >= 360;
+    let scale = if high_resolution { 2 } else { 1 };
+    let slots = toast.slots();
+    fill_transparent_rect(
+        &mut rgba,
+        width,
+        height,
+        Rect {
+            x: toast.rect.x,
+            y: toast.rect.y,
+            width: toast.rect.width,
+            height: toast.rect.height,
         },
         [0x02, 0x20, 0x36, 0x78],
     );
@@ -730,28 +761,25 @@ fn render_notification_toast_rgba_base(
             &mut rgba,
             width,
             height,
-            Rect {
-                x: padding,
-                y: padding,
-                width: icon_size,
-                height: icon_size,
-            },
+            slots.icon,
             [0x27, 0xc8, 0xec, 0xb8],
         );
         draw_bitmap_text(
             &mut rgba,
             (width, height),
-            (padding + icon_size / 4, padding + icon_size / 5),
+            (
+                slots.icon.x + slots.icon.width / 4,
+                slots.icon.y + slots.icon.height / 5,
+            ),
             "A",
             [0xf4, 0xfd, 0xff, 0xff],
             scale,
         );
     }
-    let text_x = padding + icon_size + padding;
     draw_bitmap_text(
         &mut rgba,
         (width, height),
-        (text_x, padding.saturating_sub(2)),
+        (slots.title.x, slots.title.y),
         &notification.title,
         [0xf4, 0xfb, 0xff, 0xff],
         scale,
@@ -759,7 +787,7 @@ fn render_notification_toast_rgba_base(
     draw_bitmap_text(
         &mut rgba,
         (width, height),
-        (text_x, padding + if high_resolution { 26 } else { 18 }),
+        (slots.body.x, slots.body.y),
         &notification.body,
         [0xc8, 0xe3, 0xec, 0xff],
         scale,
@@ -767,10 +795,7 @@ fn render_notification_toast_rgba_base(
     draw_bitmap_text(
         &mut rgba,
         (width, height),
-        (
-            text_x,
-            height.saturating_sub(if high_resolution { 24 } else { 16 }),
-        ),
+        (slots.source.x, slots.source.y),
         &notification.source,
         [0x62, 0xdd, 0xf2, 0xff],
         scale,
@@ -778,10 +803,7 @@ fn render_notification_toast_rgba_base(
     draw_bitmap_text(
         &mut rgba,
         (width, height),
-        (
-            width.saturating_sub(if high_resolution { 32 } else { 20 }),
-            padding,
-        ),
+        (slots.dismiss_icon.x, slots.dismiss_icon.y),
         "X",
         [0xd8, 0xf3, 0xfa, 0xff],
         scale,

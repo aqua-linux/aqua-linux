@@ -101,6 +101,7 @@ impl SharedComponentKind {
                 | Self::GlobalSearch
                 | Self::RunningAppDock
                 | Self::WorkspaceSwitcher
+                | Self::Notification
                 | Self::SidebarNavigation
         )
     }
@@ -2654,6 +2655,170 @@ impl<'a> WorkspaceSwitcher<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NotificationAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub description: &'a str,
+    pub source: &'a str,
+    pub live: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NotificationSlots {
+    pub icon: Rect,
+    pub title: Rect,
+    pub body: Rect,
+    pub source: Rect,
+    pub dismiss: Rect,
+    pub dismiss_icon: Rect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotificationKey {
+    Escape,
+    Activate(ActivationKey),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NotificationToast<'a> {
+    pub rect: Rect,
+    pub source: &'a str,
+    pub title: &'a str,
+    pub body: &'a str,
+}
+
+impl<'a> NotificationToast<'a> {
+    pub const fn new(rect: Rect, source: &'a str, title: &'a str, body: &'a str) -> Self {
+        Self {
+            rect,
+            source,
+            title,
+            body,
+        }
+    }
+
+    pub const fn slots(self) -> NotificationSlots {
+        let spacious = self.rect.width >= 360;
+        let padding: u32 = if spacious { 18 } else { 10 };
+        let icon_size: u32 = if spacious { 48 } else { 30 };
+        let dismiss_size: u32 = if spacious { 48 } else { 40 };
+        let text_x = self
+            .rect
+            .x
+            .saturating_add(padding)
+            .saturating_add(icon_size)
+            .saturating_add(padding);
+        let text_right = self
+            .rect
+            .right()
+            .saturating_sub(dismiss_size.saturating_add(4));
+        let dismiss = Rect {
+            x: self.rect.right().saturating_sub(dismiss_size),
+            y: self.rect.y,
+            width: dismiss_size,
+            height: dismiss_size,
+        };
+        let dismiss_icon_size: u32 = if spacious { 14 } else { 12 };
+        NotificationSlots {
+            icon: Rect {
+                x: self.rect.x.saturating_add(padding),
+                y: self.rect.y.saturating_add(padding),
+                width: icon_size,
+                height: icon_size,
+            },
+            title: Rect {
+                x: text_x,
+                y: self.rect.y.saturating_add(padding.saturating_sub(2)),
+                width: text_right.saturating_sub(text_x),
+                height: if spacious { 22 } else { 16 },
+            },
+            body: Rect {
+                x: text_x,
+                y: self
+                    .rect
+                    .y
+                    .saturating_add(padding)
+                    .saturating_add(if spacious { 26 } else { 18 }),
+                width: text_right.saturating_sub(text_x),
+                height: if spacious { 20 } else { 14 },
+            },
+            source: Rect {
+                x: text_x,
+                y: self
+                    .rect
+                    .bottom()
+                    .saturating_sub(if spacious { 24 } else { 16 }),
+                width: text_right.saturating_sub(text_x),
+                height: if spacious { 18 } else { 12 },
+            },
+            dismiss,
+            dismiss_icon: Rect {
+                x: dismiss
+                    .x
+                    .saturating_add(dismiss.width.saturating_sub(dismiss_icon_size) / 2),
+                y: dismiss
+                    .y
+                    .saturating_add(dismiss.height.saturating_sub(dismiss_icon_size) / 2),
+                width: dismiss_icon_size,
+                height: dismiss_icon_size,
+            },
+        }
+    }
+
+    pub const fn dismiss_hit(self, x: u32, y: u32) -> bool {
+        self.is_valid() && rect_contains(self.slots().dismiss, x, y)
+    }
+
+    pub const fn keyboard_dismisses(self, key: NotificationKey) -> bool {
+        self.is_valid()
+            && matches!(
+                key,
+                NotificationKey::Escape
+                    | NotificationKey::Activate(ActivationKey::Enter | ActivationKey::Space)
+            )
+    }
+
+    pub const fn is_valid(self) -> bool {
+        if self.source.is_empty()
+            || self.title.is_empty()
+            || self.rect.width < 240
+            || self.rect.height < 72
+        {
+            return false;
+        }
+        let slots = self.slots();
+        slots.icon.right() <= self.rect.right()
+            && slots.icon.bottom() <= self.rect.bottom()
+            && slots.title.right() <= slots.dismiss.x
+            && slots.body.right() <= slots.dismiss.x
+            && slots.source.right() <= slots.dismiss.x
+            && slots.source.bottom() <= self.rect.bottom()
+            && slots.dismiss.right() == self.rect.right()
+            && slots.dismiss.bottom() <= self.rect.bottom()
+    }
+
+    pub const fn accessibility(self) -> NotificationAccessibility<'a> {
+        NotificationAccessibility {
+            role: "status",
+            name: self.title,
+            description: self.body,
+            source: self.source,
+            live: "polite",
+        }
+    }
+
+    pub const fn dismiss_accessibility(self) -> ComponentAccessibility<'static> {
+        ComponentAccessibility {
+            role: "button",
+            name: "Dismiss notification",
+            disabled: false,
+            busy: false,
+            selected: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SidebarNavigation<'a> {
     pub rect: Rect,
     pub label: &'a str,
@@ -2767,7 +2932,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_eighteen_shared_primitives() {
+    fn catalog_tracks_the_nineteen_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -2793,6 +2958,7 @@ mod tests {
                 SharedComponentKind::GlobalSearch,
                 SharedComponentKind::RunningAppDock,
                 SharedComponentKind::WorkspaceSwitcher,
+                SharedComponentKind::Notification,
             ]
         );
     }
@@ -2900,6 +3066,7 @@ mod tests {
         );
         let running_dock = RunningAppDock::new(rect, "", 1);
         let workspace_switcher = WorkspaceSwitcher::new(rect, "", 1, 0);
+        let notification = NotificationToast::new(rect, "", "Update ready", "Restart later");
         assert!(!button.can_activate());
         assert!(!top_bar.is_valid());
         assert!(!row.can_activate());
@@ -2917,6 +3084,7 @@ mod tests {
         assert!(!global_search.is_valid());
         assert!(!running_dock.is_valid());
         assert!(!workspace_switcher.is_valid());
+        assert!(!notification.is_valid());
         assert_eq!(navigation.hit_test(11, 21, 1), None);
     }
 
@@ -3183,6 +3351,60 @@ mod tests {
         assert_eq!(item.role, "tab");
         assert!(item.selected);
         assert!(switcher.item_accessibility(3, "Missing").is_none());
+    }
+
+    #[test]
+    fn notification_owns_content_dismissal_and_live_semantics() {
+        let notification = NotificationToast::new(
+            Rect {
+                x: 416,
+                y: 404,
+                width: 360,
+                height: 88,
+            },
+            "Aqua System",
+            "Update ready",
+            "Restart when convenient.",
+        );
+        assert!(notification.is_valid());
+        let slots = notification.slots();
+        assert_eq!(
+            slots.icon,
+            Rect {
+                x: 434,
+                y: 422,
+                width: 48,
+                height: 48,
+            }
+        );
+        assert_eq!(
+            slots.dismiss,
+            Rect {
+                x: 728,
+                y: 404,
+                width: 48,
+                height: 48,
+            }
+        );
+        assert_eq!(slots.title.x, 500);
+        assert_eq!(
+            slots.source.bottom(),
+            notification.rect.bottom().saturating_sub(6)
+        );
+        assert!(!notification.dismiss_hit(727, 404));
+        assert!(notification.dismiss_hit(728, 404));
+        assert!(notification.dismiss_hit(775, 451));
+        assert!(!notification.dismiss_hit(776, 451));
+        assert!(notification.keyboard_dismisses(NotificationKey::Escape));
+        assert!(notification.keyboard_dismisses(NotificationKey::Activate(ActivationKey::Enter)));
+        assert!(!notification.keyboard_dismisses(NotificationKey::Activate(ActivationKey::Other)));
+        let semantics = notification.accessibility();
+        assert_eq!(semantics.role, "status");
+        assert_eq!(semantics.live, "polite");
+        assert_eq!(semantics.name, "Update ready");
+        let dismiss = notification.dismiss_accessibility();
+        assert_eq!(dismiss.role, "button");
+        assert_eq!(dismiss.name, "Dismiss notification");
     }
 
     #[test]
