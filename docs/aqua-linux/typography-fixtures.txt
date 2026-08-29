@@ -1,0 +1,18 @@
+fixture_revision=aqua-typography-fixtures-1
+font_order=noto-sans-regular-aqua-1,noto-sans-arabic-regular-2.009
+fixture=latin-ligature scale=4/4 width_64=4400 baseline_64=832 height_64=1152 fallback_runs=0 fallback_glyphs=0 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:9
+fixture=turkish scale=4/4 width_64=5648 baseline_64=832 height_64=1152 fallback_runs=0 fallback_glyphs=0 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:15
+fixture=combining scale=4/4 width_64=1748 baseline_64=832 height_64=1152 fallback_runs=0 fallback_glyphs=0 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:4
+fixture=mixed-bidi scale=4/4 width_64=5159 baseline_64=832 height_64=1152 fallback_runs=1 fallback_glyphs=5 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:5|noto-sans-regular-aqua-1:ltr:2|noto-sans-regular-aqua-1:rtl:1|noto-sans-arabic-regular-2.009:rtl:5
+fixture=latin-ligature scale=5/4 width_64=5500 baseline_64=1040 height_64=1440 fallback_runs=0 fallback_glyphs=0 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:9
+fixture=turkish scale=5/4 width_64=7060 baseline_64=1040 height_64=1440 fallback_runs=0 fallback_glyphs=0 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:15
+fixture=combining scale=5/4 width_64=2185 baseline_64=1040 height_64=1440 fallback_runs=0 fallback_glyphs=0 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:4
+fixture=mixed-bidi scale=5/4 width_64=6449 baseline_64=1040 height_64=1440 fallback_runs=1 fallback_glyphs=5 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:5|noto-sans-regular-aqua-1:ltr:2|noto-sans-regular-aqua-1:rtl:1|noto-sans-arabic-regular-2.009:rtl:5
+fixture=latin-ligature scale=6/4 width_64=6599 baseline_64=1248 height_64=1728 fallback_runs=0 fallback_glyphs=0 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:9
+fixture=turkish scale=6/4 width_64=8471 baseline_64=1248 height_64=1728 fallback_runs=0 fallback_glyphs=0 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:15
+fixture=combining scale=6/4 width_64=2622 baseline_64=1248 height_64=1728 fallback_runs=0 fallback_glyphs=0 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:4
+fixture=mixed-bidi scale=6/4 width_64=7739 baseline_64=1248 height_64=1728 fallback_runs=1 fallback_glyphs=5 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:5|noto-sans-regular-aqua-1:ltr:2|noto-sans-regular-aqua-1:rtl:1|noto-sans-arabic-regular-2.009:rtl:5
+fixture=latin-ligature scale=8/4 width_64=8799 baseline_64=1664 height_64=2304 fallback_runs=0 fallback_glyphs=0 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:9
+fixture=turkish scale=8/4 width_64=11295 baseline_64=1664 height_64=2304 fallback_runs=0 fallback_glyphs=0 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:15
+fixture=combining scale=8/4 width_64=3496 baseline_64=1664 height_64=2304 fallback_runs=0 fallback_glyphs=0 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:4
+fixture=mixed-bidi scale=8/4 width_64=10318 baseline_64=1664 height_64=2304 fallback_runs=1 fallback_glyphs=5 missing_glyphs=0 runs=noto-sans-regular-aqua-1:ltr:5|noto-sans-regular-aqua-1:ltr:2|noto-sans-regular-aqua-1:rtl:1|noto-sans-arabic-regular-2.009:rtl:5

@@ -65,7 +65,7 @@
   },
   "typography": {
     "uiFamily": "Noto Sans, system-ui, sans-serif",
-    "uiFallbackFamilies": ["Noto Sans", "sans-serif"],
+    "uiFallbackFamilies": ["Noto Sans", "Noto Sans Arabic", "sans-serif"],
     "monoFamily": "ui-monospace, monospace",
     "baseSize": 14,
     "smallSize": 12,

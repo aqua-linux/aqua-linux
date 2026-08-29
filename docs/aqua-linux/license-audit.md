@@ -17,7 +17,8 @@ is outside this audit.
 - elementary Icons is not a source dependency or runtime asset. No elementary
   SVG, path data, recolor, trace, or derivative is included; the owner-facing
   Aqua production inventory defines functional roles and filenames only.
-- Noto Sans includes its SIL Open Font License 1.1 text.
+- Noto Sans and the packaged Noto Sans Arabic fallback include their shared SIL
+  Open Font License 1.1 text.
 - The shared text service uses the permissively licensed Rustybuzz,
   unicode-bidi, and unicode-segmentation crates for shaping and layout.
 - The Weston simple-shm compatibility fixture is MIT licensed and is isolated

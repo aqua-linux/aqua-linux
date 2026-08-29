@@ -375,5 +375,6 @@ if [ -d "${ASSET_SOURCE_DIR}" ] && [ -f "${TOKEN_SOURCE}" ]; then
     cp "${ASSET_SOURCE_DIR}/icons/aqua/"*.svg "${TARGET_DIR}/usr/share/aqua/icons/aqua/"
     cp "${ASSET_SOURCE_DIR}/icons/aqua/LICENSE" "${TARGET_DIR}/usr/share/aqua/icons/aqua/LICENSE"
     cp "${ASSET_SOURCE_DIR}/fonts/NotoSans-Regular.ttf" "${TARGET_DIR}/usr/share/aqua/fonts/NotoSans-Regular.ttf"
+    cp "${ASSET_SOURCE_DIR}/fonts/NotoSansArabic-Regular.ttf" "${TARGET_DIR}/usr/share/aqua/fonts/NotoSansArabic-Regular.ttf"
     cp "${ASSET_SOURCE_DIR}/fonts/OFL.txt" "${TARGET_DIR}/usr/share/aqua/fonts/OFL.txt"
 fi

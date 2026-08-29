@@ -514,9 +514,13 @@ Not implemented yet:
   for wrapping and ellipsis, defines caption, body, control, title, display,
   and monospace roles, and rasterizes glyph IDs into a bounded cache keyed by
   role and the supported 1.0, 1.25, 1.5, or 2.0 output scale. The embedded Noto
-  Sans face remains the only packaged face in this first implementation;
-  deterministic multi-font fallback and QEMU typography acceptance remain
-  explicit follow-up work.
+  Sans face is followed by a packaged Noto Sans Arabic face in a deterministic
+  fallback order. Contiguous graphemes assigned to the same face are shaped
+  together, fallback keeps the role baseline and control height stable, and
+  unsupported glyphs remain explicit diagnostics. A committed 16-case fixture
+  report locks Latin ligatures, Turkish text, combining marks, mixed bidi text,
+  font selection, bounds, baselines, and all four scales. Packaged QEMU
+  typography captures remain follow-up work.
 - The graphical QEMU acceptance run captures LightWhite and Deepside frames with Files and Settings open. It requires the Shell broadcast and both client redraw markers, unchanged application PIDs, an increased compositor repaint sequence, and a visible pixel delta before accepting the live switch.
 - Resize updates the kernel PTY dimensions and VT parser grid together. The packaged `aqua-terminal --probe-pty` path executes a shell command and validates resize without requiring a display.
 - Aqua `rcS` mounts `devpts`, exposes `/dev/ptmx`, and emits `stage=devpts-ready`; this is OS runtime infrastructure rather than a host-only test dependency.

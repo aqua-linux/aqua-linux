@@ -6,9 +6,10 @@ release obligations are authoritative in its generated `legal-info` output.
 
 ## Committed Assets
 
-### Noto Sans
+### Noto Sans And Noto Sans Arabic
 
-- Use: embedded UI text in the software renderer and first-party applications.
+- Use: primary UI text and deterministic Arabic fallback in the software
+  renderer and first-party applications.
 - Source: official Noto Fonts project.
 - License: SIL Open Font License 1.1.
 - Local text: `docs/aqua-linux/assets/fonts/OFL.txt`.

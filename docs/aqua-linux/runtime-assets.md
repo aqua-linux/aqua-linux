@@ -11,6 +11,7 @@ The current Buildroot image installs runtime assets under:
   wallpapers/
   brand/
   icons/
+  fonts/
   tokens/
 ```
 
@@ -31,6 +32,9 @@ Expected first exports:
 | `docs/aqua-linux/assets/aqua-logo-primary.png` | `/usr/share/aqua/brand/aqua-logo-primary.png` | Combined logo for installer, About, and future splash use |
 | `docs/aqua-linux/design-tokens.json` | `/usr/share/aqua/tokens/design-tokens.json` | Token source for shell/render code |
 | `docs/aqua-linux/assets/icons/aqua/*.svg` | `/usr/share/aqua/icons/aqua/*.svg` | Permanent project-authored Aqua Core Icons |
+| `docs/aqua-linux/assets/fonts/NotoSans-Regular.ttf` | `/usr/share/aqua/fonts/NotoSans-Regular.ttf` | Primary UI font |
+| `docs/aqua-linux/assets/fonts/NotoSansArabic-Regular.ttf` | `/usr/share/aqua/fonts/NotoSansArabic-Regular.ttf` | Deterministic Arabic fallback font |
+| `docs/aqua-linux/assets/fonts/OFL.txt` | `/usr/share/aqua/fonts/OFL.txt` | SIL Open Font License 1.1 |
 
 ## Export Rules
 
