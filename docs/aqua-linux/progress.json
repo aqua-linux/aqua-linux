@@ -8,9 +8,18 @@
   "currentStage": "Milestone 12 now has accepted typography, elevation, Aqua Core Icon integration, and semantic state motion. Launcher, session-menu, and notification transitions use shared duration and easing tokens, retarget from the rendered value, advance from compositor elapsed time, and settle immediately without spatial travel in reduced-motion mode. Deterministic host fixtures and two recovery-safe packaged QEMU sessions cover standard and reduced paths. The shared component catalog remains open. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
   "updated": "2026-08-29",
   "overallPercent": 91,
+  "readiness": {
+    "classification": "packaged-QEMU-proven prototype",
+    "evidenceLevel": "packaged-QEMU-proven",
+    "dailyUseReady": false,
+    "hardwareProven": false,
+    "releaseReady": false,
+    "summary": "The booted Buildroot image and custom compositor have substantial packaged-QEMU evidence, but the mandatory R1-R7 product gates remain open. Roadmap progress is not a release-readiness score."
+  },
   "rules": [
-    "Aqua Linux v1.0 is treated as 100%.",
-    "Overall progress is the rounded arithmetic mean of the 13 phase percentages so the public value is reproducible.",
+    "Roadmap implementation progress is the rounded arithmetic mean of the 13 M0-M12 phase percentages so the public value is reproducible.",
+    "The roadmap percentage measures scoped implementation work; it is not a daily-use, hardware-support, or release-readiness score.",
+    "Aqua Linux v1.0 readiness is governed separately by the mandatory gates in docs/aqua-linux/v1-readiness.md.",
     "Progress advances only when bootable OS, compositor, installer, or validation contracts move forward.",
     "Host mockups and website work do not count as OS completion unless they become packaged runtime assets.",
     "The project remains Buildroot-based and does not use Ubuntu, Debian, KDE, GNOME, XFCE, LXQt, or a theme-pack base."
@@ -123,7 +132,8 @@
   ],
   "nextSteps": [
     "Build the complete shared component catalog and deterministic visual-regression matrix.",
-    "Replace QEMU GLES readback in the desktop presentation path and define explicit v1 readiness gates for Wayland protocol coverage, unprivileged sessions, system services, accessibility, updates, and performance.",
+    "Baseline the R2 presentation path and enforce production no-readback, frame scheduling, damage, latency, resource, and dropped-frame acceptance while keeping diagnostic readback isolated.",
+    "Implement the R3-R6 Wayland compatibility, unprivileged session, system service, accessibility, internationalization, signed update, rollback, and security gates.",
     "Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation."
   ]
 }
