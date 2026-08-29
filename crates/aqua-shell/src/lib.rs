@@ -1,4 +1,6 @@
-use aqua_components::SidebarNavigation;
+use aqua_components::{
+    ComponentState, IconButton, IconButtonGlyph, SearchField, SidebarNavigation,
+};
 use aqua_scene::Rect;
 use std::collections::VecDeque;
 use std::fs;
@@ -103,6 +105,26 @@ pub const FILES_SIDEBAR_NAVIGATION: SidebarNavigation<'static> = SidebarNavigati
         height: 38,
     },
     46,
+);
+pub const FILES_BACK_BUTTON: IconButton<'static> = IconButton::new(
+    Rect {
+        x: 18,
+        y: 68,
+        width: 28,
+        height: 28,
+    },
+    "Back",
+    IconButtonGlyph::Back,
+);
+pub const FILES_FORWARD_BUTTON: IconButton<'static> = IconButton::new(
+    Rect {
+        x: 54,
+        y: 68,
+        width: 28,
+        height: 28,
+    },
+    "Forward",
+    IconButtonGlyph::Forward,
 );
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1722,10 +1744,20 @@ impl FilesWindowModel {
     }
 
     pub fn select_at(&mut self, x: u32, y: u32) -> FilesSelection {
-        if (18..46).contains(&x) && (64..98).contains(&y) {
+        let back = FILES_BACK_BUTTON.with_state(if self.can_go_back {
+            ComponentState::Idle
+        } else {
+            ComponentState::Disabled
+        });
+        if back.pointer_hit(x, y) {
             return FilesSelection::Back;
         }
-        if (50..78).contains(&x) && (64..98).contains(&y) {
+        let forward = FILES_FORWARD_BUTTON.with_state(if self.can_go_forward {
+            ComponentState::Idle
+        } else {
+            ComponentState::Disabled
+        });
+        if forward.pointer_hit(x, y) {
             return FilesSelection::Forward;
         }
         if let Some(index) = FILES_SIDEBAR_NAVIGATION.hit_test(x, y, self.sidebar_items.len()) {
@@ -2123,6 +2155,7 @@ pub enum FilesReadError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LauncherPointerTarget {
     Panel,
+    SearchField,
     Category(LauncherCategory),
     Application(usize),
     QuickAction(LauncherQuickAction),
@@ -2425,6 +2458,26 @@ impl LauncherState {
         }
     }
 
+    pub fn search_field(&self, viewport_width: u32, viewport_height: u32) -> SearchField<'_> {
+        let panel = self.panel_bounds(viewport_width, viewport_height);
+        SearchField::new(
+            Rect {
+                x: panel.x + 24,
+                y: panel.y + 54,
+                width: panel.width.saturating_sub(48),
+                height: 42,
+            },
+            "Search applications",
+            self.query(),
+            "SEARCH APPS...",
+        )
+        .with_state(if self.mode == LauncherMode::Search {
+            ComponentState::KeyboardFocus
+        } else {
+            ComponentState::Idle
+        })
+    }
+
     pub fn visible_apps(&self) -> Vec<&'static LauncherApp> {
         let query = self.query.trim().to_ascii_lowercase();
 
@@ -2476,6 +2529,13 @@ impl LauncherState {
             || !(panel.y..panel.y + panel.height).contains(&y)
         {
             return None;
+        }
+
+        if self
+            .search_field(viewport_width, viewport_height)
+            .pointer_focuses(x, y)
+        {
+            return Some(LauncherPointerTarget::SearchField);
         }
 
         let content_y = panel.y + 96;
@@ -3596,6 +3656,10 @@ mod tests {
         launcher.open();
 
         assert_eq!(
+            launcher.pointer_target(130, 140),
+            Some(LauncherPointerTarget::SearchField)
+        );
+        assert_eq!(
             launcher.pointer_target(130, 180),
             Some(LauncherPointerTarget::Application(0))
         );
@@ -3813,6 +3877,10 @@ mod tests {
         assert_eq!(model.entries[0].kind, FilesEntryKind::Folder);
         assert!(model.entries.iter().all(|entry| entry.name != ".hidden"));
         assert!(model.entries.iter().all(|entry| entry.name != "escape"));
+        assert_eq!(model.select_at(20, 70), FilesSelection::None);
+        model.can_go_back = true;
+        assert_eq!(model.select_at(20, 70), FilesSelection::Back);
+        assert_eq!(model.select_at(20, 65), FilesSelection::None);
         assert_eq!(model.select_at(220, 140), FilesSelection::Entry(0));
         assert_eq!(model.selected_entry, Some(0));
         assert_eq!(model.select_at(40, 180), FilesSelection::Sidebar(1));

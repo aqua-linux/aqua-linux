@@ -6812,6 +6812,11 @@ impl SmithayDrmSession {
                             .activate_quick_action(action);
                         self.session.wayland_state.launcher_launch_request = update.launch_request;
                     }
+                    Some(LauncherPointerTarget::SearchField) => {
+                        self.session
+                            .wayland_state
+                            .apply_launcher_event(LauncherEvent::OpenSearch);
+                    }
                     Some(LauncherPointerTarget::Panel) | None => {}
                 }
             }

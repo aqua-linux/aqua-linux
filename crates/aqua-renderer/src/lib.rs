@@ -9,9 +9,9 @@ use aqua_shell::{
     AquaTheme, DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
     FilesWindowModel, LauncherCategory, LauncherMode, LauncherState, NotificationCenter,
     SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView,
-    TopBarState, DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT,
-    FILES_PREVIEW_VISIBLE_LINES, FILES_SIDEBAR_NAVIGATION, FILES_VISIBLE_ROWS,
-    SETTINGS_SIDEBAR_NAVIGATION, WORKSPACE_COUNT,
+    TopBarState, DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT, FILES_BACK_BUTTON,
+    FILES_FORWARD_BUTTON, FILES_PREVIEW_VISIBLE_LINES, FILES_SIDEBAR_NAVIGATION,
+    FILES_VISIBLE_ROWS, SETTINGS_SIDEBAR_NAVIGATION, WORKSPACE_COUNT,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -4628,14 +4628,27 @@ pub fn render_files_window_rgba_with_theme(
         height: 58,
     };
     fill_rect(&mut buffer, width, height, toolbar, palette.toolbar, 255);
-    draw_back_forward(
+    primitives += draw_icon_button(
         &mut buffer,
         width,
         height,
-        18,
-        68,
-        model.can_go_back,
-        model.can_go_forward,
+        FILES_BACK_BUTTON.with_state(if model.can_go_back {
+            ComponentState::Idle
+        } else {
+            ComponentState::Disabled
+        }),
+        theme,
+    );
+    primitives += draw_icon_button(
+        &mut buffer,
+        width,
+        height,
+        FILES_FORWARD_BUTTON.with_state(if model.can_go_forward {
+            ComponentState::Idle
+        } else {
+            ComponentState::Disabled
+        }),
+        theme,
     );
     let location = Rect {
         x: 96,
@@ -4645,7 +4658,7 @@ pub fn render_files_window_rgba_with_theme(
     };
     fill_rect(&mut buffer, width, height, location, palette.field, 255);
     draw_rect_outline(&mut buffer, width, height, location, palette.border, 255);
-    primitives += 5;
+    primitives += 3;
     draw_bitmap_text(
         &mut buffer,
         (width, height),
@@ -6331,52 +6344,17 @@ fn draw_launcher_overlay(
         2,
     );
 
-    let search = Rect {
-        x: panel.x + 24,
-        y: panel.y + 54,
-        width: panel.width - 48,
-        height: 42,
-    };
-    fill_rect(
+    let search = launcher.search_field(viewport.width, viewport.height);
+    primitives += draw_search_field(
         buffer,
         viewport.width,
         viewport.height,
         search,
-        palette.elevated,
-        230,
-    );
-    draw_rect_outline(
-        buffer,
-        viewport.width,
-        viewport.height,
-        search,
-        palette.border,
-        255,
-    );
-    primitives += 2;
-    draw_search_icon(
-        buffer,
-        viewport.width,
-        viewport.height,
-        search.x + 16,
-        search.y + 12,
-        palette.secondary_text,
-    );
-    let search_label = if launcher.query().is_empty() {
-        "SEARCH APPS..."
-    } else {
-        launcher.query()
-    };
-    draw_bitmap_text(
-        buffer,
-        (viewport.width, viewport.height),
-        (search.x + 48, search.y + 14),
-        search_label,
-        palette.secondary_text,
-        1,
+        theme,
+        OutputScale::One,
     );
 
-    let content_y = search.y + search.height + 18;
+    let content_y = search.rect.y + search.rect.height + 18;
     let visible_apps = launcher.visible_apps();
     match launcher.mode() {
         LauncherMode::Applications => {
@@ -6554,74 +6532,6 @@ fn draw_launcher_overlay(
         query_visible: !launcher.query().is_empty(),
         primitive_count: primitives,
     }
-}
-
-fn draw_search_icon(buffer: &mut [u8], width: u32, height: u32, x: u32, y: u32, color: [u8; 4]) {
-    fill_rect(
-        buffer,
-        width,
-        height,
-        Rect {
-            x: x + 2,
-            y,
-            width: 12,
-            height: 2,
-        },
-        color,
-        220,
-    );
-    fill_rect(
-        buffer,
-        width,
-        height,
-        Rect {
-            x,
-            y: y + 2,
-            width: 2,
-            height: 12,
-        },
-        color,
-        220,
-    );
-    fill_rect(
-        buffer,
-        width,
-        height,
-        Rect {
-            x: x + 14,
-            y: y + 2,
-            width: 2,
-            height: 12,
-        },
-        color,
-        220,
-    );
-    fill_rect(
-        buffer,
-        width,
-        height,
-        Rect {
-            x: x + 2,
-            y: y + 14,
-            width: 12,
-            height: 2,
-        },
-        color,
-        220,
-    );
-    fill_rect(
-        buffer,
-        width,
-        height,
-        Rect {
-            x: x + 13,
-            y: y + 13,
-            width: 8,
-            height: 2,
-        },
-        color,
-        220,
-    );
 }
 
 fn draw_category_icon(buffer: &mut [u8], width: u32, height: u32, x: u32, y: u32, index: usize) {
@@ -6805,69 +6715,6 @@ fn draw_bright_window_titlebar(
         FittedTextOptions::new(TextRole::Body, OutputScale::One, false),
     );
     6
-}
-
-fn draw_back_forward(
-    buffer: &mut [u8],
-    width: u32,
-    height: u32,
-    x: u32,
-    y: u32,
-    can_go_back: bool,
-    can_go_forward: bool,
-) {
-    for (offset, enabled) in [(0, can_go_back), (36, can_go_forward)] {
-        let button = if enabled {
-            [0x1c, 0x83, 0xad, 0xff]
-        } else {
-            [0x17, 0x45, 0x5b, 0xff]
-        };
-        let arrow = if enabled {
-            [0xe8, 0xfa, 0xff, 0xff]
-        } else {
-            [0x71, 0x91, 0x9d, 0xff]
-        };
-        fill_rect(
-            buffer,
-            width,
-            height,
-            Rect {
-                x: x + offset,
-                y,
-                width: 28,
-                height: 28,
-            },
-            button,
-            210,
-        );
-        let arrow_x = x + offset + 9;
-        fill_rect(
-            buffer,
-            width,
-            height,
-            Rect {
-                x: arrow_x,
-                y: y + 13,
-                width: 10,
-                height: 2,
-            },
-            arrow,
-            220,
-        );
-        fill_rect(
-            buffer,
-            width,
-            height,
-            Rect {
-                x: arrow_x,
-                y: y + 9,
-                width: 2,
-                height: 10,
-            },
-            arrow,
-            220,
-        );
-    }
 }
 
 fn draw_sidebar_icon(buffer: &mut [u8], width: u32, height: u32, x: u32, y: u32, index: usize) {

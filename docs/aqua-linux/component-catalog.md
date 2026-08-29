@@ -17,9 +17,9 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Sidebar navigation | Shared host-proven primitive | Files and Settings share render/input geometry; installer uses its row composition |
 | Toolbar | Planned | Files and first-party applications |
 | Segmented control | Planned | Settings and bounded mode selection |
-| Search field | Planned | Applications, Global Search, Files, and Settings |
+| Search field | Shared host-proven primitive | Applications and Global Search share render/input geometry |
 | Standard button | Shared host-proven primitive | Installer footer; packaged-QEMU component acceptance remains open |
-| Icon button | Planned | Window, toolbar, and status actions |
+| Icon button | Shared host-proven primitive | Files back/forward navigation; broader toolbar adoption remains open |
 | Checkbox | Planned | Settings and installer options |
 | Switch | Planned | Settings toggles |
 | Slider | Planned | Audio and future bounded value controls |
@@ -110,9 +110,42 @@ input routing and `aqua-renderer` drawing. Installer steps consume the same
 list-row composition with a step-specific leading marker. Their deterministic
 matrix is recorded with the standard button in `component-fixtures.txt`.
 
+## Search Field And Icon Button Contract
+
+### Anatomy And Geometry
+
+- A search field owns one stable outer rectangle plus bounded leading-icon,
+  text, and trailing-action slots. Its accessible label and non-empty
+  placeholder are required even when the current value is empty.
+- An icon button owns one square outer rectangle, a centered glyph slot, and a
+  non-empty accessible label. The glyph never substitutes for the label.
+- Pointer hit testing uses the same half-open rectangles consumed by the
+  renderer. State changes and focus indication do not resize either control.
+- The current shared glyph inventory covers back, forward, search, and close;
+  consumers must extend this project-authored vocabulary rather than derive
+  third-party artwork.
+
+### Input, Semantics, And States
+
+- Search-field pointer input requests focus only inside its rendered bounds;
+  its semantic role is `searchbox`, with independent name, value, disabled,
+  busy, and invalid values.
+- Icon buttons use the `button` role and share pointer, Enter, and Space
+  activation behavior with standard buttons. Disabled and loading states
+  reject activation.
+- Icon buttons cover idle, hover, keyboard focus, pressed, selected, disabled,
+  loading, error, success, and non-repeating attention states.
+- Search fields cover idle, hover, keyboard focus, disabled, loading, error,
+  success, and non-repeating attention states. Pressed and selected are not
+  applicable to an editable searchbox.
+
+Applications and Global Search now render and hit-test the same shared search
+field. Files back and forward actions now render and hit-test the same shared
+icon-button rectangles, including disabled navigation gates. Their four-theme,
+three-viewport deterministic matrix is recorded in `component-fixtures.txt`.
+
 ## Next Extraction Order
 
-1. Search field and icon button.
-2. Switch, checkbox, slider, and segmented control.
-3. Window frame, toolbar, menu, and section structures.
-4. Shell-level panels, dock, workspaces, notification, and confirmation dialog.
+1. Switch, checkbox, slider, and segmented control.
+2. Window frame, toolbar, menu, and section structures.
+3. Shell-level panels, dock, workspaces, notification, and confirmation dialog.
