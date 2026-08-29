@@ -5,9 +5,9 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 12 now has accepted typography, elevation, and runtime Aqua Core Icon integration. The renderer admits only the 13 reviewed project-authored SVGs through a bounded static subset, rasterizes directly at every required physical size, applies theme and interaction state tokens, and reuses results through a 256-entry complete-key LRU. The live compositor consumes cached rasters in top bar, desktop, dock, and notification textures. A committed 1,456-case host matrix and four recovery-safe packaged QEMU theme captures cover the icon path. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
+  "currentStage": "Milestone 12 now has accepted typography, elevation, Aqua Core Icon integration, and semantic state motion. Launcher, session-menu, and notification transitions use shared duration and easing tokens, retarget from the rendered value, advance from compositor elapsed time, and settle immediately without spatial travel in reduced-motion mode. Deterministic host fixtures and two recovery-safe packaged QEMU sessions cover standard and reduced paths. The shared component catalog remains open. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
   "updated": "2026-08-29",
-  "overallPercent": 90,
+  "overallPercent": 91,
   "rules": [
     "Aqua Linux v1.0 is treated as 100%.",
     "Overall progress is the rounded arithmetic mean of the 13 phase percentages so the public value is reproducible.",
@@ -115,15 +115,15 @@
     {
       "id": "m12",
       "name": "Visual Fidelity and Component System",
-      "percent": 65,
+      "percent": 80,
       "status": "in-progress",
       "updated": "2026-08-29",
-      "summary": "The shared aqua-text crate and tokenized elevation path have deterministic host fixtures plus packaged QEMU evidence. Aqua Core Icon loading validates the 13 reviewed project-authored SVGs against a bounded static subset before pure-Rust parsing, with resource-bearing default features disabled. Required logical sizes are rasterized directly for every supported output scale; symbolic roles receive theme and interaction state colors. The live compositor shares one 256-entry complete-key LRU across top bar, desktop, dock, and notification texture generation. The committed 1,456-case host matrix proves transparent output, small-size silhouette stability, reuse, and bounded eviction. Four packaged QEMU theme captures prove seven live roles, ten physical raster keys, three cache hits after shell texture invalidation, zero eviction, and recovery return. Motion and the component catalog remain open."
+      "summary": "The shared aqua-text crate, tokenized elevation path, Aqua Core Icon pipeline, and semantic motion system have deterministic host fixtures plus packaged QEMU evidence. The live compositor shares one 256-entry complete-key icon LRU across four shell textures. Launcher, session-menu, and notification transitions use published duration and cubic-Bezier tokens, retarget without jumps, advance only from compositor time, and request bounded 16 ms dispatches while active. Reduced-motion settings settle spatial transitions immediately with zero offset. Host fixtures cover cadence independence, start, midpoint, completion, interruption, reversal, and reduced behavior; two packaged QEMU sessions prove standard scheduling, reduced zero-travel behavior, settled endpoints, and recovery return. The complete component catalog remains open."
     }
   ],
   "nextSteps": [
-    "Implement semantic, interruptible, frame-driven state motion and reduced-motion behavior.",
     "Build the complete shared component catalog and deterministic visual-regression matrix.",
+    "Replace QEMU GLES readback in the desktop presentation path and define explicit v1 readiness gates for Wayland protocol coverage, unprivileged sessions, system services, accessibility, updates, and performance.",
     "Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation."
   ]
 }

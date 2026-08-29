@@ -578,7 +578,10 @@ struct LiveGpuCompositor {
     dock_texture_size: (u32, u32),
     notification_texture: Option<GlesTexture>,
     notification_state: aqua_shell::NotificationCenter,
+    notification_state_initialized: bool,
     notification_texture_size: (u32, u32),
+    motion: aqua_shell::ShellMotionController,
+    motion_frame: aqua_shell::ShellMotionFrame,
     icon_raster_cache: IconRasterCache,
     client_texture_cache: Vec<ClientTextureCacheEntry>,
     shadow_mask_cache: ShadowMaskCache,
@@ -622,6 +625,7 @@ impl LiveGpuCompositor {
         self.desktop_icons_state = None;
         self.dock_state = None;
         self.notification_state = aqua_shell::NotificationCenter::default();
+        self.notification_state_initialized = false;
         self.launcher_texture = None;
         self.top_bar_texture = None;
         self.session_menu_texture = None;
@@ -687,22 +691,37 @@ impl LiveGpuCompositor {
     }
 
     fn set_client_window_presence(&mut self, present: bool) {
-        let session_menu_open = self.session_menu_state.is_some();
+        let session_menu_open = self
+            .session_menu_state
+            .as_ref()
+            .is_some_and(aqua_shell::SessionMenuState::is_open);
         self.scene.set_surface_visible(
             aqua_scene::SurfaceKind::SystemOverview,
             !present || session_menu_open,
         );
     }
 
-    fn set_launcher_state(&mut self, state: &aqua_shell::LauncherState) -> Result<(), String> {
+    fn set_launcher_state(
+        &mut self,
+        state: &aqua_shell::LauncherState,
+        now_ms: u64,
+    ) -> Result<(), String> {
         if self.launcher_state.as_ref() == Some(state) {
             return Ok(());
         }
         let visible = state.is_open();
-        self.scene
-            .set_surface_visible(aqua_scene::SurfaceKind::Launcher, visible);
+        if self.launcher_state.is_none() {
+            self.motion
+                .settle_visible(aqua_shell::ShellMotionSurface::Launcher, visible);
+        } else {
+            self.motion
+                .set_visible(aqua_shell::ShellMotionSurface::Launcher, visible, now_ms);
+        }
+        self.scene.set_surface_visible(
+            aqua_scene::SurfaceKind::Launcher,
+            visible || self.launcher_texture.is_some(),
+        );
         if !visible {
-            self.launcher_texture = None;
             self.launcher_state = Some(state.clone());
             return Ok(());
         }
@@ -814,12 +833,23 @@ impl LiveGpuCompositor {
     fn set_session_menu_state(
         &mut self,
         state: &aqua_shell::SessionMenuState,
+        now_ms: u64,
     ) -> Result<(), String> {
+        if self.session_menu_state.as_ref() == Some(state) {
+            return Ok(());
+        }
         self.scene
             .set_surface_visible(aqua_scene::SurfaceKind::SystemOverview, true);
+        let visible = state.is_open();
+        if self.session_menu_state.is_none() {
+            self.motion
+                .settle_visible(aqua_shell::ShellMotionSurface::SessionMenu, visible);
+        } else {
+            self.motion
+                .set_visible(aqua_shell::ShellMotionSurface::SessionMenu, visible, now_ms);
+        }
         if !state.is_open() {
-            self.session_menu_texture = None;
-            self.session_menu_state = None;
+            self.session_menu_state = Some(state.clone());
             return Ok(());
         }
         let overlay = render_session_menu_overlay_rgba_with_theme(512, 293, state, self.theme);
@@ -884,13 +914,29 @@ impl LiveGpuCompositor {
     fn set_notification_state(
         &mut self,
         state: &aqua_shell::NotificationCenter,
+        now_ms: u64,
     ) -> Result<(), String> {
+        if self.notification_state_initialized && self.notification_state == *state {
+            return Ok(());
+        }
         let visible = state.active().is_some();
-        self.scene
-            .set_surface_visible(aqua_scene::SurfaceKind::NotificationToast, visible);
+        if !self.notification_state_initialized {
+            self.motion
+                .settle_visible(aqua_shell::ShellMotionSurface::Notification, visible);
+        } else {
+            self.motion.set_visible(
+                aqua_shell::ShellMotionSurface::Notification,
+                visible,
+                now_ms,
+            );
+        }
+        self.scene.set_surface_visible(
+            aqua_scene::SurfaceKind::NotificationToast,
+            visible || self.notification_texture.is_some(),
+        );
         if !visible {
-            self.notification_texture = None;
             self.notification_state = state.clone();
+            self.notification_state_initialized = true;
             return Ok(());
         }
         let surface = self
@@ -918,6 +964,7 @@ impl LiveGpuCompositor {
                 .map_err(|error| format!("cannot upload notification texture: {error}"))?,
         );
         self.notification_state = state.clone();
+        self.notification_state_initialized = true;
         self.notification_texture_size = (overlay.width, overlay.height);
         println!("desktop_notification_overlay_texture_ready=true");
         println!(
@@ -930,6 +977,36 @@ impl LiveGpuCompositor {
         );
         self.log_icon_raster_surface("notification", 1);
         Ok(())
+    }
+
+    fn set_reduced_motion(&mut self, reduced_motion: bool, now_ms: u64) -> bool {
+        self.motion.set_reduced_motion(now_ms, reduced_motion)
+    }
+
+    fn advance_motion(&mut self, now_ms: u64) -> bool {
+        self.motion_frame = self.motion.sample(now_ms);
+        if self.motion_frame.launcher.opacity <= 0.0 && !self.motion_frame.launcher.active {
+            self.launcher_texture = None;
+            self.scene
+                .set_surface_visible(aqua_scene::SurfaceKind::Launcher, false);
+        }
+        if self.motion_frame.session_menu.opacity <= 0.0 && !self.motion_frame.session_menu.active {
+            self.session_menu_texture = None;
+        }
+        if self.motion_frame.notification.opacity <= 0.0 && !self.motion_frame.notification.active {
+            self.notification_texture = None;
+            self.scene
+                .set_surface_visible(aqua_scene::SurfaceKind::NotificationToast, false);
+        }
+        self.motion_frame.is_active()
+    }
+
+    fn motion_active(&self) -> bool {
+        self.motion.is_active()
+    }
+
+    fn motion_frame(&self) -> aqua_shell::ShellMotionFrame {
+        self.motion_frame
     }
 
     fn log_icon_raster_surface(&self, surface: &str, role_count: usize) {
@@ -1053,6 +1130,9 @@ impl LiveGpuCompositor {
         scene.set_surface_visible(aqua_scene::SurfaceKind::DesktopIconColumn, true);
         scene.set_surface_visible(aqua_scene::SurfaceKind::NotificationToast, false);
         let theme = configured_runtime_theme();
+        let mut motion = aqua_shell::ShellMotionController::default();
+        motion.set_reduced_motion(0, configured_reduced_motion());
+        let motion_frame = motion.sample(0);
         println!("desktop_shell_theme={}", theme.id());
         Ok(Self {
             renderer,
@@ -1085,7 +1165,10 @@ impl LiveGpuCompositor {
             dock_texture_size: (0, 0),
             notification_texture: None,
             notification_state: aqua_shell::NotificationCenter::default(),
+            notification_state_initialized: false,
             notification_texture_size: (0, 0),
+            motion,
+            motion_frame,
             icon_raster_cache: IconRasterCache::default(),
             client_texture_cache: Vec::new(),
             shadow_mask_cache: ShadowMaskCache::default(),
@@ -1251,6 +1334,7 @@ impl LiveGpuCompositor {
             self.session_menu_texture_size,
             self.notification_texture.as_ref(),
             self.notification_texture_size,
+            self.motion_frame,
             self.target_size,
             None,
             true,
@@ -1282,6 +1366,7 @@ impl LiveGpuCompositor {
             self.session_menu_texture_size,
             self.notification_texture.as_ref(),
             self.notification_texture_size,
+            self.motion_frame,
             self.target_size,
             None,
             true,
@@ -1378,6 +1463,7 @@ impl LiveGpuCompositor {
             self.session_menu_texture_size,
             self.notification_texture.as_ref(),
             self.notification_texture_size,
+            self.motion_frame,
             self.target_size,
             opaque_sources,
             true,
@@ -1477,8 +1563,12 @@ impl LiveGpuCompositor {
             println!("drm_wayland_session_menu_scanout_composited=true");
             let rect = Rectangle::new(
                 (
-                    (surface.rect.x * width / self.scene.viewport.width) as i32,
-                    (surface.rect.y * height / self.scene.viewport.height) as i32,
+                    (surface.rect.x * width / self.scene.viewport.width) as i32
+                        + self.motion_frame.session_menu.offset_x * width as i32
+                            / self.scene.viewport.width as i32,
+                    (surface.rect.y * height / self.scene.viewport.height) as i32
+                        + self.motion_frame.session_menu.offset_y * height as i32
+                            / self.scene.viewport.height as i32,
                 )
                     .into(),
                 (
@@ -1502,7 +1592,7 @@ impl LiveGpuCompositor {
                     &[Rectangle::from_size(rect.size)],
                     &[],
                     Transform::Normal,
-                    1.0,
+                    self.motion_frame.session_menu.opacity,
                     None,
                     &[],
                 )
@@ -1628,7 +1718,11 @@ fn render_live_gpu_wayland_frame(
         32,
     )?;
     let pack_ms = pack_started.elapsed().as_millis();
-    if compositor.session_menu_state.is_some() {
+    if compositor
+        .session_menu_state
+        .as_ref()
+        .is_some_and(aqua_shell::SessionMenuState::is_open)
+    {
         println!("gpu_readback_session_menu_native_composited=true");
     }
     println!("gpu_native_render_ms={render_ms}");
@@ -2014,6 +2108,7 @@ fn render_gpu_scene(
     session_menu_texture_size: (u32, u32),
     notification_texture: Option<&GlesTexture>,
     notification_texture_size: (u32, u32),
+    motion: aqua_shell::ShellMotionFrame,
     render_size: (u32, u32),
     opaque_sources: Option<&[bool]>,
     readback: bool,
@@ -2277,7 +2372,14 @@ fn render_gpu_scene(
             .map_err(|error| format!("cannot shade GPU surface surface {}: {error}", surface.id))?;
     }
     if let Some(texture) = launcher_texture {
-        let rect = Rectangle::from_size((render_width as i32, render_height as i32).into());
+        let rect = Rectangle::new(
+            (
+                motion.launcher.offset_x * render_width as i32 / scene.viewport.width as i32,
+                motion.launcher.offset_y * render_height as i32 / scene.viewport.height as i32,
+            )
+                .into(),
+            (render_width as i32, render_height as i32).into(),
+        );
         frame
             .render_texture_from_to(
                 texture,
@@ -2293,7 +2395,7 @@ fn render_gpu_scene(
                 &[Rectangle::from_size(rect.size)],
                 &[],
                 Transform::Normal,
-                1.0,
+                motion.launcher.opacity,
                 None,
                 &[],
             )
@@ -2371,46 +2473,44 @@ fn render_gpu_scene(
             )
             .map_err(|error| format!("cannot composite dock content: {error}"))?;
     }
-    if session_menu_texture.is_none() {
-        if let (Some(texture), Some(surface)) = (
-            system_overview_texture,
-            scene.surfaces.iter().find(|surface| {
-                surface.visible && surface.kind == aqua_scene::SurfaceKind::SystemOverview
-            }),
-        ) {
-            let rect = Rectangle::new(
-                (
-                    (surface.rect.x * render_width / scene.viewport.width) as i32,
-                    (surface.rect.y * render_height / scene.viewport.height) as i32,
-                )
-                    .into(),
-                (
-                    (surface.rect.width * render_width / scene.viewport.width) as i32,
-                    (surface.rect.height * render_height / scene.viewport.height) as i32,
-                )
-                    .into(),
-            );
-            frame
-                .render_texture_from_to(
-                    texture,
-                    Rectangle::new(
-                        (0.0, 0.0).into(),
-                        (
-                            system_overview_texture_size.0 as f64,
-                            system_overview_texture_size.1 as f64,
-                        )
-                            .into(),
-                    ),
-                    rect,
-                    &[Rectangle::from_size(rect.size)],
-                    &[],
-                    Transform::Normal,
-                    1.0,
-                    None,
-                    &[],
-                )
-                .map_err(|error| format!("cannot composite system overview content: {error}"))?;
-        }
+    if let (Some(texture), Some(surface)) = (
+        system_overview_texture,
+        scene.surfaces.iter().find(|surface| {
+            surface.visible && surface.kind == aqua_scene::SurfaceKind::SystemOverview
+        }),
+    ) {
+        let rect = Rectangle::new(
+            (
+                (surface.rect.x * render_width / scene.viewport.width) as i32,
+                (surface.rect.y * render_height / scene.viewport.height) as i32,
+            )
+                .into(),
+            (
+                (surface.rect.width * render_width / scene.viewport.width) as i32,
+                (surface.rect.height * render_height / scene.viewport.height) as i32,
+            )
+                .into(),
+        );
+        frame
+            .render_texture_from_to(
+                texture,
+                Rectangle::new(
+                    (0.0, 0.0).into(),
+                    (
+                        system_overview_texture_size.0 as f64,
+                        system_overview_texture_size.1 as f64,
+                    )
+                        .into(),
+                ),
+                rect,
+                &[Rectangle::from_size(rect.size)],
+                &[],
+                Transform::Normal,
+                1.0,
+                None,
+                &[],
+            )
+            .map_err(|error| format!("cannot composite system overview content: {error}"))?;
     }
     if let (Some(texture), Some(surface)) = (
         session_menu_texture,
@@ -2421,8 +2521,12 @@ fn render_gpu_scene(
     ) {
         let rect = Rectangle::new(
             (
-                (surface.rect.x * render_width / scene.viewport.width) as i32,
-                (surface.rect.y * render_height / scene.viewport.height) as i32,
+                (surface.rect.x * render_width / scene.viewport.width) as i32
+                    + motion.session_menu.offset_x * render_width as i32
+                        / scene.viewport.width as i32,
+                (surface.rect.y * render_height / scene.viewport.height) as i32
+                    + motion.session_menu.offset_y * render_height as i32
+                        / scene.viewport.height as i32,
             )
                 .into(),
             (
@@ -2446,7 +2550,7 @@ fn render_gpu_scene(
                 &[Rectangle::from_size(rect.size)],
                 &[],
                 Transform::Normal,
-                1.0,
+                motion.session_menu.opacity,
                 None,
                 &[],
             )
@@ -2461,8 +2565,12 @@ fn render_gpu_scene(
     ) {
         let rect = Rectangle::new(
             (
-                (surface.rect.x * render_width / scene.viewport.width) as i32,
-                (surface.rect.y * render_height / scene.viewport.height) as i32,
+                (surface.rect.x * render_width / scene.viewport.width) as i32
+                    + motion.notification.offset_x * render_width as i32
+                        / scene.viewport.width as i32,
+                (surface.rect.y * render_height / scene.viewport.height) as i32
+                    + motion.notification.offset_y * render_height as i32
+                        / scene.viewport.height as i32,
             )
                 .into(),
             (
@@ -2486,7 +2594,7 @@ fn render_gpu_scene(
                 &[Rectangle::from_size(rect.size)],
                 &[],
                 Transform::Normal,
-                1.0,
+                motion.notification.opacity,
                 None,
                 &[],
             )
@@ -3977,6 +4085,9 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
         env::var("AQUA_DRM_WAYLAND_SCENARIO").as_deref() == Ok("elevation-acceptance");
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let icon_scenario = env::var("AQUA_DRM_WAYLAND_SCENARIO").as_deref() == Ok("icon-acceptance");
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let motion_scenario =
+        env::var("AQUA_DRM_WAYLAND_SCENARIO").as_deref() == Ok("motion-acceptance");
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
     let installer_scenario = false;
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
@@ -3985,6 +4096,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     let elevation_scenario = false;
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
     let icon_scenario = false;
+    #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
+    let motion_scenario = false;
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let external_client_required = diagnostic_scenario
         && env::var("AQUA_DRM_WAYLAND_EXTERNAL_CLIENT_REQUIRED").as_deref() == Ok("true");
@@ -4302,7 +4415,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let smithay_seat_started = smithay_session.borrow().seat_started();
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
-    let input_source = RefCell::new(if input_required {
+    let input_source = RefCell::new(if input_required || motion_scenario {
         Some(
             LibinputAquaSeatSource::open("seat0").unwrap_or_else(|error| {
                 eprintln!("cannot prepare DRM Wayland libinput source: {error}");
@@ -4384,6 +4497,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     let runtime_repaint_sequence = Cell::new(0_u64);
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let runtime_theme = Cell::new(configured_runtime_theme());
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let runtime_reduced_motion = Cell::new(configured_reduced_motion());
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let motion_scenario_phase = Cell::new(0_u8);
 
     let result = present_drm_wayland_page_flip!(
         &device,
@@ -4425,12 +4542,16 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                             println!("typography_wayland_shell_chrome_visible=false");
                         }
                     } else {
-                        compositor.set_launcher_state(&runtime_launcher_state.borrow())?;
+                        compositor.set_launcher_state(&runtime_launcher_state.borrow(), 0)?;
                         compositor.set_top_bar_state(&runtime_top_bar.borrow())?;
                         compositor.set_desktop_icons_state(&runtime_desktop_icon_state.borrow())?;
                         compositor.set_dock_state(&runtime_dock_state.borrow())?;
                         compositor.set_system_overview_state(&runtime_system_overview.borrow())?;
-                        compositor.set_notification_state(&runtime_notification_state.borrow())?;
+                        compositor
+                            .set_session_menu_state(&runtime_session_menu_state.borrow(), 0)?;
+                        compositor
+                            .set_notification_state(&runtime_notification_state.borrow(), 0)?;
+                        compositor.advance_motion(0);
                         if icon_scenario {
                             compositor.dock_state = None;
                             compositor.set_dock_state(&runtime_dock_state.borrow())?;
@@ -4628,6 +4749,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     "elevation-acceptance"
                 } else if icon_scenario {
                     "icon-acceptance"
+                } else if motion_scenario {
+                    "motion-acceptance"
                 } else {
                     "desktop-event-loop"
                 }
@@ -4637,6 +4760,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
             println!("typography_wayland_client_started={typography_scenario}");
             println!("elevation_wayland_client_started={elevation_scenario}");
             println!("icon_wayland_scenario_started={icon_scenario}");
+            println!("motion_wayland_scenario_started={motion_scenario}");
             println!(
                 "session_lifetime_policy={}",
                 if persistent_session {
@@ -4671,10 +4795,22 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         if deadline.is_some_and(|deadline| now >= deadline) {
                             break;
                         }
+                        #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+                        let motion_active = live_gpu_wayland_compositor
+                            .borrow()
+                            .as_ref()
+                            .is_some_and(LiveGpuCompositor::motion_active);
+                        #[cfg(not(all(target_os = "linux", feature = "smithay-gpu")))]
+                        let motion_active = false;
+                        let maximum_dispatch_timeout = if motion_active {
+                            Duration::from_millis(16)
+                        } else {
+                            Duration::from_millis(100)
+                        };
                         let dispatch_timeout = deadline
                             .map(|deadline| deadline - now)
-                            .unwrap_or(Duration::from_millis(100))
-                            .min(Duration::from_millis(100));
+                            .unwrap_or(maximum_dispatch_timeout)
+                            .min(maximum_dispatch_timeout);
                         source
                             .dispatch_until(&mut smithay_session.borrow_mut(), dispatch_timeout)?;
                         if smithay_session.borrow().has_session_action_request() {
@@ -4708,6 +4844,27 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 println!(
                                     "desktop_runtime_theme_broadcast={}",
                                     configured_theme.id()
+                                );
+                            }
+                            let configured_reduced_motion = configured_reduced_motion();
+                            let reduced_motion_changed =
+                                runtime_reduced_motion.get() != configured_reduced_motion;
+                            if reduced_motion_changed {
+                                runtime_reduced_motion.set(configured_reduced_motion);
+                                #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+                                if let Some(compositor) =
+                                    live_gpu_wayland_compositor.borrow_mut().as_mut()
+                                {
+                                    let now_ms = desktop_session_started_at
+                                        .elapsed()
+                                        .as_millis()
+                                        .min(u128::from(u64::MAX))
+                                        as u64;
+                                    compositor
+                                        .set_reduced_motion(configured_reduced_motion, now_ms);
+                                }
+                                println!(
+                                    "desktop_runtime_reduced_motion={configured_reduced_motion}"
                                 );
                             }
 
@@ -4881,6 +5038,53 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 .as_millis()
                                 .min(u128::from(u64::MAX))
                                 as u64;
+                            if motion_scenario {
+                                match motion_scenario_phase.get() {
+                                    0 if now_ms >= 100 => {
+                                        smithay_session.borrow_mut().dispatch_keyboard_key(
+                                            125,
+                                            true,
+                                            now_ms as u32,
+                                        );
+                                        motion_scenario_phase.set(1);
+                                        println!("motion_wayland_launcher_target=open");
+                                    }
+                                    1 if now_ms >= 180 => {
+                                        smithay_session.borrow_mut().dispatch_keyboard_key(
+                                            125,
+                                            true,
+                                            now_ms as u32,
+                                        );
+                                        motion_scenario_phase.set(2);
+                                        println!("motion_wayland_launcher_target=closed");
+                                    }
+                                    2 if now_ms >= 260 => {
+                                        smithay_session.borrow_mut().dispatch_keyboard_key(
+                                            125,
+                                            true,
+                                            now_ms as u32,
+                                        );
+                                        motion_scenario_phase.set(3);
+                                        println!("motion_wayland_launcher_target=reopened");
+                                    }
+                                    3 if now_ms >= 560 => {
+                                        smithay_session.borrow_mut().post_notification(
+                                            now_ms,
+                                            "Aqua Motion",
+                                            "Frame-driven transition",
+                                            "Interruption and reversal remain continuous.",
+                                        );
+                                        motion_scenario_phase.set(4);
+                                        println!("motion_wayland_notification_target=visible");
+                                    }
+                                    4 if now_ms >= 640 => {
+                                        smithay_session.borrow_mut().dismiss_notification(now_ms);
+                                        motion_scenario_phase.set(5);
+                                        println!("motion_wayland_notification_target=hidden");
+                                    }
+                                    _ => {}
+                                }
+                            }
                             if launched
                                 && request.as_ref().is_some_and(|request| {
                                     !matches!(request.app_id, "properties" | "terminal")
@@ -4969,6 +5173,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                     || notification_ticked
                                     || shell_status_changed
                                     || theme_changed
+                                    || reduced_motion_changed
+                                    || motion_active
                                     || launched
                                     || surface_changed
                                     || process_exited)
@@ -4978,14 +5184,36 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                     if let Some(compositor) =
                                         live_gpu_wayland_compositor.borrow_mut().as_mut()
                                     {
-                                        compositor.set_launcher_state(&launcher_state)?;
+                                        compositor.set_launcher_state(&launcher_state, now_ms)?;
                                         compositor.set_top_bar_state(&top_bar_state)?;
                                         compositor.set_desktop_icons_state(&desktop_icon_state)?;
                                         compositor.set_dock_state(&dock_state)?;
                                         compositor
                                             .set_system_overview_state(&system_overview_state)?;
-                                        compositor.set_session_menu_state(&session_menu_state)?;
-                                        compositor.set_notification_state(&notification_state)?;
+                                        compositor
+                                            .set_session_menu_state(&session_menu_state, now_ms)?;
+                                        compositor
+                                            .set_notification_state(&notification_state, now_ms)?;
+                                        let motion_continues = compositor.advance_motion(now_ms);
+                                        if motion_scenario {
+                                            let frame = compositor.motion_frame();
+                                            println!(
+                                                "motion_wayland_frame time_ms={now_ms} active={motion_continues} launcher_opacity={:.4} launcher_offset_y={} notification_opacity={:.4} notification_offset_x={} reduced_motion={}",
+                                                frame.launcher.opacity,
+                                                frame.launcher.offset_y,
+                                                frame.notification.opacity,
+                                                frame.notification.offset_x,
+                                                compositor.motion.reduced_motion(),
+                                            );
+                                            if motion_scenario_phase.get() == 5
+                                                && !motion_continues
+                                                && frame.launcher.opacity >= 0.999
+                                                && frame.notification.opacity <= 0.001
+                                            {
+                                                println!("motion_wayland_runtime_settled=true");
+                                                graceful_stop_requested.set(true);
+                                            }
+                                        }
                                         compositor
                                             .set_client_window_presence(!snapshots.is_empty());
                                     }
@@ -6673,6 +6901,32 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
         Ok(final_state) => {
             #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
             {
+                if motion_scenario {
+                    #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+                    {
+                        let compositor = live_gpu_wayland_compositor.borrow();
+                        let compositor = compositor.as_ref().expect("live motion compositor");
+                        let frame = compositor.motion_frame();
+                        let complete = motion_scenario_phase.get() == 5
+                            && !compositor.motion_active()
+                            && frame.launcher.opacity >= 0.999
+                            && frame.notification.opacity <= 0.001;
+                        println!("motion_wayland_sequence_complete={complete}");
+                        println!(
+                            "motion_wayland_final launcher_opacity={:.4} launcher_offset_y={} notification_opacity={:.4} notification_offset_x={} reduced_motion={}",
+                            frame.launcher.opacity,
+                            frame.launcher.offset_y,
+                            frame.notification.opacity,
+                            frame.notification.offset_x,
+                            compositor.motion.reduced_motion(),
+                        );
+                        if !complete {
+                            eprintln!("motion acceptance sequence did not settle");
+                            println!("[AQUA-COMPOSITOR] stage=drm-wayland-session status=error");
+                            std::process::exit(1);
+                        }
+                    }
+                }
                 let snapshot = smithay_session.borrow().input_snapshot();
                 let input_ready = !input_required
                     || (snapshot.keyboard_event_count >= 1
@@ -8401,6 +8655,24 @@ fn configured_runtime_theme() -> aqua_shell::AquaTheme {
     aqua_shell::SettingsWindowModel::load_or_default(&config_path)
         .map(|model| model.theme)
         .unwrap_or_default()
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn configured_reduced_motion() -> bool {
+    if let Ok(value) = env::var("AQUA_REDUCED_MOTION") {
+        if matches!(value.as_str(), "1" | "true" | "yes") {
+            return true;
+        }
+        if matches!(value.as_str(), "0" | "false" | "no") {
+            return false;
+        }
+    }
+    let config_path = env::var_os("AQUA_SETTINGS_CONFIG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/home/aqua/.config/aqua/settings.conf"));
+    aqua_shell::SettingsWindowModel::load_or_default(&config_path)
+        .map(|model| model.reduced_motion)
+        .unwrap_or(false)
 }
 
 fn pack_rgba_frame(

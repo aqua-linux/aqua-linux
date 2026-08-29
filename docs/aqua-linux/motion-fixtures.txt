@@ -1,0 +1,23 @@
+revision=aqua-motion-fixtures-1
+token role=Feedback duration_ms=90 spatial=false repeating=false
+token role=Panel duration_ms=200 spatial=true repeating=false
+token role=Menu duration_ms=140 spatial=true repeating=false
+token role=Window duration_ms=200 spatial=true repeating=false
+token role=Workspace duration_ms=280 spatial=true repeating=false
+token role=Notification duration_ms=200 spatial=true repeating=false
+token role=Progress duration_ms=200 spatial=false repeating=false
+token role=Attention duration_ms=280 spatial=true repeating=true
+easing role=Standard points=0.2,0.0,0.0,1.0
+easing role=Enter points=0.0,0.0,0.0,1.0
+easing role=Exit points=0.3,0.0,1.0,1.0
+panel time_ms=0 value=0.0000 active=true
+panel time_ms=50 value=0.6906 active=true
+panel time_ms=100 value=0.8899 active=true
+panel time_ms=150 value=0.9764 active=true
+panel time_ms=200 value=1.0000 active=false
+interruption before=0.8287 retarget=0.8287 reverse=0.7544 second_before=0.6866 second_retarget=0.6866 continuous=true
+cadence frame_ms=17 sample_time_ms=1100 value=0.8899
+cadence frame_ms=11 sample_time_ms=1100 value=0.8899
+cadence frame_ms=8 sample_time_ms=1100 value=0.8899
+cadence frame_ms=7 sample_time_ms=1100 value=0.8899
+reduced active=false launcher_opacity=1.0 launcher_offset_y=0 menu_offset_y=0 notification_offset_x=0 repeating_allowed=false state_feedback=true
