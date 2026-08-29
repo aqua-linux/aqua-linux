@@ -61,6 +61,7 @@ Firmware / QEMU
 
 | Crate | Responsibility |
 | --- | --- |
+| `aqua-components` | Shared component anatomy, state, input, and accessibility contracts |
 | `aqua-compositor` | Wayland protocols, DRM/KMS output, input, window lifecycle, session integration |
 | `aqua-scene` | Shared scene geometry and surface contracts |
 | `aqua-renderer` | Software and GLES rendering, application surface rasterization |

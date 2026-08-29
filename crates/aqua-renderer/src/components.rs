@@ -1,230 +1,13 @@
 use super::{
     checksum_bytes, draw_fitted_bitmap_text, draw_rect_outline, draw_system_surface_primitives,
-    fill_rounded_rect, inset_rect, window_chrome_palette, FittedTextOptions,
+    fill_rect, fill_rounded_rect, window_chrome_palette, FittedTextOptions,
 };
+pub use aqua_components::*;
 use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-1";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SharedComponentKind {
-    TopSystemBar,
-    WindowFrame,
-    SidebarNavigation,
-    Toolbar,
-    SegmentedControl,
-    SearchField,
-    StandardButton,
-    IconButton,
-    Checkbox,
-    Switch,
-    Slider,
-    Menu,
-    ListRow,
-    GridCell,
-    MetadataRow,
-    SectionGroup,
-    ApplicationOverview,
-    GlobalSearch,
-    RunningAppDock,
-    WorkspaceSwitcher,
-    Notification,
-    ConfirmationDialog,
-}
-
-impl SharedComponentKind {
-    pub const ALL: [Self; 22] = [
-        Self::TopSystemBar,
-        Self::WindowFrame,
-        Self::SidebarNavigation,
-        Self::Toolbar,
-        Self::SegmentedControl,
-        Self::SearchField,
-        Self::StandardButton,
-        Self::IconButton,
-        Self::Checkbox,
-        Self::Switch,
-        Self::Slider,
-        Self::Menu,
-        Self::ListRow,
-        Self::GridCell,
-        Self::MetadataRow,
-        Self::SectionGroup,
-        Self::ApplicationOverview,
-        Self::GlobalSearch,
-        Self::RunningAppDock,
-        Self::WorkspaceSwitcher,
-        Self::Notification,
-        Self::ConfirmationDialog,
-    ];
-
-    pub const fn id(self) -> &'static str {
-        match self {
-            Self::TopSystemBar => "top-system-bar",
-            Self::WindowFrame => "window-frame",
-            Self::SidebarNavigation => "sidebar-navigation",
-            Self::Toolbar => "toolbar",
-            Self::SegmentedControl => "segmented-control",
-            Self::SearchField => "search-field",
-            Self::StandardButton => "standard-button",
-            Self::IconButton => "icon-button",
-            Self::Checkbox => "checkbox",
-            Self::Switch => "switch",
-            Self::Slider => "slider",
-            Self::Menu => "menu",
-            Self::ListRow => "list-row",
-            Self::GridCell => "grid-cell",
-            Self::MetadataRow => "metadata-row",
-            Self::SectionGroup => "section-group",
-            Self::ApplicationOverview => "application-overview",
-            Self::GlobalSearch => "global-search",
-            Self::RunningAppDock => "running-app-dock",
-            Self::WorkspaceSwitcher => "workspace-switcher",
-            Self::Notification => "notification",
-            Self::ConfirmationDialog => "confirmation-dialog",
-        }
-    }
-
-    pub const fn is_shared_primitive(self) -> bool {
-        matches!(self, Self::StandardButton)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ComponentState {
-    Idle,
-    Hover,
-    KeyboardFocus,
-    Pressed,
-    Selected,
-    Disabled,
-    Loading,
-    Error,
-    Success,
-    Attention,
-}
-
-impl ComponentState {
-    pub const STANDARD_BUTTON_STATES: [Self; 10] = [
-        Self::Idle,
-        Self::Hover,
-        Self::KeyboardFocus,
-        Self::Pressed,
-        Self::Selected,
-        Self::Disabled,
-        Self::Loading,
-        Self::Error,
-        Self::Success,
-        Self::Attention,
-    ];
-
-    pub const fn id(self) -> &'static str {
-        match self {
-            Self::Idle => "idle",
-            Self::Hover => "hover",
-            Self::KeyboardFocus => "keyboard-focus",
-            Self::Pressed => "pressed",
-            Self::Selected => "selected",
-            Self::Disabled => "disabled",
-            Self::Loading => "loading",
-            Self::Error => "error",
-            Self::Success => "success",
-            Self::Attention => "attention",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StandardButtonVariant {
-    Secondary,
-    Primary,
-    Destructive,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ButtonActivationKey {
-    Enter,
-    Space,
-    Other,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ButtonAccessibility<'a> {
-    pub role: &'static str,
-    pub name: &'a str,
-    pub disabled: bool,
-    pub busy: bool,
-    pub selected: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StandardButton<'a> {
-    pub rect: Rect,
-    pub label: &'a str,
-    pub variant: StandardButtonVariant,
-    pub state: ComponentState,
-}
-
-impl<'a> StandardButton<'a> {
-    pub const fn new(rect: Rect, label: &'a str, variant: StandardButtonVariant) -> Self {
-        Self {
-            rect,
-            label,
-            variant,
-            state: ComponentState::Idle,
-        }
-    }
-
-    pub const fn with_state(mut self, state: ComponentState) -> Self {
-        self.state = state;
-        self
-    }
-
-    pub const fn content_rect(self) -> Rect {
-        inset_rect(self.rect, 8, 0)
-    }
-
-    pub const fn focus_rect(self) -> Rect {
-        Rect {
-            x: self.rect.x.saturating_sub(3),
-            y: self.rect.y.saturating_sub(3),
-            width: self.rect.width.saturating_add(6),
-            height: self.rect.height.saturating_add(6),
-        }
-    }
-
-    pub const fn can_activate(self) -> bool {
-        !matches!(
-            self.state,
-            ComponentState::Disabled | ComponentState::Loading
-        )
-    }
-
-    pub const fn pointer_hit(self, x: u32, y: u32) -> bool {
-        self.can_activate()
-            && x >= self.rect.x
-            && x < self.rect.right()
-            && y >= self.rect.y
-            && y < self.rect.bottom()
-    }
-
-    pub const fn keyboard_activates(self, key: ButtonActivationKey) -> bool {
-        self.can_activate()
-            && matches!(key, ButtonActivationKey::Enter | ButtonActivationKey::Space)
-    }
-
-    pub const fn accessibility(self) -> ButtonAccessibility<'a> {
-        ButtonAccessibility {
-            role: "button",
-            name: self.label,
-            disabled: matches!(self.state, ComponentState::Disabled),
-            busy: matches!(self.state, ComponentState::Loading),
-            selected: matches!(self.state, ComponentState::Selected),
-        }
-    }
-}
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-2";
 
 pub(crate) fn draw_standard_button(
     buffer: &mut [u8],
@@ -286,12 +69,80 @@ pub(crate) fn draw_standard_button(
     }
 }
 
+pub(crate) fn draw_sidebar_navigation(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    navigation: SidebarNavigation<'_>,
+    theme: AquaTheme,
+) -> usize {
+    let palette = window_chrome_palette(theme);
+    fill_rect(buffer, width, height, navigation.rect, palette.sidebar, 255);
+    fill_rect(
+        buffer,
+        width,
+        height,
+        navigation.separator_rect(),
+        palette.border,
+        255,
+    );
+    2
+}
+
+pub(crate) fn draw_list_row(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    row: ListRow<'_>,
+    theme: AquaTheme,
+    scale: OutputScale,
+) -> usize {
+    let palette = window_chrome_palette(theme);
+    let (fill, text, opacity) = match row.state {
+        ComponentState::Idle => (palette.sidebar, palette.text, 0),
+        ComponentState::Hover => (palette.hover, palette.text, 255),
+        ComponentState::KeyboardFocus => (palette.sidebar, palette.text, 0),
+        ComponentState::Pressed => (palette.accent_soft, palette.text, 220),
+        ComponentState::Selected => (palette.accent_soft, palette.accent, 255),
+        ComponentState::Disabled => (palette.row_alternate, palette.secondary_text, 190),
+        ComponentState::Loading => (palette.row_alternate, palette.secondary_text, 220),
+        ComponentState::Error => ([0xc9, 0x3c, 0x47, 0xff], [0xff, 0xff, 0xff, 0xff], 245),
+        ComponentState::Success => ([0x2c, 0x8a, 0x59, 0xff], [0xff, 0xff, 0xff, 0xff], 245),
+        ComponentState::Attention => ([0xd1, 0x8b, 0x24, 0xff], [0x1b, 0x20, 0x27, 0xff], 245),
+    };
+    let mut primitives = 1;
+    if opacity > 0 {
+        fill_rounded_rect(buffer, width, height, row.rect, 6, fill, opacity);
+        primitives += 1;
+    }
+    let label = if row.state == ComponentState::Loading {
+        "Yükleniyor…"
+    } else {
+        row.label
+    };
+    draw_fitted_bitmap_text(
+        buffer,
+        (width, height),
+        row.slots().label,
+        label,
+        text,
+        FittedTextOptions::new(TextRole::Control, scale, true),
+    );
+    if row.state == ComponentState::KeyboardFocus {
+        draw_rect_outline(buffer, width, height, row.focus_rect(), palette.accent, 220);
+        primitives += 1;
+    }
+    primitives
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComponentAcceptanceProbe {
     pub viewport: Viewport,
     pub theme: AquaTheme,
     pub scale: OutputScale,
-    pub state_count: usize,
+    pub button_state_count: usize,
+    pub list_row_state_count: usize,
+    pub sidebar_row_count: usize,
     pub stable_geometry: bool,
     pub input_semantics: bool,
     pub accessibility_semantics: bool,
@@ -300,7 +151,9 @@ pub struct ComponentAcceptanceProbe {
 
 impl ComponentAcceptanceProbe {
     pub const fn is_ready(self) -> bool {
-        self.state_count == ComponentState::STANDARD_BUTTON_STATES.len()
+        self.button_state_count == ComponentState::STANDARD_BUTTON_STATES.len()
+            && self.list_row_state_count == ComponentState::LIST_ROW_STATES.len()
+            && self.sidebar_row_count == ComponentState::LIST_ROW_STATES.len()
             && self.stable_geometry
             && self.input_semantics
             && self.accessibility_semantics
@@ -366,9 +219,8 @@ pub fn render_component_acceptance_rgba(
         stable_geometry &=
             button.rect == rect && button.content_rect().width == rect.width.saturating_sub(16);
         input_semantics &= button.pointer_hit(rect.x + 1, rect.y + 1) == button.can_activate();
-        input_semantics &=
-            button.keyboard_activates(ButtonActivationKey::Enter) == button.can_activate();
-        input_semantics &= !button.keyboard_activates(ButtonActivationKey::Other);
+        input_semantics &= button.keyboard_activates(ActivationKey::Enter) == button.can_activate();
+        input_semantics &= !button.keyboard_activates(ActivationKey::Other);
         let semantics = button.accessibility();
         accessibility_semantics &= semantics.role == "button" && !semantics.name.is_empty();
         accessibility_semantics &= semantics.disabled == (state == ComponentState::Disabled);
@@ -376,11 +228,59 @@ pub fn render_component_acceptance_rgba(
         accessibility_semantics &= semantics.selected == (state == ComponentState::Selected);
     }
 
+    let sidebar_x = viewport.width / 2 + 16;
+    let sidebar = SidebarNavigation::new(
+        Rect {
+            x: sidebar_x,
+            y: 24,
+            width: viewport.width.saturating_sub(sidebar_x + 24),
+            height: viewport.height.saturating_sub(48),
+        },
+        "Fixture navigation",
+        Rect {
+            x: sidebar_x + 12,
+            y: 42,
+            width: viewport.width.saturating_sub(sidebar_x + 48),
+            height: scale.apply(38.0).round() as u32,
+        },
+        scale.apply(46.0).round() as u32,
+    );
+    draw_sidebar_navigation(&mut buffer, viewport.width, viewport.height, sidebar, theme);
+    let sidebar_semantics = sidebar.accessibility();
+    accessibility_semantics &=
+        sidebar_semantics.role == "navigation" && !sidebar_semantics.name.is_empty();
+    for (index, state) in ComponentState::LIST_ROW_STATES.into_iter().enumerate() {
+        let rect = sidebar.row_rect(index);
+        let row = ListRow::new(rect, state.id(), ListRowRole::Navigation).with_state(state);
+        draw_list_row(
+            &mut buffer,
+            viewport.width,
+            viewport.height,
+            row,
+            theme,
+            scale,
+        );
+        let slots = row.slots();
+        stable_geometry &= slots.leading.right() <= slots.label.x
+            && slots.label.right() <= slots.trailing.x
+            && slots.trailing.right() <= rect.right();
+        input_semantics &= row.pointer_hit(rect.x + 1, rect.y + 1) == row.can_activate();
+        input_semantics &= row.keyboard_activates(ActivationKey::Space) == row.can_activate();
+        input_semantics &= sidebar.hit_test(rect.x + 1, rect.y + 1, 10) == Some(index);
+        let semantics = row.accessibility();
+        accessibility_semantics &= semantics.role == "navigation-item"
+            && semantics.disabled == (state == ComponentState::Disabled)
+            && semantics.busy == (state == ComponentState::Loading)
+            && semantics.selected == (state == ComponentState::Selected);
+    }
+
     let probe = ComponentAcceptanceProbe {
         viewport,
         theme,
         scale,
-        state_count: ComponentState::STANDARD_BUTTON_STATES.len(),
+        button_state_count: ComponentState::STANDARD_BUTTON_STATES.len(),
+        list_row_state_count: ComponentState::LIST_ROW_STATES.len(),
+        sidebar_row_count: ComponentState::LIST_ROW_STATES.len(),
         stable_geometry,
         input_semantics,
         accessibility_semantics,
@@ -408,13 +308,15 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "component=standard-button viewport={}x{} scale={}/{} theme={} states={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=standard-button,list-row,sidebar-navigation viewport={}x{} scale={}/{} theme={} button_states={} list_row_states={} sidebar_rows={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
                 scale.denominator(),
                 theme.id(),
-                probe.state_count,
+                probe.button_state_count,
+                probe.list_row_state_count,
+                probe.sidebar_row_count,
                 probe.stable_geometry,
                 probe.input_semantics,
                 probe.accessibility_semantics,
@@ -439,7 +341,11 @@ mod tests {
                 .into_iter()
                 .filter(|component| component.is_shared_primitive())
                 .collect::<Vec<_>>(),
-            vec![SharedComponentKind::StandardButton]
+            vec![
+                SharedComponentKind::SidebarNavigation,
+                SharedComponentKind::StandardButton,
+                SharedComponentKind::ListRow,
+            ]
         );
     }
 
@@ -455,13 +361,13 @@ mod tests {
             let button = StandardButton::new(rect, "Action", StandardButtonVariant::Primary)
                 .with_state(state);
             assert!(!button.pointer_hit(11, 21));
-            assert!(!button.keyboard_activates(ButtonActivationKey::Enter));
-            assert!(!button.keyboard_activates(ButtonActivationKey::Space));
+            assert!(!button.keyboard_activates(ActivationKey::Enter));
+            assert!(!button.keyboard_activates(ActivationKey::Space));
         }
     }
 
     #[test]
-    fn standard_button_matrix_is_ready_for_every_theme_and_viewport() {
+    fn shared_component_matrix_is_ready_for_every_theme_and_viewport() {
         for (viewport, scale) in [
             (Viewport::new(800, 600), OutputScale::One),
             (Viewport::new(1280, 800), OutputScale::One),
@@ -479,7 +385,12 @@ mod tests {
     fn component_report_is_complete_and_deterministic() {
         let first = component_acceptance_report();
         assert_eq!(first, component_acceptance_report());
-        assert_eq!(first.matches("component=standard-button").count(), 12);
+        assert_eq!(
+            first
+                .matches("components=standard-button,list-row,sidebar-navigation")
+                .count(),
+            12
+        );
         assert_eq!(first.matches("ready=true").count(), 12);
     }
 }

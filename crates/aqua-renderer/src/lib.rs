@@ -10,7 +10,8 @@ use aqua_shell::{
     FilesWindowModel, LauncherCategory, LauncherMode, LauncherState, NotificationCenter,
     SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView,
     TopBarState, DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT,
-    FILES_PREVIEW_VISIBLE_LINES, FILES_VISIBLE_ROWS, WORKSPACE_COUNT,
+    FILES_PREVIEW_VISIBLE_LINES, FILES_SIDEBAR_NAVIGATION, FILES_VISIBLE_ROWS,
+    SETTINGS_SIDEBAR_NAVIGATION, WORKSPACE_COUNT,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -3014,17 +3015,28 @@ pub fn render_installer_window_rgba_with_theme(
     let rail_padding = if width >= 1200 { 24 } else { 12 };
     let rail_top = layout.step_rail.y + 16;
     let row_height = (layout.step_rail.height.saturating_sub(24) / 9).min(54);
-    for (index, step) in InstallerStep::ALL.iter().copied().enumerate() {
-        let row = Rect {
+    let step_navigation = SidebarNavigation::new(
+        layout.step_rail,
+        "Installation steps",
+        Rect {
             x: layout.step_rail.x + rail_padding,
-            y: rail_top + index as u32 * row_height,
+            y: rail_top,
             width: layout.step_rail.width - rail_padding * 2,
             height: row_height.saturating_sub(6),
-        };
-        if step == model.step() {
-            fill_rounded_rect(&mut buffer, width, height, row, 8, palette.field, 238);
-            primitives += 1;
-        }
+        },
+        row_height,
+    );
+    for (index, step) in InstallerStep::ALL.iter().copied().enumerate() {
+        let row_rect = step_navigation.row_rect(index);
+        let selected = step == model.step();
+        let row = ListRow::new(row_rect, step.label_tr(), ListRowRole::Step)
+            .with_slots(30, 8)
+            .with_state(if selected {
+                ComponentState::Selected
+            } else {
+                ComponentState::Idle
+            });
+        primitives += draw_list_row(&mut buffer, width, height, row, theme, OutputScale::One);
         let marker_color = if step == model.step() {
             palette.accent
         } else {
@@ -3034,35 +3046,23 @@ pub fn render_installer_window_rgba_with_theme(
             &mut buffer,
             width,
             height,
-            row.x + 17,
-            row.y + row.height / 2,
+            row_rect.x + 17,
+            row_rect.y + row_rect.height / 2,
             7,
             marker_color,
         );
-        if step == model.step() {
+        if selected {
             fill_transparent_circle(
                 &mut buffer,
                 width,
                 height,
-                row.x + 17,
-                row.y + row.height / 2,
+                row_rect.x + 17,
+                row_rect.y + row_rect.height / 2,
                 3,
                 palette.surface,
             );
         }
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (row.x + 38, row.y + row.height.saturating_sub(26) / 2),
-            step.label_tr(),
-            if step == model.step() {
-                palette.accent
-            } else {
-                palette.text
-            },
-            1,
-        );
-        primitives += 2;
+        primitives += if selected { 2 } else { 1 };
     }
 
     let logo_rendered = matches!(
@@ -4229,46 +4229,41 @@ pub fn render_settings_window_rgba(
         width: 188,
         height: height.saturating_sub(62),
     };
-    fill_rect(&mut buffer, width, height, sidebar, palette.sidebar, 255);
-    primitives += 1;
-    for (index, category) in model.categories.iter().enumerate() {
-        let row = Rect {
-            x: 12,
-            y: 92 + index as u32 * 50,
-            width: 166,
-            height: 42,
-        };
-        if model.selected_category == index {
-            fill_rect(&mut buffer, width, height, row, palette.accent_soft, 255);
-            primitives += 1;
-        } else if model.hovered_category == Some(index) {
-            fill_rect(&mut buffer, width, height, row, palette.hover, 255);
-            primitives += 1;
-        }
-        draw_category_icon(&mut buffer, width, height, row.x + 10, row.y + 10, index);
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (row.x + 38, row.y + 14),
-            category,
-            palette.text,
-            1,
-        );
-        primitives += 2;
-    }
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        Rect {
-            x: 190,
-            y: 60,
-            width: 1,
-            height: height.saturating_sub(62),
-        },
-        palette.border,
-        255,
+    let navigation = SidebarNavigation::new(
+        sidebar,
+        SETTINGS_SIDEBAR_NAVIGATION.label,
+        SETTINGS_SIDEBAR_NAVIGATION.first_row,
+        SETTINGS_SIDEBAR_NAVIGATION.row_stride,
     );
+    primitives += draw_sidebar_navigation(&mut buffer, width, height, navigation, model.theme);
+    for (index, category) in model.categories.iter().enumerate() {
+        let row_rect = navigation.row_rect(index);
+        let state = if model.selected_category == index {
+            ComponentState::Selected
+        } else if model.hovered_category == Some(index) {
+            ComponentState::Hover
+        } else {
+            ComponentState::Idle
+        };
+        let row = ListRow::new(row_rect, category, ListRowRole::Navigation).with_state(state);
+        primitives += draw_list_row(
+            &mut buffer,
+            width,
+            height,
+            row,
+            model.theme,
+            OutputScale::One,
+        );
+        draw_category_icon(
+            &mut buffer,
+            width,
+            height,
+            row.slots().leading.x + 2,
+            row_rect.y + 10,
+            index,
+        );
+        primitives += 1;
+    }
 
     let heading = model.categories[model.selected_category];
     draw_bitmap_text(
@@ -4667,47 +4662,34 @@ pub fn render_files_window_rgba_with_theme(
         width: sidebar_width,
         height: height.saturating_sub(110),
     };
-    fill_rect(&mut buffer, width, height, sidebar, palette.sidebar, 255);
-    primitives += 1;
-    for (index, item) in model.sidebar_items.iter().enumerate() {
-        let row = Rect {
-            x: 12,
-            y: 126 + index as u32 * 46,
-            width: 148,
-            height: 38,
-        };
-        if index == model.selected_sidebar {
-            fill_rect(&mut buffer, width, height, row, palette.accent_soft, 255);
-            primitives += 1;
-        } else if model.hovered_sidebar == Some(index) {
-            fill_rect(&mut buffer, width, height, row, palette.hover, 255);
-            primitives += 1;
-        }
-        draw_sidebar_icon(&mut buffer, width, height, row.x + 10, row.y + 9, index);
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (row.x + 36, row.y + 12),
-            item,
-            palette.text,
-            1,
-        );
-    }
-
-    fill_rect(
-        &mut buffer,
-        width,
-        height,
-        Rect {
-            x: sidebar_width + 2,
-            y: 108,
-            width: 1,
-            height: height.saturating_sub(110),
-        },
-        palette.border,
-        255,
+    let navigation = SidebarNavigation::new(
+        sidebar,
+        FILES_SIDEBAR_NAVIGATION.label,
+        FILES_SIDEBAR_NAVIGATION.first_row,
+        FILES_SIDEBAR_NAVIGATION.row_stride,
     );
-    primitives += 1;
+    primitives += draw_sidebar_navigation(&mut buffer, width, height, navigation, theme);
+    for (index, item) in model.sidebar_items.iter().enumerate() {
+        let row_rect = navigation.row_rect(index);
+        let state = if index == model.selected_sidebar {
+            ComponentState::Selected
+        } else if model.hovered_sidebar == Some(index) {
+            ComponentState::Hover
+        } else {
+            ComponentState::Idle
+        };
+        let row = ListRow::new(row_rect, item, ListRowRole::Navigation).with_state(state);
+        primitives += draw_list_row(&mut buffer, width, height, row, theme, OutputScale::One);
+        draw_sidebar_icon(
+            &mut buffer,
+            width,
+            height,
+            row.slots().leading.x + 2,
+            row_rect.y + 9,
+            index,
+        );
+        primitives += 1;
+    }
     let list_x = sidebar_width + 18;
     if let Some(preview) = model.preview.as_ref() {
         draw_file_icon(&mut buffer, width, height, list_x + 12, 136);

@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/aqua-components",
     "crates/aqua-compositor",
     "crates/aqua-host-tools",
     "crates/aqua-installer",

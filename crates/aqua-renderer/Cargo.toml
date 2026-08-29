@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+aqua-components = { path = "../aqua-components" }
 aqua-installer = { path = "../aqua-installer" }
 aqua-scene = { path = "../aqua-scene" }
 aqua-shell = { path = "../aqua-shell" }

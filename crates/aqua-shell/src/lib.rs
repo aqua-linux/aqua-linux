@@ -1,3 +1,5 @@
+use aqua_components::SidebarNavigation;
+use aqua_scene::Rect;
 use std::collections::VecDeque;
 use std::fs;
 use std::io::{self, Write};
@@ -70,6 +72,38 @@ pub const MOTION_DURATION_FEEDBACK_MS: u64 = 90;
 pub const MOTION_DURATION_SHORT_MS: u64 = 140;
 pub const MOTION_DURATION_STANDARD_MS: u64 = 200;
 pub const MOTION_DURATION_SPATIAL_MS: u64 = 280;
+pub const SETTINGS_SIDEBAR_NAVIGATION: SidebarNavigation<'static> = SidebarNavigation::new(
+    Rect {
+        x: 2,
+        y: 60,
+        width: 188,
+        height: 418,
+    },
+    "Settings categories",
+    Rect {
+        x: 12,
+        y: 92,
+        width: 166,
+        height: 42,
+    },
+    50,
+);
+pub const FILES_SIDEBAR_NAVIGATION: SidebarNavigation<'static> = SidebarNavigation::new(
+    Rect {
+        x: 2,
+        y: 108,
+        width: 170,
+        height: 370,
+    },
+    "Files locations",
+    Rect {
+        x: 12,
+        y: 126,
+        width: 148,
+        height: 38,
+    },
+    46,
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MotionEasing {
@@ -1280,12 +1314,9 @@ impl SettingsWindowModel {
     }
 
     pub fn handle_pointer(&mut self, x: u32, y: u32) -> SettingsUpdate {
-        if x < 190 && (92..342).contains(&y) {
-            let category = ((y - 92) / 50) as usize;
-            if category < self.categories.len() {
-                self.selected_category = category;
-                return SettingsUpdate::CategorySelected(category);
-            }
+        if let Some(category) = SETTINGS_SIDEBAR_NAVIGATION.hit_test(x, y, self.categories.len()) {
+            self.selected_category = category;
+            return SettingsUpdate::CategorySelected(category);
         }
         if self.selected_category == 0 && (430..570).contains(&x) && (128..178).contains(&y) {
             self.reduced_motion = !self.reduced_motion;
@@ -1312,12 +1343,7 @@ impl SettingsWindowModel {
     pub fn handle_hover(&mut self, x: u32, y: u32) -> bool {
         let previous = self.hovered_category;
         self.hovered_category = None;
-        if x < 190 && (92..342).contains(&y) {
-            let category = ((y - 92) / 50) as usize;
-            if category < self.categories.len() {
-                self.hovered_category = Some(category);
-            }
-        }
+        self.hovered_category = SETTINGS_SIDEBAR_NAVIGATION.hit_test(x, y, self.categories.len());
         previous != self.hovered_category
     }
 
@@ -1702,13 +1728,10 @@ impl FilesWindowModel {
         if (50..78).contains(&x) && (64..98).contains(&y) {
             return FilesSelection::Forward;
         }
-        if x < 170 && (126..356).contains(&y) {
-            let index = ((y - 126) / 46) as usize;
-            if index < self.sidebar_items.len() {
-                self.selected_sidebar = index;
-                self.selected_entry = None;
-                return FilesSelection::Sidebar(index);
-            }
+        if let Some(index) = FILES_SIDEBAR_NAVIGATION.hit_test(x, y, self.sidebar_items.len()) {
+            self.selected_sidebar = index;
+            self.selected_entry = None;
+            return FilesSelection::Sidebar(index);
         }
         if x >= 170 && (124..380).contains(&y) {
             let index = self.scroll_offset + ((y - 124) / 64) as usize;
@@ -1724,11 +1747,8 @@ impl FilesWindowModel {
         let previous = (self.hovered_sidebar, self.hovered_entry);
         self.hovered_sidebar = None;
         self.hovered_entry = None;
-        if x < 170 && (126..356).contains(&y) {
-            let index = ((y - 126) / 46) as usize;
-            if index < self.sidebar_items.len() {
-                self.hovered_sidebar = Some(index);
-            }
+        if let Some(index) = FILES_SIDEBAR_NAVIGATION.hit_test(x, y, self.sidebar_items.len()) {
+            self.hovered_sidebar = Some(index);
         } else if x >= 170 && (124..380).contains(&y) {
             let index = self.scroll_offset + ((y - 124) / 64) as usize;
             if index < self.entries.len() {
@@ -3347,6 +3367,9 @@ mod tests {
         );
         assert!(model.handle_hover(40, 100));
         assert_eq!(model.hovered_category, Some(0));
+        assert_eq!(model.handle_pointer(40, 138), SettingsUpdate::None);
+        assert!(model.handle_hover(40, 138));
+        assert_eq!(model.hovered_category, None);
     }
 
     #[test]
@@ -3795,6 +3818,8 @@ mod tests {
         assert_eq!(model.select_at(40, 180), FilesSelection::Sidebar(1));
         assert_eq!(model.selected_sidebar, 1);
         assert_eq!(model.selected_entry, None);
+        assert_eq!(model.select_at(40, 164), FilesSelection::None);
+        assert!(!model.hover_at(40, 164));
 
         assert_eq!(
             FilesWindowModel::read_only_directory(&home, &root),

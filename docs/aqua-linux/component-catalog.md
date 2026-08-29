@@ -14,7 +14,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | --- | --- | --- |
 | Top system bar | Planned | Shell top-level status and session controls |
 | Window frame and title bar | Planned | Compositor and first-party window chrome |
-| Sidebar navigation | Planned | Files, Settings, and installer step rail |
+| Sidebar navigation | Shared host-proven primitive | Files and Settings share render/input geometry; installer uses its row composition |
 | Toolbar | Planned | Files and first-party applications |
 | Segmented control | Planned | Settings and bounded mode selection |
 | Search field | Planned | Applications, Global Search, Files, and Settings |
@@ -24,7 +24,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Switch | Planned | Settings toggles |
 | Slider | Planned | Audio and future bounded value controls |
 | Menu | Planned | Session, context, and overflow actions |
-| List row | Planned | Files, Settings, search, and installer choices |
+| List row | Shared host-proven primitive | Files and Settings navigation plus installer steps |
 | Grid cell | Planned | Applications and file grid modes |
 | Metadata row | Planned | Properties and system information |
 | Section group | Planned | Settings and Properties |
@@ -82,11 +82,37 @@ states in LightWhite, Softtouch, Deepside, and Nightmare at 800x600, 1280x800,
 and 1536x1024, including a 1.25 output-scale case. Its canonical report is
 `component-fixtures.txt`.
 
+## List Row And Sidebar Navigation Contract
+
+### Anatomy And Geometry
+
+- `aqua-components` owns the renderer-independent outer rectangle, leading,
+  label, and trailing slots for list rows.
+- A sidebar owns its surface rectangle, accessible label, first-row rectangle,
+  row stride, per-index row geometry, separator, and hit testing.
+- Hit testing uses the rendered half-open row rectangles. Inter-row gaps and
+  the sidebar padding do not activate adjacent items.
+- Leading icons remain consumer-provided but are positioned inside the shared
+  leading slot; labels use the shared fitted control-text path.
+
+### Input, Semantics, And States
+
+- Option, navigation-item, and step roles map to explicit accessibility roles.
+- Pointer, Enter, and Space activation share the same disabled/loading gate as
+  standard buttons.
+- Name, selected, disabled, and busy semantics are independent of styling.
+- Idle, hover, keyboard focus, pressed, selected, disabled, loading, error,
+  success, and non-repeating attention states retain stable geometry.
+- Sidebar containers expose the `navigation` role and a non-empty name.
+
+Settings and Files now consume the same sidebar geometry in both `aqua-shell`
+input routing and `aqua-renderer` drawing. Installer steps consume the same
+list-row composition with a step-specific leading marker. Their deterministic
+matrix is recorded with the standard button in `component-fixtures.txt`.
+
 ## Next Extraction Order
 
-1. List row and sidebar navigation, because Files, Settings, Search, and the
-   installer currently repeat row geometry and selection behavior.
-2. Search field and icon button.
-3. Switch, checkbox, slider, and segmented control.
-4. Window frame, toolbar, menu, and section structures.
-5. Shell-level panels, dock, workspaces, notification, and confirmation dialog.
+1. Search field and icon button.
+2. Switch, checkbox, slider, and segmented control.
+3. Window frame, toolbar, menu, and section structures.
+4. Shell-level panels, dock, workspaces, notification, and confirmation dialog.
