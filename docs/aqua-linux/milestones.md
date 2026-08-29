@@ -462,7 +462,7 @@ The implementation inventory and extraction order are maintained in
 menu, metadata row, section group, standard button, icon button, search field,
 switch, segmented control, toolbar, list row, grid cell, application overview,
 global search, running-app dock, workspace switcher, notification, confirmation
-dialog, and sidebar navigation are host-proven across their applicable states,
+dialog, and sidebar navigation are packaged-QEMU-proven across their applicable states,
 four themes, three required
 viewports, and a fractional scale. Installer,
 Applications, Global Search, Terminal, Properties, Settings, and Files consume
@@ -481,7 +481,10 @@ share compact/detailed geometry, explicit repeat-activation versus exact-text
 requirements, intent-only keyboard semantics, and alert accessibility. Their
 existing action authorization, target identity, and execution gates remain
 model-owned.
-Packaged-QEMU component acceptance and the remaining catalog entries stay open.
+The packaged acceptance-only component client proves all twenty shared
+primitives through the real Smithay/GLES/DRM path in all four themes and returns
+to recovery after each bounded session. Checkbox and slider remain open until
+real installer-option and audio-volume models exist.
 
 Done when desktop, Applications, Search, Terminal, Files, Settings, and the
 installer consume the shared catalog; visual regression evidence covers the

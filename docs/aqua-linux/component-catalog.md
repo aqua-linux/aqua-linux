@@ -12,28 +12,28 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 
 | Component | Status | Current consumer or next boundary |
 | --- | --- | --- |
-| Top system bar | Shared host-proven primitive | Shell brand, clock, status slots, and pointer-enabled Session controls share render/input geometry; packaged-QEMU acceptance remains open |
-| Window frame and title bar | Shared host-proven primitive | Terminal, Files, Settings, and Properties renderer/input geometry; packaged-QEMU acceptance remains open |
-| Sidebar navigation | Shared host-proven primitive | Files and Settings share render/input geometry; installer uses its row composition |
-| Toolbar | Shared host-proven primitive | Files navigation and location controls |
-| Segmented control | Shared host-proven primitive | Settings theme selection |
-| Search field | Shared host-proven primitive | Applications and Global Search share render/input geometry |
-| Standard button | Shared host-proven primitive | Installer footer; packaged-QEMU component acceptance remains open |
-| Icon button | Shared host-proven primitive | Files back/forward navigation; broader toolbar adoption remains open |
+| Top system bar | Shared packaged-QEMU-proven primitive | Shell brand, clock, status slots, and pointer-enabled Session controls share render/input geometry |
+| Window frame and title bar | Shared packaged-QEMU-proven primitive | Terminal, Files, Settings, and Properties renderer/input geometry |
+| Sidebar navigation | Shared packaged-QEMU-proven primitive | Files and Settings share render/input geometry; installer uses its row composition |
+| Toolbar | Shared packaged-QEMU-proven primitive | Files navigation and location controls |
+| Segmented control | Shared packaged-QEMU-proven primitive | Settings theme selection |
+| Search field | Shared packaged-QEMU-proven primitive | Applications and Global Search share render/input geometry |
+| Standard button | Shared packaged-QEMU-proven primitive | Installer footer |
+| Icon button | Shared packaged-QEMU-proven primitive | Files back/forward navigation; broader toolbar adoption remains open |
 | Checkbox | Planned | Settings and installer options |
-| Switch | Shared host-proven primitive | Settings motion, desktop-icon, and key-repeat toggles |
+| Switch | Shared packaged-QEMU-proven primitive | Settings motion, desktop-icon, and key-repeat toggles |
 | Slider | Planned | Audio and future bounded value controls |
-| Menu | Shared host-proven primitive | Desktop icon context actions and Session action layout; packaged-QEMU component acceptance remains open |
-| List row | Shared host-proven primitive | Files and Settings navigation plus installer steps |
-| Grid cell | Shared host-proven primitive | Applications cards and desktop icon cells share render/input geometry; Files remains a list because no grid mode exists yet |
-| Metadata row | Shared host-proven primitive | Properties and System Overview share bounded read-only label/value columns; packaged-QEMU acceptance remains open |
-| Section group | Shared host-proven primitive | Settings and Properties share bounded heading, row, trailing-control, and footer geometry; packaged-QEMU acceptance remains open |
-| Application overview | Shared host-proven primitive | Applications panel surface, title, search, grid layout, and pointer geometry; packaged-QEMU acceptance remains open |
-| Global search | Shared host-proven primitive | Split result list, quick-action panel, and exact pointer geometry; packaged-QEMU acceptance remains open |
-| Running-app dock | Shared host-proven primitive | Centered Files, Settings, and Trash targets with running indicators; packaged-QEMU acceptance remains open |
-| Workspace switcher | Shared host-proven primitive | Three real workspace targets, thumbnails, and active indicator; packaged-QEMU acceptance remains open |
-| Notification | Shared host-proven primitive | Shell toast content, dismissal target, timeout/queue model, and compositor pointer routing; packaged-QEMU acceptance remains open |
-| Confirmation dialog | Shared host-proven primitive | Session, Empty Trash, and Installer confirmation presentation; authorization remains model-owned and packaged-QEMU acceptance remains open |
+| Menu | Shared packaged-QEMU-proven primitive | Desktop icon context actions and Session action layout |
+| List row | Shared packaged-QEMU-proven primitive | Files and Settings navigation plus installer steps |
+| Grid cell | Shared packaged-QEMU-proven primitive | Applications cards and desktop icon cells share render/input geometry; Files remains a list because no grid mode exists yet |
+| Metadata row | Shared packaged-QEMU-proven primitive | Properties and System Overview share bounded read-only label/value columns |
+| Section group | Shared packaged-QEMU-proven primitive | Settings and Properties share bounded heading, row, trailing-control, and footer geometry |
+| Application overview | Shared packaged-QEMU-proven primitive | Applications panel surface, title, search, grid layout, and pointer geometry |
+| Global search | Shared packaged-QEMU-proven primitive | Split result list, quick-action panel, and exact pointer geometry |
+| Running-app dock | Shared packaged-QEMU-proven primitive | Centered Files, Settings, and Trash targets with running indicators |
+| Workspace switcher | Shared packaged-QEMU-proven primitive | Three real workspace targets, thumbnails, and active indicator |
+| Notification | Shared packaged-QEMU-proven primitive | Shell toast content, dismissal target, timeout/queue model, and compositor pointer routing |
+| Confirmation dialog | Shared packaged-QEMU-proven primitive | Session, Empty Trash, and Installer confirmation presentation; authorization remains model-owned |
 
 “Planned” means that runtime behavior may exist, but its current one-off path
 has not yet passed the shared-component completion contract.
@@ -64,7 +64,7 @@ has not yet passed the shared-component completion contract.
 
 The deterministic matrix covers compact bounds, slot separation, live-status
 semantics, session hit rejection, and four themes at 800x600, 1280x800, and
-fractional-scale 1536x1024. Packaged-QEMU component acceptance remains open.
+fractional-scale 1536x1024. Packaged-QEMU component acceptance is covered by the aggregate four-theme run below.
 
 ## Standard Button Contract
 
@@ -228,8 +228,7 @@ four-theme, three-viewport deterministic matrix is recorded in
   toolbar padding into an input target.
 
 The deterministic matrix covers the toolbar in four themes at 800x600,
-1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance
-remains open.
+1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance is covered by the aggregate four-theme run below.
 
 ## Window Frame And Title Bar Contract
 
@@ -261,7 +260,7 @@ remains open.
 The deterministic matrix covers focused window geometry and input boundaries
 in four themes at 800x600, 1280x800, and fractional-scale 1536x1024. A pure
 compositor routing test proves controls, move, content, and resize targets do
-not overlap. Packaged-QEMU component acceptance remains open.
+not overlap. Packaged-QEMU component acceptance is covered by the aggregate four-theme run below.
 
 ## Menu Contract
 
@@ -292,8 +291,8 @@ not overlap. Packaged-QEMU component acceptance remains open.
 
 The deterministic matrix covers menu drawing, gap rejection, keyboard
 navigation, and accessibility semantics in four themes at 800x600, 1280x800,
-and fractional-scale 1536x1024. Packaged-QEMU component acceptance remains
-open.
+and fractional-scale 1536x1024. The aggregate four-theme packaged-QEMU run
+covers this shared primitive.
 
 ## Grid Cell Contract
 
@@ -350,8 +349,7 @@ acceptance remains open.
 
 The deterministic matrix covers column bounds, fitted text, read-only input
 behavior, emphasis, and accessibility semantics in four themes at 800x600,
-1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance
-remains open.
+1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance is covered by the aggregate four-theme run below.
 
 ## Section Group Contract
 
@@ -440,8 +438,8 @@ acceptance remains open.
 
 The deterministic matrix covers compact split geometry, result/action limits,
 gap rejection, accessibility semantics, four themes, and the three required
-viewports including fractional scale. Packaged-QEMU component acceptance remains
-open.
+viewports including fractional scale. The aggregate four-theme packaged-QEMU
+run covers this shared primitive.
 
 ## Running-App Dock Contract
 
@@ -470,7 +468,7 @@ open.
 
 The deterministic matrix covers item boundaries, visual/raster centering,
 running status, accessibility semantics, four themes, and the three required
-viewports including fractional scale. Packaged-QEMU acceptance remains open.
+viewports including fractional scale. Packaged-QEMU acceptance is covered by the aggregate four-theme run below.
 
 ## Workspace Switcher Contract
 
@@ -502,8 +500,8 @@ viewports including fractional scale. Packaged-QEMU acceptance remains open.
 
 The deterministic matrix covers target boundaries, active/inactive thumbnails,
 indicator containment, accessibility semantics, four themes, and the three
-required viewports including fractional scale. Packaged-QEMU acceptance remains
-open.
+required viewports including fractional scale. The aggregate four-theme
+packaged-QEMU run covers this shared primitive.
 
 ## Notification Contract
 
@@ -535,7 +533,7 @@ open.
 
 The deterministic matrix covers content containment, exact dismiss boundaries,
 keyboard dismissal, live-region semantics, four themes, and the three required
-viewports including fractional scale. Packaged-QEMU acceptance remains open.
+viewports including fractional scale. Packaged-QEMU acceptance is covered by the aggregate four-theme run below.
 
 ## Confirmation Dialog Contract
 
@@ -575,9 +573,25 @@ viewports including fractional scale. Packaged-QEMU acceptance remains open.
 The deterministic matrix covers compact and detailed geometry, half-open
 containment, cancel/confirm intent separation, exact-text external validation,
 accessibility semantics, four themes, and the three required viewports including
-fractional scale. Packaged-QEMU acceptance remains open.
+fractional scale.
+
+## Packaged QEMU Acceptance
+
+`scripts/check-component-wayland-qemu.sh` boots the generated Buildroot image
+once and launches the packaged `aqua.component-acceptance` `wl_shm`
+`xdg-toplevel` through the real Smithay, GLES, and DRM path for LightWhite,
+Softtouch, Deepside, and Nightmare. The acceptance client renders the complete
+20-primitive shared matrix at 1280x800 from fixture revision
+`aqua-component-fixtures-17`; serial gates verify the 22-entry catalog and
+20 shared primitives, while HMP screendumps must be nonblank, theme-distinct,
+and exactly 1280x800.
+
+Every bounded run keeps shell chrome disabled for an unobstructed full-output
+surface, stops the managed client, restores the compositor/CRTC state, and
+returns to the recovery shell. The generated log and screenshots remain local
+build evidence and are not repository artifacts. Checkbox and slider are not
+claimed by this run because their real owning models do not yet exist.
 
 ## Next Extraction Order
 
 1. Checkbox and slider remain deferred until real option and bounded-value models exist.
-2. Complete packaged-QEMU acceptance for the host-proven shared component matrix.

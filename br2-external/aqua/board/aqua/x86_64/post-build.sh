@@ -77,6 +77,7 @@ AQUA_PROPERTIES_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqu
 AQUA_TERMINAL_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-terminal"
 AQUA_INSTALLER_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-installer"
 AQUA_TYPOGRAPHY_ACCEPTANCE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-typography-acceptance"
+AQUA_COMPONENT_ACCEPTANCE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-component-acceptance"
 AQUA_INSTALLER_PROBE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-installer-probe"
 mkdir -p "${TARGET_DIR}/usr/bin" "${TARGET_DIR}/usr/libexec/aqua-tests" "${TARGET_DIR}/usr/share/doc/aqua"
 if [ -f "${AQUA_COMPOSITOR_BINARY}" ]; then
@@ -145,6 +146,34 @@ path=/usr/libexec/aqua-tests/aqua-typography-acceptance
 app_id=aqua.typography-acceptance
 surface=wl_shm-xdg-toplevel
 locales=tr-TR,ar
+autostart=false
+build_hint=scripts/build-compositor-linux-docker.sh
+EOF
+fi
+
+if [ -f "${AQUA_COMPONENT_ACCEPTANCE_BINARY}" ]; then
+    cp "${AQUA_COMPONENT_ACCEPTANCE_BINARY}" \
+        "${TARGET_DIR}/usr/libexec/aqua-tests/aqua-component-acceptance"
+    chmod +x "${TARGET_DIR}/usr/libexec/aqua-tests/aqua-component-acceptance"
+    cat > "${TARGET_DIR}/usr/share/doc/aqua/component-acceptance-binary.txt" <<'EOF'
+aqua-component-acceptance packaged=true
+path=/usr/libexec/aqua-tests/aqua-component-acceptance
+app_id=aqua.component-acceptance
+surface=wl_shm-xdg-toplevel
+fixture_revision=aqua-component-fixtures-17
+catalog=22
+shared=20
+autostart=false
+EOF
+else
+    cat > "${TARGET_DIR}/usr/share/doc/aqua/component-acceptance-binary.txt" <<'EOF'
+aqua-component-acceptance packaged=false
+path=/usr/libexec/aqua-tests/aqua-component-acceptance
+app_id=aqua.component-acceptance
+surface=wl_shm-xdg-toplevel
+fixture_revision=aqua-component-fixtures-17
+catalog=22
+shared=20
 autostart=false
 build_hint=scripts/build-compositor-linux-docker.sh
 EOF

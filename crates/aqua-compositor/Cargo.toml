@@ -70,3 +70,8 @@ required-features = ["smithay-smoke"]
 name = "aqua-typography-acceptance"
 path = "src/bin/aqua-typography-acceptance.rs"
 required-features = ["smithay-smoke"]
+
+[[bin]]
+name = "aqua-component-acceptance"
+path = "src/bin/aqua-component-acceptance.rs"
+required-features = ["smithay-smoke"]
