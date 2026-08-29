@@ -7,12 +7,12 @@ use aqua_installer::{
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     desktop_context_menu, desktop_grid_cell, files_back_button, files_forward_button,
-    files_toolbar, running_app_dock, top_system_bar, AquaTheme, DesktopIconState,
-    DesktopPropertiesModel, DockItem, DockState, FilesEntryKind, FilesWindowModel,
-    LauncherCategory, LauncherMode, LauncherState, NotificationCenter, SessionAction,
-    SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView, TopBarState,
-    DESKTOP_ICONS, FILES_PREVIEW_VISIBLE_LINES, FILES_SIDEBAR_NAVIGATION, FILES_VISIBLE_ROWS,
-    SETTINGS_SIDEBAR_NAVIGATION, WORKSPACE_COUNT,
+    files_toolbar, running_app_dock, top_system_bar, workspace_switcher, AquaTheme,
+    DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
+    FilesWindowModel, LauncherCategory, LauncherMode, LauncherState, NotificationCenter,
+    SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView,
+    TopBarState, DESKTOP_ICONS, FILES_PREVIEW_VISIBLE_LINES, FILES_SIDEBAR_NAVIGATION,
+    FILES_VISIBLE_ROWS, SETTINGS_SIDEBAR_NAVIGATION,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -1321,9 +1321,11 @@ fn render_dock_rgba_base(
     let ink = [0x15, 0x26, 0x39, 0xff];
     let left_width = 132;
     let running_dock = running_app_dock(width, height);
-    let workspace_width = 60_u32;
-    let workspace_group_width = workspace_width * WORKSPACE_COUNT as u32;
-    let workspace_start = width.saturating_sub(workspace_group_width);
+    let workspaces = workspace_switcher(
+        width,
+        height,
+        state.active_workspace.min(aqua_shell::WORKSPACE_COUNT - 1),
+    );
     let mut primitives = 3;
     let mut running_item_count = 0;
 
@@ -1340,12 +1342,7 @@ fn render_dock_rgba_base(
             width: running_dock.rect.width,
             height: running_dock.rect.height,
         },
-        Rect {
-            x: workspace_start,
-            y: 0,
-            width: workspace_group_width,
-            height,
-        },
+        workspaces.rect,
     ] {
         fill_transparent_rounded_rect(&mut rgba, width, height, rect, 12, surface);
     }
@@ -1430,19 +1427,14 @@ fn render_dock_rgba_base(
         }
     }
 
-    for index in 0..WORKSPACE_COUNT {
-        let x = workspace_start + index as u32 * workspace_width + 5;
-        let active = state.workspace_active(index);
+    for index in 0..workspaces.workspace_count {
+        let thumbnail = workspaces.thumbnail_rect(index);
+        let active = workspaces.is_active(index);
         fill_transparent_rounded_rect(
             &mut rgba,
             width,
             height,
-            Rect {
-                x,
-                y: 10,
-                width: 50,
-                height: height - 20,
-            },
+            thumbnail,
             8,
             if active {
                 selected
@@ -1451,16 +1443,12 @@ fn render_dock_rgba_base(
             },
         );
         if active {
+            let indicator = workspaces.active_indicator_rect();
             fill_transparent_rect(
                 &mut rgba,
                 width,
                 height,
-                Rect {
-                    x: x + 5,
-                    y: height - 13,
-                    width: 40,
-                    height: 3,
-                },
+                indicator,
                 [0x0b, 0x76, 0xe5, 0xff],
             );
             primitives += 1;
@@ -1472,7 +1460,7 @@ fn render_dock_rgba_base(
         height,
         rgba,
         running_item_count,
-        active_workspace: state.active_workspace.min(WORKSPACE_COUNT - 1),
+        active_workspace: workspaces.active_index,
         group_count: 3,
         primitive_count: primitives,
     }
