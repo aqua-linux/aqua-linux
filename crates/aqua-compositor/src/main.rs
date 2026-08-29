@@ -4365,7 +4365,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         snapshots[0].sample_checksum
                     );
                     println!("component_wayland_catalog_count=22");
-                    println!("component_wayland_shared_primitive_count=21");
+                    println!("component_wayland_shared_primitive_count=22");
                 } else {
                     if elevation_scenario {
                         let focused = snapshots

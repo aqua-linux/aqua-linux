@@ -5201,6 +5201,12 @@ impl XdgSmokeClientState {
         if let Err(error) = settings_model.refresh_network_status(&network_root) {
             eprintln!("aqua_settings_network_status_available=false error={error}");
         }
+        let audio_root = std::env::var_os("AQUA_AUDIO_DEV_SND")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("/dev/snd"));
+        if let Err(error) = settings_model.refresh_audio_status(&audio_root) {
+            eprintln!("aqua_settings_audio_available=false error={error}");
+        }
         Ok(Self {
             buffer_width: 600,
             buffer_height: 400,
@@ -7677,6 +7683,15 @@ pub fn run_aqua_settings_client(
                 .theme
                 .id())
     );
+    if let Some(model) = state.settings_model.as_ref() {
+        println!("aqua_settings_audio_available={}", model.audio.available());
+        println!(
+            "aqua_settings_loaded_audio_volume={}",
+            model.audio.volume_percent()
+        );
+        println!("aqua_settings_loaded_audio_muted={}", model.audio.muted());
+        println!("aqua_settings_audio_backend_applied=false");
+    }
     println!(
         "aqua_settings_network_status_available={}",
         state
@@ -7839,7 +7854,7 @@ pub fn run_aqua_component_acceptance_client(
     println!("aqua_component_acceptance_buffer=1280x800");
     println!("aqua_component_acceptance_fixture_revision={COMPONENT_FIXTURE_REVISION}");
     println!("aqua_component_acceptance_catalog=22");
-    println!("aqua_component_acceptance_shared=21");
+    println!("aqua_component_acceptance_shared=22");
     println!("aqua_component_acceptance_ready=true");
     println!("[AQUA-COMPONENTS] stage=wayland-surface status=active");
     std::io::stdout().flush()?;
@@ -9190,6 +9205,8 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
                 103 => Some(aqua_shell::SettingsKey::Up),
                 108 => Some(aqua_shell::SettingsKey::Down),
                 28 => Some(aqua_shell::SettingsKey::Activate),
+                105 => Some(aqua_shell::SettingsKey::Decrease),
+                106 => Some(aqua_shell::SettingsKey::Increase),
                 _ => None,
             };
             if let (Some(settings_key), Some(model)) = (settings_key, state.settings_model.as_mut())
@@ -9206,6 +9223,8 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
                         | aqua_shell::SettingsUpdate::DesktopIconsChanged(_)
                         | aqua_shell::SettingsUpdate::KeyRepeatChanged(_)
                         | aqua_shell::SettingsUpdate::ThemeChanged(_)
+                        | aqua_shell::SettingsUpdate::AudioVolumeChanged(_)
+                        | aqua_shell::SettingsUpdate::AudioMutedChanged(_)
                 ) {
                     state.persist_settings();
                 }
@@ -9364,6 +9383,8 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                         | aqua_shell::SettingsUpdate::DesktopIconsChanged(_)
                         | aqua_shell::SettingsUpdate::KeyRepeatChanged(_)
                         | aqua_shell::SettingsUpdate::ThemeChanged(_)
+                        | aqua_shell::SettingsUpdate::AudioVolumeChanged(_)
+                        | aqua_shell::SettingsUpdate::AudioMutedChanged(_)
                 ) {
                     state.persist_settings();
                 }

@@ -462,7 +462,7 @@ The implementation inventory and extraction order are maintained in
 menu, metadata row, section group, standard button, icon button, search field,
 checkbox, switch, segmented control, toolbar, list row, grid cell, application overview,
 global search, running-app dock, workspace switcher, notification, confirmation
-dialog, and sidebar navigation are packaged-QEMU-proven across their applicable states,
+dialog, sidebar navigation, and slider are packaged-QEMU-proven across their applicable states,
 four themes, three required
 viewports, and a fractional scale. Installer,
 Applications, Global Search, Terminal, Properties, Settings, and Files consume
@@ -481,10 +481,13 @@ share compact/detailed geometry, explicit repeat-activation versus exact-text
 requirements, intent-only keyboard semantics, and alert accessibility. Their
 existing action authorization, target identity, and execution gates remain
 model-owned.
-The packaged acceptance-only component client proves all twenty-one shared
+Settings Audio now supplies the real bounded slider consumer: a persistent
+0–100 output-volume preference, mute state, and fail-closed `/dev/snd`
+availability check. It deliberately does not claim playback, mixer/backend
+application, routing, or physical hardware support.
+The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
-to recovery after each bounded session. Slider remains open until a real
-bounded audio-volume model exists.
+to recovery after each bounded session.
 
 Done when desktop, Applications, Search, Terminal, Files, Settings, and the
 installer consume the shared catalog; visual regression evidence covers the
