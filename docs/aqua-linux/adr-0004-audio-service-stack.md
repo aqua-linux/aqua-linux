@@ -77,8 +77,11 @@ conditions are met:
   `legal-info` audit of the selected dependency closure. Buildroot 2025.02.17
   satisfies the baseline portion of this prerequisite; the remaining gates
   below still block packaging.
-- The graphical session runs as an unprivileged persistent user with a
-  user-owned runtime directory and a documented sound-device access policy.
+- The graphical session runs as the locked `aqua` UID/GID 1000 identity with
+  private `XDG_RUNTIME_DIR=/run/user/1000`. Membership in the fixed `audio`
+  group is the current fail-closed `/dev/snd` access policy. This prerequisite
+  is satisfied; QEMU must keep proving the compositor and clients do not run as
+  root.
 - The session supervisor can start, observe, restart with a finite budget, and
   stop per-user services without falling back to a root-owned media daemon.
 - The audio adapter contract and its fail-closed unavailable/degraded behavior
@@ -126,8 +129,9 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
 
 - The existing Settings audio model remains honest and reports that no backend
   has applied its preference until the adapter is implemented and acknowledged.
-- The next implementation item is the unprivileged persistent session and its
-  bounded service supervisor, not an ad-hoc root boot service.
+- The next implementation item is the bounded per-user media-service
+  supervisor and ordered PipeWire/WirePlumber lifecycle, not an ad-hoc root
+  boot service.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

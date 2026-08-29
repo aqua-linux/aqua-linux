@@ -29,6 +29,7 @@ scripts/check-elevation-fixtures.sh
 scripts/check-icon-fixtures.sh
 scripts/check-motion-fixtures.sh
 scripts/check-component-fixtures.sh
+scripts/check-unprivileged-session.sh
 scripts/check-graphical-session-supervisor.sh
 scripts/check-default-recovery-safety.sh
 scripts/check-graphical-session-stop.sh
@@ -472,7 +473,7 @@ PYTHONPYCACHEPREFIX="${CHECK_TEMP_ROOT}/python-cache" \
     scripts/send-qemu-monitor-input.py \
     scripts/capture-qemu-monitor-screendump.py \
     scripts/check-qemu-input-daemon.py
-python3 scripts/check-qemu-input-daemon.py
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/check-qemu-input-daemon.py
 grep -Fq -- '--serve' scripts/send-qemu-monitor-input.py
 grep -Fq 'AQUA_QEMU_INPUT_CONTROL_SOCKET' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'request_input_daemon' scripts/capture-qemu-monitor-screendump.py
@@ -1329,13 +1330,13 @@ grep -Fq 'aqua-qemu-visible-pass-report' br2-external/aqua/board/aqua/x86_64/pos
 grep -Fq 'aqua-qemu-visible-evidence-bundle-apply' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq '/etc/aqua/compositor-session.conf' br2-external/aqua/rootfs-overlay/usr/bin/aqua-recovery
 grep -Fq 'wayland_socket=aqua-wayland-0' br2-external/aqua/board/aqua/x86_64/post-build.sh
-grep -Fq 'runtime_dir=/run/aqua' br2-external/aqua/board/aqua/x86_64/post-build.sh
+grep -Fq 'runtime_dir=/run/user/1000' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'runtime_asset_root=/usr/share/aqua' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'autostart=false' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'boot_graphics=false' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'recovery_tty_required=true' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'export WAYLAND_DISPLAY=aqua-wayland-0' br2-external/aqua/board/aqua/x86_64/post-build.sh
-grep -Fq 'export XDG_RUNTIME_DIR=/run/aqua' br2-external/aqua/board/aqua/x86_64/post-build.sh
+grep -Fq 'export XDG_RUNTIME_DIR=/run/user/1000' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'export AQUA_ASSET_ROOT=/usr/share/aqua' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq '/etc/aqua/session.env' br2-external/aqua/rootfs-overlay/etc/profile
 grep -Fq '/usr/bin/aqua-compositor status' br2-external/aqua/rootfs-overlay/usr/bin/aqua-recovery
@@ -1344,11 +1345,11 @@ grep -Fq "report session-check ok 'no_graphics=true'" br2-external/aqua/rootfs-o
 grep -Fq 'AQUA_SESSION_ROOT' br2-external/aqua/rootfs-overlay/usr/bin/aqua-session-check
 grep -Fq 'AQUA_SESSION_RUN_DIR' br2-external/aqua/rootfs-overlay/usr/bin/aqua-session-check
 grep -Fq '[AQUA-BOOT] stage=session-config status=ok autostart=false boot_graphics=false recovery_tty=true' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
-grep -Fq '[AQUA-BOOT] stage=session-runtime status=ok runtime_dir=/run/aqua' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
-grep -Fq '[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/aqua assets=/usr/share/aqua' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
+grep -Fq '[AQUA-BOOT] stage=session-runtime status=ok user=aqua uid=1000 runtime_dir=/run/user/1000 control_dir=/run/aqua mode=0700' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
+grep -Fq '[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/user/1000 assets=/usr/share/aqua' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
 grep -Fq '[AQUA-BOOT] stage=compositor-binary status=packaged autostart=false boot_graphics=false' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
 grep -Fq '[AQUA-BOOT] stage=compositor-status status=ok mode=nested-dev' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
-grep -Fq '[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/aqua autostart=false boot_graphics=false session_started=false' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
+grep -Fq '[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/user/1000 autostart=false boot_graphics=false session_started=false' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
 grep -Fq '[AQUA-BOOT] stage=compositor-assets status=ok root=/usr/share/aqua' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
 grep -Fq '[AQUA-BOOT] stage=output-plan status=ok backend=nested-dev-window boot_graphics=false renderer_started=false' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
 grep -Fq '[AQUA-BOOT] stage=visible-preview-plan status=ok preview_window_started=false boot_graphics=false renderer_started=false' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
@@ -1362,10 +1363,10 @@ grep -Fq '[AQUA-BOOT] stage=surface-primitives status=ok layers=15 boot_graphics
 grep -Fq '[AQUA-BOOT] stage=raster-export status=ok bytes=4718609 boot_graphics=false renderer_started=false' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
 grep -Fq '[AQUA-BOOT] stage=raster-png-export status=ok bytes=6293028 boot_graphics=false renderer_started=false' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
 grep -Fq '[AQUA-BOOT] stage=session-check status=ok no_graphics=true' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
-grep -Fq '[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/aqua assets=/usr/share/aqua' scripts/check-boot.sh
+grep -Fq '[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/user/1000 assets=/usr/share/aqua' scripts/check-boot.sh
 grep -Fq '[AQUA-BOOT] stage=compositor-binary status=packaged autostart=false boot_graphics=false' scripts/check-boot.sh
 grep -Fq '[AQUA-BOOT] stage=compositor-status status=ok mode=nested-dev' scripts/check-boot.sh
-grep -Fq '[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/aqua autostart=false boot_graphics=false session_started=false' scripts/check-boot.sh
+grep -Fq '[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/user/1000 autostart=false boot_graphics=false session_started=false' scripts/check-boot.sh
 grep -Fq '[AQUA-BOOT] stage=compositor-assets status=ok root=/usr/share/aqua' scripts/check-boot.sh
 grep -Fq '[AQUA-BOOT] stage=output-plan status=ok backend=nested-dev-window boot_graphics=false renderer_started=false' scripts/check-boot.sh
 grep -Fq '[AQUA-BOOT] stage=visible-preview-plan status=ok preview_window_started=false boot_graphics=false renderer_started=false' scripts/check-boot.sh

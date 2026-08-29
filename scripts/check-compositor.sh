@@ -41,7 +41,7 @@ check_output_contains "callback_invoked=ok" cargo run -p aqua-compositor -- smok
 check_output_contains "dispatch_clients=ok" cargo run -p aqua-compositor -- smoke-calloop-socket
 check_output_contains "flush_clients=ok" cargo run -p aqua-compositor -- smoke-calloop-socket
 check_output_contains "[AQUA-COMPOSITOR] stage=session-config status=ok" cargo run -p aqua-compositor -- probe-session-config
-check_output_contains "runtime_dir=/run/aqua" cargo run -p aqua-compositor -- probe-session-config
+check_output_contains "runtime_dir=/run/user/1000" cargo run -p aqua-compositor -- probe-session-config
 check_output_contains "runtime_asset_root=/usr/share/aqua" cargo run -p aqua-compositor -- probe-session-config
 check_output_contains "autostart=false" cargo run -p aqua-compositor -- probe-session-config
 check_output_contains "boot_graphics=false" cargo run -p aqua-compositor -- probe-session-config
@@ -50,12 +50,12 @@ check_output_contains "source=file" cargo run -p aqua-compositor -- probe-sessio
 check_output_contains "[AQUA-COMPOSITOR] stage=session-config status=ok" cargo run -p aqua-compositor -- probe-session-config "${TEMP_ROOT}/etc/aqua/compositor-session.conf"
 check_output_contains "[AQUA-COMPOSITOR] stage=session-env status=ok" cargo run -p aqua-compositor -- probe-session-env
 check_output_contains "WAYLAND_DISPLAY=aqua-wayland-0" cargo run -p aqua-compositor -- probe-session-env
-check_output_contains "XDG_RUNTIME_DIR=/run/aqua" cargo run -p aqua-compositor -- probe-session-env
+check_output_contains "XDG_RUNTIME_DIR=/run/user/1000" cargo run -p aqua-compositor -- probe-session-env
 check_output_contains "AQUA_ASSET_ROOT=/usr/share/aqua" cargo run -p aqua-compositor -- probe-session-env
 check_output_contains "source=file" cargo run -p aqua-compositor -- probe-session-env "${TEMP_ROOT}/etc/aqua/compositor-session.conf"
 check_output_contains "[AQUA-COMPOSITOR] stage=session-env status=ok" cargo run -p aqua-compositor -- probe-session-env "${TEMP_ROOT}/etc/aqua/compositor-session.conf"
 check_output_contains "[AQUA-COMPOSITOR] stage=session-bootstrap status=ok" cargo run -p aqua-compositor -- probe-session-bootstrap "${TEMP_ROOT}/etc/aqua/compositor-session.conf" "${TEMP_ROOT}/run/aqua"
-check_output_contains "configured_runtime_dir=/run/aqua" cargo run -p aqua-compositor -- probe-session-bootstrap "${TEMP_ROOT}/etc/aqua/compositor-session.conf" "${TEMP_ROOT}/run/aqua"
+check_output_contains "configured_runtime_dir=/run/user/1000" cargo run -p aqua-compositor -- probe-session-bootstrap "${TEMP_ROOT}/etc/aqua/compositor-session.conf" "${TEMP_ROOT}/run/user/1000"
 check_output_contains "runtime_dir_prepared=ok" cargo run -p aqua-compositor -- probe-session-bootstrap "${TEMP_ROOT}/etc/aqua/compositor-session.conf" "${TEMP_ROOT}/run/aqua"
 check_output_contains "autostart_blocked=ok" cargo run -p aqua-compositor -- probe-session-bootstrap "${TEMP_ROOT}/etc/aqua/compositor-session.conf" "${TEMP_ROOT}/run/aqua"
 check_output_contains "boot_graphics_blocked=ok" cargo run -p aqua-compositor -- probe-session-bootstrap "${TEMP_ROOT}/etc/aqua/compositor-session.conf" "${TEMP_ROOT}/run/aqua"

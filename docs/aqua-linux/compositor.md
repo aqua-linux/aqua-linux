@@ -16,7 +16,7 @@ cargo run -p aqua-compositor -- smoke-socket
 cargo run -p aqua-compositor -- smoke-calloop-socket
 cargo run -p aqua-compositor -- probe-session-config
 cargo run -p aqua-compositor -- probe-session-env
-cargo run -p aqua-compositor -- probe-session-bootstrap /etc/aqua/compositor-session.conf /run/aqua
+cargo run -p aqua-compositor -- probe-session-bootstrap /etc/aqua/compositor-session.conf /run/user/1000
 cargo run -p aqua-compositor -- probe-session
 cargo run -p aqua-compositor -- probe-scene
 cargo run -p aqua-compositor -- dump-scene
@@ -299,7 +299,7 @@ the CRTC, and returns to recovery. The Wayland display is deliberately not
 started in this step; joining Wayland client dispatch and DRM dispatch in one
 living session remains the final M6 integration task.
 `run-drm-wayland-session` now provides that bounded shared lifecycle. It binds
-`/run/aqua/aqua-wayland-drm-0`, creates the real Smithay compositor, shm,
+`/run/user/1000/aqua-wayland-drm-0`, creates the real Smithay compositor, shm,
 xdg-shell, and Aqua Seat globals, then starts two separate xdg-toplevel client
 processes through the bound socket. Both clients complete configure/ack, commit
 independent 384x256 wl_shm buffers, and their overlapping surfaces are
@@ -437,12 +437,12 @@ Implemented now:
 - Minimal Smithay Wayland socket lifecycle and local client insert smoke path on Linux.
 - Minimal Calloop-driven socket dispatch, local client insert, `dispatch_clients`, and `flush_clients` smoke path on Linux.
 - Session skeleton that owns the Wayland display and compositor state behind a narrow insert/dispatch/flush API.
-- Recovery-safe session config defaults for `/run/aqua`, `aqua-wayland-0`, `/usr/share/aqua`, `autostart=false`, `boot_graphics=false`, and fallback TTY.
+- Recovery-safe session config defaults for `/run/user/1000`, `aqua-wayland-0`, `/usr/share/aqua`, `autostart=false`, `boot_graphics=false`, and fallback TTY.
 - Buildroot writes the same recovery-safe session contract to `/etc/aqua/compositor-session.conf`.
 - `probe-session-config` can validate either the built-in defaults or the rootfs config file.
 - `probe-session-env` derives the recovery-safe shell environment from the same defaults or rootfs config file.
 - `probe-session-bootstrap` prepares the runtime directory from the config while proving compositor autostart, boot graphics, and desktop shell startup remain disabled.
-- Boot creates `/run/aqua` for the Aqua Wayland socket; the default recovery profile does not start a graphical session, while explicit QEMU profiles do.
+- Boot creates private `/run/user/1000` for the Aqua Wayland socket and keeps `/run/aqua` for supervisor control evidence; the default recovery profile does not start a graphical session, while explicit QEMU profiles drop to the locked `aqua` account first.
 - Session run-once smoke that accepts one local client, dispatches, flushes, and cleans up through the session entrypoint.
 - Bounded session-loop smoke that runs three dispatch/flush passes after accepting one local client.
 - Manual-dev nested preview frame-loop smoke that runs a three-frame preview clock over the deterministic visible preview export without autostarting graphics.

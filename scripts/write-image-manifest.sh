@@ -577,7 +577,7 @@ graphics_drm_wayland_capture_dimensions=$(contract_file_contains "${WAYLAND_SESS
 graphics_drm_wayland_ppm_checksum=$(capture_checksum_status "${WAYLAND_SESSION_QEMU_PPM}" "ppm_sha256" "${WAYLAND_SESSION_QEMU_CAPTURE}")
 graphics_drm_wayland_png_checksum=$(capture_checksum_status "${WAYLAND_SESSION_QEMU_PNG}" "png_sha256" "${WAYLAND_SESSION_QEMU_CAPTURE}")
 session_config_probe=$(contract_file_contains "${CONTRACT_DIR}/session-config.txt" "[AQUA-COMPOSITOR] stage=session-config status=ok")
-session_config_runtime_dir=$(contract_file_contains "${CONTRACT_DIR}/session-config.txt" "runtime_dir=/run/aqua")
+session_config_runtime_dir=$(contract_file_contains "${CONTRACT_DIR}/session-config.txt" "runtime_dir=/run/user/1000")
 session_env_probe=$(contract_file_contains "${CONTRACT_DIR}/session-env.txt" "[AQUA-COMPOSITOR] stage=session-env status=ok")
 session_env_wayland=$(contract_file_contains "${CONTRACT_DIR}/session-env.txt" "WAYLAND_DISPLAY=aqua-wayland-0")
 session_bootstrap_probe=$(contract_file_contains "${CONTRACT_DIR}/session-bootstrap.txt" "[AQUA-COMPOSITOR] stage=session-bootstrap status=ok")
@@ -1190,12 +1190,12 @@ filesystems_mounted=$(marker_status '[AQUA-BOOT] stage=filesystems-mounted statu
 fbdev_device=$(marker_status '[AQUA-BOOT] stage=fbdev-device status=ok device=/dev/fb0 mode=')
 os_release=$(marker_status '[AQUA-BOOT] stage=os-release id=aqua pretty="Aqua Linux Milestone 1"')
 session_config=$(marker_status '[AQUA-BOOT] stage=session-config status=ok autostart=false boot_graphics=false recovery_tty=true')
-session_runtime=$(marker_status '[AQUA-BOOT] stage=session-runtime status=ok runtime_dir=/run/aqua')
-session_env=$(marker_status '[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/aqua assets=/usr/share/aqua')
+session_runtime=$(marker_status '[AQUA-BOOT] stage=session-runtime status=ok user=aqua uid=1000 runtime_dir=/run/user/1000 control_dir=/run/aqua mode=0700')
+session_env=$(marker_status '[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/user/1000 assets=/usr/share/aqua')
 runtime_assets_ready=$(marker_status '[AQUA-BOOT] stage=runtime-assets-ready milestone=2 status=ok')
 compositor_binary=$(marker_status '[AQUA-BOOT] stage=compositor-binary status=packaged autostart=false boot_graphics=false')
 compositor_status=$(marker_status '[AQUA-BOOT] stage=compositor-status status=ok mode=nested-dev')
-session_bootstrap=$(marker_status '[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/aqua autostart=false boot_graphics=false session_started=false')
+session_bootstrap=$(marker_status '[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/user/1000 autostart=false boot_graphics=false session_started=false')
 compositor_assets=$(marker_status '[AQUA-BOOT] stage=compositor-assets status=ok root=/usr/share/aqua')
 output_plan=$(marker_status '[AQUA-BOOT] stage=output-plan status=ok backend=nested-dev-window boot_graphics=false renderer_started=false')
 visible_preview_plan=$(marker_status '[AQUA-BOOT] stage=visible-preview-plan status=ok preview_window_started=false boot_graphics=false renderer_started=false')
@@ -2468,12 +2468,12 @@ cat > "${MANIFEST_JSON}" <<EOF
     "fbdev_device": "$(marker_status '[AQUA-BOOT] stage=fbdev-device status=ok device=/dev/fb0 mode=')",
     "os_release": "$(marker_status '[AQUA-BOOT] stage=os-release id=aqua pretty="Aqua Linux Milestone 1"')",
     "session_config": "$(marker_status '[AQUA-BOOT] stage=session-config status=ok autostart=false boot_graphics=false recovery_tty=true')",
-    "session_runtime": "$(marker_status '[AQUA-BOOT] stage=session-runtime status=ok runtime_dir=/run/aqua')",
-    "session_env": "$(marker_status '[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/aqua assets=/usr/share/aqua')",
+    "session_runtime": "$(marker_status '[AQUA-BOOT] stage=session-runtime status=ok user=aqua uid=1000 runtime_dir=/run/user/1000 control_dir=/run/aqua mode=0700')",
+    "session_env": "$(marker_status '[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/user/1000 assets=/usr/share/aqua')",
     "runtime_assets_ready": "$(marker_status '[AQUA-BOOT] stage=runtime-assets-ready milestone=2 status=ok')",
     "compositor_binary": "$(marker_status '[AQUA-BOOT] stage=compositor-binary status=packaged autostart=false boot_graphics=false')",
     "compositor_status": "$(marker_status '[AQUA-BOOT] stage=compositor-status status=ok mode=nested-dev')",
-    "session_bootstrap": "$(marker_status '[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/aqua autostart=false boot_graphics=false session_started=false')",
+    "session_bootstrap": "$(marker_status '[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/user/1000 autostart=false boot_graphics=false session_started=false')",
     "compositor_assets": "$(marker_status '[AQUA-BOOT] stage=compositor-assets status=ok root=/usr/share/aqua')",
     "output_plan": "$(marker_status '[AQUA-BOOT] stage=output-plan status=ok backend=nested-dev-window boot_graphics=false renderer_started=false')",
     "visible_preview_plan": "$(marker_status '[AQUA-BOOT] stage=visible-preview-plan status=ok preview_window_started=false boot_graphics=false renderer_started=false')",

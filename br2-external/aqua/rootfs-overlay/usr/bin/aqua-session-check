@@ -21,6 +21,7 @@ run_path() {
 }
 
 COMPOSITOR_BIN="${AQUA_COMPOSITOR_BIN:-$(root_path /usr/bin/aqua-compositor)}"
+SESSION_RUNTIME_DIR="$(run_path user/1000)"
 
 report() {
     stage="$1"
@@ -76,9 +77,6 @@ run_probe() {
     fi
 }
 
-mkdir -p "$(run_path aqua)"
-chmod 700 "$(run_path aqua)" 2>/dev/null || true
-
 need_grep session-config "$(root_path /etc/aqua/compositor-session.conf)" '^autostart=false$' 'autostart=false'
 need_grep session-config "$(root_path /etc/aqua/compositor-session.conf)" '^boot_graphics=false$' 'boot_graphics=false'
 need_grep session-config "$(root_path /etc/aqua/compositor-session.conf)" '^recovery_tty_required=true$' 'recovery_tty=true'
@@ -87,7 +85,7 @@ need_grep graphics-session-profile "$(root_path /etc/aqua/compositor-session-gra
 need_grep graphics-session-profile "$(root_path /etc/aqua/compositor-session-graphics.conf)" '^recovery_tty_required=true$' 'recovery_tty=true'
 
 need_grep session-env "$(root_path /etc/aqua/session.env)" '^export WAYLAND_DISPLAY=aqua-wayland-0$' 'wayland=aqua-wayland-0'
-need_grep session-env "$(root_path /etc/aqua/session.env)" '^export XDG_RUNTIME_DIR=/run/aqua$' 'xdg=/run/aqua'
+need_grep session-env "$(root_path /etc/aqua/session.env)" '^export XDG_RUNTIME_DIR=/run/user/1000$' 'xdg=/run/user/1000'
 need_grep session-env "$(root_path /etc/aqua/session.env)" '^export AQUA_ASSET_ROOT=/usr/share/aqua$' 'assets=/usr/share/aqua'
 need_grep graphics-session-env "$(root_path /etc/aqua/session-graphics.env)" '^export AQUA_BOOT_GRAPHICS=true$' 'boot_graphics=true'
 need_grep graphics-session-env "$(root_path /etc/aqua/session-graphics.env)" '^export AQUA_COMPOSITOR_AUTOSTART=true$' 'autostart=true'
@@ -96,10 +94,18 @@ need_grep graphics-session-env "$(root_path /etc/aqua/session-graphics.env)" '^e
 need_grep graphics-session-env "$(root_path /etc/aqua/session-graphics.env)" '^export AQUA_DRM_WAYLAND_EXTERNAL_CLIENT_REQUIRED=false$' 'external_fixtures=false'
 need_grep graphics-session-env "$(root_path /etc/aqua/session-graphics.env)" '^export AQUA_DRM_WAYLAND_SCENARIO=desktop-event-loop$' 'scenario=desktop-event-loop'
 
-if [ -d "$(run_path aqua)" ]; then
-    pass session-runtime 'runtime_dir=/run/aqua'
+need_grep session-user "$(root_path /etc/passwd)" '^aqua:x:1000:1000:.*:/home/aqua:/bin/false$' 'user=aqua uid=1000 gid=1000 login=locked'
+need_grep session-groups "$(root_path /etc/group)" '^video:.*:aqua$' 'group=video member=aqua'
+need_grep session-groups "$(root_path /etc/group)" '^audio:.*:aqua$' 'group=audio member=aqua'
+need_grep session-groups "$(root_path /etc/group)" '^input:.*:aqua$' 'group=input member=aqua'
+
+runtime_owner="$(ls -nd "${SESSION_RUNTIME_DIR}" 2>/dev/null | awk '{print $3 ":" $4}')"
+runtime_permissions="$(LC_ALL=C ls -ld "${SESSION_RUNTIME_DIR}" 2>/dev/null | awk '{print substr($1, 1, 10)}')"
+if [ ! -L "${SESSION_RUNTIME_DIR}" ] && [ -d "${SESSION_RUNTIME_DIR}" ] &&
+   [ "${runtime_owner}" = '1000:1000' ] && [ "${runtime_permissions}" = 'drwx------' ]; then
+    pass session-runtime 'user=aqua uid=1000 runtime_dir=/run/user/1000 mode=0700'
 else
-    fail session-runtime 'runtime_dir=/run/aqua'
+    fail session-runtime "user=aqua uid=1000 runtime_dir=/run/user/1000 owner=${runtime_owner:-missing} permissions=${runtime_permissions:-missing}"
 fi
 
 need_file runtime-assets "$(root_path /usr/share/aqua/tokens/design-tokens.json)" 'tokens=present'
@@ -110,6 +116,8 @@ need_file guarded-run-tool "$(root_path /usr/bin/aqua-compositor-guarded-run)" '
 need_file graphical-session-supervisor-tool "$(root_path /usr/bin/aqua-graphical-session-supervisor)" 'graphical_session_supervisor_tool=present'
 need_file graphical-session-boot-tool "$(root_path /usr/bin/aqua-graphical-session-boot)" 'graphical_session_boot_tool=present'
 need_file graphical-session-stop-tool "$(root_path /usr/bin/aqua-graphical-session-stop)" 'graphical_session_stop_tool=present'
+need_file session-runtime-prepare-tool "$(root_path /usr/bin/aqua-session-runtime-prepare)" 'session_runtime_prepare_tool=present'
+need_file session-user-launch-tool "$(root_path /usr/bin/aqua-session-user-launch)" 'session_user_launch_tool=present'
 need_file handoff-gate-tool "$(root_path /usr/bin/aqua-compositor-handoff-gate)" 'handoff_gate_tool=present'
 need_file visible-preview-request-tool "$(root_path /usr/bin/aqua-visible-preview-request)" 'visible_preview_request_tool=present'
 need_file visible-preview-launch-tool "$(root_path /usr/bin/aqua-visible-preview-launch)" 'visible_preview_launch_tool=present'
@@ -134,7 +142,7 @@ if [ -x "${COMPOSITOR_BIN}" ]; then
     run_probe compositor-status "$(run_path aqua-session-status.log)" 'mode=nested-dev' \
         "${COMPOSITOR_BIN}" status
     run_probe session-bootstrap "$(run_path aqua-session-bootstrap.log)" 'session_started=false' \
-        "${COMPOSITOR_BIN}" probe-session-bootstrap "$(root_path /etc/aqua/compositor-session.conf)" "$(run_path aqua)"
+        "${COMPOSITOR_BIN}" probe-session-bootstrap "$(root_path /etc/aqua/compositor-session.conf)" "${SESSION_RUNTIME_DIR}"
     run_probe output-plan "$(run_path aqua-session-output-plan.log)" 'backend=nested-dev-window renderer_started=false' \
         "${COMPOSITOR_BIN}" probe-output-plan
     run_probe visible-preview-plan "$(run_path aqua-session-visible-preview-plan.log)" 'preview_window_started=false renderer_started=false' \
@@ -161,7 +169,7 @@ if [ -x "${COMPOSITOR_BIN}" ]; then
         AQUA_COMPOSITOR_CONFIG="$(root_path /etc/aqua/compositor-session.conf)" \
         AQUA_SESSION_ENV="$(root_path /etc/aqua/session.env)" \
         AQUA_COMPOSITOR_BIN="${COMPOSITOR_BIN}" \
-        AQUA_RUNTIME_DIR="$(run_path aqua)" \
+        AQUA_RUNTIME_DIR="${SESSION_RUNTIME_DIR}" \
         run_probe manual-launch-plan "$(run_path aqua-session-manual-launch-plan.log)" 'manual_launch_plan=ok display_output_started=false' \
             "$(root_path /usr/bin/aqua-compositor-manual-launch)"
     else

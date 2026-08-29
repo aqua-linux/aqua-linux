@@ -1,0 +1,51 @@
+#!/bin/sh
+
+set -eu
+
+SESSION_USER="${AQUA_SESSION_USER:-aqua}"
+SESSION_UID="${AQUA_SESSION_UID:-1000}"
+SESSION_GID="${AQUA_SESSION_GID:-1000}"
+SESSION_RUNTIME_DIR="${AQUA_SESSION_RUNTIME_DIR:-/run/user/1000}"
+COMMAND="${1:-}"
+ALLOWED_COMMAND="${AQUA_SESSION_ALLOWED_COMMAND:-/usr/bin/aqua-graphical-session-supervisor}"
+DRY_RUN="${AQUA_SESSION_USER_LAUNCH_DRY_RUN:-false}"
+
+mark() {
+    echo "[AQUA-SESSION] stage=session-user-launch status=$1 $2"
+}
+
+if [ "$#" -ne 1 ] || [ "${COMMAND}" != "${ALLOWED_COMMAND}" ] ||
+   [ -z "${COMMAND}" ] || [ "${COMMAND#/}" = "${COMMAND}" ] ||
+   [ ! -f "${COMMAND}" ] || [ ! -x "${COMMAND}" ] || [ -L "${COMMAND}" ]; then
+    mark failed "reason=invalid-command"
+    exit 2
+fi
+
+if [ "$(id -u "${SESSION_USER}" 2>/dev/null || true)" != "${SESSION_UID}" ] ||
+   [ "$(id -g "${SESSION_USER}" 2>/dev/null || true)" != "${SESSION_GID}" ]; then
+    mark failed "reason=identity-mismatch user=${SESSION_USER} uid=${SESSION_UID} gid=${SESSION_GID}"
+    exit 2
+fi
+
+owner="$(ls -nd "${SESSION_RUNTIME_DIR}" 2>/dev/null | awk '{print $3 ":" $4}')"
+permissions="$(LC_ALL=C ls -ld "${SESSION_RUNTIME_DIR}" 2>/dev/null | awk '{print substr($1, 1, 10)}')"
+if [ -L "${SESSION_RUNTIME_DIR}" ] || [ ! -d "${SESSION_RUNTIME_DIR}" ] ||
+   [ "${owner}" != "${SESSION_UID}:${SESSION_GID}" ] ||
+   [ "${permissions}" != "drwx------" ]; then
+    mark failed "reason=unsafe-runtime-directory path=${SESSION_RUNTIME_DIR}"
+    exit 2
+fi
+
+if [ "${DRY_RUN}" = true ]; then
+    mark ok "mode=dry-run user=${SESSION_USER} uid=${SESSION_UID} gid=${SESSION_GID} command=${COMMAND}"
+    exit 0
+fi
+
+if [ "$(id -u)" -ne 0 ]; then
+    mark failed "reason=launcher-not-root"
+    exit 2
+fi
+
+export XDG_RUNTIME_DIR="${SESSION_RUNTIME_DIR}"
+mark starting "user=${SESSION_USER} uid=${SESSION_UID} gid=${SESSION_GID} runtime_dir=${SESSION_RUNTIME_DIR} command=${COMMAND}"
+exec su -s "${COMMAND}" "${SESSION_USER}"

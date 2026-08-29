@@ -6,7 +6,7 @@
 
 | Field | Value |
 | --- | --- |
-| Updated | 2026-08-29 |
+| Updated | 2026-08-30 |
 | OS base | Buildroot |
 | Graphics target | custom Wayland compositor |
 | Development target | QEMU x86_64 |
@@ -27,7 +27,7 @@ Roadmap progress and product readiness are separate measurements. Mandatory rele
 
 ## Current Stage
 
-Milestone 12 is complete with accepted typography, elevation, Aqua Core Icon integration, semantic state motion, and all twenty-two shared component primitives. The independent aqua-components crate owns renderer-neutral anatomy, stable state geometry, input activation, and accessibility semantics. Settings Audio supplies the final real slider consumer through a bounded persistent 0-100 output-volume preference, mute state, and fail-closed device availability, without claiming backend application, playback, routing, or hardware support. ADR 0004 selects ALSA/eudev, per-user PipeWire, WirePlumber policy, and an authoritative Aqua adapter for the future R4 audio path. The OS baseline is now pinned to supported Buildroot 2025.02.17 LTS with checksum and source-integrity gates; audio packaging remains blocked on unprivileged session ownership, bounded supervision, permissions, adapter implementation, and runtime evidence. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.
+Milestone 12 is complete with accepted typography, elevation, Aqua Core Icon integration, semantic state motion, and all twenty-two shared component primitives. The independent aqua-components crate owns renderer-neutral anatomy, stable state geometry, input activation, and accessibility semantics. Settings Audio supplies the final real slider consumer through a bounded persistent 0-100 output-volume preference, mute state, and fail-closed device availability, without claiming backend application, playback, routing, or hardware support. ADR 0004 selects ALSA/eudev, per-user PipeWire, WirePlumber policy, and an authoritative Aqua adapter for the future R4 audio path. The OS baseline is pinned to Buildroot 2025.02.17 LTS. The graphical path now drops from root to locked aqua UID/GID 1000, owns private /run/user/1000, and receives explicit video, audio, and input groups while recovery remains separate. Audio packaging remains blocked on ordered per-user media-service supervision, adapter implementation, and runtime evidence. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.
 
 ## Phases
 
@@ -60,7 +60,7 @@ Phases are ordered by their most recent update.
 
 ## Next Developments
 
-1. Establish the unprivileged persistent Aqua session, runtime-directory ownership, sound-device permissions, and bounded per-user supervision required by ADR 0004 before packaging PipeWire, WirePlumber, ALSA, and the Aqua audio adapter.
+1. Implement the ordered, bounded per-user media-service supervisor required by ADR 0004 before packaging PipeWire, WirePlumber, ALSA, and the Aqua audio adapter.
 2. Baseline the R2 presentation path and enforce production no-readback, frame scheduling, damage, latency, resource, and dropped-frame acceptance while keeping diagnostic readback isolated.
 3. Implement the R3-R6 Wayland compatibility, unprivileged session, system service, accessibility, internationalization, signed update, rollback, and security gates.
 4. After core desktop functionality supplies real consumers, consolidate the proven typography, component, layout, focus, accessibility, lifecycle, and renderer contracts into the internal Aqua UI framework defined by ADR 0003.

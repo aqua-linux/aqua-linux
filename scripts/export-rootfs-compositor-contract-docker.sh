@@ -366,6 +366,9 @@ EOF
         "${tmp_dir}/aqua-compositor" dump-raster-png-export > "${CONTRACT_DIR}/raster-png-export-dump.txt"
         "${tmp_dir}/aqua-compositor" export-raster-png "${CONTRACT_DIR}/aqua-raster.png" > "${CONTRACT_DIR}/raster-png-export.txt"
         "${tmp_dir}/aqua-compositor" smoke-session-loop > "${CONTRACT_DIR}/session-loop.txt"
+        mkdir -p "${tmp_dir}/run/user/1000" "${tmp_dir}/run/aqua"
+        chown 1000:1000 "${tmp_dir}/run/user/1000" "${tmp_dir}/run/aqua"
+        chmod 700 "${tmp_dir}/run/user/1000" "${tmp_dir}/run/aqua"
         AQUA_SESSION_ROOT="${tmp_dir}/rootfs" \
         AQUA_SESSION_RUN_DIR="${tmp_dir}/run" \
         AQUA_COMPOSITOR_BIN="${tmp_dir}/aqua-compositor" \

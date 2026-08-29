@@ -22,11 +22,13 @@ spawn qemu-system-x86_64 \
     -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.boot_graphics=1} \
     -serial stdio \
     -monitor unix:$env(MONITOR_SOCKET),server=on,wait=off \
+    -qmp unix:$env(QMP_SOCKET),server=on,wait=off \
     -display none \
+    -vnc unix:$env(VNC_SOCKET) \
     -vga none \
     -device virtio-vga \
     -device virtio-keyboard-pci \
-    -device virtio-mouse-pci \
+    -device virtio-mouse-pci,id=aqua-pointer \
     -netdev user,id=net0 \
     -device virtio-net-pci,netdev=net0 \
     -no-reboot
@@ -64,6 +66,26 @@ run_shell_check {grep -Fq 'boot_graphics=true' /run/aqua/graphical-session-super
 run_shell_check {grep -Fq 'persistent_graphical_session_started=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'session_lifetime_policy=persistent-until-stop' /run/aqua/graphical-session-supervisor.log || ok=0} "checking persistent lifetime policy"
 run_shell_check {grep -Fq 'session_scenario=desktop-event-loop' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'external_fixture_clients_started=false' /run/aqua/graphical-session-supervisor.log || ok=0} "checking production desktop scenario"
 run_shell_check {grep -Fq 'state=running' /run/aqua/graphical-session-supervisor.state || ok=0; kill -0 "$pid" 2>/dev/null || ok=0} "checking the first running process"
+run_shell_check {supervisor_uid="$(awk '/^Uid:/{print $2}' "/proc/$pid/status")"; supervisor_gid="$(awk '/^Gid:/{print $2}' "/proc/$pid/status")"; compositor_pid="$(pidof aqua-compositor | awk '{print $1}')"} "reading unprivileged session identities"
+run_shell_check {[ "$supervisor_uid" = 1000 ] || ok=0; [ "$supervisor_gid" = 1000 ] || ok=0; [ "$(awk '/^Uid:/{print $2}' "/proc/$compositor_pid/status")" = 1000 ] || ok=0; [ "$(awk '/^Gid:/{print $2}' "/proc/$compositor_pid/status")" = 1000 ] || ok=0} "checking supervisor and compositor identity"
+run_shell_check {groups=" $(id -G aqua) "; case "$groups" in *' 28 '*) ;; *) ok=0;; esac; case "$groups" in *' 29 '*) ;; *) ok=0;; esac; case "$groups" in *' 30 '*) ;; *) ok=0;; esac} "checking Aqua device groups"
+run_shell_check {[ "$(ls -nd /run/user/1000 | awk '{print $3 ":" $4}')" = 1000:1000 ] || ok=0; [ "$(LC_ALL=C ls -ld /run/user/1000 | awk '{print substr($1,1,10)}')" = drwx------ ] || ok=0; [ -S /run/user/1000/aqua-wayland-drm-0 ] || ok=0} "checking user-owned Wayland runtime"
+run_shell_check {echo "[AQUA-DIAG] process-groups=$(awk '/^Groups:/{for(i=2;i<=NF;i++)printf "%s%s",$i,(i<NF?",":"")}' "/proc/$compositor_pid/status")"; ls -ln /dev/input/event*; ls -l "/proc/$compositor_pid/fd" | grep '/dev/input/' || true; grep -E 'input_source=|libinput' /run/aqua/graphical-session-supervisor.log | tail -n 12 || true} "reporting unprivileged input access"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=unprivileged-session-qemu status=ok user=aqua uid=1000 gid=1000 groups=video,audio,input runtime=/run/user/1000 mode=0700 compositor_uid=1000'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=unprivileged-session-qemu status=ok user=aqua uid=1000 gid=1000 groups=video,audio,input runtime=/run/user/1000 mode=0700 compositor_uid=1000} {}
+    timeout { puts stderr "Unprivileged graphical session contract failed"; exit 1 }
+    eof { puts stderr "QEMU exited before unprivileged session verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Unprivileged session verification did not return to shell"; exit 1 }
+    eof { puts stderr "QEMU exited after unprivileged session verification"; exit 1 }
+}
+
 send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=graphical-boot-qemu status=ok activation=supervised drm_wayland=active persistent=true scenario=desktop-event-loop fixtures=false recovery_tty=available'}
 send -- "\r"
 
@@ -123,7 +145,7 @@ if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) bottom-applicat
 }
 
 run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'desktop_bottom_shell_activation=Applications' /run/aqua/graphical-session-supervisor.log)" -lt 2 ]; do sleep 1; i=$((i + 1)); done} "waiting for bottom Applications activations"
-run_shell_check {ok=1; [ "$(grep -Fc 'desktop_bottom_shell_activation=Applications' /run/aqua/graphical-session-supervisor.log)" -ge 2 ] || ok=0} "checking bottom Applications input"
+run_shell_check {activation_count="$(grep -Fc 'desktop_bottom_shell_activation=Applications' /run/aqua/graphical-session-supervisor.log)"; ok=1; [ "$activation_count" -ge 2 ] || ok=0; grep -E 'desktop_(primary|pointer|bottom_shell|input)' /run/aqua/graphical-session-supervisor.log | tail -n 40 || true} "checking bottom Applications input"
 send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-bottom-shell-input-qemu status=ok target=applications activations=2 bounded=true'}
 send -- "\r"
 
@@ -292,7 +314,7 @@ expect {
     eof { puts stderr "QEMU exited after Properties close verification"; exit 1 }
 }
 
-run_shell_check {mkdir -p /home/aqua/Trash/folder; printf '%s\n' discard > /home/aqua/Trash/note.txt} "seeding the confined Trash fixture"
+run_shell_check {mkdir -p /home/aqua/Trash/folder; printf '%s\n' discard > /home/aqua/Trash/note.txt; chown -R aqua:aqua /home/aqua/Trash} "seeding the confined Trash fixture"
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) trash-empty} input_error]} {
     puts stderr "QEMU Trash confirmation input injection failed: $input_error"
     exit 1
@@ -346,7 +368,7 @@ if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(THEME_LI
 }
 
 run_shell_check {files_pid_before="$(pidof aqua-files)"; settings_pid_before="$(pidof aqua-settings)"; repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; test -n "$files_pid_before"; test -n "$settings_pid_before"} "recording live theme process and repaint state"
-run_shell_check {config=/home/aqua/.config/aqua/settings.conf; temporary="${config}.theme-test"; sed 's/^theme=.*/theme=Deepside/' "$config" > "$temporary" && chmod 600 "$temporary" && mv "$temporary" "$config"} "atomically selecting the Deepside theme"
+run_shell_check {config=/home/aqua/.config/aqua/settings.conf; temporary="${config}.theme-test"; sed 's/^theme=.*/theme=Deepside/' "$config" > "$temporary" && chmod 600 "$temporary" && chown aqua:aqua "$temporary" && mv "$temporary" "$config"} "atomically selecting the Deepside theme"
 run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_runtime_theme_broadcast=Deepside' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the desktop theme broadcast"
 run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_runtime_theme_changed=Deepside app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Settings theme redraw"
 run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_runtime_theme_changed=Deepside app_id=aqua.files' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Files theme redraw"
@@ -636,7 +658,7 @@ send -- {/usr/bin/aqua-graphical-session-boot}
 send -- "\r"
 
 expect {
-    -re {\[AQUA-BOOT\] stage=graphical-session-activation status=started mode=supervised pid=[0-9]+ boot_graphics=true autostart=true recovery_tty=true} {}
+    -re {\[AQUA-BOOT\] stage=graphical-session-activation status=started mode=supervised-unprivileged user=aqua uid=1000 pid=[0-9]+ runtime_dir=/run/user/1000 boot_graphics=true autostart=true recovery_tty=true} {}
     timeout { puts stderr "Second graphical session did not start"; exit 1 }
     eof { puts stderr "QEMU exited before second graphical session start"; exit 1 }
 }
@@ -681,7 +703,7 @@ expect {
     eof { puts stderr "QEMU exited after second graphical stop"; exit 1 }
 }
 
-run_shell_check {ok=1; test ! -e /run/aqua/graphical-session-supervisor.pid || ok=0; test ! -e /run/aqua/aqua-wayland-drm-0 || ok=0} "checking final PID and socket cleanup"
+run_shell_check {ok=1; test ! -e /run/aqua/graphical-session-supervisor.pid || ok=0; test ! -e /run/user/1000/aqua-wayland-drm-0 || ok=0} "checking final PID and socket cleanup"
 run_shell_check {[ "$(grep -Fc 'graceful_stop_completed=true' /run/aqua/graphical-session-supervisor.log)" -ge 2 ] || ok=0; [ "$(grep -Fc 'external_fixture_clients_started=false' /run/aqua/graphical-session-supervisor.log)" -ge 2 ] || ok=0} "checking two-cycle production cleanup"
 send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=graphical-session-cycle-qemu status=ok starts=2 stops=2 sockets_clean=true pids_clean=true clients_clean=true drm_clean=true recovery_return=ok'}
 send -- "\r"

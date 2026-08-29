@@ -6,9 +6,10 @@ CONFIG_PATH="${AQUA_COMPOSITOR_CONFIG:-/etc/aqua/compositor-session.conf}"
 ENV_PATH="${AQUA_SESSION_ENV:-/etc/aqua/session.env}"
 COMPOSITOR_BIN="${AQUA_COMPOSITOR_BIN:-/usr/bin/aqua-compositor}"
 RECOVERY_BIN="${AQUA_RECOVERY_BIN:-/usr/bin/aqua-recovery}"
-RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
-STATE_FILE="${AQUA_GRAPHICS_SUPERVISOR_STATE_FILE:-${RUNTIME_DIR}/graphical-session-supervisor.state}"
-PID_FILE="${AQUA_GRAPHICS_SUPERVISOR_PID_FILE:-${RUNTIME_DIR}/graphical-session-supervisor.pid}"
+CONTROL_DIR="${AQUA_SESSION_CONTROL_DIR:-${AQUA_RUNTIME_DIR:-/run/aqua}}"
+SESSION_RUNTIME_DIR="${AQUA_SESSION_RUNTIME_DIR:-/run/user/1000}"
+STATE_FILE="${AQUA_GRAPHICS_SUPERVISOR_STATE_FILE:-${CONTROL_DIR}/graphical-session-supervisor.state}"
+PID_FILE="${AQUA_GRAPHICS_SUPERVISOR_PID_FILE:-${CONTROL_DIR}/graphical-session-supervisor.pid}"
 DRM_DEVICE="${AQUA_DRM_DEVICE:-/dev/dri/card0}"
 MAX_RESTARTS="${AQUA_GRAPHICS_MAX_RESTARTS:-3}"
 RESTART_DELAY="${AQUA_GRAPHICS_RESTART_DELAY_SECONDS:-2}"
@@ -53,11 +54,11 @@ case "${MAX_RESTARTS}:${RESTART_DELAY}:${STABLE_SECONDS}" in
         ;;
 esac
 
-mkdir -p "${RUNTIME_DIR}" || {
+mkdir -p "${CONTROL_DIR}" || {
     mark error "reason=runtime-directory"
     exit 2
 }
-chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
+chmod 700 "${CONTROL_DIR}" 2>/dev/null || true
 
 echo "product=Aqua Linux"
 echo "tool=aqua-graphical-session-supervisor"
@@ -97,6 +98,12 @@ if [ ! -x "${COMPOSITOR_BIN}" ]; then
 fi
 
 [ -f "${ENV_PATH}" ] && . "${ENV_PATH}"
+
+if [ "$(id -u)" -eq 0 ] || [ "${XDG_RUNTIME_DIR:-}" != "${SESSION_RUNTIME_DIR}" ]; then
+    write_state blocked 0 0 0
+    mark blocked "reason=unprivileged-session-contract uid=$(id -u) runtime_dir=${XDG_RUNTIME_DIR:-missing}"
+    exit 1
+fi
 
 attempts=0
 restarts=0

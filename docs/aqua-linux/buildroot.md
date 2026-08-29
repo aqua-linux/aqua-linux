@@ -70,9 +70,9 @@ Success markers:
 [AQUA-BOOT] stage=filesystems-mounted status=ok
 [AQUA-BOOT] stage=os-release id=aqua pretty="Aqua Linux Milestone 1"
 [AQUA-BOOT] stage=session-config status=ok autostart=false boot_graphics=false recovery_tty=true
-[AQUA-BOOT] stage=session-runtime status=ok runtime_dir=/run/aqua
-[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/aqua assets=/usr/share/aqua
-[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/aqua autostart=false boot_graphics=false session_started=false
+[AQUA-BOOT] stage=session-runtime status=ok user=aqua uid=1000 runtime_dir=/run/user/1000 control_dir=/run/aqua mode=0700
+[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/user/1000 assets=/usr/share/aqua
+[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/user/1000 autostart=false boot_graphics=false session_started=false
 [AQUA-BOOT] stage=compositor-assets status=ok root=/usr/share/aqua
 [AQUA-BOOT] stage=output-plan status=ok backend=nested-dev-window boot_graphics=false renderer_started=false
 [AQUA-BOOT] stage=visible-preview-plan status=ok preview_window_started=false boot_graphics=false renderer_started=false
@@ -99,7 +99,7 @@ Current values:
 
 ```text
 wayland_socket=aqua-wayland-0
-runtime_dir=/run/aqua
+runtime_dir=/run/user/1000
 runtime_asset_root=/usr/share/aqua
 autostart=false
 boot_graphics=false
@@ -121,7 +121,14 @@ line containing `aqua.boot_graphics=1`. Its launcher fixture also proves that
 the compositor supervisor is not invoked when the kernel opt-in is absent, the
 graphics profile is missing, or the fallback TTY requirement is disabled.
 
-Boot creates `/run/aqua` from this contract before checking the compositor binary. Graphical profiles use it for the Aqua Wayland socket and session runtime files.
+Buildroot creates a locked `aqua` desktop account with fixed UID/GID 1000 and
+membership in `video`, `audio`, and `input`. Boot rejects symlink or
+non-directory runtime targets, then prepares `/run/user/1000` as `1000:1000`
+with mode `0700`. The Wayland socket and user-session IPC live there.
+`/run/aqua` remains a separate user-owned control directory for bounded
+supervisor state and recovery evidence. The root boot process enters graphics
+only through `aqua-session-user-launch`, which drops to the `aqua` identity;
+the root recovery TTY remains independent.
 
 The image also writes the derived session environment to:
 
@@ -131,7 +138,7 @@ Current exported values:
 
 ```text
 WAYLAND_DISPLAY=aqua-wayland-0
-XDG_RUNTIME_DIR=/run/aqua
+XDG_RUNTIME_DIR=/run/user/1000
 AQUA_ASSET_ROOT=/usr/share/aqua
 AQUA_SESSION_MODE=nested-dev
 AQUA_COMPOSITOR_AUTOSTART=false
@@ -140,7 +147,7 @@ AQUA_BOOT_GRAPHICS=false
 
 The recovery profile sources this file, but the graphical session is still not autostarted.
 
-If `/usr/bin/aqua-compositor` is packaged, boot also runs the recovery-safe bootstrap probe against `/etc/aqua/compositor-session.conf` and `/run/aqua`. The probe writes `/run/aqua-compositor-bootstrap.log`, emits a serial marker, and exits without starting a compositor session.
+If `/usr/bin/aqua-compositor` is packaged, boot also runs the recovery-safe bootstrap probe against `/etc/aqua/compositor-session.conf` and `/run/user/1000`. The probe writes `/run/aqua-compositor-bootstrap.log`, emits a serial marker, and exits without starting a compositor session.
 
 Boot also runs non-graphical compositor contract probes for runtime assets, static scene geometry, and the headless render plan. These write logs under `/run/aqua-compositor-*.log` and emit serial markers, but they do not draw pixels or start a desktop.
 
@@ -150,11 +157,12 @@ Boot also runs non-graphical compositor contract probes for runtime assets, stat
 PipeWire and WirePlumber, with Aqua consuming authoritative service state
 through a bounded adapter. The Buildroot 2025.02.17 LTS defconfig keeps
 PipeWire, WirePlumber, alsa-lib, Lua, and GLib unselected. eudev is already
-packaged for general device discovery, but no audio-session permission or
-routing policy exists. Aqua must still establish the unprivileged user session
-and its owned runtime directory, then prove ordered supervision and device
-permissions. No root-owned media daemon or globally writable `/dev/snd`
-fallback is permitted.
+packaged for general device discovery. Aqua now has a locked unprivileged
+graphical-session identity, a private user-owned runtime directory, and
+explicit `video`, `audio`, and `input` group membership. Audio packaging must
+still add ordered per-user media-service supervision and authoritative adapter
+evidence. No root-owned media daemon or globally writable `/dev/snd` fallback
+is permitted.
 
 `/usr/bin/aqua-session-check` is the recovery-safe aggregate checker for the same contract. Boot writes its output to `/run/aqua-session-check.log`, and users can run it manually from the recovery shell.
 

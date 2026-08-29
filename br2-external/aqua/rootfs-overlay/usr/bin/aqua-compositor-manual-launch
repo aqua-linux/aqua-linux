@@ -95,13 +95,13 @@ echo "compositor_bin=${COMPOSITOR_BIN}"
 
 need_value "mode" "${mode}" "nested-dev"
 need_value "wayland_display" "${wayland_socket}" "aqua-wayland-0"
-need_value "runtime_dir" "${configured_runtime_dir}" "/run/aqua"
+need_value "runtime_dir" "${configured_runtime_dir}" "/run/user/1000"
 need_value "runtime_asset_root" "${runtime_asset_root}" "/usr/share/aqua"
 need_value "autostart" "${autostart}" "false"
 need_value "boot_graphics" "${boot_graphics}" "false"
 need_value "recovery_tty_required" "${recovery_tty_required}" "true"
 need_value "session_env_wayland" "${env_wayland}" "aqua-wayland-0"
-need_value "session_env_runtime_dir" "${env_runtime_dir}" "/run/aqua"
+need_value "session_env_runtime_dir" "${env_runtime_dir}" "/run/user/1000"
 need_value "session_env_asset_root" "${env_asset_root}" "/usr/share/aqua"
 
 mkdir -p "${RUNTIME_DIR}" 2>/dev/null || failures=$((failures + 1))

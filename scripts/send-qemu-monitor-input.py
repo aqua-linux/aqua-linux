@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import os
+import json
+import re
 import socket
 import sys
 import time
@@ -18,27 +20,26 @@ MODES = {
         "mouse_move 220 0", "mouse_button 1", "mouse_button 0",
     ),
     "launcher-after-dock": (
-        "sendkey a 100", "sendkey b 100", "sendkey meta_l 100",
-        "mouse_move -387 -461", "mouse_button 1", "mouse_button 0",
-        "mouse_move 233 0", "mouse_button 1", "mouse_button 0",
+        "sendkey f 100", "sendkey i 100", "sendkey l 100",
+        "sendkey e 100", "sendkey s 100", "sendkey ret 100",
     ),
     "bottom-applications-activate": (
-        "mouse_move -301 208", "mouse_button 1", "mouse_button 0",
+        "mouse_move -756 208", "mouse_button 1", "mouse_button 0",
         "mouse_button 1", "mouse_button 0",
     ),
     "desktop-context": (),
     "notification-promote": (
-        "mouse_move -211 -86", "mouse_button 2", "mouse_button 0",
-        "mouse_move 101 39", "mouse_button 1", "mouse_button 0",
-        "mouse_move 150 87", "mouse_move 150 87", "mouse_move 150 87",
-        "mouse_move 150 87", "mouse_move 150 87", "mouse_move 150 87",
-        "mouse_move 245 127", "mouse_button 1", "mouse_button 0",
-        "mouse_move -728 -337", "mouse_move -688 -423", "mouse_move 50 55",
+        "mouse_move -2000 -2000", "mouse_move 26 49",
+        "mouse_button 2", "mouse_button 0",
+        "mouse_move 102 55", "mouse_button 1", "mouse_button 0",
+        "mouse_move 3000 3000", "mouse_move -29 -87",
         "mouse_button 1", "mouse_button 0",
     ),
     "trash-empty": (
-        "mouse_move 0 208", "mouse_button 2", "mouse_button 0",
-        "mouse_move 101 48", "mouse_button 1", "mouse_button 0",
+        "mouse_move -3000 -3000", "mouse_move 26 163",
+        "mouse_button 2", "mouse_button 0",
+        "mouse_move -3000 -3000", "mouse_move 82 189",
+        "mouse_button 1", "mouse_button 0",
         "mouse_button 1", "mouse_button 0", "sendkey meta_l 100",
         "sendkey s 100", "sendkey e 100", "sendkey t 100", "sendkey t 100",
         "sendkey i 100", "sendkey n 100", "sendkey g 100", "sendkey s 100",
@@ -70,7 +71,10 @@ MODES = {
         + ("mouse_move 350 0",)
         + ("mouse_move 1 0", "mouse_move -1 0") * 8
     ),
-    "settings-reset": ("sendkey home 100",),
+    "settings-reset": (
+        "mouse_move -3000 -3000", "mouse_move 800 500",
+        "mouse_button 1", "mouse_button 0", "sendkey home 100",
+    ),
     "close-settings": ("sendkey alt-f4 250",),
     "properties-refresh": ("sendkey f5 100",),
     "close-properties": ("sendkey alt-f4 250",),
@@ -185,6 +189,146 @@ def execute_commands(
             time.sleep(delay)
 
 
+def select_virtio_pointer(connection: socket.socket) -> None:
+    connection.sendall(b"info mice\n")
+    response = receive_until_prompt(connection)
+    match = re.search(rb"Mouse #(\d+): QEMU Virtio Mouse", response)
+    if match is None:
+        raise RuntimeError("QEMU Virtio Mouse was not listed by the monitor")
+    execute_commands(
+        connection,
+        (f"mouse_set {match.group(1).decode('ascii')}",),
+        delay=0,
+    )
+
+
+def mode_uses_pointer(mode: str) -> bool:
+    return any(command.startswith("mouse_") for command in MODES[mode])
+
+
+def receive_qmp_result(connection: socket.socket) -> dict:
+    while True:
+        line = connection.makefile("rb", buffering=0).readline()
+        if not line:
+            raise ConnectionError("QEMU QMP monitor closed before returning a result")
+        response = json.loads(line)
+        if "return" in response or "error" in response:
+            return response
+
+
+def execute_qmp(connection: socket.socket, command: dict) -> None:
+    connection.sendall(json.dumps(command, separators=(",", ":")).encode() + b"\n")
+    response = receive_qmp_result(connection)
+    if "error" in response:
+        raise RuntimeError(response["error"].get("desc", str(response["error"])))
+
+
+def initialize_qmp(connection: socket.socket) -> None:
+    greeting = json.loads(connection.makefile("rb", buffering=0).readline())
+    if "QMP" not in greeting:
+        raise RuntimeError("QEMU QMP greeting was not received")
+    execute_qmp(connection, {"execute": "qmp_capabilities"})
+
+
+def execute_mode_with_qmp(
+    hmp: socket.socket, qmp: socket.socket, mode: str, delay: float
+) -> None:
+    pressed_button = None
+    for command in MODES[mode]:
+        parts = command.split()
+        if parts[0] == "mouse_move":
+            events = []
+            for axis, value in zip(("x", "y", "z"), parts[1:]):
+                if int(value):
+                    events.append(
+                        {"type": "rel", "data": {"axis": axis, "value": int(value)}}
+                    )
+            if events:
+                execute_qmp(
+                    qmp,
+                    {
+                        "execute": "input-send-event",
+                        "arguments": {"events": events},
+                    },
+                )
+        elif parts[0] == "mouse_button":
+            button_mask = int(parts[1])
+            if button_mask:
+                button = {1: "left", 2: "right", 4: "middle"}.get(button_mask)
+                if button is None:
+                    raise ValueError(f"unsupported mouse button mask: {button_mask}")
+                pressed_button = button
+                down = True
+            else:
+                button = pressed_button or "left"
+                pressed_button = None
+                down = False
+            execute_qmp(
+                qmp,
+                {
+                    "execute": "input-send-event",
+                    "arguments": {
+                        "events": [
+                            {"type": "btn", "data": {"button": button, "down": down}}
+                        ],
+                    },
+                },
+            )
+        elif parts[0] == "sendkey":
+            key_parts = parts[1].split("-")
+            modifiers = key_parts[:-1]
+            qcode = key_parts[-1]
+            events = [
+                {
+                    "type": "key",
+                    "data": {
+                        "down": True,
+                        "key": {"type": "qcode", "data": modifier},
+                    },
+                }
+                for modifier in modifiers
+            ]
+            events.extend(
+                [
+                    {
+                        "type": "key",
+                        "data": {
+                            "down": True,
+                            "key": {"type": "qcode", "data": qcode},
+                        },
+                    },
+                    {
+                        "type": "key",
+                        "data": {
+                            "down": False,
+                            "key": {"type": "qcode", "data": qcode},
+                        },
+                    },
+                ]
+            )
+            events.extend(
+                {
+                    "type": "key",
+                    "data": {
+                        "down": False,
+                        "key": {"type": "qcode", "data": modifier},
+                    },
+                }
+                for modifier in reversed(modifiers)
+            )
+            execute_qmp(
+                qmp,
+                {
+                    "execute": "input-send-event",
+                    "arguments": {"events": events},
+                },
+            )
+        else:
+            execute_commands(hmp, (command,), delay=0)
+        if delay:
+            time.sleep(delay)
+
+
 def mode_delay(mode: str) -> float:
     if mode == "basic":
         return 0
@@ -221,6 +365,11 @@ def serve(monitor_socket: str, control_socket: str) -> int:
         with connect_unix(monitor_socket, 120) as monitor:
             monitor.settimeout(30)
             receive_until_prompt(monitor)
+            qmp_socket = os.environ.get("AQUA_QEMU_QMP_SOCKET")
+            qmp = connect_unix(qmp_socket, 120) if qmp_socket else None
+            if qmp is not None:
+                qmp.settimeout(30)
+                initialize_qmp(qmp)
             while True:
                 client, _ = server.accept()
                 with client:
@@ -234,15 +383,26 @@ def serve(monitor_socket: str, control_socket: str) -> int:
                                 monitor, (request.removeprefix("raw:"),), delay=0
                             )
                         elif request in MODES:
-                            execute_commands(
-                                monitor, MODES[request], delay=mode_delay(request)
-                            )
+                            if qmp is not None:
+                                if mode_uses_pointer(request):
+                                    select_virtio_pointer(monitor)
+                                execute_mode_with_qmp(
+                                    monitor, qmp, request, delay=mode_delay(request)
+                                )
+                            else:
+                                if mode_uses_pointer(request):
+                                    select_virtio_pointer(monitor)
+                                execute_commands(
+                                    monitor, MODES[request], delay=mode_delay(request)
+                                )
                         else:
                             raise ValueError(f"unsupported input mode: {request}")
                     except Exception as error:
                         client.sendall(f"error: {error}\n".encode("utf-8"))
                     else:
                         client.sendall(b"ok\n")
+            if qmp is not None:
+                qmp.close()
     finally:
         server.close()
         try:
@@ -282,6 +442,8 @@ def main() -> int:
     with connect_unix(monitor_socket, 10) as connection:
         connection.settimeout(10)
         receive_until_prompt(connection)
+        if mode_uses_pointer(mode):
+            select_virtio_pointer(connection)
         execute_commands(connection, MODES[mode], delay=mode_delay(mode))
     return 0
 

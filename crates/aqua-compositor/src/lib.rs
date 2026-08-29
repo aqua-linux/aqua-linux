@@ -417,7 +417,7 @@ pub const EVENT_LOOP: &str = "calloop";
 pub const EVENT_LOOP_VERSION: &str = "0.14.4";
 pub const DEFAULT_WAYLAND_SOCKET: &str = "aqua-wayland-0";
 pub const DEFAULT_RUNTIME_ASSET_ROOT: &str = aqua_scene::RUNTIME_ASSET_ROOT;
-pub const DEFAULT_SESSION_RUNTIME_DIR: &str = "/run/aqua";
+pub const DEFAULT_SESSION_RUNTIME_DIR: &str = "/run/user/1000";
 pub const FIRST_OUTPUT_BACKEND: &str = "nested-dev-window";
 pub const LATER_OUTPUT_BACKEND: &str = "qemu-drm-kms";
 
@@ -9628,7 +9628,7 @@ mod tests {
         assert_eq!(config.product, PRODUCT);
         assert_eq!(config.mode, DEV_MODE);
         assert_eq!(config.wayland_socket, "aqua-wayland-0");
-        assert_eq!(config.runtime_dir, "/run/aqua");
+        assert_eq!(config.runtime_dir, "/run/user/1000");
         assert_eq!(config.runtime_asset_root, "/usr/share/aqua");
         assert!(!config.autostart);
         assert!(!config.boot_graphics);
@@ -9641,7 +9641,7 @@ mod tests {
         let env = default_session_environment();
 
         assert_eq!(env.wayland_display, "aqua-wayland-0");
-        assert_eq!(env.xdg_runtime_dir, "/run/aqua");
+        assert_eq!(env.xdg_runtime_dir, "/run/user/1000");
         assert_eq!(env.aqua_asset_root, "/usr/share/aqua");
         assert_eq!(env.aqua_session_mode, "nested-dev");
         assert!(!env.aqua_compositor_autostart);
@@ -10171,7 +10171,7 @@ mod tests {
             "product=Aqua Linux\n\
              mode=nested-dev\n\
              wayland_socket=aqua-wayland-0\n\
-             runtime_dir=/run/aqua\n\
+             runtime_dir=/run/user/1000\n\
              runtime_asset_root=/usr/share/aqua\n\
              autostart=false\n\
              boot_graphics=false\n\
@@ -10191,7 +10191,7 @@ mod tests {
             "product=Aqua Linux\n\
              mode=nested-dev\n\
              wayland_socket=aqua-wayland-0\n\
-             runtime_dir=/run/aqua\n\
+             runtime_dir=/run/user/1000\n\
              runtime_asset_root=/usr/share/aqua\n\
              autostart=true\n\
              boot_graphics=false\n\
@@ -10208,7 +10208,7 @@ mod tests {
             "product=Aqua Linux\n\
              mode=nested-dev\n\
              wayland_socket=aqua-wayland-0\n\
-             runtime_dir=/run/aqua\n\
+             runtime_dir=/run/user/1000\n\
              runtime_asset_root=/usr/share/aqua\n\
              autostart=false\n\
              boot_graphics=false\n\
@@ -10227,7 +10227,7 @@ mod tests {
         let probe =
             probe_session_bootstrap(&config, &runtime_dir).expect("bootstrap probe should run");
 
-        assert_eq!(probe.configured_runtime_dir, "/run/aqua");
+        assert_eq!(probe.configured_runtime_dir, "/run/user/1000");
         assert_eq!(probe.wayland_display, "aqua-wayland-0");
         assert!(probe.runtime_dir_prepared);
         assert!(probe.runtime_dir_private);
