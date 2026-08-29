@@ -5,7 +5,7 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 12 is complete with accepted typography, elevation, Aqua Core Icon integration, semantic state motion, and all twenty-two shared component primitives. The independent aqua-components crate owns renderer-neutral anatomy, stable state geometry, input activation, and accessibility semantics. Settings Audio supplies the final real slider consumer through a bounded persistent 0-100 output-volume preference, mute state, and fail-closed device availability, without claiming backend application, playback, routing, or hardware support. ADR 0004 now selects ALSA/eudev, per-user PipeWire, WirePlumber policy, and an authoritative Aqua adapter for the future R4 audio path; packaging remains blocked on a supported Buildroot LTS, unprivileged session ownership, bounded supervision, permissions, and runtime evidence. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
+  "currentStage": "Milestone 12 is complete with accepted typography, elevation, Aqua Core Icon integration, semantic state motion, and all twenty-two shared component primitives. The independent aqua-components crate owns renderer-neutral anatomy, stable state geometry, input activation, and accessibility semantics. Settings Audio supplies the final real slider consumer through a bounded persistent 0-100 output-volume preference, mute state, and fail-closed device availability, without claiming backend application, playback, routing, or hardware support. ADR 0004 selects ALSA/eudev, per-user PipeWire, WirePlumber policy, and an authoritative Aqua adapter for the future R4 audio path. The OS baseline is now pinned to supported Buildroot 2025.02.17 LTS with checksum and source-integrity gates; audio packaging remains blocked on unprivileged session ownership, bounded supervision, permissions, adapter implementation, and runtime evidence. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
   "updated": "2026-08-29",
   "overallPercent": 92,
   "readiness": {
@@ -131,7 +131,7 @@
     }
   ],
   "nextSteps": [
-    "Move to a supported Buildroot LTS and establish the unprivileged session and supervision prerequisites from ADR 0004 before packaging PipeWire, WirePlumber, ALSA, and the Aqua audio adapter.",
+    "Establish the unprivileged persistent Aqua session, runtime-directory ownership, sound-device permissions, and bounded per-user supervision required by ADR 0004 before packaging PipeWire, WirePlumber, ALSA, and the Aqua audio adapter.",
     "Baseline the R2 presentation path and enforce production no-readback, frame scheduling, damage, latency, resource, and dropped-frame acceptance while keeping diagnostic readback isolated.",
     "Implement the R3-R6 Wayland compatibility, unprivileged session, system service, accessibility, internationalization, signed update, rollback, and security gates.",
     "After core desktop functionality supplies real consumers, consolidate the proven typography, component, layout, focus, accessibility, lifecycle, and renderer contracts into the internal Aqua UI framework defined by ADR 0003.",

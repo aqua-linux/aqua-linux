@@ -296,11 +296,10 @@ if [ -x "${TARGET_DIR}/usr/bin/weston-simple-shm" ] || \
     fi
     rm -f "${TARGET_DIR}/usr/bin/weston" "${TARGET_DIR}/usr/bin/weston-"*
     rm -rf \
-        "${TARGET_DIR}/usr/lib/libweston-12" \
-        "${TARGET_DIR}/usr/lib/libweston-12.so"* \
+        "${TARGET_DIR}/usr/lib/libweston-"* \
         "${TARGET_DIR}/usr/lib/weston" \
         "${TARGET_DIR}/usr/libexec/weston-"* \
-        "${TARGET_DIR}/usr/share/libweston-12" \
+        "${TARGET_DIR}/usr/share/libweston-"* \
         "${TARGET_DIR}/usr/share/wayland-sessions/weston.desktop" \
         "${TARGET_DIR}/usr/share/weston"
     cat > "${TARGET_DIR}/usr/share/doc/aqua/wayland-compat-client.txt" <<'EOF'
