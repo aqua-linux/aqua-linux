@@ -65,6 +65,356 @@ pub const DESKTOP_CONTEXT_MENU_ROW_HEIGHT: u32 = 36;
 pub const TRASH_ENTRY_LIMIT: usize = 256;
 pub const DOCK_ITEM_COUNT: usize = 3;
 pub const WORKSPACE_COUNT: usize = 3;
+pub const MOTION_DURATION_IMMEDIATE_MS: u64 = 0;
+pub const MOTION_DURATION_FEEDBACK_MS: u64 = 90;
+pub const MOTION_DURATION_SHORT_MS: u64 = 140;
+pub const MOTION_DURATION_STANDARD_MS: u64 = 200;
+pub const MOTION_DURATION_SPATIAL_MS: u64 = 280;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MotionEasing {
+    Standard,
+    Enter,
+    Exit,
+}
+
+impl MotionEasing {
+    pub const fn control_points(self) -> [f32; 4] {
+        match self {
+            Self::Standard => [0.2, 0.0, 0.0, 1.0],
+            Self::Enter => [0.0, 0.0, 0.0, 1.0],
+            Self::Exit => [0.3, 0.0, 1.0, 1.0],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SemanticMotion {
+    Feedback,
+    Panel,
+    Menu,
+    Window,
+    Workspace,
+    Notification,
+    Progress,
+    Attention,
+}
+
+impl SemanticMotion {
+    pub const fn duration_ms(self) -> u64 {
+        match self {
+            Self::Feedback => MOTION_DURATION_FEEDBACK_MS,
+            Self::Menu => MOTION_DURATION_SHORT_MS,
+            Self::Panel | Self::Window | Self::Notification | Self::Progress => {
+                MOTION_DURATION_STANDARD_MS
+            }
+            Self::Workspace | Self::Attention => MOTION_DURATION_SPATIAL_MS,
+        }
+    }
+
+    pub const fn is_spatial(self) -> bool {
+        matches!(
+            self,
+            Self::Panel
+                | Self::Menu
+                | Self::Window
+                | Self::Workspace
+                | Self::Notification
+                | Self::Attention
+        )
+    }
+
+    pub const fn repeats(self) -> bool {
+        matches!(self, Self::Attention)
+    }
+
+    pub const fn repeats_allowed(self, reduced_motion: bool, visible: bool) -> bool {
+        self.repeats() && !reduced_motion && visible
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MotionSample {
+    pub value: f32,
+    pub active: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MotionValue {
+    rendered: f32,
+    start: f32,
+    target: f32,
+    started_at_ms: u64,
+    duration_ms: u64,
+    easing: MotionEasing,
+    active: bool,
+}
+
+impl MotionValue {
+    pub const fn new(value: f32) -> Self {
+        Self {
+            rendered: value,
+            start: value,
+            target: value,
+            started_at_ms: 0,
+            duration_ms: 0,
+            easing: MotionEasing::Standard,
+            active: false,
+        }
+    }
+
+    pub fn rendered(&self) -> f32 {
+        self.rendered
+    }
+
+    pub fn target(&self) -> f32 {
+        self.target
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.active
+    }
+
+    pub fn settle(&mut self, value: f32) -> MotionSample {
+        let value = value.clamp(0.0, 1.0);
+        self.rendered = value;
+        self.start = value;
+        self.target = value;
+        self.duration_ms = 0;
+        self.active = false;
+        MotionSample {
+            value,
+            active: false,
+        }
+    }
+
+    pub fn retarget(
+        &mut self,
+        now_ms: u64,
+        target: f32,
+        role: SemanticMotion,
+        reduced_motion: bool,
+    ) -> MotionSample {
+        let current = self.sample(now_ms).value;
+        self.start = current;
+        self.rendered = current;
+        self.target = target.clamp(0.0, 1.0);
+        self.started_at_ms = now_ms;
+        self.duration_ms = if reduced_motion && role.is_spatial() {
+            MOTION_DURATION_IMMEDIATE_MS
+        } else {
+            role.duration_ms()
+        };
+        self.easing = if self.target >= current {
+            MotionEasing::Enter
+        } else {
+            MotionEasing::Exit
+        };
+        self.active = self.duration_ms > 0 && (self.target - current).abs() > f32::EPSILON;
+        if !self.active {
+            self.rendered = self.target;
+            self.start = self.target;
+        }
+        MotionSample {
+            value: self.rendered,
+            active: self.active,
+        }
+    }
+
+    pub fn sample(&mut self, now_ms: u64) -> MotionSample {
+        if !self.active {
+            return MotionSample {
+                value: self.rendered,
+                active: false,
+            };
+        }
+        let elapsed_ms = now_ms.saturating_sub(self.started_at_ms);
+        if elapsed_ms >= self.duration_ms {
+            self.rendered = self.target;
+            self.start = self.target;
+            self.active = false;
+        } else {
+            let progress = elapsed_ms as f32 / self.duration_ms as f32;
+            let eased = cubic_bezier_progress(progress, self.easing.control_points());
+            self.rendered = self.start + (self.target - self.start) * eased;
+        }
+        MotionSample {
+            value: self.rendered,
+            active: self.active,
+        }
+    }
+}
+
+fn cubic_bezier_progress(progress: f32, points: [f32; 4]) -> f32 {
+    let progress = progress.clamp(0.0, 1.0);
+    let [x1, y1, x2, y2] = points;
+    let component = |time: f32, first: f32, second: f32| {
+        let inverse = 1.0 - time;
+        3.0 * inverse * inverse * time * first
+            + 3.0 * inverse * time * time * second
+            + time * time * time
+    };
+    let mut low = 0.0_f32;
+    let mut high = 1.0_f32;
+    for _ in 0..16 {
+        let time = (low + high) * 0.5;
+        if component(time, x1, x2) < progress {
+            low = time;
+        } else {
+            high = time;
+        }
+    }
+    component((low + high) * 0.5, y1, y2).clamp(0.0, 1.0)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShellMotionSurface {
+    Launcher,
+    SessionMenu,
+    Notification,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ShellSurfaceMotionSample {
+    pub opacity: f32,
+    pub offset_x: i32,
+    pub offset_y: i32,
+    pub active: bool,
+}
+
+impl ShellSurfaceMotionSample {
+    const fn hidden() -> Self {
+        Self {
+            opacity: 0.0,
+            offset_x: 0,
+            offset_y: 0,
+            active: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ShellMotionFrame {
+    pub launcher: ShellSurfaceMotionSample,
+    pub session_menu: ShellSurfaceMotionSample,
+    pub notification: ShellSurfaceMotionSample,
+}
+
+impl ShellMotionFrame {
+    pub fn is_active(self) -> bool {
+        self.launcher.active || self.session_menu.active || self.notification.active
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ShellMotionController {
+    reduced_motion: bool,
+    launcher: MotionValue,
+    session_menu: MotionValue,
+    notification: MotionValue,
+}
+
+impl Default for ShellMotionController {
+    fn default() -> Self {
+        Self {
+            reduced_motion: false,
+            launcher: MotionValue::new(0.0),
+            session_menu: MotionValue::new(0.0),
+            notification: MotionValue::new(0.0),
+        }
+    }
+}
+
+impl ShellMotionController {
+    pub fn reduced_motion(&self) -> bool {
+        self.reduced_motion
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.launcher.is_active() || self.session_menu.is_active() || self.notification.is_active()
+    }
+
+    pub fn set_reduced_motion(&mut self, now_ms: u64, reduced_motion: bool) -> bool {
+        if self.reduced_motion == reduced_motion {
+            return false;
+        }
+        self.reduced_motion = reduced_motion;
+        if reduced_motion {
+            for (motion, role) in [
+                (&mut self.launcher, SemanticMotion::Panel),
+                (&mut self.session_menu, SemanticMotion::Menu),
+                (&mut self.notification, SemanticMotion::Notification),
+            ] {
+                motion.retarget(now_ms, motion.target(), role, true);
+            }
+        }
+        true
+    }
+
+    pub fn set_visible(&mut self, surface: ShellMotionSurface, visible: bool, now_ms: u64) {
+        let target = if visible { 1.0 } else { 0.0 };
+        let (motion, role) = match surface {
+            ShellMotionSurface::Launcher => (&mut self.launcher, SemanticMotion::Panel),
+            ShellMotionSurface::SessionMenu => (&mut self.session_menu, SemanticMotion::Menu),
+            ShellMotionSurface::Notification => {
+                (&mut self.notification, SemanticMotion::Notification)
+            }
+        };
+        if (motion.target() - target).abs() > f32::EPSILON {
+            motion.retarget(now_ms, target, role, self.reduced_motion);
+        }
+    }
+
+    pub fn settle_visible(&mut self, surface: ShellMotionSurface, visible: bool) {
+        let value = if visible { 1.0 } else { 0.0 };
+        match surface {
+            ShellMotionSurface::Launcher => self.launcher.settle(value),
+            ShellMotionSurface::SessionMenu => self.session_menu.settle(value),
+            ShellMotionSurface::Notification => self.notification.settle(value),
+        };
+    }
+
+    pub fn sample(&mut self, now_ms: u64) -> ShellMotionFrame {
+        let reduced_motion = self.reduced_motion;
+        ShellMotionFrame {
+            launcher: surface_motion_sample(self.launcher.sample(now_ms), 0, 18, reduced_motion),
+            session_menu: surface_motion_sample(
+                self.session_menu.sample(now_ms),
+                0,
+                12,
+                reduced_motion,
+            ),
+            notification: surface_motion_sample(
+                self.notification.sample(now_ms),
+                20,
+                0,
+                reduced_motion,
+            ),
+        }
+    }
+}
+
+fn surface_motion_sample(
+    sample: MotionSample,
+    travel_x: i32,
+    travel_y: i32,
+    reduced_motion: bool,
+) -> ShellSurfaceMotionSample {
+    if sample.value <= 0.0 && !sample.active {
+        return ShellSurfaceMotionSample::hidden();
+    }
+    let travel = if reduced_motion {
+        0.0
+    } else {
+        1.0 - sample.value
+    };
+    ShellSurfaceMotionSample {
+        opacity: sample.value,
+        offset_x: (travel_x as f32 * travel).round() as i32,
+        offset_y: (travel_y as f32 * travel).round() as i32,
+        active: sample.active,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalView {
@@ -2649,6 +2999,109 @@ pub fn probe_launcher_model() -> LauncherProbe {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn close(left: f32, right: f32) {
+        assert!((left - right).abs() < 0.0001, "{left} != {right}");
+    }
+
+    #[test]
+    fn semantic_motion_tokens_match_the_published_contract() {
+        assert_eq!(SemanticMotion::Feedback.duration_ms(), 90);
+        assert_eq!(SemanticMotion::Menu.duration_ms(), 140);
+        assert_eq!(SemanticMotion::Panel.duration_ms(), 200);
+        assert_eq!(SemanticMotion::Workspace.duration_ms(), 280);
+        assert_eq!(
+            MotionEasing::Standard.control_points(),
+            [0.2, 0.0, 0.0, 1.0]
+        );
+        assert_eq!(MotionEasing::Enter.control_points(), [0.0, 0.0, 0.0, 1.0]);
+        assert_eq!(MotionEasing::Exit.control_points(), [0.3, 0.0, 1.0, 1.0]);
+        assert!(SemanticMotion::Attention.repeats());
+        assert!(!SemanticMotion::Progress.repeats());
+        assert!(SemanticMotion::Attention.repeats_allowed(false, true));
+        assert!(!SemanticMotion::Attention.repeats_allowed(false, false));
+        assert!(!SemanticMotion::Attention.repeats_allowed(true, true));
+    }
+
+    #[test]
+    fn motion_is_frame_time_driven_across_refresh_rates() {
+        let sample_at = |step_ms: u64| {
+            let mut motion = MotionValue::new(0.0);
+            motion.retarget(1_000, 1.0, SemanticMotion::Panel, false);
+            let mut now = 1_000;
+            while now < 1_100 {
+                now = (now + step_ms).min(1_100);
+                motion.sample(now);
+            }
+            motion.rendered()
+        };
+        let at_60_hz = sample_at(17);
+        let at_90_hz = sample_at(11);
+        let at_120_hz = sample_at(8);
+        let at_144_hz = sample_at(7);
+        close(at_60_hz, at_90_hz);
+        close(at_60_hz, at_120_hz);
+        close(at_60_hz, at_144_hz);
+        assert!(at_60_hz > 0.8 && at_60_hz < 1.0);
+
+        let mut motion = MotionValue::new(0.0);
+        motion.retarget(1_000, 1.0, SemanticMotion::Panel, false);
+        close(motion.sample(1_000).value, 0.0);
+        assert_eq!(motion.sample(1_200).value, 1.0);
+        assert!(!motion.is_active());
+    }
+
+    #[test]
+    fn interruption_and_reversal_start_from_the_rendered_value() {
+        let mut motion = MotionValue::new(0.0);
+        motion.retarget(0, 1.0, SemanticMotion::Panel, false);
+        let interrupted = motion.sample(80).value;
+        assert!(interrupted > 0.0 && interrupted < 1.0);
+        let retargeted = motion.retarget(80, 0.0, SemanticMotion::Panel, false);
+        close(retargeted.value, interrupted);
+        close(motion.sample(80).value, interrupted);
+        let reversing = motion.sample(120).value;
+        assert!(reversing < interrupted);
+
+        let second_interruption = motion.sample(140).value;
+        let reversed_again = motion.retarget(140, 1.0, SemanticMotion::Panel, false);
+        close(reversed_again.value, second_interruption);
+        assert_eq!(motion.sample(340).value, 1.0);
+    }
+
+    #[test]
+    fn reduced_motion_removes_spatial_travel_without_stuck_frames() {
+        let mut controller = ShellMotionController::default();
+        assert!(controller.set_reduced_motion(0, true));
+        controller.set_visible(ShellMotionSurface::Launcher, true, 10);
+        controller.set_visible(ShellMotionSurface::SessionMenu, true, 10);
+        controller.set_visible(ShellMotionSurface::Notification, true, 10);
+        let frame = controller.sample(10);
+        assert_eq!(frame.launcher.opacity, 1.0);
+        assert_eq!(frame.launcher.offset_y, 0);
+        assert_eq!(frame.session_menu.offset_y, 0);
+        assert_eq!(frame.notification.offset_x, 0);
+        assert!(!frame.is_active());
+
+        controller.set_visible(ShellMotionSurface::Launcher, false, 11);
+        let hidden = controller.sample(11);
+        assert_eq!(hidden.launcher.opacity, 0.0);
+        assert!(!controller.is_active());
+    }
+
+    #[test]
+    fn enabling_reduced_motion_finishes_an_active_transition_immediately() {
+        let mut controller = ShellMotionController::default();
+        controller.set_visible(ShellMotionSurface::Notification, true, 0);
+        let partial = controller.sample(60).notification;
+        assert!(partial.active);
+        assert!(partial.offset_x > 0);
+        assert!(controller.set_reduced_motion(60, true));
+        let settled = controller.sample(60).notification;
+        assert_eq!(settled.opacity, 1.0);
+        assert_eq!(settled.offset_x, 0);
+        assert!(!settled.active);
+    }
 
     #[test]
     fn system_overview_reads_bounded_real_metrics_from_proc_contract() {

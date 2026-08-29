@@ -27,6 +27,7 @@ scripts/check-typography-fixtures.sh
 scripts/check-typography-layout-fixtures.sh
 scripts/check-elevation-fixtures.sh
 scripts/check-icon-fixtures.sh
+scripts/check-motion-fixtures.sh
 scripts/check-graphical-session-supervisor.sh
 scripts/check-default-recovery-safety.sh
 scripts/check-graphical-session-stop.sh
@@ -1044,7 +1045,7 @@ assert phases["m9"]["percent"] == 100
 assert phases["m9"]["status"] == "complete"
 assert phases["m11"]["percent"] == 100
 assert phases["m11"]["status"] == "complete"
-assert phases["m12"]["percent"] == 65
+assert phases["m12"]["percent"] == 80
 assert phases["m12"]["status"] == "in-progress"
 PY
 test -f crates/aqua-installer/Cargo.toml
