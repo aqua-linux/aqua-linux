@@ -199,7 +199,7 @@ fn main() {
         "run-wayland-test-client" => run_wayland_test_client_cli(
             args.next()
                 .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("/run/aqua/aqua-wayland-drm-0")),
+                .unwrap_or_else(|| PathBuf::from("/run/user/1000/aqua-wayland-drm-0")),
         ),
         "smoke-display-output" => smoke_display_output(),
         "smoke-nested-output-surface" => smoke_nested_output_surface(),
@@ -4115,7 +4115,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let managed_client_required =
         fixture_clients_required || installer_scenario || typography_scenario || component_scenario;
-    let runtime_dir = PathBuf::from("/run/aqua");
+    let runtime_dir = PathBuf::from("/run/user/1000");
     let socket_path = runtime_dir.join("aqua-wayland-drm-0");
     let lock_path = socket_path.with_extension("lock");
     fs::create_dir_all(&runtime_dir).unwrap_or_else(|error| {

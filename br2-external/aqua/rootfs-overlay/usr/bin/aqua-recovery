@@ -11,10 +11,10 @@ echo '[AQUA-BOOT] stage=rcS-start product="Aqua Linux"'
 echo '[AQUA-BOOT] stage=filesystems-mounted status=ok'
 echo '[AQUA-BOOT] stage=os-release id=aqua pretty="Aqua Linux Milestone 1"'
 echo '[AQUA-BOOT] stage=session-config status=ok autostart=false boot_graphics=false recovery_tty=true'
-echo '[AQUA-BOOT] stage=session-runtime status=ok runtime_dir=/run/aqua'
-echo '[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/aqua assets=/usr/share/aqua'
+echo '[AQUA-BOOT] stage=session-runtime status=ok user=aqua uid=1000 runtime_dir=/run/user/1000 control_dir=/run/aqua mode=0700'
+echo '[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/user/1000 assets=/usr/share/aqua'
 echo '[AQUA-BOOT] stage=runtime-assets-ready milestone=2 status=ok'
-echo '[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/aqua autostart=false boot_graphics=false session_started=false'
+echo '[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/user/1000 autostart=false boot_graphics=false session_started=false'
 echo '[AQUA-BOOT] stage=compositor-assets status=ok root=/usr/share/aqua'
 echo '[AQUA-BOOT] stage=output-plan status=ok backend=nested-dev-window boot_graphics=false renderer_started=false'
 echo '[AQUA-BOOT] stage=visible-preview-plan status=ok preview_window_started=false boot_graphics=false renderer_started=false'
@@ -40,7 +40,7 @@ echo "Aqua session environment:"
 cat /etc/aqua/session.env 2>/dev/null || echo "missing /etc/aqua/session.env"
 echo
 echo "Aqua session runtime:"
-ls -ld /run/aqua 2>/dev/null || echo "missing /run/aqua"
+ls -ldn /run/user/1000 /run/aqua 2>/dev/null || echo "missing Aqua runtime or control directory"
 echo
 echo "Aqua runtime assets:"
 find /usr/share/aqua -maxdepth 3 -type f 2>/dev/null | sort || true
@@ -54,7 +54,7 @@ fi
 echo
 echo "Aqua session bootstrap:"
 if [ -x /usr/bin/aqua-compositor ]; then
-    /usr/bin/aqua-compositor probe-session-bootstrap /etc/aqua/compositor-session.conf /run/aqua 2>/dev/null || true
+    /usr/bin/aqua-compositor probe-session-bootstrap /etc/aqua/compositor-session.conf /run/user/1000 2>/dev/null || true
 else
     echo "missing /usr/bin/aqua-compositor"
 fi

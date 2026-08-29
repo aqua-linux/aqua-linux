@@ -39,10 +39,15 @@ key_repeat=true
 theme=LightWhite
 EOF
 chmod 600 "${TARGET_DIR}/home/aqua/.config/aqua/settings.conf"
+if grep -q '^aqua:[^:]*:1000:1000:' "${TARGET_DIR}/etc/passwd" 2>/dev/null; then
+    chown -R 1000:1000 "${TARGET_DIR}/home/aqua"
+fi
 
 chmod +x "${TARGET_DIR}/etc/init.d/rcS"
 chmod +x "${TARGET_DIR}/usr/bin/aqua-recovery"
 [ -f "${TARGET_DIR}/usr/bin/aqua-session-check" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-session-check"
+[ -f "${TARGET_DIR}/usr/bin/aqua-session-runtime-prepare" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-session-runtime-prepare"
+[ -f "${TARGET_DIR}/usr/bin/aqua-session-user-launch" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-session-user-launch"
 [ -f "${TARGET_DIR}/usr/bin/aqua-compositor-manual-launch" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-compositor-manual-launch"
 [ -f "${TARGET_DIR}/usr/bin/aqua-compositor-guarded-run" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-compositor-guarded-run"
 [ -f "${TARGET_DIR}/usr/bin/aqua-graphical-session-supervisor" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-graphical-session-supervisor"
@@ -334,7 +339,7 @@ cat > "${TARGET_DIR}/etc/aqua/compositor-session.conf" <<'EOF'
 product=Aqua Linux
 mode=nested-dev
 wayland_socket=aqua-wayland-0
-runtime_dir=/run/aqua
+runtime_dir=/run/user/1000
 runtime_asset_root=/usr/share/aqua
 autostart=false
 boot_graphics=false
@@ -347,7 +352,7 @@ EOF
 
 cat > "${TARGET_DIR}/etc/aqua/session.env" <<'EOF'
 export WAYLAND_DISPLAY=aqua-wayland-0
-export XDG_RUNTIME_DIR=/run/aqua
+export XDG_RUNTIME_DIR=/run/user/1000
 export AQUA_ASSET_ROOT=/usr/share/aqua
 export AQUA_SESSION_MODE=nested-dev
 export AQUA_COMPOSITOR_AUTOSTART=false
@@ -358,7 +363,7 @@ cat > "${TARGET_DIR}/etc/aqua/compositor-session-graphics.conf" <<'EOF'
 product=Aqua Linux
 mode=drm-wayland
 wayland_socket=aqua-wayland-drm-0
-runtime_dir=/run/aqua
+runtime_dir=/run/user/1000
 runtime_asset_root=/usr/share/aqua
 autostart=true
 boot_graphics=true
@@ -371,7 +376,7 @@ EOF
 
 cat > "${TARGET_DIR}/etc/aqua/session-graphics.env" <<'EOF'
 export WAYLAND_DISPLAY=aqua-wayland-drm-0
-export XDG_RUNTIME_DIR=/run/aqua
+export XDG_RUNTIME_DIR=/run/user/1000
 export AQUA_ASSET_ROOT=/usr/share/aqua
 export AQUA_SESSION_MODE=drm-wayland
 export AQUA_COMPOSITOR_AUTOSTART=true

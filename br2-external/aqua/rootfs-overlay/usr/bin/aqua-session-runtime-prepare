@@ -1,0 +1,54 @@
+#!/bin/sh
+
+set -eu
+
+SESSION_USER="${AQUA_SESSION_USER:-aqua}"
+SESSION_UID="${AQUA_SESSION_UID:-1000}"
+SESSION_GID="${AQUA_SESSION_GID:-1000}"
+SESSION_RUNTIME_DIR="${AQUA_SESSION_RUNTIME_DIR:-/run/user/1000}"
+CONTROL_DIR="${AQUA_SESSION_CONTROL_DIR:-/run/aqua}"
+
+mark() {
+    echo "[AQUA-SESSION] stage=session-runtime-prepare status=$1 $2"
+}
+
+case "${SESSION_UID}:${SESSION_GID}" in
+    *[!0-9:]*|:*|*::*|*:)
+        mark failed "reason=invalid-identity"
+        exit 2
+        ;;
+esac
+
+if [ "$(id -u "${SESSION_USER}" 2>/dev/null || true)" != "${SESSION_UID}" ] ||
+   [ "$(id -g "${SESSION_USER}" 2>/dev/null || true)" != "${SESSION_GID}" ]; then
+    mark failed "reason=identity-mismatch user=${SESSION_USER} uid=${SESSION_UID} gid=${SESSION_GID}"
+    exit 2
+fi
+
+prepare_directory() {
+    path="$1"
+    label="$2"
+
+    if [ -L "${path}" ] || { [ -e "${path}" ] && [ ! -d "${path}" ]; }; then
+        mark failed "reason=unsafe-${label} path=${path}"
+        exit 2
+    fi
+
+    mkdir -p "$(dirname "${path}")"
+    mkdir -p "${path}"
+    chown "${SESSION_UID}:${SESSION_GID}" "${path}"
+    chmod 700 "${path}"
+
+    owner="$(ls -nd "${path}" | awk '{print $3 ":" $4}')"
+    permissions="$(LC_ALL=C ls -ld "${path}" | awk '{print substr($1, 1, 10)}')"
+    if [ "${owner}" != "${SESSION_UID}:${SESSION_GID}" ] ||
+       [ "${permissions}" != "drwx------" ]; then
+        mark failed "reason=insecure-${label} path=${path} owner=${owner} permissions=${permissions}"
+        exit 2
+    fi
+}
+
+prepare_directory "${SESSION_RUNTIME_DIR}" runtime-directory
+prepare_directory "${CONTROL_DIR}" control-directory
+
+mark ok "user=${SESSION_USER} uid=${SESSION_UID} gid=${SESSION_GID} runtime_dir=${SESSION_RUNTIME_DIR} control_dir=${CONTROL_DIR} mode=0700"

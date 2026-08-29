@@ -130,10 +130,12 @@ Pass criteria:
 The concrete networking implementation must be selected by an ADR before
 packaging. [ADR 0004](adr-0004-audio-service-stack.md) selects ALSA,
 PipeWire, WirePlumber, and eudev for audio. Buildroot 2025.02.17 now supplies
-the supported LTS baseline, but packaging remains blocked until Aqua has an
-unprivileged persistent session, per-user service supervision, explicit device
-permissions, and fail-closed adapter evidence. Buildroot availability alone is
-not an integration decision.
+the supported LTS baseline. The locked `aqua` UID/GID 1000 session,
+user-owned `/run/user/1000`, and explicit `video`, `audio`, and `input` groups
+now satisfy the identity and base device-permission prerequisite. Packaging
+remains blocked until Aqua has ordered per-user media-service supervision and
+fail-closed adapter evidence. Buildroot availability alone is not an
+integration decision.
 
 ### R5: Accessibility, Internationalization, And Input
 

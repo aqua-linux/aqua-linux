@@ -6,19 +6,16 @@ CMDLINE_PATH="${AQUA_CMDLINE_PATH:-/proc/cmdline}"
 PROFILE_PATH="${AQUA_GRAPHICS_BOOT_PROFILE:-/etc/aqua/compositor-session-graphics.conf}"
 GRAPHICS_ENV_PATH="${AQUA_GRAPHICS_SESSION_ENV:-/etc/aqua/session-graphics.env}"
 SUPERVISOR_BIN="${AQUA_GRAPHICS_SUPERVISOR_BIN:-/usr/bin/aqua-graphical-session-supervisor}"
-RUNTIME_DIR="${AQUA_RUNTIME_DIR:-/run/aqua}"
-PID_FILE="${AQUA_GRAPHICS_SUPERVISOR_PID_FILE:-${RUNTIME_DIR}/graphical-session-supervisor.pid}"
-LOG_FILE="${AQUA_GRAPHICS_SUPERVISOR_LOG_FILE:-${RUNTIME_DIR}/graphical-session-supervisor.log}"
+RUNTIME_PREPARE_BIN="${AQUA_SESSION_RUNTIME_PREPARE_BIN:-/usr/bin/aqua-session-runtime-prepare}"
+SESSION_LAUNCHER_BIN="${AQUA_SESSION_USER_LAUNCHER_BIN:-/usr/bin/aqua-session-user-launch}"
+SESSION_RUNTIME_DIR="${AQUA_SESSION_RUNTIME_DIR:-/run/user/1000}"
+CONTROL_DIR="${AQUA_SESSION_CONTROL_DIR:-${AQUA_RUNTIME_DIR:-/run/aqua}}"
+PID_FILE="${AQUA_GRAPHICS_SUPERVISOR_PID_FILE:-${CONTROL_DIR}/graphical-session-supervisor.pid}"
+LOG_FILE="${AQUA_GRAPHICS_SUPERVISOR_LOG_FILE:-${CONTROL_DIR}/graphical-session-supervisor.log}"
 
 mark() {
     echo "[AQUA-BOOT] stage=graphical-session-activation status=$1 $2"
 }
-
-mkdir -p "${RUNTIME_DIR}" || {
-    mark failed "reason=runtime-directory session_started=false"
-    exit 1
-}
-chmod 700 "${RUNTIME_DIR}" 2>/dev/null || true
 
 cmdline=""
 [ -r "${CMDLINE_PATH}" ] && cmdline="$(cat "${CMDLINE_PATH}")"
@@ -45,8 +42,16 @@ if [ ! -f "${GRAPHICS_ENV_PATH}" ] ||
     exit 1
 fi
 
-if [ ! -x "${SUPERVISOR_BIN}" ]; then
-    mark blocked "reason=supervisor-missing session_started=false"
+if [ ! -x "${SUPERVISOR_BIN}" ] || [ ! -x "${RUNTIME_PREPARE_BIN}" ] ||
+   [ ! -x "${SESSION_LAUNCHER_BIN}" ]; then
+    mark blocked "reason=session-tool-missing session_started=false"
+    exit 1
+fi
+
+if ! AQUA_SESSION_RUNTIME_DIR="${SESSION_RUNTIME_DIR}" \
+     AQUA_SESSION_CONTROL_DIR="${CONTROL_DIR}" \
+     "${RUNTIME_PREPARE_BIN}"; then
+    mark blocked "reason=runtime-prepare-failed session_started=false"
     exit 1
 fi
 
@@ -67,11 +72,13 @@ fi
 AQUA_COMPOSITOR_CONFIG="${PROFILE_PATH}" \
 AQUA_SESSION_ENV="${GRAPHICS_ENV_PATH}" \
 AQUA_GRAPHICS_SESSION_ENABLED=true \
-AQUA_RUNTIME_DIR="${RUNTIME_DIR}" \
-AQUA_DRM_WAYLAND_STOP_FILE="${RUNTIME_DIR}/graphical-session.stop" \
-"${SUPERVISOR_BIN}" >> "${LOG_FILE}" 2>&1 &
+AQUA_RUNTIME_DIR="${CONTROL_DIR}" \
+AQUA_SESSION_CONTROL_DIR="${CONTROL_DIR}" \
+AQUA_SESSION_RUNTIME_DIR="${SESSION_RUNTIME_DIR}" \
+AQUA_DRM_WAYLAND_STOP_FILE="${CONTROL_DIR}/graphical-session.stop" \
+"${SESSION_LAUNCHER_BIN}" "${SUPERVISOR_BIN}" >> "${LOG_FILE}" 2>&1 &
 supervisor_pid="$!"
 echo "${supervisor_pid}" > "${PID_FILE}"
 
-mark started "mode=supervised pid=${supervisor_pid} boot_graphics=true autostart=true recovery_tty=true"
+mark started "mode=supervised-unprivileged user=aqua uid=1000 pid=${supervisor_pid} runtime_dir=${SESSION_RUNTIME_DIR} boot_graphics=true autostart=true recovery_tty=true"
 exit 0

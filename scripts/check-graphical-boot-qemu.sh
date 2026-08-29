@@ -10,6 +10,8 @@ MEMORY="${MEMORY:-1024M}"
 CPUS="${CPUS:-2}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-120}"
 MONITOR_SOCKET="${MONITOR_SOCKET:-${ROOT_DIR}/build/qemu-graphical-boot-monitor.sock}"
+QMP_SOCKET="${QMP_SOCKET:-${ROOT_DIR}/build/qemu-graphical-boot-qmp.sock}"
+VNC_SOCKET="${VNC_SOCKET:-${ROOT_DIR}/build/qemu-graphical-boot-vnc.sock}"
 INPUT_HELPER="${ROOT_DIR}/scripts/send-qemu-monitor-input.py"
 INPUT_CONTROL_SOCKET="${INPUT_CONTROL_SOCKET:-${ROOT_DIR}/build/qemu-graphical-boot-input.sock}"
 INPUT_DAEMON_LOG="${INPUT_DAEMON_LOG:-${ROOT_DIR}/build/qemu-graphical-boot-input.log}"
@@ -32,7 +34,7 @@ cleanup() {
         kill "${INPUT_DAEMON_PID}" 2>/dev/null || true
         wait "${INPUT_DAEMON_PID}" 2>/dev/null || true
     fi
-    rm -f "${MONITOR_SOCKET}" "${INPUT_CONTROL_SOCKET}"
+    rm -f "${MONITOR_SOCKET}" "${QMP_SOCKET}" "${VNC_SOCKET}" "${INPUT_CONTROL_SOCKET}"
 }
 trap cleanup EXIT INT TERM
 
@@ -51,14 +53,14 @@ for artifact in "${KERNEL}" "${ROOTFS}"; do
 done
 
 mkdir -p "$(dirname "${SERIAL_LOG}")"
-rm -f "${SERIAL_LOG}" "${MONITOR_SOCKET}" "${INPUT_CONTROL_SOCKET}" "${INPUT_DAEMON_LOG}" \
+rm -f "${SERIAL_LOG}" "${MONITOR_SOCKET}" "${QMP_SOCKET}" "${VNC_SOCKET}" "${INPUT_CONTROL_SOCKET}" "${INPUT_DAEMON_LOG}" \
     "${SESSION_MENU_SCREENSHOT}" "${SESSION_MENU_SCREENSHOT_PNG}" \
     "${CLEAN_DESKTOP_SCREENSHOT}" "${CLEAN_DESKTOP_SCREENSHOT_PNG}"
 rm -f "${TERMINAL_SCREENSHOT}" "${TERMINAL_SCREENSHOT_PNG}"
 rm -f "${THEME_LIGHT_SCREENSHOT}" "${THEME_LIGHT_SCREENSHOT_PNG}" \
     "${THEME_DEEP_SCREENSHOT}" "${THEME_DEEP_SCREENSHOT_PNG}"
 
-python3 "${INPUT_HELPER}" --serve "${MONITOR_SOCKET}" "${INPUT_CONTROL_SOCKET}" >"${INPUT_DAEMON_LOG}" 2>&1 &
+AQUA_QEMU_QMP_SOCKET="${QMP_SOCKET}" python3 "${INPUT_HELPER}" --serve "${MONITOR_SOCKET}" "${INPUT_CONTROL_SOCKET}" >"${INPUT_DAEMON_LOG}" 2>&1 &
 INPUT_DAEMON_PID=$!
 i=0
 while [ "${i}" -lt 100 ] && [ ! -S "${INPUT_CONTROL_SOCKET}" ]; do
@@ -74,7 +76,7 @@ test -S "${INPUT_CONTROL_SOCKET}" || {
     exit 1
 }
 
-export ROOT_DIR KERNEL ROOTFS SERIAL_LOG MEMORY CPUS TIMEOUT_SECONDS MONITOR_SOCKET INPUT_HELPER
+export ROOT_DIR KERNEL ROOTFS SERIAL_LOG MEMORY CPUS TIMEOUT_SECONDS MONITOR_SOCKET QMP_SOCKET VNC_SOCKET INPUT_HELPER
 export CAPTURE_HELPER SESSION_MENU_SCREENSHOT SESSION_MENU_SCREENSHOT_PNG
 export CLEAN_DESKTOP_SCREENSHOT CLEAN_DESKTOP_SCREENSHOT_PNG
 export TERMINAL_SCREENSHOT TERMINAL_SCREENSHOT_PNG
@@ -84,6 +86,7 @@ export AQUA_QEMU_INPUT_CONTROL_SOCKET="${INPUT_CONTROL_SOCKET}"
 expect "${ROOT_DIR}/scripts/check-graphical-boot-qemu.exp"
 
 grep -Fq '[AQUA-BOOT] stage=graphical-session-activation status=started mode=supervised boot_graphics=true recovery_tty=true' "${SERIAL_LOG}"
+grep -Fq '[AQUA-TEST] stage=unprivileged-session-qemu status=ok user=aqua uid=1000 gid=1000 groups=video,audio,input runtime=/run/user/1000 mode=0700 compositor_uid=1000' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=graphical-boot-qemu status=ok activation=supervised drm_wayland=active persistent=true scenario=desktop-event-loop fixtures=false recovery_tty=available' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-system-overview-qemu status=ok data=clock,kernel,uptime,load,memory gpu_texture=true visible=true' "${SERIAL_LOG}"
 test -s "${CLEAN_DESKTOP_SCREENSHOT_PNG}"

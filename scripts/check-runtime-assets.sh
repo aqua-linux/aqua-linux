@@ -58,6 +58,8 @@ need_entry "./usr/share/doc/aqua/third-party-licenses.md"
 need_entry "./usr/libexec/aqua-tests/weston-simple-shm"
 need_entry "./usr/share/doc/aqua/wayland-compat-client.txt"
 need_entry "./usr/bin/aqua-session-check"
+need_entry "./usr/bin/aqua-session-runtime-prepare"
+need_entry "./usr/bin/aqua-session-user-launch"
 need_entry "./etc/aqua/compositor-session.conf"
 need_entry "./etc/aqua/session.env"
 
@@ -74,13 +76,13 @@ tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '
 tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '"Nightmare"'
 tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/fonts/OFL.txt | grep -Fq 'SIL OPEN FONT LICENSE Version 1.1'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/compositor-session.conf | grep -Fq 'wayland_socket=aqua-wayland-0'
-tar -xOf "${ROOTFS_TAR}" ./etc/aqua/compositor-session.conf | grep -Fq 'runtime_dir=/run/aqua'
+tar -xOf "${ROOTFS_TAR}" ./etc/aqua/compositor-session.conf | grep -Fq 'runtime_dir=/run/user/1000'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/compositor-session.conf | grep -Fq 'runtime_asset_root=/usr/share/aqua'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/compositor-session.conf | grep -Fq 'autostart=false'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/compositor-session.conf | grep -Fq 'boot_graphics=false'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/compositor-session.conf | grep -Fq 'recovery_tty_required=true'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/session.env | grep -Fq 'export WAYLAND_DISPLAY=aqua-wayland-0'
-tar -xOf "${ROOTFS_TAR}" ./etc/aqua/session.env | grep -Fq 'export XDG_RUNTIME_DIR=/run/aqua'
+tar -xOf "${ROOTFS_TAR}" ./etc/aqua/session.env | grep -Fq 'export XDG_RUNTIME_DIR=/run/user/1000'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/session.env | grep -Fq 'export AQUA_ASSET_ROOT=/usr/share/aqua'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/session.env | grep -Fq 'export AQUA_COMPOSITOR_AUTOSTART=false'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/session.env | grep -Fq 'export AQUA_BOOT_GRAPHICS=false'

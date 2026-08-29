@@ -1,0 +1,2 @@
+- - input 30 - - - - Input devices
+aqua 1000 aqua 1000 * /home/aqua /bin/false video,audio,input Aqua desktop session

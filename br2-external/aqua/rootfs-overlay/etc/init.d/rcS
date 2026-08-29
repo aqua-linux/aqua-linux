@@ -70,21 +70,19 @@ else
     mark '[AQUA-BOOT] stage=session-config status=missing autostart=false boot_graphics=false recovery_tty=true'
 fi
 
-mkdir -p /run/aqua
-chmod 700 /run/aqua 2>/dev/null || true
-if [ -d /run/aqua ]; then
-    mark '[AQUA-BOOT] stage=session-runtime status=ok runtime_dir=/run/aqua'
+if /usr/bin/aqua-session-runtime-prepare >/run/aqua-session-runtime-prepare.log 2>/run/aqua-session-runtime-prepare.err; then
+    mark '[AQUA-BOOT] stage=session-runtime status=ok user=aqua uid=1000 runtime_dir=/run/user/1000 control_dir=/run/aqua mode=0700'
 else
-    mark '[AQUA-BOOT] stage=session-runtime status=missing runtime_dir=/run/aqua'
+    mark '[AQUA-BOOT] stage=session-runtime status=failed user=aqua uid=1000 runtime_dir=/run/user/1000 control_dir=/run/aqua mode=0700'
 fi
 
 if [ -f /etc/aqua/session.env ] && \
    grep -q '^export WAYLAND_DISPLAY=aqua-wayland-0$' /etc/aqua/session.env && \
-   grep -q '^export XDG_RUNTIME_DIR=/run/aqua$' /etc/aqua/session.env && \
+   grep -q '^export XDG_RUNTIME_DIR=/run/user/1000$' /etc/aqua/session.env && \
    grep -q '^export AQUA_ASSET_ROOT=/usr/share/aqua$' /etc/aqua/session.env; then
-    mark '[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/aqua assets=/usr/share/aqua'
+    mark '[AQUA-BOOT] stage=session-env status=ok wayland=aqua-wayland-0 xdg=/run/user/1000 assets=/usr/share/aqua'
 else
-    mark '[AQUA-BOOT] stage=session-env status=missing wayland=aqua-wayland-0 xdg=/run/aqua assets=/usr/share/aqua'
+    mark '[AQUA-BOOT] stage=session-env status=missing wayland=aqua-wayland-0 xdg=/run/user/1000 assets=/usr/share/aqua'
 fi
 
 if [ -f /usr/share/aqua/tokens/design-tokens.json ] && \
@@ -102,10 +100,10 @@ if [ -x /usr/bin/aqua-compositor ]; then
     else
         mark '[AQUA-BOOT] stage=compositor-status status=failed mode=nested-dev'
     fi
-    if /usr/bin/aqua-compositor probe-session-bootstrap /etc/aqua/compositor-session.conf /run/aqua >/run/aqua-compositor-bootstrap.log 2>/run/aqua-compositor-bootstrap.err; then
-        mark '[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/aqua autostart=false boot_graphics=false session_started=false'
+    if /usr/bin/aqua-compositor probe-session-bootstrap /etc/aqua/compositor-session.conf /run/user/1000 >/run/aqua-compositor-bootstrap.log 2>/run/aqua-compositor-bootstrap.err; then
+        mark '[AQUA-BOOT] stage=session-bootstrap status=ok runtime_dir=/run/user/1000 autostart=false boot_graphics=false session_started=false'
     else
-        mark '[AQUA-BOOT] stage=session-bootstrap status=failed runtime_dir=/run/aqua autostart=false boot_graphics=false session_started=false'
+        mark '[AQUA-BOOT] stage=session-bootstrap status=failed runtime_dir=/run/user/1000 autostart=false boot_graphics=false session_started=false'
     fi
     if /usr/bin/aqua-compositor probe-assets /usr/share/aqua >/run/aqua-compositor-assets.log 2>/run/aqua-compositor-assets.err; then
         mark '[AQUA-BOOT] stage=compositor-assets status=ok root=/usr/share/aqua'
@@ -172,7 +170,7 @@ if [ -x /usr/bin/aqua-compositor ]; then
 else
     mark '[AQUA-BOOT] stage=compositor-binary status=missing autostart=false boot_graphics=false'
     mark '[AQUA-BOOT] stage=compositor-status status=skipped mode=nested-dev'
-    mark '[AQUA-BOOT] stage=session-bootstrap status=skipped runtime_dir=/run/aqua autostart=false boot_graphics=false session_started=false'
+    mark '[AQUA-BOOT] stage=session-bootstrap status=skipped runtime_dir=/run/user/1000 autostart=false boot_graphics=false session_started=false'
     mark '[AQUA-BOOT] stage=compositor-assets status=skipped root=/usr/share/aqua'
     mark '[AQUA-BOOT] stage=output-plan status=skipped backend=nested-dev-window boot_graphics=false renderer_started=false'
     mark '[AQUA-BOOT] stage=visible-preview-plan status=skipped preview_window_started=false boot_graphics=false renderer_started=false'

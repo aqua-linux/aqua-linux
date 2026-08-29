@@ -16,6 +16,21 @@ export AQUA_BOOT_GRAPHICS=true
 export AQUA_COMPOSITOR_AUTOSTART=true
 EOF
 
+cat > "${TMP_DIR}/runtime-prepare" <<'EOF'
+#!/bin/sh
+mkdir -p "${AQUA_SESSION_RUNTIME_DIR}" "${AQUA_SESSION_CONTROL_DIR}"
+chmod 700 "${AQUA_SESSION_RUNTIME_DIR}" "${AQUA_SESSION_CONTROL_DIR}"
+EOF
+
+cat > "${TMP_DIR}/session-launcher" <<'EOF'
+#!/bin/sh
+exec "$1"
+EOF
+chmod +x "${TMP_DIR}/runtime-prepare" "${TMP_DIR}/session-launcher"
+export AQUA_SESSION_RUNTIME_PREPARE_BIN="${TMP_DIR}/runtime-prepare"
+export AQUA_SESSION_USER_LAUNCHER_BIN="${TMP_DIR}/session-launcher"
+export AQUA_SESSION_RUNTIME_DIR="${TMP_DIR}/session-runtime"
+
 cat > "${TMP_DIR}/supervisor" <<'EOF'
 #!/bin/sh
 echo "config=${AQUA_COMPOSITOR_CONFIG}" > "${AQUA_TEST_STARTED_FILE}"
@@ -53,7 +68,7 @@ printf '%s\n' "${unsafe_profile_output}" | grep -Fq 'status=blocked reason=inval
 test ! -e "${TMP_DIR}/unsafe-profile-started"
 
 enabled_output="$(AQUA_CMDLINE_PATH="${TMP_DIR}/cmdline-enabled" AQUA_GRAPHICS_BOOT_PROFILE="${TMP_DIR}/graphics.conf" AQUA_GRAPHICS_SESSION_ENV="${TMP_DIR}/graphics.env" AQUA_GRAPHICS_SUPERVISOR_BIN="${TMP_DIR}/supervisor" AQUA_RUNTIME_DIR="${TMP_DIR}/run" AQUA_TEST_STARTED_FILE="${TMP_DIR}/started" "${BOOT_TOOL}")"
-printf '%s\n' "${enabled_output}" | grep -Fq 'status=started mode=supervised'
+printf '%s\n' "${enabled_output}" | grep -Fq 'status=started mode=supervised-unprivileged user=aqua uid=1000'
 
 i=0
 while [ ! -f "${TMP_DIR}/started" ] && [ "${i}" -lt 20 ]; do

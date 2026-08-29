@@ -32,7 +32,13 @@ def main() -> int:
                     connection.sendall(b"QEMU monitor\n(qemu) ")
                     stream = connection.makefile("rb")
                     for line in stream:
-                        commands.append(line.decode("utf-8").strip())
+                        command = line.decode("utf-8").strip()
+                        commands.append(command)
+                        if command == "info mice":
+                            connection.sendall(
+                                b"  Mouse #4: QEMU Virtio Mouse\n"
+                                b"* Mouse #2: QEMU PS/2 Mouse\n"
+                            )
                         connection.sendall(b"(qemu) ")
 
         monitor_thread = threading.Thread(target=fake_monitor, daemon=True)
@@ -53,7 +59,7 @@ def main() -> int:
             environment = os.environ | {
                 "AQUA_QEMU_INPUT_CONTROL_SOCKET": str(control)
             }
-            for mode in ("properties-refresh", "close-properties"):
+            for mode in ("basic", "properties-refresh", "close-properties"):
                 subprocess.run(
                     ["python3", str(HELPER), str(monitor), mode],
                     check=True,
@@ -77,7 +83,18 @@ def main() -> int:
             raise RuntimeError("fake QEMU monitor did not stop")
         if accept_count != 1:
             raise RuntimeError(f"expected one monitor connection, got {accept_count}")
-        expected = ["sendkey f5 100", "sendkey alt-f4 250"]
+        expected = [
+            "info mice",
+            "mouse_set 4",
+            "sendkey meta_l 100",
+            "sendkey a 100",
+            "mouse_move -192 1",
+            "mouse_button 1",
+            "sendkey b 100",
+            "mouse_button 0",
+            "sendkey f5 100",
+            "sendkey alt-f4 250",
+        ]
         if commands != expected:
             raise RuntimeError(f"unexpected monitor commands: {commands!r}")
 

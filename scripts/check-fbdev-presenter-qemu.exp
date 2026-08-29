@@ -368,7 +368,7 @@ expect {
     eof { puts stderr "QEMU exited before graphical supervisor QEMU config"; exit 1 }
 }
 
-send -- {AQUA_COMPOSITOR_CONFIG=/run/aqua/supervisor-qemu-test.conf AQUA_GRAPHICS_SESSION_ENABLED=true AQUA_GRAPHICS_MAX_RESTARTS=2 AQUA_GRAPHICS_RESTART_DELAY_SECONDS=0 AQUA_DRM_DEVICE=/dev/dri/aqua-missing /usr/bin/aqua-graphical-session-supervisor}
+send -- {AQUA_COMPOSITOR_CONFIG=/run/aqua/supervisor-qemu-test.conf AQUA_SESSION_ENV=/etc/aqua/session-graphics.env AQUA_GRAPHICS_SESSION_ENABLED=true AQUA_GRAPHICS_MAX_RESTARTS=2 AQUA_GRAPHICS_RESTART_DELAY_SECONDS=0 AQUA_DRM_DEVICE=/dev/dri/aqua-missing /usr/bin/aqua-session-user-launch /usr/bin/aqua-graphical-session-supervisor}
 send -- "\r"
 
 expect {

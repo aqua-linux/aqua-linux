@@ -10,7 +10,10 @@ cat > "${TMP_DIR}/session.conf" <<'EOF'
 boot_graphics=true
 recovery_tty_required=true
 EOF
-: > "${TMP_DIR}/session.env"
+mkdir -p "${TMP_DIR}/session-runtime"
+cat > "${TMP_DIR}/session.env" <<EOF
+export XDG_RUNTIME_DIR=${TMP_DIR}/session-runtime
+EOF
 
 cat > "${TMP_DIR}/compositor" <<'EOF'
 #!/bin/sh
@@ -28,7 +31,7 @@ echo recovery > "${AQUA_TEST_RECOVERY_FILE}"
 EOF
 chmod +x "${TMP_DIR}/compositor" "${TMP_DIR}/recovery"
 
-common_env="AQUA_COMPOSITOR_CONFIG=${TMP_DIR}/session.conf AQUA_SESSION_ENV=${TMP_DIR}/session.env AQUA_COMPOSITOR_BIN=${TMP_DIR}/compositor AQUA_RECOVERY_BIN=${TMP_DIR}/recovery AQUA_GRAPHICS_SESSION_ENABLED=true AQUA_GRAPHICS_RESTART_DELAY_SECONDS=0 AQUA_GRAPHICS_STABLE_SECONDS=30"
+common_env="AQUA_COMPOSITOR_CONFIG=${TMP_DIR}/session.conf AQUA_SESSION_ENV=${TMP_DIR}/session.env AQUA_COMPOSITOR_BIN=${TMP_DIR}/compositor AQUA_RECOVERY_BIN=${TMP_DIR}/recovery AQUA_GRAPHICS_SESSION_ENABLED=true AQUA_GRAPHICS_RESTART_DELAY_SECONDS=0 AQUA_GRAPHICS_STABLE_SECONDS=30 AQUA_SESSION_RUNTIME_DIR=${TMP_DIR}/session-runtime"
 
 success_output="$(env ${common_env} AQUA_RUNTIME_DIR="${TMP_DIR}/success-run" AQUA_TEST_COUNT_FILE="${TMP_DIR}/success-count" AQUA_TEST_RECOVERY_FILE="${TMP_DIR}/unused-recovery" AQUA_TEST_SUCCEED_ON=3 AQUA_GRAPHICS_MAX_RESTARTS=3 "${SUPERVISOR}")"
 printf '%s\n' "${success_output}" | grep -Fq 'status=stopped reason=clean-exit attempts=3 restarts=2'
