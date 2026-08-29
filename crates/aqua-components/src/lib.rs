@@ -84,7 +84,11 @@ impl SharedComponentKind {
     pub const fn is_shared_primitive(self) -> bool {
         matches!(
             self,
-            Self::StandardButton | Self::ListRow | Self::SidebarNavigation
+            Self::SearchField
+                | Self::StandardButton
+                | Self::IconButton
+                | Self::ListRow
+                | Self::SidebarNavigation
         )
     }
 }
@@ -118,7 +122,18 @@ impl ComponentState {
     ];
 
     pub const STANDARD_BUTTON_STATES: [Self; 10] = Self::INTERACTIVE_STATES;
+    pub const ICON_BUTTON_STATES: [Self; 10] = Self::INTERACTIVE_STATES;
     pub const LIST_ROW_STATES: [Self; 10] = Self::INTERACTIVE_STATES;
+    pub const SEARCH_FIELD_STATES: [Self; 8] = [
+        Self::Idle,
+        Self::Hover,
+        Self::KeyboardFocus,
+        Self::Disabled,
+        Self::Loading,
+        Self::Error,
+        Self::Success,
+        Self::Attention,
+    ];
 
     pub const fn id(self) -> &'static str {
         match self {
@@ -213,6 +228,189 @@ impl<'a> StandardButton<'a> {
 
     pub const fn accessibility(self) -> ComponentAccessibility<'a> {
         accessibility("button", self.label, self.state)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IconButtonGlyph {
+    Back,
+    Forward,
+    Search,
+    Close,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IconButton<'a> {
+    pub rect: Rect,
+    pub label: &'a str,
+    pub glyph: IconButtonGlyph,
+    pub state: ComponentState,
+}
+
+impl<'a> IconButton<'a> {
+    pub const fn new(rect: Rect, label: &'a str, glyph: IconButtonGlyph) -> Self {
+        Self {
+            rect,
+            label,
+            glyph,
+            state: ComponentState::Idle,
+        }
+    }
+
+    pub const fn with_state(mut self, state: ComponentState) -> Self {
+        self.state = state;
+        self
+    }
+
+    pub const fn icon_rect(self) -> Rect {
+        let size = min_u32(min_u32(self.rect.width, self.rect.height), 20);
+        Rect {
+            x: self
+                .rect
+                .x
+                .saturating_add(self.rect.width.saturating_sub(size) / 2),
+            y: self
+                .rect
+                .y
+                .saturating_add(self.rect.height.saturating_sub(size) / 2),
+            width: size,
+            height: size,
+        }
+    }
+
+    pub const fn focus_rect(self) -> Rect {
+        expanded_rect(self.rect, 2)
+    }
+
+    pub const fn is_valid(self) -> bool {
+        !self.label.is_empty() && self.rect.width >= 28 && self.rect.height >= 28
+    }
+
+    pub const fn can_activate(self) -> bool {
+        self.is_valid() && self.state.can_activate()
+    }
+
+    pub const fn pointer_hit(self, x: u32, y: u32) -> bool {
+        self.can_activate() && rect_contains(self.rect, x, y)
+    }
+
+    pub const fn keyboard_activates(self, key: ActivationKey) -> bool {
+        self.can_activate() && matches!(key, ActivationKey::Enter | ActivationKey::Space)
+    }
+
+    pub const fn accessibility(self) -> ComponentAccessibility<'a> {
+        accessibility("button", self.label, self.state)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SearchFieldSlots {
+    pub leading: Rect,
+    pub text: Rect,
+    pub trailing: Rect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SearchFieldAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub value: &'a str,
+    pub disabled: bool,
+    pub busy: bool,
+    pub invalid: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SearchField<'a> {
+    pub rect: Rect,
+    pub label: &'a str,
+    pub value: &'a str,
+    pub placeholder: &'a str,
+    pub state: ComponentState,
+}
+
+impl<'a> SearchField<'a> {
+    pub const fn new(rect: Rect, label: &'a str, value: &'a str, placeholder: &'a str) -> Self {
+        Self {
+            rect,
+            label,
+            value,
+            placeholder,
+            state: ComponentState::Idle,
+        }
+    }
+
+    pub const fn with_state(mut self, state: ComponentState) -> Self {
+        self.state = state;
+        self
+    }
+
+    pub const fn slots(self) -> SearchFieldSlots {
+        let leading_width = min_u32(40, self.rect.width);
+        let remaining = self.rect.width.saturating_sub(leading_width);
+        let trailing_width = min_u32(28, remaining);
+        SearchFieldSlots {
+            leading: Rect {
+                x: self.rect.x,
+                y: self.rect.y,
+                width: leading_width,
+                height: self.rect.height,
+            },
+            text: Rect {
+                x: self.rect.x.saturating_add(leading_width),
+                y: self.rect.y,
+                width: remaining.saturating_sub(trailing_width),
+                height: self.rect.height,
+            },
+            trailing: Rect {
+                x: self.rect.right().saturating_sub(trailing_width),
+                y: self.rect.y,
+                width: trailing_width,
+                height: self.rect.height,
+            },
+        }
+    }
+
+    pub const fn display_text(self) -> &'a str {
+        if self.value.is_empty() {
+            self.placeholder
+        } else {
+            self.value
+        }
+    }
+
+    pub const fn focus_rect(self) -> Rect {
+        expanded_rect(self.rect, 2)
+    }
+
+    pub const fn is_valid(self) -> bool {
+        !self.label.is_empty()
+            && !self.placeholder.is_empty()
+            && self.rect.width >= 96
+            && self.rect.height >= 32
+    }
+
+    pub const fn accepts_input(self) -> bool {
+        self.is_valid()
+            && !matches!(
+                self.state,
+                ComponentState::Disabled | ComponentState::Loading
+            )
+    }
+
+    pub const fn pointer_focuses(self, x: u32, y: u32) -> bool {
+        self.accepts_input() && rect_contains(self.rect, x, y)
+    }
+
+    pub const fn accessibility(self) -> SearchFieldAccessibility<'a> {
+        SearchFieldAccessibility {
+            role: "searchbox",
+            name: self.label,
+            value: self.value,
+            disabled: matches!(self.state, ComponentState::Disabled),
+            busy: matches!(self.state, ComponentState::Loading),
+            invalid: matches!(self.state, ComponentState::Error),
+        }
     }
 }
 
@@ -432,7 +630,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_three_shared_primitives() {
+    fn catalog_tracks_the_five_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -441,7 +639,9 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 SharedComponentKind::SidebarNavigation,
+                SharedComponentKind::SearchField,
                 SharedComponentKind::StandardButton,
+                SharedComponentKind::IconButton,
                 SharedComponentKind::ListRow,
             ]
         );
@@ -520,10 +720,49 @@ mod tests {
         };
         let button = StandardButton::new(rect, "", StandardButtonVariant::Primary);
         let row = ListRow::new(rect, "", ListRowRole::Option);
+        let icon = IconButton::new(rect, "", IconButtonGlyph::Back);
+        let search = SearchField::new(rect, "", "", "Search");
         let navigation = SidebarNavigation::new(rect, "", rect, 40);
         assert!(!button.can_activate());
         assert!(!row.can_activate());
+        assert!(!icon.can_activate());
+        assert!(!search.accepts_input());
         assert!(!navigation.is_valid());
         assert_eq!(navigation.hit_test(11, 21, 1), None);
+    }
+
+    #[test]
+    fn icon_button_and_search_field_slots_are_bounded() {
+        let icon = IconButton::new(
+            Rect {
+                x: 18,
+                y: 68,
+                width: 28,
+                height: 28,
+            },
+            "Back",
+            IconButtonGlyph::Back,
+        );
+        assert!(icon.is_valid());
+        assert_eq!(icon.icon_rect().width, 20);
+        assert!(icon.icon_rect().right() <= icon.rect.right());
+
+        let search = SearchField::new(
+            Rect {
+                x: 24,
+                y: 54,
+                width: 532,
+                height: 42,
+            },
+            "Search applications",
+            "settings",
+            "Search apps",
+        );
+        let slots = search.slots();
+        assert!(search.is_valid());
+        assert!(slots.leading.right() <= slots.text.x);
+        assert!(slots.text.right() <= slots.trailing.x);
+        assert_eq!(search.accessibility().role, "searchbox");
+        assert_eq!(search.accessibility().value, "settings");
     }
 }

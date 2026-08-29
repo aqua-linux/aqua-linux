@@ -7,7 +7,244 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-2";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-3";
+
+fn draw_component_glyph(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    rect: Rect,
+    glyph: IconButtonGlyph,
+    color: [u8; 4],
+) -> usize {
+    let center_y = rect.y + rect.height / 2;
+    match glyph {
+        IconButtonGlyph::Back | IconButtonGlyph::Forward => {
+            fill_rect(
+                buffer,
+                width,
+                height,
+                Rect {
+                    x: rect.x + 4,
+                    y: center_y.saturating_sub(1),
+                    width: rect.width.saturating_sub(8),
+                    height: 2,
+                },
+                color,
+                255,
+            );
+            let arrow_x = if glyph == IconButtonGlyph::Back {
+                rect.x + 4
+            } else {
+                rect.right().saturating_sub(6)
+            };
+            for offset in 0..5 {
+                let x = if glyph == IconButtonGlyph::Back {
+                    arrow_x + 4 - offset
+                } else {
+                    arrow_x.saturating_sub(4 - offset)
+                };
+                fill_rect(
+                    buffer,
+                    width,
+                    height,
+                    Rect {
+                        x,
+                        y: center_y.saturating_sub(5).saturating_add(offset),
+                        width: 2,
+                        height: 2,
+                    },
+                    color,
+                    255,
+                );
+                fill_rect(
+                    buffer,
+                    width,
+                    height,
+                    Rect {
+                        x,
+                        y: center_y.saturating_add(4).saturating_sub(offset),
+                        width: 2,
+                        height: 2,
+                    },
+                    color,
+                    255,
+                );
+            }
+            11
+        }
+        IconButtonGlyph::Search => {
+            let lens = Rect {
+                x: rect.x + 2,
+                y: rect.y + 2,
+                width: rect.width.saturating_sub(8),
+                height: rect.height.saturating_sub(8),
+            };
+            draw_rect_outline(buffer, width, height, lens, color, 255);
+            fill_rect(
+                buffer,
+                width,
+                height,
+                Rect {
+                    x: lens.right().saturating_sub(1),
+                    y: lens.bottom().saturating_sub(1),
+                    width: 6,
+                    height: 2,
+                },
+                color,
+                255,
+            );
+            2
+        }
+        IconButtonGlyph::Close => {
+            for offset in 0..rect.width.min(rect.height) {
+                fill_rect(
+                    buffer,
+                    width,
+                    height,
+                    Rect {
+                        x: rect.x + offset,
+                        y: rect.y + offset,
+                        width: 1,
+                        height: 1,
+                    },
+                    color,
+                    255,
+                );
+                fill_rect(
+                    buffer,
+                    width,
+                    height,
+                    Rect {
+                        x: rect.right().saturating_sub(offset + 1),
+                        y: rect.y + offset,
+                        width: 1,
+                        height: 1,
+                    },
+                    color,
+                    255,
+                );
+            }
+            2
+        }
+    }
+}
+
+pub(crate) fn draw_icon_button(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    button: IconButton<'_>,
+    theme: AquaTheme,
+) -> usize {
+    let palette = window_chrome_palette(theme);
+    let (fill, glyph_color, opacity) = match button.state {
+        ComponentState::Idle | ComponentState::KeyboardFocus => (palette.field, palette.text, 235),
+        ComponentState::Hover => (palette.hover, palette.text, 255),
+        ComponentState::Pressed | ComponentState::Selected => {
+            (palette.accent_soft, palette.accent, 255)
+        }
+        ComponentState::Disabled => (palette.row_alternate, palette.secondary_text, 180),
+        ComponentState::Loading => (palette.row_alternate, palette.secondary_text, 210),
+        ComponentState::Error => ([0xc9, 0x3c, 0x47, 0xff], [0xff, 0xff, 0xff, 0xff], 245),
+        ComponentState::Success => ([0x2c, 0x8a, 0x59, 0xff], [0xff, 0xff, 0xff, 0xff], 245),
+        ComponentState::Attention => ([0xd1, 0x8b, 0x24, 0xff], [0x1b, 0x20, 0x27, 0xff], 245),
+    };
+    fill_rounded_rect(buffer, width, height, button.rect, 6, fill, opacity);
+    let mut primitives = 1 + draw_component_glyph(
+        buffer,
+        width,
+        height,
+        button.icon_rect(),
+        button.glyph,
+        glyph_color,
+    );
+    if button.state == ComponentState::KeyboardFocus {
+        draw_rect_outline(
+            buffer,
+            width,
+            height,
+            button.focus_rect(),
+            palette.accent,
+            220,
+        );
+        primitives += 1;
+    }
+    primitives
+}
+
+pub(crate) fn draw_search_field(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    field: SearchField<'_>,
+    theme: AquaTheme,
+    scale: OutputScale,
+) -> usize {
+    let palette = window_chrome_palette(theme);
+    let (fill, border, text) = match field.state {
+        ComponentState::Disabled => (
+            palette.row_alternate,
+            palette.border,
+            palette.secondary_text,
+        ),
+        ComponentState::Loading => (
+            palette.row_alternate,
+            palette.border,
+            palette.secondary_text,
+        ),
+        ComponentState::Error => (palette.field, [0xc9, 0x3c, 0x47, 0xff], palette.text),
+        ComponentState::Success => (palette.field, [0x2c, 0x8a, 0x59, 0xff], palette.text),
+        ComponentState::Attention => (palette.field, [0xd1, 0x8b, 0x24, 0xff], palette.text),
+        ComponentState::Hover => (palette.hover, palette.border, palette.text),
+        ComponentState::Idle
+        | ComponentState::KeyboardFocus
+        | ComponentState::Pressed
+        | ComponentState::Selected => (palette.field, palette.border, palette.text),
+    };
+    fill_rounded_rect(buffer, width, height, field.rect, 6, fill, 245);
+    draw_rect_outline(buffer, width, height, field.rect, border, 255);
+    let slots = field.slots();
+    let search_icon = IconButton::new(slots.leading, "Search", IconButtonGlyph::Search);
+    draw_component_glyph(
+        buffer,
+        width,
+        height,
+        search_icon.icon_rect(),
+        IconButtonGlyph::Search,
+        palette.secondary_text,
+    );
+    let label = if field.state == ComponentState::Loading {
+        "SEARCHING..."
+    } else {
+        field.display_text()
+    };
+    draw_fitted_bitmap_text(
+        buffer,
+        (width, height),
+        slots.text,
+        label,
+        if field.value.is_empty() {
+            palette.secondary_text
+        } else {
+            text
+        },
+        FittedTextOptions::new(TextRole::Control, scale, false),
+    );
+    if field.state == ComponentState::KeyboardFocus {
+        draw_rect_outline(
+            buffer,
+            width,
+            height,
+            field.focus_rect(),
+            palette.accent,
+            220,
+        );
+        5
+    } else {
+        4
+    }
+}
 
 pub(crate) fn draw_standard_button(
     buffer: &mut [u8],
@@ -141,7 +378,9 @@ pub struct ComponentAcceptanceProbe {
     pub theme: AquaTheme,
     pub scale: OutputScale,
     pub button_state_count: usize,
+    pub icon_button_state_count: usize,
     pub list_row_state_count: usize,
+    pub search_field_state_count: usize,
     pub sidebar_row_count: usize,
     pub stable_geometry: bool,
     pub input_semantics: bool,
@@ -152,7 +391,9 @@ pub struct ComponentAcceptanceProbe {
 impl ComponentAcceptanceProbe {
     pub const fn is_ready(self) -> bool {
         self.button_state_count == ComponentState::STANDARD_BUTTON_STATES.len()
+            && self.icon_button_state_count == ComponentState::ICON_BUTTON_STATES.len()
             && self.list_row_state_count == ComponentState::LIST_ROW_STATES.len()
+            && self.search_field_state_count == ComponentState::SEARCH_FIELD_STATES.len()
             && self.sidebar_row_count == ComponentState::LIST_ROW_STATES.len()
             && self.stable_geometry
             && self.input_semantics
@@ -228,6 +469,74 @@ pub fn render_component_acceptance_rgba(
         accessibility_semantics &= semantics.selected == (state == ComponentState::Selected);
     }
 
+    let search_width = scale.apply(150.0).round() as u32;
+    let search_height = scale.apply(36.0).round() as u32;
+    let search_gap = scale.apply(14.0).round() as u32;
+    let search_stride = scale.apply(50.0).round() as u32;
+    for (index, state) in ComponentState::SEARCH_FIELD_STATES.into_iter().enumerate() {
+        let column = index as u32 % 2;
+        let row_index = index as u32 / 2;
+        let rect = Rect {
+            x: 56 + column * (search_width + search_gap),
+            y: 330 + row_index * search_stride,
+            width: search_width,
+            height: search_height,
+        };
+        let value = if index % 2 == 0 { "" } else { state.id() };
+        let field = SearchField::new(rect, "Search fixture", value, "Search").with_state(state);
+        draw_search_field(
+            &mut buffer,
+            viewport.width,
+            viewport.height,
+            field,
+            theme,
+            scale,
+        );
+        let slots = field.slots();
+        stable_geometry &= slots.leading.right() <= slots.text.x
+            && slots.text.right() <= slots.trailing.x
+            && slots.trailing.right() == rect.right();
+        input_semantics &= field.pointer_focuses(rect.x + 1, rect.y + 1) == field.accepts_input();
+        let semantics = field.accessibility();
+        accessibility_semantics &= semantics.role == "searchbox"
+            && !semantics.name.is_empty()
+            && semantics.value == value
+            && semantics.disabled == (state == ComponentState::Disabled)
+            && semantics.busy == (state == ComponentState::Loading)
+            && semantics.invalid == (state == ComponentState::Error);
+    }
+
+    let icon_size = scale.apply(28.0).round() as u32;
+    let icon_stride_x = scale.apply(58.0).round() as u32;
+    let icon_stride_y = scale.apply(33.0).round() as u32;
+    for (index, state) in ComponentState::ICON_BUTTON_STATES.into_iter().enumerate() {
+        let rect = Rect {
+            x: 56 + (index as u32 % 5) * icon_stride_x,
+            y: 535 + (index as u32 / 5) * icon_stride_y,
+            width: icon_size,
+            height: icon_size,
+        };
+        let glyph = match index % 4 {
+            0 => IconButtonGlyph::Back,
+            1 => IconButtonGlyph::Forward,
+            2 => IconButtonGlyph::Search,
+            _ => IconButtonGlyph::Close,
+        };
+        let button = IconButton::new(rect, state.id(), glyph).with_state(state);
+        draw_icon_button(&mut buffer, viewport.width, viewport.height, button, theme);
+        stable_geometry &= button.icon_rect().fits_in(viewport)
+            && button.icon_rect().width <= button.rect.width
+            && button.icon_rect().height <= button.rect.height;
+        input_semantics &= button.pointer_hit(rect.x + 1, rect.y + 1) == button.can_activate();
+        input_semantics &= button.keyboard_activates(ActivationKey::Enter) == button.can_activate();
+        let semantics = button.accessibility();
+        accessibility_semantics &= semantics.role == "button"
+            && !semantics.name.is_empty()
+            && semantics.disabled == (state == ComponentState::Disabled)
+            && semantics.busy == (state == ComponentState::Loading)
+            && semantics.selected == (state == ComponentState::Selected);
+    }
+
     let sidebar_x = viewport.width / 2 + 16;
     let sidebar = SidebarNavigation::new(
         Rect {
@@ -279,7 +588,9 @@ pub fn render_component_acceptance_rgba(
         theme,
         scale,
         button_state_count: ComponentState::STANDARD_BUTTON_STATES.len(),
+        icon_button_state_count: ComponentState::ICON_BUTTON_STATES.len(),
         list_row_state_count: ComponentState::LIST_ROW_STATES.len(),
+        search_field_state_count: ComponentState::SEARCH_FIELD_STATES.len(),
         sidebar_row_count: ComponentState::LIST_ROW_STATES.len(),
         stable_geometry,
         input_semantics,
@@ -308,13 +619,15 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=standard-button,list-row,sidebar-navigation viewport={}x{} scale={}/{} theme={} button_states={} list_row_states={} sidebar_rows={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=standard-button,icon-button,search-field,list-row,sidebar-navigation viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} list_row_states={} sidebar_rows={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
                 scale.denominator(),
                 theme.id(),
                 probe.button_state_count,
+                probe.icon_button_state_count,
+                probe.search_field_state_count,
                 probe.list_row_state_count,
                 probe.sidebar_row_count,
                 probe.stable_geometry,
@@ -343,7 +656,9 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 SharedComponentKind::SidebarNavigation,
+                SharedComponentKind::SearchField,
                 SharedComponentKind::StandardButton,
+                SharedComponentKind::IconButton,
                 SharedComponentKind::ListRow,
             ]
         );
@@ -387,7 +702,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=standard-button,list-row,sidebar-navigation")
+                .matches("components=standard-button,icon-button,search-field,list-row,sidebar-navigation")
                 .count(),
             12
         );
