@@ -1158,6 +1158,11 @@ grep -Fq 'aqua-components' docs/aqua-linux/adr-0003-aqua-ui-framework.md
 grep -Fq 'aqua-renderer' docs/aqua-linux/adr-0003-aqua-ui-framework.md
 grep -Fq 'Post-M12: Aqua UI Framework Consolidation' docs/aqua-linux/milestones.md
 grep -Fq 'ADR 0003' docs/aqua-linux/ui-contract.md
+test -f docs/aqua-linux/adr-0004-audio-service-stack.md
+grep -Fq 'Accepted on 2026-08-29' docs/aqua-linux/adr-0004-audio-service-stack.md
+grep -Fq 'ADR 0004' docs/aqua-linux/v1-readiness.md
+test -x scripts/check-audio-service-architecture.sh
+scripts/check-audio-service-architecture.sh
 grep -Fq 'Aqua Linux v1.0 readiness is governed separately by the mandatory gates in docs/aqua-linux/v1-readiness.md.' docs/aqua-linux/progress.json
 grep -Fq '"dailyUseReady": false' docs/aqua-linux/progress.json
 grep -Fq '"hardwareProven": false' docs/aqua-linux/progress.json

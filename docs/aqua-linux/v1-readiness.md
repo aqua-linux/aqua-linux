@@ -127,8 +127,12 @@ Pass criteria:
 - Service failure cannot silently hang the shell; bounded restart, user-visible
   degradation, logs, and recovery paths are tested.
 
-The concrete networking and audio implementations must be selected by an ADR
-before packaging. Buildroot availability alone is not an integration decision.
+The concrete networking implementation must be selected by an ADR before
+packaging. [ADR 0004](adr-0004-audio-service-stack.md) selects ALSA,
+PipeWire, WirePlumber, and eudev for audio, but deliberately blocks packaging
+until Aqua has a supported Buildroot LTS baseline, an unprivileged persistent
+session, per-user service supervision, and fail-closed adapter evidence.
+Buildroot availability alone is not an integration decision.
 
 ### R5: Accessibility, Internationalization, And Input
 
