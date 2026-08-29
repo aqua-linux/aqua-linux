@@ -100,6 +100,7 @@ impl SharedComponentKind {
                 | Self::ApplicationOverview
                 | Self::GlobalSearch
                 | Self::RunningAppDock
+                | Self::WorkspaceSwitcher
                 | Self::SidebarNavigation
         )
     }
@@ -2458,6 +2459,201 @@ impl<'a> RunningAppDock<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorkspaceSwitcherAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub workspace_count: usize,
+    pub active_index: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorkspaceAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub selected: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkspaceNavigationKey {
+    Previous,
+    Next,
+    Home,
+    End,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorkspaceSwitcher<'a> {
+    pub rect: Rect,
+    pub name: &'a str,
+    pub workspace_count: usize,
+    pub active_index: usize,
+    pub item_width: u32,
+    pub thumbnail_horizontal_inset: u32,
+    pub thumbnail_vertical_inset: u32,
+    pub indicator_horizontal_inset: u32,
+    pub indicator_bottom_inset: u32,
+    pub indicator_height: u32,
+}
+
+impl<'a> WorkspaceSwitcher<'a> {
+    pub const fn new(
+        rect: Rect,
+        name: &'a str,
+        workspace_count: usize,
+        active_index: usize,
+    ) -> Self {
+        Self {
+            rect,
+            name,
+            workspace_count,
+            active_index,
+            item_width: 60,
+            thumbnail_horizontal_inset: 5,
+            thumbnail_vertical_inset: 10,
+            indicator_horizontal_inset: 5,
+            indicator_bottom_inset: 0,
+            indicator_height: 3,
+        }
+    }
+
+    pub const fn item_rect(self, index: usize) -> Rect {
+        if index >= self.workspace_count {
+            return Rect {
+                x: self.rect.x,
+                y: self.rect.y,
+                width: 0,
+                height: 0,
+            };
+        }
+        Rect {
+            x: self
+                .rect
+                .x
+                .saturating_add((index as u32).saturating_mul(self.item_width)),
+            y: self.rect.y,
+            width: self.item_width,
+            height: self.rect.height,
+        }
+    }
+
+    pub const fn thumbnail_rect(self, index: usize) -> Rect {
+        let item = self.item_rect(index);
+        if item.width == 0 {
+            return item;
+        }
+        Rect {
+            x: item.x.saturating_add(self.thumbnail_horizontal_inset),
+            y: item.y.saturating_add(self.thumbnail_vertical_inset),
+            width: item
+                .width
+                .saturating_sub(self.thumbnail_horizontal_inset.saturating_mul(2)),
+            height: item
+                .height
+                .saturating_sub(self.thumbnail_vertical_inset.saturating_mul(2)),
+        }
+    }
+
+    pub const fn active_indicator_rect(self) -> Rect {
+        let thumbnail = self.thumbnail_rect(self.active_index);
+        if thumbnail.width == 0 {
+            return thumbnail;
+        }
+        Rect {
+            x: thumbnail.x.saturating_add(self.indicator_horizontal_inset),
+            y: thumbnail
+                .bottom()
+                .saturating_sub(self.indicator_bottom_inset)
+                .saturating_sub(self.indicator_height),
+            width: thumbnail
+                .width
+                .saturating_sub(self.indicator_horizontal_inset.saturating_mul(2)),
+            height: self.indicator_height,
+        }
+    }
+
+    pub const fn item_at(self, x: u32, y: u32) -> Option<usize> {
+        if !self.is_valid() || !rect_contains(self.rect, x, y) {
+            return None;
+        }
+        let index = ((x - self.rect.x) / self.item_width) as usize;
+        if index < self.workspace_count {
+            Some(index)
+        } else {
+            None
+        }
+    }
+
+    pub const fn is_active(self, index: usize) -> bool {
+        self.is_valid() && index < self.workspace_count && index == self.active_index
+    }
+
+    pub const fn keyboard_target(self, key: WorkspaceNavigationKey) -> Option<usize> {
+        if !self.is_valid() {
+            return None;
+        }
+        match key {
+            WorkspaceNavigationKey::Previous => self.active_index.checked_sub(1),
+            WorkspaceNavigationKey::Next => {
+                let next = self.active_index + 1;
+                if next < self.workspace_count {
+                    Some(next)
+                } else {
+                    None
+                }
+            }
+            WorkspaceNavigationKey::Home => Some(0),
+            WorkspaceNavigationKey::End => Some(self.workspace_count - 1),
+        }
+    }
+
+    pub const fn is_valid(self) -> bool {
+        if self.name.is_empty()
+            || self.workspace_count == 0
+            || self.workspace_count > 16
+            || self.active_index >= self.workspace_count
+            || self.item_width < 44
+            || self.rect.height < 40
+            || self.thumbnail_horizontal_inset.saturating_mul(2) >= self.item_width
+            || self.thumbnail_vertical_inset.saturating_mul(2) >= self.rect.height
+            || self.indicator_height == 0
+        {
+            return false;
+        }
+        let thumbnail = self.thumbnail_rect(self.active_index);
+        self.rect.width == self.item_width.saturating_mul(self.workspace_count as u32)
+            && self.indicator_horizontal_inset.saturating_mul(2) < thumbnail.width
+            && self
+                .indicator_height
+                .saturating_add(self.indicator_bottom_inset)
+                <= thumbnail.height
+    }
+
+    pub const fn accessibility(self) -> WorkspaceSwitcherAccessibility<'a> {
+        WorkspaceSwitcherAccessibility {
+            role: "tablist",
+            name: self.name,
+            workspace_count: self.workspace_count,
+            active_index: self.active_index,
+        }
+    }
+
+    pub const fn item_accessibility(
+        self,
+        index: usize,
+        name: &'a str,
+    ) -> Option<WorkspaceAccessibility<'a>> {
+        if !self.is_valid() || index >= self.workspace_count || name.is_empty() {
+            return None;
+        }
+        Some(WorkspaceAccessibility {
+            role: "tab",
+            name,
+            selected: index == self.active_index,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SidebarNavigation<'a> {
     pub rect: Rect,
     pub label: &'a str,
@@ -2571,7 +2767,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_seventeen_shared_primitives() {
+    fn catalog_tracks_the_eighteen_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -2596,6 +2792,7 @@ mod tests {
                 SharedComponentKind::ApplicationOverview,
                 SharedComponentKind::GlobalSearch,
                 SharedComponentKind::RunningAppDock,
+                SharedComponentKind::WorkspaceSwitcher,
             ]
         );
     }
@@ -2702,6 +2899,7 @@ mod tests {
             1,
         );
         let running_dock = RunningAppDock::new(rect, "", 1);
+        let workspace_switcher = WorkspaceSwitcher::new(rect, "", 1, 0);
         assert!(!button.can_activate());
         assert!(!top_bar.is_valid());
         assert!(!row.can_activate());
@@ -2718,6 +2916,7 @@ mod tests {
         assert!(!overview.is_valid());
         assert!(!global_search.is_valid());
         assert!(!running_dock.is_valid());
+        assert!(!workspace_switcher.is_valid());
         assert_eq!(navigation.hit_test(11, 21, 1), None);
     }
 
@@ -2912,6 +3111,78 @@ mod tests {
         assert_eq!(item.role, "button");
         assert!(item.running);
         assert!(dock.item_accessibility(3, "Missing", false).is_none());
+    }
+
+    #[test]
+    fn workspace_switcher_owns_targets_thumbnails_and_active_semantics() {
+        let switcher = WorkspaceSwitcher::new(
+            Rect {
+                x: 580,
+                y: 0,
+                width: 180,
+                height: 72,
+            },
+            "Workspaces",
+            3,
+            1,
+        );
+        assert!(switcher.is_valid());
+        assert_eq!(
+            switcher.item_rect(0),
+            Rect {
+                x: 580,
+                y: 0,
+                width: 60,
+                height: 72,
+            }
+        );
+        assert_eq!(
+            switcher.thumbnail_rect(1),
+            Rect {
+                x: 645,
+                y: 10,
+                width: 50,
+                height: 52,
+            }
+        );
+        assert_eq!(
+            switcher.active_indicator_rect(),
+            Rect {
+                x: 650,
+                y: 59,
+                width: 40,
+                height: 3,
+            }
+        );
+        assert_eq!(switcher.item_at(580, 0), Some(0));
+        assert_eq!(switcher.item_at(639, 71), Some(0));
+        assert_eq!(switcher.item_at(640, 20), Some(1));
+        assert_eq!(switcher.item_at(760, 20), None);
+        assert!(switcher.is_active(1));
+        assert!(!switcher.is_active(2));
+        assert_eq!(
+            switcher.keyboard_target(WorkspaceNavigationKey::Previous),
+            Some(0)
+        );
+        assert_eq!(
+            switcher.keyboard_target(WorkspaceNavigationKey::Next),
+            Some(2)
+        );
+        assert_eq!(
+            switcher.keyboard_target(WorkspaceNavigationKey::Home),
+            Some(0)
+        );
+        assert_eq!(
+            switcher.keyboard_target(WorkspaceNavigationKey::End),
+            Some(2)
+        );
+        let semantics = switcher.accessibility();
+        assert_eq!(semantics.role, "tablist");
+        assert_eq!(semantics.active_index, 1);
+        let item = switcher.item_accessibility(1, "Workspace 2").unwrap();
+        assert_eq!(item.role, "tab");
+        assert!(item.selected);
+        assert!(switcher.item_accessibility(3, "Missing").is_none());
     }
 
     #[test]

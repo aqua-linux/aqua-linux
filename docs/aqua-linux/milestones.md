@@ -461,7 +461,7 @@ The implementation inventory and extraction order are maintained in
 [component-catalog.md](component-catalog.md). Top system bar, window frame,
 menu, metadata row, section group, standard button, icon button, search field,
 switch, segmented control, toolbar, list row, grid cell, application overview,
-global search, running-app dock, and sidebar navigation are host-proven across
+global search, running-app dock, workspace switcher, and sidebar navigation are host-proven across
 their applicable states, four themes, three required
 viewports, and a fractional scale. Installer,
 Applications, Global Search, Terminal, Properties, Settings, and Files consume
@@ -470,7 +470,8 @@ field and grid cells through one bounded overview contract, Global Search
 composes its real split results and quick actions through a separate bounded
 contract, and Files correctly remains on its real list-row path. Shared geometry
 drives both renderer and input routing; the centered dock additionally shares
-its item, icon, running-indicator, and pointer geometry.
+its item, icon, running-indicator, and pointer geometry, while the workspace
+group shares its target, thumbnail, active-indicator, and pointer geometry.
 Packaged-QEMU component acceptance and the remaining catalog entries stay open.
 
 Done when desktop, Applications, Search, Terminal, Files, Settings, and the

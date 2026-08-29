@@ -2,7 +2,7 @@ use aqua_components::{
     ApplicationOverview, ComponentState, GlobalSearch, GridCell, GridCellLayout, IconButton,
     IconButtonGlyph, ListRow, ListRowRole, Menu, MetadataRow, RunningAppDock, SearchField,
     SectionGroup, SegmentedControl, SidebarNavigation, StandardButton, StandardButtonVariant,
-    SwitchControl, Toolbar, TopSystemBar,
+    SwitchControl, Toolbar, TopSystemBar, WorkspaceSwitcher,
 };
 use aqua_scene::Rect;
 use std::collections::VecDeque;
@@ -591,6 +591,26 @@ pub const fn running_app_dock(width: u32, height: u32) -> RunningAppDock<'static
     )
 }
 
+pub const fn workspace_switcher(
+    width: u32,
+    height: u32,
+    active_workspace: usize,
+) -> WorkspaceSwitcher<'static> {
+    let item_width = 60_u32;
+    let group_width = item_width.saturating_mul(WORKSPACE_COUNT as u32);
+    WorkspaceSwitcher::new(
+        Rect {
+            x: width.saturating_sub(group_width),
+            y: 0,
+            width: group_width,
+            height,
+        },
+        "Workspaces",
+        WORKSPACE_COUNT,
+        active_workspace,
+    )
+}
+
 pub fn dock_pointer_target(
     local_x: u32,
     local_y: u32,
@@ -616,12 +636,9 @@ pub fn dock_pointer_target(
             .map(BottomShellTarget::Application);
     }
 
-    let workspace_width = 60_u32;
-    let workspace_group_width = workspace_width * WORKSPACE_COUNT as u32;
-    let workspace_start = width.saturating_sub(workspace_group_width);
-    (workspace_start..width).contains(&local_x).then(|| {
-        BottomShellTarget::Workspace(((local_x - workspace_start) / workspace_width) as usize)
-    })
+    workspace_switcher(width, height, 0)
+        .item_at(local_x, local_y)
+        .map(BottomShellTarget::Workspace)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4091,6 +4108,11 @@ mod tests {
         assert_eq!(running_dock.item_rect(0).x, 272);
         assert_eq!(running_dock.icon_rect(1).x, 348);
         assert_eq!(running_dock.indicator_rect(2).x, 449);
+        let workspaces = workspace_switcher(760, 72, 1);
+        assert!(workspaces.is_valid());
+        assert_eq!(workspaces.rect.x, 580);
+        assert_eq!(workspaces.thumbnail_rect(1).x, 645);
+        assert_eq!(workspaces.active_indicator_rect().x, 650);
         assert_eq!(
             dock_pointer_target(24, 36, 760, 72),
             Some(BottomShellTarget::Applications)
@@ -4117,6 +4139,7 @@ mod tests {
         );
         assert_eq!(dock_pointer_target(200, 36, 760, 72), None);
         assert_eq!(dock_pointer_target(488, 36, 760, 72), None);
+        assert_eq!(dock_pointer_target(760, 36, 760, 72), None);
         assert_eq!(
             DockItem::Settings.launch_request().unwrap().app_id,
             "settings"

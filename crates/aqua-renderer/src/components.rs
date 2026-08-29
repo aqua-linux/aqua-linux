@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-14";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-15";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -742,6 +742,55 @@ pub(crate) fn draw_running_app_dock(
     primitives
 }
 
+pub(crate) fn draw_workspace_switcher(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    switcher: WorkspaceSwitcher<'_>,
+    theme: AquaTheme,
+) -> usize {
+    if !switcher.is_valid() {
+        return 0;
+    }
+    let palette = window_chrome_palette(theme);
+    fill_rounded_rect(
+        buffer,
+        width,
+        height,
+        switcher.rect,
+        12,
+        palette.surface,
+        232,
+    );
+    let mut primitives = 1;
+    for index in 0..switcher.workspace_count {
+        fill_rounded_rect(
+            buffer,
+            width,
+            height,
+            switcher.thumbnail_rect(index),
+            8,
+            if switcher.is_active(index) {
+                palette.accent_soft
+            } else {
+                palette.field
+            },
+            220,
+        );
+        primitives += 1;
+    }
+    fill_rounded_rect(
+        buffer,
+        width,
+        height,
+        switcher.active_indicator_rect(),
+        1,
+        palette.accent,
+        255,
+    );
+    primitives + 1
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComponentAcceptanceProbe {
     pub viewport: Viewport,
@@ -764,6 +813,7 @@ pub struct ComponentAcceptanceProbe {
     pub application_overview_ready: bool,
     pub global_search_ready: bool,
     pub running_app_dock_ready: bool,
+    pub workspace_switcher_ready: bool,
     pub stable_geometry: bool,
     pub input_semantics: bool,
     pub accessibility_semantics: bool,
@@ -789,6 +839,7 @@ impl ComponentAcceptanceProbe {
             && self.application_overview_ready
             && self.global_search_ready
             && self.running_app_dock_ready
+            && self.workspace_switcher_ready
             && self.stable_geometry
             && self.input_semantics
             && self.accessibility_semantics
@@ -1558,6 +1609,48 @@ pub fn render_component_acceptance_rgba(
             .item_accessibility(0, "Files", true)
             .is_some_and(|item| item.role == "button" && item.running);
 
+    let fixture_workspace_switcher = WorkspaceSwitcher::new(
+        Rect {
+            x: 20,
+            y: viewport.height.saturating_sub(88),
+            width: 180,
+            height: 72,
+        },
+        "Workspaces",
+        3,
+        1,
+    );
+    draw_workspace_switcher(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        fixture_workspace_switcher,
+        theme,
+    );
+    let first_workspace = fixture_workspace_switcher.item_rect(0);
+    let active_thumbnail = fixture_workspace_switcher.thumbnail_rect(1);
+    let active_indicator = fixture_workspace_switcher.active_indicator_rect();
+    let workspace_semantics = fixture_workspace_switcher.accessibility();
+    let workspace_switcher_ready = fixture_workspace_switcher.is_valid()
+        && first_workspace.fits_in(viewport)
+        && active_thumbnail.fits_in(viewport)
+        && active_indicator.fits_in(viewport)
+        && fixture_workspace_switcher.item_at(first_workspace.x, first_workspace.y) == Some(0)
+        && fixture_workspace_switcher.item_at(first_workspace.right(), first_workspace.y)
+            == Some(1)
+        && fixture_workspace_switcher
+            .item_at(fixture_workspace_switcher.rect.right(), first_workspace.y)
+            .is_none()
+        && workspace_semantics.role == "tablist"
+        && workspace_semantics.name == "Workspaces"
+        && workspace_semantics.workspace_count == 3
+        && workspace_semantics.active_index == 1
+        && fixture_workspace_switcher.keyboard_target(WorkspaceNavigationKey::Previous) == Some(0)
+        && fixture_workspace_switcher.keyboard_target(WorkspaceNavigationKey::Next) == Some(2)
+        && fixture_workspace_switcher
+            .item_accessibility(1, "Workspace 2")
+            .is_some_and(|item| item.role == "tab" && item.selected);
+
     let probe = ComponentAcceptanceProbe {
         viewport,
         theme,
@@ -1579,6 +1672,7 @@ pub fn render_component_acceptance_rgba(
         application_overview_ready,
         global_search_ready,
         running_app_dock_ready,
+        workspace_switcher_ready,
         stable_geometry,
         input_semantics,
         accessibility_semantics,
@@ -1606,7 +1700,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} global_search_ready={} running_app_dock_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} global_search_ready={} running_app_dock_ready={} workspace_switcher_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -1629,6 +1723,7 @@ pub fn component_acceptance_report() -> String {
                 probe.application_overview_ready,
                 probe.global_search_ready,
                 probe.running_app_dock_ready,
+                probe.workspace_switcher_ready,
                 probe.stable_geometry,
                 probe.input_semantics,
                 probe.accessibility_semantics,
@@ -1671,6 +1766,7 @@ mod tests {
                 SharedComponentKind::ApplicationOverview,
                 SharedComponentKind::GlobalSearch,
                 SharedComponentKind::RunningAppDock,
+                SharedComponentKind::WorkspaceSwitcher,
             ]
         );
     }
@@ -1713,7 +1809,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,sidebar-navigation,toolbar")
+                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,sidebar-navigation,toolbar")
                 .count(),
             12
         );

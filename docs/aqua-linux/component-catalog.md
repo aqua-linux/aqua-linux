@@ -31,7 +31,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Application overview | Shared host-proven primitive | Applications panel surface, title, search, grid layout, and pointer geometry; packaged-QEMU acceptance remains open |
 | Global search | Shared host-proven primitive | Split result list, quick-action panel, and exact pointer geometry; packaged-QEMU acceptance remains open |
 | Running-app dock | Shared host-proven primitive | Centered Files, Settings, and Trash targets with running indicators; packaged-QEMU acceptance remains open |
-| Workspace switcher | Planned | Bottom-right shell group |
+| Workspace switcher | Shared host-proven primitive | Three real workspace targets, thumbnails, and active indicator; packaged-QEMU acceptance remains open |
 | Notification | Planned | Shell notification center |
 | Confirmation dialog | Planned | Destructive and session confirmation paths |
 
@@ -472,8 +472,40 @@ The deterministic matrix covers item boundaries, visual/raster centering,
 running status, accessibility semantics, four themes, and the three required
 viewports including fractional scale. Packaged-QEMU acceptance remains open.
 
+## Workspace Switcher Contract
+
+### Anatomy And Geometry
+
+- The switcher owns the bottom-right surface and three stable 60-pixel targets
+  matching the compositor's three real workspaces.
+- Every target derives a bounded inset thumbnail. The selected workspace derives
+  one 40-by-3 active indicator from its thumbnail without changing target or
+  thumbnail geometry.
+- Workspace count, active index, item width, thumbnail insets, and indicator
+  dimensions are explicit. Empty names, invalid active indexes, unsupported
+  counts, undersized bounds, and overflowing geometry fail closed.
+
+### Input, Semantics, And Consumption
+
+- Pointer routing uses exact half-open workspace targets; the switcher's right
+  edge and space outside its surface do not activate a workspace.
+- Previous/next keyboard navigation is bounded rather than wrapping; Home and
+  End resolve the first and last workspace. Existing compositor shortcuts feed
+  the same three-workspace activation model.
+- The container exposes a named `tablist` with workspace count and active index.
+  Each named workspace exposes `tab` and selected state.
+- The bottom-shell renderer derives its surface, thumbnails, active fill, and
+  indicator from the shared contract. Compositor pointer routing resolves the
+  same targets before invoking the existing bounded workspace activation path;
+  window ownership, focus transfer, and move-between-workspace behavior remain
+  unchanged.
+
+The deterministic matrix covers target boundaries, active/inactive thumbnails,
+indicator containment, accessibility semantics, four themes, and the three
+required viewports including fractional scale. Packaged-QEMU acceptance remains
+open.
+
 ## Next Extraction Order
 
-1. Workspace switcher.
-2. Notification and confirmation dialog.
-3. Checkbox and slider remain deferred until real option and bounded-value models exist.
+1. Notification and confirmation dialog.
+2. Checkbox and slider remain deferred until real option and bounded-value models exist.
