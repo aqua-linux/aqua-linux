@@ -1,7 +1,8 @@
 use aqua_components::{
-    ApplicationOverview, ComponentState, GridCell, GridCellLayout, IconButton, IconButtonGlyph,
-    Menu, MetadataRow, SearchField, SectionGroup, SegmentedControl, SidebarNavigation,
-    SwitchControl, Toolbar, TopSystemBar,
+    ApplicationOverview, ComponentState, GlobalSearch, GridCell, GridCellLayout, IconButton,
+    IconButtonGlyph, ListRow, ListRowRole, Menu, MetadataRow, SearchField, SectionGroup,
+    SegmentedControl, SidebarNavigation, StandardButton, StandardButtonVariant, SwitchControl,
+    Toolbar, TopSystemBar,
 };
 use aqua_scene::Rect;
 use std::collections::VecDeque;
@@ -2614,23 +2615,8 @@ impl LauncherState {
                 .application_overview(viewport_width, viewport_height)
                 .search_field(self.query(), ComponentState::Idle);
         }
-        let panel = self.panel_bounds(viewport_width, viewport_height);
-        SearchField::new(
-            Rect {
-                x: panel.x + 24,
-                y: panel.y + 54,
-                width: panel.width.saturating_sub(48),
-                height: 42,
-            },
-            "Search applications",
-            self.query(),
-            "SEARCH APPS...",
-        )
-        .with_state(if self.mode == LauncherMode::Search {
-            ComponentState::KeyboardFocus
-        } else {
-            ComponentState::Idle
-        })
+        self.global_search(viewport_width, viewport_height)
+            .search_field(self.query(), ComponentState::KeyboardFocus)
     }
 
     pub fn application_overview(
@@ -2650,6 +2636,28 @@ impl LauncherState {
             "Search applications",
             "SEARCH APPS...",
             self.visible_apps().len(),
+        )
+    }
+
+    pub fn global_search(
+        &self,
+        viewport_width: u32,
+        viewport_height: u32,
+    ) -> GlobalSearch<'static> {
+        let panel = self.panel_bounds(viewport_width, viewport_height);
+        GlobalSearch::new(
+            Rect {
+                x: panel.x,
+                y: panel.y,
+                width: panel.width,
+                height: panel.height,
+            },
+            "Global Search",
+            "Search applications",
+            "SEARCH APPS...",
+            ("Results", "Quick actions"),
+            self.visible_apps().len(),
+            3,
         )
     }
 
@@ -2694,8 +2702,51 @@ impl LauncherState {
         )
     }
 
+    pub fn search_result_row(
+        &self,
+        index: usize,
+        viewport_width: u32,
+        viewport_height: u32,
+    ) -> Option<ListRow<'static>> {
+        if self.mode != LauncherMode::Search {
+            return None;
+        }
+        let app = *self.visible_apps().get(index)?;
+        let search = self.global_search(viewport_width, viewport_height);
+        if index >= search.visible_result_count() {
+            return None;
+        }
+        Some(
+            ListRow::new(search.result_rect(index), app.name, ListRowRole::Option)
+                .with_slots(46, 8)
+                .with_state(if index == self.selected_index {
+                    ComponentState::Selected
+                } else {
+                    ComponentState::Idle
+                }),
+        )
+    }
+
+    pub fn search_quick_action_button(
+        &self,
+        index: usize,
+        viewport_width: u32,
+        viewport_height: u32,
+    ) -> Option<StandardButton<'static>> {
+        if self.mode != LauncherMode::Search {
+            return None;
+        }
+        let label = *["OPEN APPLICATIONS", "SYSTEM SETTINGS", "BROWSE FILES"].get(index)?;
+        Some(StandardButton::new(
+            self.global_search(viewport_width, viewport_height)
+                .quick_action_rect(index),
+            label,
+            StandardButtonVariant::Secondary,
+        ))
+    }
+
     pub fn move_selection(&mut self, offset: isize) {
-        let count = self.visible_apps().len();
+        let count = self.navigable_item_count();
         if count == 0 {
             self.selected_index = 0;
             return;
@@ -2706,11 +2757,18 @@ impl LauncherState {
     }
 
     pub fn select_visible_index(&mut self, index: usize) -> bool {
-        if index >= self.visible_apps().len() {
+        if index >= self.navigable_item_count() {
             return false;
         }
         self.selected_index = index;
         true
+    }
+
+    fn navigable_item_count(&self) -> usize {
+        match self.mode {
+            LauncherMode::Applications => self.visible_apps().len().min(6),
+            LauncherMode::Search => self.visible_apps().len().min(5),
+        }
     }
 
     pub fn pointer_target(&self, x: u32, y: u32) -> Option<LauncherPointerTarget> {
@@ -2739,7 +2797,6 @@ impl LauncherState {
             return Some(LauncherPointerTarget::SearchField);
         }
 
-        let content_y = panel.y + 96;
         match self.mode {
             LauncherMode::Applications => {
                 let overview = self.application_overview(viewport_width, viewport_height);
@@ -2753,23 +2810,24 @@ impl LauncherState {
                 }
             }
             LauncherMode::Search => {
-                if y >= content_y {
-                    if x < panel.x + panel.width / 2 {
-                        let index = ((y - content_y) / 58) as usize;
-                        if index < self.visible_apps().len().min(6) {
-                            return Some(LauncherPointerTarget::Application(index));
-                        }
-                    } else {
-                        let index = ((y - content_y) / 62) as usize;
-                        let action = match index {
-                            0 => Some(LauncherQuickAction::Applications),
-                            1 => Some(LauncherQuickAction::Settings),
-                            2 => Some(LauncherQuickAction::Files),
-                            _ => None,
-                        };
-                        if let Some(action) = action {
-                            return Some(LauncherPointerTarget::QuickAction(action));
-                        }
+                let search = self.global_search(viewport_width, viewport_height);
+                if let Some(index) = search.result_at(x, y) {
+                    if self
+                        .search_result_row(index, viewport_width, viewport_height)
+                        .is_some()
+                    {
+                        return Some(LauncherPointerTarget::Application(index));
+                    }
+                }
+                if let Some(index) = search.quick_action_at(x, y) {
+                    let action = match index {
+                        0 => Some(LauncherQuickAction::Applications),
+                        1 => Some(LauncherQuickAction::Settings),
+                        2 => Some(LauncherQuickAction::Files),
+                        _ => None,
+                    };
+                    if let Some(action) = action {
+                        return Some(LauncherPointerTarget::QuickAction(action));
                     }
                 }
             }
@@ -3842,6 +3900,11 @@ mod tests {
         assert_eq!(launcher.selected_index(), 5);
         launcher.move_selection(1);
         assert_eq!(launcher.selected_index(), 0);
+
+        launcher.open_search();
+        launcher.move_selection(-1);
+        assert_eq!(launcher.selected_index(), 4);
+        assert!(!launcher.select_visible_index(5));
     }
 
     #[test]
@@ -3929,9 +3992,24 @@ mod tests {
         );
         launcher.open_search();
         launcher.set_query("settings");
+        let search = launcher.global_search(800, 600);
+        assert!(search.is_valid());
+        assert_eq!(launcher.search_field(800, 600).rect, search.search_rect());
         assert_eq!(
-            launcher.pointer_target(70, 180),
+            launcher.search_result_row(0, 800, 600).unwrap().rect,
+            search.result_rect(0)
+        );
+        assert_eq!(
+            launcher.pointer_target(70, 220),
             Some(LauncherPointerTarget::Application(0))
+        );
+        assert_eq!(
+            launcher.pointer_target(70, 260),
+            Some(LauncherPointerTarget::Panel)
+        );
+        assert_eq!(
+            launcher.pointer_target(70, 190),
+            Some(LauncherPointerTarget::Panel)
         );
         assert_eq!(launcher.pointer_target(900, 700), None);
     }
@@ -3957,11 +4035,23 @@ mod tests {
     fn launcher_search_quick_actions_are_real_and_bounded() {
         let mut launcher = LauncherState::default();
         launcher.open_search();
+        let search = launcher.global_search(800, 600);
         assert_eq!(
-            launcher.pointer_target(500, 190),
+            launcher
+                .search_quick_action_button(0, 800, 600)
+                .unwrap()
+                .rect,
+            search.quick_action_rect(0)
+        );
+        assert_eq!(
+            launcher.pointer_target(500, 220),
             Some(LauncherPointerTarget::QuickAction(
                 LauncherQuickAction::Applications
             ))
+        );
+        assert_eq!(
+            launcher.pointer_target(500, 258),
+            Some(LauncherPointerTarget::Panel)
         );
         let settings = launcher.activate_quick_action(LauncherQuickAction::Settings);
         assert_eq!(settings.launch_request.unwrap().app_id, "settings");

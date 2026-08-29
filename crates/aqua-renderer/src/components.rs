@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-12";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-13";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -665,6 +665,55 @@ pub(crate) fn draw_application_overview(
     3
 }
 
+pub(crate) fn draw_global_search(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    search: GlobalSearch<'_>,
+    theme: AquaTheme,
+    scale: OutputScale,
+) -> usize {
+    if !search.is_valid() {
+        return 0;
+    }
+    let palette = window_chrome_palette(theme);
+    fill_rect(buffer, width, height, search.rect, palette.surface, 244);
+    draw_rect_outline(buffer, width, height, search.rect, palette.border, 255);
+    draw_fitted_bitmap_text(
+        buffer,
+        (width, height),
+        search.title_rect(),
+        search.name,
+        palette.text,
+        FittedTextOptions::new(TextRole::Title, scale, false),
+    );
+    fill_rect(
+        buffer,
+        width,
+        height,
+        search.divider_rect(),
+        palette.border,
+        180,
+    );
+    draw_fitted_bitmap_text(
+        buffer,
+        (width, height),
+        search.results_header_rect(),
+        search.results_name,
+        palette.secondary_text,
+        FittedTextOptions::new(TextRole::Control, scale, false),
+    );
+    draw_fitted_bitmap_text(
+        buffer,
+        (width, height),
+        search.quick_actions_header_rect(),
+        search.quick_actions_name,
+        palette.secondary_text,
+        FittedTextOptions::new(TextRole::Control, scale, false),
+    );
+    6
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComponentAcceptanceProbe {
     pub viewport: Viewport,
@@ -685,6 +734,7 @@ pub struct ComponentAcceptanceProbe {
     pub metadata_row_ready: bool,
     pub top_system_bar_ready: bool,
     pub application_overview_ready: bool,
+    pub global_search_ready: bool,
     pub stable_geometry: bool,
     pub input_semantics: bool,
     pub accessibility_semantics: bool,
@@ -708,6 +758,7 @@ impl ComponentAcceptanceProbe {
             && self.metadata_row_ready
             && self.top_system_bar_ready
             && self.application_overview_ready
+            && self.global_search_ready
             && self.stable_geometry
             && self.input_semantics
             && self.accessibility_semantics
@@ -1344,6 +1395,93 @@ pub fn render_component_acceptance_rgba(
         && overview_semantics.item_count == 3
         && overview_semantics.column_count == 3;
 
+    let fixture_global_search = GlobalSearch::new(
+        Rect {
+            x: 20,
+            y: 330,
+            width: viewport.width.saturating_sub(40),
+            height: 250,
+        },
+        "Global Search",
+        "Search applications",
+        "Search apps",
+        ("Results", "Quick actions"),
+        2,
+        2,
+    );
+    draw_global_search(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        fixture_global_search,
+        theme,
+        scale,
+    );
+    draw_search_field(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        fixture_global_search.search_field("set", ComponentState::KeyboardFocus),
+        theme,
+        scale,
+    );
+    for index in 0..fixture_global_search.visible_result_count() {
+        let row = ListRow::new(
+            fixture_global_search.result_rect(index),
+            "Result",
+            ListRowRole::Option,
+        )
+        .with_state(if index == 0 {
+            ComponentState::Selected
+        } else {
+            ComponentState::Idle
+        });
+        draw_list_row(
+            &mut buffer,
+            viewport.width,
+            viewport.height,
+            row,
+            theme,
+            scale,
+        );
+    }
+    for index in 0..fixture_global_search.quick_action_count {
+        let button = StandardButton::new(
+            fixture_global_search.quick_action_rect(index),
+            "Quick action",
+            StandardButtonVariant::Secondary,
+        );
+        draw_standard_button(
+            &mut buffer,
+            viewport.width,
+            viewport.height,
+            button,
+            theme,
+            scale,
+        );
+    }
+    let first_result = fixture_global_search.result_rect(0);
+    let first_action = fixture_global_search.quick_action_rect(0);
+    let global_search_semantics = fixture_global_search.accessibility();
+    let global_search_ready = fixture_global_search.is_valid()
+        && fixture_global_search.title_rect().fits_in(viewport)
+        && fixture_global_search.search_rect().fits_in(viewport)
+        && fixture_global_search.divider_rect().fits_in(viewport)
+        && first_result.fits_in(viewport)
+        && first_action.fits_in(viewport)
+        && fixture_global_search.result_at(first_result.x, first_result.y) == Some(0)
+        && fixture_global_search
+            .result_at(first_result.x, first_result.bottom())
+            .is_none()
+        && fixture_global_search.quick_action_at(first_action.x, first_action.y) == Some(0)
+        && fixture_global_search
+            .quick_action_at(first_action.x, first_action.bottom())
+            .is_none()
+        && global_search_semantics.role == "search"
+        && global_search_semantics.name == "Global Search"
+        && global_search_semantics.result_count == 2
+        && global_search_semantics.quick_action_count == 2;
+
     let probe = ComponentAcceptanceProbe {
         viewport,
         theme,
@@ -1363,6 +1501,7 @@ pub fn render_component_acceptance_rgba(
         metadata_row_ready,
         top_system_bar_ready,
         application_overview_ready,
+        global_search_ready,
         stable_geometry,
         input_semantics,
         accessibility_semantics,
@@ -1390,7 +1529,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} global_search_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -1411,6 +1550,7 @@ pub fn component_acceptance_report() -> String {
                 probe.metadata_row_ready,
                 probe.top_system_bar_ready,
                 probe.application_overview_ready,
+                probe.global_search_ready,
                 probe.stable_geometry,
                 probe.input_semantics,
                 probe.accessibility_semantics,
@@ -1451,6 +1591,7 @@ mod tests {
                 SharedComponentKind::MetadataRow,
                 SharedComponentKind::SectionGroup,
                 SharedComponentKind::ApplicationOverview,
+                SharedComponentKind::GlobalSearch,
             ]
         );
     }
@@ -1493,7 +1634,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,sidebar-navigation,toolbar")
+                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,sidebar-navigation,toolbar")
                 .count(),
             12
         );
