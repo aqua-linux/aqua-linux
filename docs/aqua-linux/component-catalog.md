@@ -28,7 +28,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Grid cell | Shared host-proven primitive | Applications cards and desktop icon cells share render/input geometry; Files remains a list because no grid mode exists yet |
 | Metadata row | Shared host-proven primitive | Properties and System Overview share bounded read-only label/value columns; packaged-QEMU acceptance remains open |
 | Section group | Shared host-proven primitive | Settings and Properties share bounded heading, row, trailing-control, and footer geometry; packaged-QEMU acceptance remains open |
-| Application overview | Planned | Applications panel |
+| Application overview | Shared host-proven primitive | Applications panel surface, title, search, grid layout, and pointer geometry; packaged-QEMU acceptance remains open |
 | Global search | Planned | Search panel and result actions |
 | Running-app dock | Planned | Bottom-center shell group |
 | Workspace switcher | Planned | Bottom-right shell group |
@@ -383,8 +383,38 @@ placement, focus indication, and accessibility semantics in four themes at
 800x600, 1280x800, and fractional-scale 1536x1024. Packaged-QEMU component
 acceptance remains open.
 
+## Application Overview Contract
+
+### Anatomy And Geometry
+
+- The overview owns one bounded panel surface, title region, shared search field,
+  and a three-column grid region. Horizontal inset, search offset and height,
+  column gap, cell height, row stride, and visible-item limit are explicit.
+- Every application cell is derived from the overview grid. Division remainder
+  belongs to the final column, keeping the grid flush with its declared edge
+  without moving earlier columns.
+- Invalid names, search metadata, item limits, column counts, undersized search
+  controls, overlapping row strides, and overflowing cells fail closed.
+
+### Input, Semantics, And Composition
+
+- Panel containment, search focus, and application activation use the same
+  rectangles consumed by rendering. Insets and column or row gaps do not select
+  an application.
+- The container exposes a named `region` with item and column counts. Its search
+  field retains `searchbox`; each child retains independent `gridcell` state and
+  activation semantics.
+- The Applications launcher mode now obtains its panel, title, search field,
+  grid, cards, and pointer target resolution from this composition. Global
+  Search remains separate because its split results/actions layout is different.
+
+The deterministic matrix covers compact bounds, search and grid containment,
+three-column remainder handling, gap rejection, semantics, four themes, and the
+three required viewports including fractional scale. Packaged-QEMU component
+acceptance remains open.
+
 ## Next Extraction Order
 
-1. Application overview, composing the existing search field and grid cells into one bounded panel contract.
-2. Global search, then the running-app dock and workspace switcher.
+1. Global search, composing its real result list and quick actions into one bounded panel contract.
+2. Running-app dock and workspace switcher.
 3. Notification and confirmation dialog; checkbox and slider remain deferred until real option and bounded-value models exist.

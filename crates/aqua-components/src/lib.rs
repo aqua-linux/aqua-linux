@@ -97,6 +97,7 @@ impl SharedComponentKind {
                 | Self::Switch
                 | Self::ListRow
                 | Self::GridCell
+                | Self::ApplicationOverview
                 | Self::SidebarNavigation
         )
     }
@@ -1834,6 +1835,198 @@ impl<'a> GridCell<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ApplicationOverviewAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub item_count: usize,
+    pub column_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ApplicationOverview<'a> {
+    pub rect: Rect,
+    pub name: &'a str,
+    pub search_name: &'a str,
+    pub search_placeholder: &'a str,
+    pub item_count: usize,
+    pub column_count: usize,
+    pub visible_limit: usize,
+    pub horizontal_inset: u32,
+    pub search_offset_y: u32,
+    pub search_height: u32,
+    pub grid_gap: u32,
+    pub cell_height: u32,
+    pub row_stride: u32,
+}
+
+impl<'a> ApplicationOverview<'a> {
+    pub const fn new(
+        rect: Rect,
+        name: &'a str,
+        search_name: &'a str,
+        search_placeholder: &'a str,
+        item_count: usize,
+    ) -> Self {
+        Self {
+            rect,
+            name,
+            search_name,
+            search_placeholder,
+            item_count,
+            column_count: 3,
+            visible_limit: 6,
+            horizontal_inset: 24,
+            search_offset_y: 54,
+            search_height: 42,
+            grid_gap: 12,
+            cell_height: 100,
+            row_stride: 112,
+        }
+    }
+
+    pub const fn title_rect(self) -> Rect {
+        Rect {
+            x: self.rect.x.saturating_add(self.horizontal_inset),
+            y: self.rect.y.saturating_add(18),
+            width: self
+                .rect
+                .width
+                .saturating_sub(self.horizontal_inset.saturating_mul(2)),
+            height: 28,
+        }
+    }
+
+    pub const fn search_rect(self) -> Rect {
+        Rect {
+            x: self.rect.x.saturating_add(self.horizontal_inset),
+            y: self.rect.y.saturating_add(self.search_offset_y),
+            width: self
+                .rect
+                .width
+                .saturating_sub(self.horizontal_inset.saturating_mul(2)),
+            height: self.search_height,
+        }
+    }
+
+    pub const fn search_field(self, value: &'a str, state: ComponentState) -> SearchField<'a> {
+        SearchField::new(
+            self.search_rect(),
+            self.search_name,
+            value,
+            self.search_placeholder,
+        )
+        .with_state(state)
+    }
+
+    pub const fn grid_rect(self) -> Rect {
+        let search = self.search_rect();
+        Rect {
+            x: self.rect.x.saturating_add(self.horizontal_inset),
+            y: search.bottom().saturating_add(18),
+            width: self
+                .rect
+                .width
+                .saturating_sub(self.horizontal_inset.saturating_mul(2)),
+            height: self
+                .rect
+                .bottom()
+                .saturating_sub(self.horizontal_inset)
+                .saturating_sub(search.bottom().saturating_add(18)),
+        }
+    }
+
+    pub const fn visible_item_count(self) -> usize {
+        if self.item_count < self.visible_limit {
+            self.item_count
+        } else {
+            self.visible_limit
+        }
+    }
+
+    pub const fn cell_rect(self, index: usize) -> Rect {
+        if index >= self.visible_item_count() || self.column_count == 0 {
+            return Rect {
+                x: self.rect.x,
+                y: self.rect.y,
+                width: 0,
+                height: 0,
+            };
+        }
+        let grid = self.grid_rect();
+        let columns = self.column_count as u32;
+        let total_gap = self.grid_gap.saturating_mul(columns.saturating_sub(1));
+        let cell_width = grid.width.saturating_sub(total_gap) / columns;
+        let column = index as u32 % columns;
+        let row = index as u32 / columns;
+        let x = grid
+            .x
+            .saturating_add(column.saturating_mul(cell_width.saturating_add(self.grid_gap)));
+        Rect {
+            x,
+            y: grid.y.saturating_add(row.saturating_mul(self.row_stride)),
+            width: if column + 1 == columns {
+                grid.right().saturating_sub(x)
+            } else {
+                cell_width
+            },
+            height: self.cell_height,
+        }
+    }
+
+    pub const fn cell_at(self, x: u32, y: u32) -> Option<usize> {
+        if !self.is_valid() {
+            return None;
+        }
+        let mut index = 0;
+        while index < self.visible_item_count() {
+            if rect_contains(self.cell_rect(index), x, y) {
+                return Some(index);
+            }
+            index += 1;
+        }
+        None
+    }
+
+    pub const fn contains(self, x: u32, y: u32) -> bool {
+        self.is_valid() && rect_contains(self.rect, x, y)
+    }
+
+    pub const fn is_valid(self) -> bool {
+        if self.name.is_empty()
+            || self.search_name.is_empty()
+            || self.search_placeholder.is_empty()
+            || self.item_count > 128
+            || self.column_count == 0
+            || self.column_count > 8
+            || self.visible_limit == 0
+            || self.visible_limit > 32
+            || self.horizontal_inset.saturating_mul(2) >= self.rect.width
+            || self.search_height < 32
+            || self.cell_height == 0
+            || self.row_stride < self.cell_height
+        {
+            return false;
+        }
+        let search = self.search_rect();
+        let grid = self.grid_rect();
+        if search.bottom() > self.rect.bottom() || grid.height < self.cell_height {
+            return false;
+        }
+        let visible = self.visible_item_count();
+        visible == 0 || self.cell_rect(visible - 1).bottom() <= grid.bottom()
+    }
+
+    pub const fn accessibility(self) -> ApplicationOverviewAccessibility<'a> {
+        ApplicationOverviewAccessibility {
+            role: "region",
+            name: self.name,
+            item_count: self.item_count,
+            column_count: self.column_count,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SidebarNavigation<'a> {
     pub rect: Rect,
     pub label: &'a str,
@@ -1947,7 +2140,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_fourteen_shared_primitives() {
+    fn catalog_tracks_the_fifteen_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -1969,6 +2162,7 @@ mod tests {
                 SharedComponentKind::GridCell,
                 SharedComponentKind::MetadataRow,
                 SharedComponentKind::SectionGroup,
+                SharedComponentKind::ApplicationOverview,
             ]
         );
     }
@@ -2064,6 +2258,7 @@ mod tests {
         let menu = Menu::new(rect, "", 2, 0, 0, 20, 0);
         let metadata = MetadataRow::new(rect, "", "Value");
         let section = SectionGroup::new(rect, "", 1);
+        let overview = ApplicationOverview::new(rect, "", "Search", "Search apps", 3);
         assert!(!button.can_activate());
         assert!(!top_bar.is_valid());
         assert!(!row.can_activate());
@@ -2077,6 +2272,7 @@ mod tests {
         assert!(!menu.is_valid());
         assert!(!metadata.is_valid());
         assert!(!section.is_valid());
+        assert!(!overview.is_valid());
         assert_eq!(navigation.hit_test(11, 21, 1), None);
     }
 
@@ -2119,6 +2315,42 @@ mod tests {
         assert_eq!(above_slots.primary.y, 137);
         assert_eq!(above_slots.secondary.width, 0);
         assert!(above.is_valid());
+    }
+
+    #[test]
+    fn application_overview_composes_search_and_exact_grid_geometry() {
+        let overview = ApplicationOverview::new(
+            Rect {
+                x: 90,
+                y: 70,
+                width: 620,
+                height: 460,
+            },
+            "Applications",
+            "Search applications",
+            "Search apps",
+            6,
+        );
+        assert!(overview.is_valid());
+        assert_eq!(overview.search_rect().x, 114);
+        assert_eq!(overview.search_rect().bottom(), 166);
+        assert_eq!(overview.grid_rect().y, 184);
+        assert_eq!(overview.cell_rect(0).width, 182);
+        assert_eq!(overview.cell_rect(2).right(), 686);
+        assert_eq!(overview.cell_rect(3).y, 296);
+        assert_eq!(overview.cell_at(114, 184), Some(0));
+        assert_eq!(overview.cell_at(296, 184), None);
+        assert_eq!(overview.cell_at(308, 184), Some(1));
+        assert!(overview.contains(90, 70));
+        assert!(!overview.contains(710, 70));
+        assert_eq!(
+            overview.search_field("term", ComponentState::Idle).value,
+            "term"
+        );
+        let semantics = overview.accessibility();
+        assert_eq!(semantics.role, "region");
+        assert_eq!(semantics.item_count, 6);
+        assert_eq!(semantics.column_count, 3);
     }
 
     #[test]

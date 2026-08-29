@@ -1,7 +1,7 @@
 use aqua_components::{
-    ComponentState, GridCell, GridCellLayout, IconButton, IconButtonGlyph, Menu, MetadataRow,
-    SearchField, SectionGroup, SegmentedControl, SidebarNavigation, SwitchControl, Toolbar,
-    TopSystemBar,
+    ApplicationOverview, ComponentState, GridCell, GridCellLayout, IconButton, IconButtonGlyph,
+    Menu, MetadataRow, SearchField, SectionGroup, SegmentedControl, SidebarNavigation,
+    SwitchControl, Toolbar, TopSystemBar,
 };
 use aqua_scene::Rect;
 use std::collections::VecDeque;
@@ -2609,6 +2609,11 @@ impl LauncherState {
     }
 
     pub fn search_field(&self, viewport_width: u32, viewport_height: u32) -> SearchField<'_> {
+        if self.mode == LauncherMode::Applications {
+            return self
+                .application_overview(viewport_width, viewport_height)
+                .search_field(self.query(), ComponentState::Idle);
+        }
         let panel = self.panel_bounds(viewport_width, viewport_height);
         SearchField::new(
             Rect {
@@ -2626,6 +2631,26 @@ impl LauncherState {
         } else {
             ComponentState::Idle
         })
+    }
+
+    pub fn application_overview(
+        &self,
+        viewport_width: u32,
+        viewport_height: u32,
+    ) -> ApplicationOverview<'static> {
+        let panel = self.panel_bounds(viewport_width, viewport_height);
+        ApplicationOverview::new(
+            Rect {
+                x: panel.x,
+                y: panel.y,
+                width: panel.width,
+                height: panel.height,
+            },
+            "Applications",
+            "Search applications",
+            "SEARCH APPS...",
+            self.visible_apps().len(),
+        )
     }
 
     pub fn visible_apps(&self) -> Vec<&'static LauncherApp> {
@@ -2653,24 +2678,10 @@ impl LauncherState {
             return None;
         }
         let app = *self.visible_apps().get(index)?;
-        let panel = self.panel_bounds(viewport_width, viewport_height);
-        let gap = 12;
-        let card_width = panel.width.saturating_sub(48 + gap * 2) / 3;
-        let column = index as u32 % 3;
-        let row = index as u32 / 3;
-        let content_y = self
-            .search_field(viewport_width, viewport_height)
-            .rect
-            .bottom()
-            .saturating_add(18);
+        let overview = self.application_overview(viewport_width, viewport_height);
         Some(
             GridCell::new(
-                Rect {
-                    x: panel.x + 24 + column * (card_width + gap),
-                    y: content_y + row * 112,
-                    width: card_width,
-                    height: 100,
-                },
+                overview.cell_rect(index),
                 app.name,
                 GridCellLayout::IconLeading,
             )
@@ -2731,10 +2742,11 @@ impl LauncherState {
         let content_y = panel.y + 96;
         match self.mode {
             LauncherMode::Applications => {
-                for index in 0..self.visible_apps().len().min(6) {
+                let overview = self.application_overview(viewport_width, viewport_height);
+                if let Some(index) = overview.cell_at(x, y) {
                     if self
                         .application_grid_cell(index, viewport_width, viewport_height)
-                        .is_some_and(|cell| cell.pointer_hit(x, y))
+                        .is_some()
                     {
                         return Some(LauncherPointerTarget::Application(index));
                     }
@@ -3894,6 +3906,14 @@ mod tests {
     fn launcher_pointer_hit_test_maps_application_and_search_results() {
         let mut launcher = LauncherState::default();
         launcher.open();
+
+        let overview = launcher.application_overview(800, 600);
+        assert!(overview.is_valid());
+        assert_eq!(
+            launcher.application_grid_cell(0, 800, 600).unwrap().rect,
+            overview.cell_rect(0)
+        );
+        assert_eq!(launcher.search_field(800, 600).rect, overview.search_rect());
 
         assert_eq!(
             launcher.pointer_target(130, 140),

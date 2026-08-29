@@ -6146,44 +6146,56 @@ fn draw_launcher_overlay(
         };
     }
 
+    let overview = (launcher.mode() == LauncherMode::Applications)
+        .then(|| launcher.application_overview(viewport.width, viewport.height));
     let bounds = launcher.panel_bounds(viewport.width, viewport.height);
-    let panel = Rect {
-        x: bounds.x,
-        y: bounds.y,
-        width: bounds.width,
-        height: bounds.height,
-    };
+    let panel = overview.map_or(
+        Rect {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+        },
+        |overview| overview.rect,
+    );
     let palette = shell_palette(theme);
     let mut primitives = 0;
-    fill_rect(
-        buffer,
-        viewport.width,
-        viewport.height,
-        panel,
-        palette.surface,
-        244,
-    );
-    draw_rect_outline(
-        buffer,
-        viewport.width,
-        viewport.height,
-        panel,
-        palette.border,
-        255,
-    );
-    primitives += 2;
-
-    draw_bitmap_text(
-        buffer,
-        (viewport.width, viewport.height),
-        (panel.x + 24, panel.y + 24),
-        match launcher.mode() {
-            LauncherMode::Applications => "APPLICATIONS",
-            LauncherMode::Search => "SEARCH",
-        },
-        palette.text,
-        2,
-    );
+    if let Some(overview) = overview {
+        primitives += draw_application_overview(
+            buffer,
+            viewport.width,
+            viewport.height,
+            overview,
+            theme,
+            OutputScale::One,
+        );
+    } else {
+        fill_rect(
+            buffer,
+            viewport.width,
+            viewport.height,
+            panel,
+            palette.surface,
+            244,
+        );
+        draw_rect_outline(
+            buffer,
+            viewport.width,
+            viewport.height,
+            panel,
+            palette.border,
+            255,
+        );
+        draw_bitmap_text(
+            buffer,
+            (viewport.width, viewport.height),
+            (panel.x + 24, panel.y + 24),
+            "SEARCH",
+            palette.text,
+            2,
+        );
+        primitives += 2;
+    }
 
     let search = launcher.search_field(viewport.width, viewport.height);
     primitives += draw_search_field(

@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-11";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-12";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -640,6 +640,31 @@ pub(crate) fn draw_grid_cell(
     primitives
 }
 
+pub(crate) fn draw_application_overview(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    overview: ApplicationOverview<'_>,
+    theme: AquaTheme,
+    scale: OutputScale,
+) -> usize {
+    if !overview.is_valid() {
+        return 0;
+    }
+    let palette = window_chrome_palette(theme);
+    fill_rect(buffer, width, height, overview.rect, palette.surface, 244);
+    draw_rect_outline(buffer, width, height, overview.rect, palette.border, 255);
+    draw_fitted_bitmap_text(
+        buffer,
+        (width, height),
+        overview.title_rect(),
+        overview.name,
+        palette.text,
+        FittedTextOptions::new(TextRole::Title, scale, false),
+    );
+    3
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComponentAcceptanceProbe {
     pub viewport: Viewport,
@@ -659,6 +684,7 @@ pub struct ComponentAcceptanceProbe {
     pub section_group_ready: bool,
     pub metadata_row_ready: bool,
     pub top_system_bar_ready: bool,
+    pub application_overview_ready: bool,
     pub stable_geometry: bool,
     pub input_semantics: bool,
     pub accessibility_semantics: bool,
@@ -681,6 +707,7 @@ impl ComponentAcceptanceProbe {
             && self.section_group_ready
             && self.metadata_row_ready
             && self.top_system_bar_ready
+            && self.application_overview_ready
             && self.stable_geometry
             && self.input_semantics
             && self.accessibility_semantics
@@ -1259,6 +1286,64 @@ pub fn render_component_acceptance_rgba(
             .item_accessibility(3, "Remove", false, true)
             .is_some_and(|item| item.role == "menuitem" && item.destructive);
 
+    let fixture_overview = ApplicationOverview::new(
+        Rect {
+            x: viewport.width / 2 + 8,
+            y: 52,
+            width: viewport.width / 2 - 40,
+            height: 260,
+        },
+        "Applications",
+        "Search applications",
+        "Search apps",
+        3,
+    );
+    draw_application_overview(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        fixture_overview,
+        theme,
+        scale,
+    );
+    draw_search_field(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        fixture_overview.search_field("", ComponentState::Idle),
+        theme,
+        scale,
+    );
+    for index in 0..fixture_overview.visible_item_count() {
+        let cell = GridCell::new(
+            fixture_overview.cell_rect(index),
+            "App",
+            GridCellLayout::IconLeading,
+        )
+        .with_spacing(16, 5, 3, 12)
+        .with_state(if index == 0 {
+            ComponentState::Selected
+        } else {
+            ComponentState::Idle
+        });
+        draw_grid_cell(&mut buffer, viewport.width, viewport.height, cell, theme);
+    }
+    let first_overview_cell = fixture_overview.cell_rect(0);
+    let overview_semantics = fixture_overview.accessibility();
+    let application_overview_ready = fixture_overview.is_valid()
+        && fixture_overview.title_rect().fits_in(viewport)
+        && fixture_overview.search_rect().fits_in(viewport)
+        && fixture_overview.grid_rect().fits_in(viewport)
+        && first_overview_cell.fits_in(viewport)
+        && fixture_overview.cell_at(first_overview_cell.x, first_overview_cell.y) == Some(0)
+        && fixture_overview
+            .cell_at(first_overview_cell.right(), first_overview_cell.y)
+            .is_none()
+        && overview_semantics.role == "region"
+        && overview_semantics.name == "Applications"
+        && overview_semantics.item_count == 3
+        && overview_semantics.column_count == 3;
+
     let probe = ComponentAcceptanceProbe {
         viewport,
         theme,
@@ -1277,6 +1362,7 @@ pub fn render_component_acceptance_rgba(
         section_group_ready,
         metadata_row_ready,
         top_system_bar_ready,
+        application_overview_ready,
         stable_geometry,
         input_semantics,
         accessibility_semantics,
@@ -1304,7 +1390,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -1324,6 +1410,7 @@ pub fn component_acceptance_report() -> String {
                 probe.section_group_ready,
                 probe.metadata_row_ready,
                 probe.top_system_bar_ready,
+                probe.application_overview_ready,
                 probe.stable_geometry,
                 probe.input_semantics,
                 probe.accessibility_semantics,
@@ -1363,6 +1450,7 @@ mod tests {
                 SharedComponentKind::GridCell,
                 SharedComponentKind::MetadataRow,
                 SharedComponentKind::SectionGroup,
+                SharedComponentKind::ApplicationOverview,
             ]
         );
     }
@@ -1405,7 +1493,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,sidebar-navigation,toolbar")
+                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,sidebar-navigation,toolbar")
                 .count(),
             12
         );
