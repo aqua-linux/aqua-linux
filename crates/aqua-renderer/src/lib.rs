@@ -1655,16 +1655,20 @@ fn render_desktop_icons_rgba_base(
             [0xf1, 0xfb, 0xff, 0xff],
             1,
         );
+        let trash_confirmation = if DESKTOP_ICONS[index].id == "trash" {
+            state.trash_confirmation_dialog(second_row)
+        } else {
+            None
+        };
         draw_bitmap_text(
             &mut rgba,
             (width, height),
-            (second_row.x + 12, second_row.y + 6),
+            trash_confirmation.map_or((second_row.x + 12, second_row.y + 6), |dialog| {
+                let title = dialog.slots().title;
+                (title.x, title.y)
+            }),
             if DESKTOP_ICONS[index].id == "trash" {
-                if state.trash_empty_confirmation() {
-                    "CONFIRM EMPTY"
-                } else {
-                    "EMPTY TRASH"
-                }
+                trash_confirmation.map_or("EMPTY TRASH", |dialog| dialog.title)
             } else {
                 "PROPERTIES"
             },
@@ -2346,17 +2350,13 @@ fn render_session_menu_overlay_rgba_base(
 
     let confirmation_visible = menu.confirmation().is_some();
     let footer_y = height.saturating_sub(if high_resolution { 30 } else { 24 });
-    if confirmation_visible {
+    let confirmation_dialog = menu.confirmation_dialog(width, height);
+    if let Some(dialog) = confirmation_dialog {
         fill_transparent_rect(
             &mut rgba,
             width,
             height,
-            Rect {
-                x: outer_padding,
-                y: footer_y.saturating_sub(5),
-                width: width.saturating_sub(outer_padding * 2),
-                height: if high_resolution { 23 } else { 19 },
-            },
+            dialog.rect,
             [0x08, 0x5b, 0x83, 0xb8],
         );
         primitives += 1;
@@ -2364,10 +2364,10 @@ fn render_session_menu_overlay_rgba_base(
     draw_bitmap_text(
         &mut rgba,
         (width, height),
-        (
-            outer_padding + if confirmation_visible { 8 } else { 0 },
-            footer_y,
-        ),
+        confirmation_dialog.map_or((outer_padding, footer_y), |dialog| {
+            let title = dialog.slots().title;
+            (title.x, title.y)
+        }),
         if confirmation_visible {
             "Enter again to confirm"
         } else {
@@ -4036,10 +4036,39 @@ fn draw_installer_summary(
             "Disk komutları ve dosya sistemi yazımları yürütülmeyecek".to_string(),
         )
     };
+    let confirmation_dialog = (view.model.mode() == InstallMode::Real).then(|| {
+        ConfirmationDialog::new(
+            confirmation_panel,
+            "Install confirmation",
+            (&title, &detail),
+            ConfirmationPresentation::Inline,
+            ConfirmationSeverity::Destructive,
+            ConfirmationRequirement::ExactText,
+            if view.model.destructive_confirmed() {
+                ConfirmationState::Confirmed
+            } else {
+                ConfirmationState::Pending
+            },
+        )
+    });
+    let title_position = confirmation_dialog.map_or(
+        (confirmation_panel.x + 16, confirmation_panel.y + 14),
+        |dialog| {
+            let title = dialog.slots().title;
+            (title.x, title.y)
+        },
+    );
+    let detail_position = confirmation_dialog.map_or(
+        (confirmation_panel.x + 16, confirmation_panel.y + 45),
+        |dialog| {
+            let detail = dialog.slots().detail;
+            (detail.x, detail.y)
+        },
+    );
     draw_bitmap_text(
         buffer,
         (width, height),
-        (confirmation_panel.x + 16, confirmation_panel.y + 14),
+        title_position,
         &title,
         if view.model.mode() == InstallMode::Real {
             [0x8b, 0x43, 0x2f, 0xff]
@@ -4051,18 +4080,27 @@ fn draw_installer_summary(
     draw_bitmap_text(
         buffer,
         (width, height),
-        (confirmation_panel.x + 16, confirmation_panel.y + 45),
+        detail_position,
         &detail,
         view.palette.secondary_text,
         1,
     );
     if view.forms.summary().can_begin_install(view.model) {
+        let status = confirmation_dialog.map_or(
+            Rect {
+                x: confirmation_panel.right().saturating_sub(31),
+                y: confirmation_panel.y.saturating_add(17),
+                width: 14,
+                height: 14,
+            },
+            |dialog| dialog.slots().status,
+        );
         fill_transparent_circle(
             buffer,
             width,
             height,
-            confirmation_panel.right() - 24,
-            confirmation_panel.y + 24,
+            status.x + status.width / 2,
+            status.y + status.height / 2,
             7,
             [0x2a, 0xb8, 0x70, 0xff],
         );

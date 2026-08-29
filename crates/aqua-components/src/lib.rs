@@ -102,6 +102,7 @@ impl SharedComponentKind {
                 | Self::RunningAppDock
                 | Self::WorkspaceSwitcher
                 | Self::Notification
+                | Self::ConfirmationDialog
                 | Self::SidebarNavigation
         )
     }
@@ -2819,6 +2820,201 @@ impl<'a> NotificationToast<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfirmationPresentation {
+    Inline,
+    Modal,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfirmationSeverity {
+    Standard,
+    Destructive,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfirmationRequirement {
+    RepeatActivation,
+    ExactText,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfirmationState {
+    Pending,
+    Armed,
+    Confirmed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfirmationKey {
+    Escape,
+    Activate(ActivationKey),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfirmationIntent {
+    Cancel,
+    Confirm,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConfirmationAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub description: &'a str,
+    pub modal: bool,
+    pub destructive: bool,
+    pub confirmed: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConfirmationSlots {
+    pub title: Rect,
+    pub detail: Rect,
+    pub status: Rect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConfirmationDialog<'a> {
+    pub rect: Rect,
+    pub name: &'a str,
+    pub title: &'a str,
+    pub detail: &'a str,
+    pub presentation: ConfirmationPresentation,
+    pub severity: ConfirmationSeverity,
+    pub requirement: ConfirmationRequirement,
+    pub state: ConfirmationState,
+}
+
+impl<'a> ConfirmationDialog<'a> {
+    pub const fn new(
+        rect: Rect,
+        name: &'a str,
+        content: (&'a str, &'a str),
+        presentation: ConfirmationPresentation,
+        severity: ConfirmationSeverity,
+        requirement: ConfirmationRequirement,
+        state: ConfirmationState,
+    ) -> Self {
+        Self {
+            rect,
+            name,
+            title: content.0,
+            detail: content.1,
+            presentation,
+            severity,
+            requirement,
+            state,
+        }
+    }
+
+    pub const fn is_compact(self) -> bool {
+        self.detail.is_empty()
+    }
+
+    pub const fn slots(self) -> ConfirmationSlots {
+        if self.is_compact() {
+            return ConfirmationSlots {
+                title: Rect {
+                    x: self.rect.x.saturating_add(12),
+                    y: self.rect.y.saturating_add(6),
+                    width: self.rect.width.saturating_sub(24),
+                    height: self.rect.height.saturating_sub(12),
+                },
+                detail: Rect {
+                    x: self.rect.x,
+                    y: self.rect.y,
+                    width: 0,
+                    height: 0,
+                },
+                status: Rect {
+                    x: self.rect.x,
+                    y: self.rect.y,
+                    width: 0,
+                    height: 0,
+                },
+            };
+        }
+        let status = Rect {
+            x: self.rect.right().saturating_sub(32),
+            y: self.rect.y.saturating_add(16),
+            width: 16,
+            height: 16,
+        };
+        ConfirmationSlots {
+            title: Rect {
+                x: self.rect.x.saturating_add(16),
+                y: self.rect.y.saturating_add(12),
+                width: status.x.saturating_sub(self.rect.x.saturating_add(28)),
+                height: 22,
+            },
+            detail: Rect {
+                x: self.rect.x.saturating_add(16),
+                y: self.rect.y.saturating_add(42),
+                width: self.rect.width.saturating_sub(32),
+                height: self.rect.height.saturating_sub(50),
+            },
+            status,
+        }
+    }
+
+    pub const fn contains(self, x: u32, y: u32) -> bool {
+        self.is_valid() && rect_contains(self.rect, x, y)
+    }
+
+    pub const fn keyboard_intent(self, key: ConfirmationKey) -> Option<ConfirmationIntent> {
+        if !self.is_valid() || matches!(self.state, ConfirmationState::Confirmed) {
+            return None;
+        }
+        match key {
+            ConfirmationKey::Escape => Some(ConfirmationIntent::Cancel),
+            ConfirmationKey::Activate(ActivationKey::Enter | ActivationKey::Space) => {
+                Some(ConfirmationIntent::Confirm)
+            }
+            ConfirmationKey::Activate(ActivationKey::Other) => None,
+        }
+    }
+
+    pub const fn requires_external_validation(self) -> bool {
+        matches!(self.requirement, ConfirmationRequirement::ExactText)
+    }
+
+    pub const fn is_valid(self) -> bool {
+        if self.name.is_empty()
+            || self.title.is_empty()
+            || self.rect.width < 120
+            || self.rect.height < 19
+            || (!self.is_compact() && self.rect.height < 72)
+            || (matches!(self.requirement, ConfirmationRequirement::ExactText) && self.is_compact())
+        {
+            return false;
+        }
+        let slots = self.slots();
+        slots.title.right() <= self.rect.right()
+            && slots.title.bottom() <= self.rect.bottom()
+            && (self.is_compact()
+                || (slots.detail.right() <= self.rect.right()
+                    && slots.detail.bottom() <= self.rect.bottom()
+                    && slots.status.right() <= self.rect.right()
+                    && slots.status.bottom() <= self.rect.bottom()))
+    }
+
+    pub const fn accessibility(self) -> ConfirmationAccessibility<'a> {
+        ConfirmationAccessibility {
+            role: if matches!(self.presentation, ConfirmationPresentation::Modal) {
+                "alertdialog"
+            } else {
+                "alert"
+            },
+            name: self.name,
+            description: self.detail,
+            modal: matches!(self.presentation, ConfirmationPresentation::Modal),
+            destructive: matches!(self.severity, ConfirmationSeverity::Destructive),
+            confirmed: matches!(self.state, ConfirmationState::Confirmed),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SidebarNavigation<'a> {
     pub rect: Rect,
     pub label: &'a str,
@@ -2932,7 +3128,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_nineteen_shared_primitives() {
+    fn catalog_tracks_the_twenty_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -2959,6 +3155,7 @@ mod tests {
                 SharedComponentKind::RunningAppDock,
                 SharedComponentKind::WorkspaceSwitcher,
                 SharedComponentKind::Notification,
+                SharedComponentKind::ConfirmationDialog,
             ]
         );
     }
@@ -3067,6 +3264,15 @@ mod tests {
         let running_dock = RunningAppDock::new(rect, "", 1);
         let workspace_switcher = WorkspaceSwitcher::new(rect, "", 1, 0);
         let notification = NotificationToast::new(rect, "", "Update ready", "Restart later");
+        let confirmation = ConfirmationDialog::new(
+            rect,
+            "",
+            ("Confirm action", "This cannot be undone."),
+            ConfirmationPresentation::Modal,
+            ConfirmationSeverity::Destructive,
+            ConfirmationRequirement::RepeatActivation,
+            ConfirmationState::Armed,
+        );
         assert!(!button.can_activate());
         assert!(!top_bar.is_valid());
         assert!(!row.can_activate());
@@ -3085,6 +3291,7 @@ mod tests {
         assert!(!running_dock.is_valid());
         assert!(!workspace_switcher.is_valid());
         assert!(!notification.is_valid());
+        assert!(!confirmation.is_valid());
         assert_eq!(navigation.hit_test(11, 21, 1), None);
     }
 
@@ -3405,6 +3612,82 @@ mod tests {
         let dismiss = notification.dismiss_accessibility();
         assert_eq!(dismiss.role, "button");
         assert_eq!(dismiss.name, "Dismiss notification");
+    }
+
+    #[test]
+    fn confirmation_dialog_separates_intent_from_authorization() {
+        let dialog = ConfirmationDialog::new(
+            Rect {
+                x: 180,
+                y: 210,
+                width: 440,
+                height: 88,
+            },
+            "Erase disk confirmation",
+            (
+                "All data on /dev/vdb will be erased",
+                "Type ERASE /dev/vdb in the protected field to continue.",
+            ),
+            ConfirmationPresentation::Modal,
+            ConfirmationSeverity::Destructive,
+            ConfirmationRequirement::ExactText,
+            ConfirmationState::Pending,
+        );
+        assert!(dialog.is_valid());
+        assert!(!dialog.is_compact());
+        assert!(dialog.requires_external_validation());
+        let slots = dialog.slots();
+        assert_eq!(slots.title.x, 196);
+        assert_eq!(slots.title.y, 222);
+        assert_eq!(slots.detail.y, 252);
+        assert_eq!(
+            slots.status,
+            Rect {
+                x: 588,
+                y: 226,
+                width: 16,
+                height: 16,
+            }
+        );
+        assert!(dialog.contains(180, 210));
+        assert!(!dialog.contains(620, 210));
+        assert_eq!(
+            dialog.keyboard_intent(ConfirmationKey::Escape),
+            Some(ConfirmationIntent::Cancel)
+        );
+        assert_eq!(
+            dialog.keyboard_intent(ConfirmationKey::Activate(ActivationKey::Enter)),
+            Some(ConfirmationIntent::Confirm)
+        );
+        assert_eq!(
+            dialog.keyboard_intent(ConfirmationKey::Activate(ActivationKey::Other)),
+            None
+        );
+        let semantics = dialog.accessibility();
+        assert_eq!(semantics.role, "alertdialog");
+        assert!(semantics.modal);
+        assert!(semantics.destructive);
+        assert!(!semantics.confirmed);
+
+        let compact = ConfirmationDialog::new(
+            Rect {
+                x: 12,
+                y: 190,
+                width: 296,
+                height: 23,
+            },
+            "Session confirmation",
+            ("Enter again to confirm", ""),
+            ConfirmationPresentation::Inline,
+            ConfirmationSeverity::Destructive,
+            ConfirmationRequirement::RepeatActivation,
+            ConfirmationState::Armed,
+        );
+        assert!(compact.is_valid());
+        assert!(compact.is_compact());
+        assert!(!compact.requires_external_validation());
+        assert_eq!(compact.slots().detail.width, 0);
+        assert_eq!(compact.accessibility().role, "alert");
     }
 
     #[test]

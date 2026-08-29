@@ -33,7 +33,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Running-app dock | Shared host-proven primitive | Centered Files, Settings, and Trash targets with running indicators; packaged-QEMU acceptance remains open |
 | Workspace switcher | Shared host-proven primitive | Three real workspace targets, thumbnails, and active indicator; packaged-QEMU acceptance remains open |
 | Notification | Shared host-proven primitive | Shell toast content, dismissal target, timeout/queue model, and compositor pointer routing; packaged-QEMU acceptance remains open |
-| Confirmation dialog | Planned | Destructive and session confirmation paths |
+| Confirmation dialog | Shared host-proven primitive | Session, Empty Trash, and Installer confirmation presentation; authorization remains model-owned and packaged-QEMU acceptance remains open |
 
 “Planned” means that runtime behavior may exist, but its current one-off path
 has not yet passed the shared-component completion contract.
@@ -537,7 +537,47 @@ The deterministic matrix covers content containment, exact dismiss boundaries,
 keyboard dismissal, live-region semantics, four themes, and the three required
 viewports including fractional scale. Packaged-QEMU acceptance remains open.
 
+## Confirmation Dialog Contract
+
+### Anatomy And Geometry
+
+- A confirmation surface owns one bounded rectangle, non-empty accessible name,
+  title, optional detail, and optional status slot. Compact inline prompts serve
+  repeat-activation flows; detailed prompts require at least 120-by-72 and keep
+  title, detail, and status geometry separate.
+- Standard and destructive severity, inline and modal presentation, and pending,
+  armed, and confirmed states are explicit without changing content geometry.
+  Empty names or titles, undersized surfaces, overflowing slots, and compact
+  exact-text prompts fail closed.
+- The shared contract distinguishes `RepeatActivation` from `ExactText`.
+  Exact-text prompts always report that external validation is required; the
+  component never treats a click, key, or rendered state as authorization.
+
+### Input, Semantics, And Consumption
+
+- Escape yields only a cancel intent. Enter and Space yield only a confirmation
+  intent; other keys do nothing, and confirmed prompts emit no further intent.
+  The owning Session, Trash, or Installer model decides whether that intent
+  arms, confirms, rejects, or executes an action.
+- The surface rectangle has no implicit pointer activation. Session and Trash
+  retain their existing menu-row activation bounds, while Installer retains its
+  bounded confirmation field and footer controls. Clicking presentation padding
+  cannot bypass those child or parent input gates.
+- Modal prompts expose `alertdialog`; inline prompts expose `alert`. Accessible
+  name, description, modality, destructive state, and confirmed state remain
+  independent from theme styling.
+- Session and Empty Trash now derive their compact armed prompts from the shared
+  contract. The Installer Summary real-mode panel derives its detailed title,
+  exact target-bound phrase detail, status slot, and confirmed state from the
+  same contract. Disk identity revalidation, exact `ERASE /dev/...` matching,
+  QEMU/operator opt-ins, and transaction execution gates are unchanged.
+
+The deterministic matrix covers compact and detailed geometry, half-open
+containment, cancel/confirm intent separation, exact-text external validation,
+accessibility semantics, four themes, and the three required viewports including
+fractional scale. Packaged-QEMU acceptance remains open.
+
 ## Next Extraction Order
 
-1. Confirmation dialog.
-2. Checkbox and slider remain deferred until real option and bounded-value models exist.
+1. Checkbox and slider remain deferred until real option and bounded-value models exist.
+2. Complete packaged-QEMU acceptance for the host-proven shared component matrix.

@@ -1,8 +1,9 @@
 use aqua_components::{
-    ApplicationOverview, ComponentState, GlobalSearch, GridCell, GridCellLayout, IconButton,
-    IconButtonGlyph, ListRow, ListRowRole, Menu, MetadataRow, RunningAppDock, SearchField,
-    SectionGroup, SegmentedControl, SidebarNavigation, StandardButton, StandardButtonVariant,
-    SwitchControl, Toolbar, TopSystemBar, WorkspaceSwitcher,
+    ApplicationOverview, ComponentState, ConfirmationDialog, ConfirmationPresentation,
+    ConfirmationRequirement, ConfirmationSeverity, ConfirmationState, GlobalSearch, GridCell,
+    GridCellLayout, IconButton, IconButtonGlyph, ListRow, ListRowRole, Menu, MetadataRow,
+    RunningAppDock, SearchField, SectionGroup, SegmentedControl, SidebarNavigation, StandardButton,
+    StandardButtonVariant, SwitchControl, Toolbar, TopSystemBar, WorkspaceSwitcher,
 };
 use aqua_scene::Rect;
 use std::collections::VecDeque;
@@ -899,6 +900,20 @@ impl DesktopIconState {
 
     pub fn trash_empty_confirmation(&self) -> bool {
         self.trash_empty_confirmation
+    }
+
+    pub fn trash_confirmation_dialog(&self, rect: Rect) -> Option<ConfirmationDialog<'static>> {
+        self.trash_empty_confirmation.then(|| {
+            ConfirmationDialog::new(
+                rect,
+                "Empty Trash confirmation",
+                ("CONFIRM EMPTY", ""),
+                ConfirmationPresentation::Inline,
+                ConfirmationSeverity::Destructive,
+                ConfirmationRequirement::RepeatActivation,
+                ConfirmationState::Armed,
+            )
+        })
     }
 
     fn context_menu_row(&self, x: u32, y: u32) -> Option<(usize, usize)> {
@@ -3229,6 +3244,31 @@ impl SessionMenuState {
         )
     }
 
+    pub fn confirmation_dialog(
+        &self,
+        width: u32,
+        height: u32,
+    ) -> Option<ConfirmationDialog<'static>> {
+        self.confirmation?;
+        let high_resolution = width >= 480 || height >= 280;
+        let outer_padding = if high_resolution { 22 } else { 12 };
+        let footer_y = height.saturating_sub(if high_resolution { 30 } else { 24 });
+        Some(ConfirmationDialog::new(
+            Rect {
+                x: outer_padding,
+                y: footer_y.saturating_sub(5),
+                width: width.saturating_sub(outer_padding * 2),
+                height: if high_resolution { 23 } else { 19 },
+            },
+            "Session action confirmation",
+            ("Enter again to confirm", ""),
+            ConfirmationPresentation::Inline,
+            ConfirmationSeverity::Destructive,
+            ConfirmationRequirement::RepeatActivation,
+            ConfirmationState::Armed,
+        ))
+    }
+
     pub fn close(&mut self) {
         self.open = false;
         self.selected_index = 0;
@@ -3609,6 +3649,16 @@ mod tests {
             Some(DesktopContextAction::TrashEmptyConfirmationRequested)
         );
         assert!(state.trash_empty_confirmation());
+        let trash_row = desktop_context_menu(2).unwrap().item_rect(1);
+        let trash_dialog = state
+            .trash_confirmation_dialog(trash_row)
+            .expect("armed Trash action should expose shared confirmation");
+        assert!(trash_dialog.is_valid());
+        assert!(trash_dialog.is_compact());
+        assert_eq!(
+            trash_dialog.requirement,
+            ConfirmationRequirement::RepeatActivation
+        );
         let confirmed = state.pointer_press(150, 345, DesktopPointerButton::Primary, 2_400);
         assert_eq!(
             confirmed.context_action,
@@ -4184,12 +4234,23 @@ mod tests {
         assert!(armed.confirmation_changed);
         assert_eq!(armed.action_request, None);
         assert_eq!(menu.confirmation(), Some(SessionAction::Recovery));
+        let dialog = menu
+            .confirmation_dialog(512, 293)
+            .expect("armed session action should expose shared confirmation");
+        assert!(dialog.is_valid());
+        assert_eq!(
+            dialog.requirement,
+            ConfirmationRequirement::RepeatActivation
+        );
+        assert_eq!(dialog.state, ConfirmationState::Armed);
+        assert_eq!(dialog.rect.y, 258);
 
         let confirmed = menu.handle_event(SessionMenuEvent::Activate);
         assert_eq!(confirmed.action_request, Some(SessionAction::Recovery));
         assert!(confirmed.visibility_changed);
         assert!(!menu.is_open());
         assert_eq!(menu.confirmation(), None);
+        assert!(menu.confirmation_dialog(512, 293).is_none());
     }
 
     #[test]
