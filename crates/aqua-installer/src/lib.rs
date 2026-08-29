@@ -1,3 +1,4 @@
+use aqua_components::{Checkbox, ComponentState};
 use aqua_scene::{Rect, Viewport};
 use std::error::Error;
 use std::fmt;
@@ -336,6 +337,25 @@ impl InstallerWindowLayout {
             y: self.content_heading_y() + 76 + index * 80,
             width: self.content_row_width(),
             height: 68,
+        }
+    }
+
+    pub const fn summary_confirmation_panel(&self) -> Rect {
+        Rect {
+            x: self.content.x + self.content_padding(),
+            y: self.content_heading_y() + 270,
+            width: self.content_row_width(),
+            height: 88,
+        }
+    }
+
+    pub const fn summary_acknowledgement_rect(&self) -> Rect {
+        let panel = self.summary_confirmation_panel();
+        Rect {
+            x: panel.x + 12,
+            y: panel.y + 27,
+            width: panel.width.saturating_sub(24),
+            height: 28,
         }
     }
 }
@@ -939,12 +959,23 @@ pub enum InstallerSummaryKey {
     Character(char),
     Backspace,
     Clear,
+    PreviousControl,
+    NextControl,
     Activate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum InstallerSummaryControl {
+    #[default]
+    Acknowledgement,
+    ConfirmationField,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstallerSummaryUpdate {
     None,
+    FocusChanged(InstallerSummaryControl),
+    AcknowledgementChanged(bool),
     ConfirmationChanged,
     ConfirmationApplied,
     ReadyToInstall,
@@ -959,6 +990,8 @@ impl InstallerSummaryUpdate {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct InstallerSummaryState {
     confirmation: String,
+    acknowledged_target: Option<DiskIdentity>,
+    active_control: InstallerSummaryControl,
 }
 
 impl InstallerSummaryState {
@@ -966,9 +999,71 @@ impl InstallerSummaryState {
         &self.confirmation
     }
 
+    pub const fn active_control(&self) -> InstallerSummaryControl {
+        self.active_control
+    }
+
+    pub fn acknowledgement_checked(&self, model: &InstallerModel) -> bool {
+        model.mode() == InstallMode::Real
+            && model
+                .target()
+                .is_some_and(|target| self.acknowledged_target.as_ref() == Some(&target.disk))
+    }
+
+    pub fn acknowledgement_checkbox<'a>(
+        &self,
+        model: &InstallerModel,
+        layout: &InstallerWindowLayout,
+        label: &'a str,
+    ) -> Checkbox<'a> {
+        let state = if model.mode() != InstallMode::Real {
+            ComponentState::Disabled
+        } else if self.active_control == InstallerSummaryControl::Acknowledgement {
+            ComponentState::KeyboardFocus
+        } else {
+            ComponentState::Idle
+        };
+        Checkbox::new(
+            layout.summary_acknowledgement_rect(),
+            label,
+            self.acknowledgement_checked(model),
+        )
+        .with_state(state)
+    }
+
     pub fn can_begin_install(&self, model: &InstallerModel) -> bool {
         model.step() == InstallerStep::Summary
-            && (model.mode() == InstallMode::DryRun || model.destructive_confirmed())
+            && (model.mode() == InstallMode::DryRun
+                || (self.acknowledgement_checked(model) && model.destructive_confirmed()))
+    }
+
+    fn toggle_acknowledgement(&mut self, model: &InstallerModel) -> InstallerSummaryUpdate {
+        if model.mode() != InstallMode::Real {
+            return InstallerSummaryUpdate::None;
+        }
+        let Some(target) = model.target() else {
+            return InstallerSummaryUpdate::None;
+        };
+        let checked = !self.acknowledgement_checked(model);
+        self.acknowledged_target = checked.then(|| target.disk.clone());
+        InstallerSummaryUpdate::AcknowledgementChanged(checked)
+    }
+
+    pub fn handle_pointer(
+        &mut self,
+        model: &InstallerModel,
+        layout: &InstallerWindowLayout,
+        x: u32,
+        y: u32,
+    ) -> InstallerSummaryUpdate {
+        let checkbox =
+            self.acknowledgement_checkbox(model, layout, "Hedef diskin silineceğini anlıyorum");
+        if checkbox.pointer_toggles(x, y) {
+            self.active_control = InstallerSummaryControl::Acknowledgement;
+            self.toggle_acknowledgement(model)
+        } else {
+            InstallerSummaryUpdate::None
+        }
     }
 
     pub fn handle_key(
@@ -984,6 +1079,7 @@ impl InstallerSummaryState {
                 if !character.is_control()
                     && self.confirmation.len() + character.len_utf8() <= 160 =>
             {
+                self.active_control = InstallerSummaryControl::ConfirmationField;
                 self.confirmation.push(character);
                 Ok(InstallerSummaryUpdate::ConfirmationChanged)
             }
@@ -1001,10 +1097,24 @@ impl InstallerSummaryState {
                     Ok(InstallerSummaryUpdate::ConfirmationChanged)
                 }
             }
+            InstallerSummaryKey::PreviousControl => {
+                self.active_control = InstallerSummaryControl::Acknowledgement;
+                Ok(InstallerSummaryUpdate::FocusChanged(self.active_control))
+            }
+            InstallerSummaryKey::NextControl => {
+                self.active_control = InstallerSummaryControl::ConfirmationField;
+                Ok(InstallerSummaryUpdate::FocusChanged(self.active_control))
+            }
             InstallerSummaryKey::Activate if model.mode() == InstallMode::DryRun => {
                 Ok(InstallerSummaryUpdate::ReadyToInstall)
             }
             InstallerSummaryKey::Activate => {
+                if self.active_control == InstallerSummaryControl::Acknowledgement {
+                    return Ok(self.toggle_acknowledgement(model));
+                }
+                if !self.acknowledgement_checked(model) {
+                    return Err(InstallerError::DestructiveAcknowledgementRequired);
+                }
                 model.confirm_destructive(&self.confirmation)?;
                 Ok(InstallerSummaryUpdate::ConfirmationApplied)
             }
@@ -1436,6 +1546,7 @@ pub enum InstallerError {
     BeginInstallRequired,
     NotAtSummary,
     DestructiveConfirmationRequired,
+    DestructiveAcknowledgementRequired,
     ConfirmationPhraseMismatch,
     InstallationNotRunning,
 }
@@ -1454,6 +1565,9 @@ impl fmt::Display for InstallerError {
             Self::NotAtSummary => formatter.write_str("installer is not at summary"),
             Self::DestructiveConfirmationRequired => {
                 formatter.write_str("destructive confirmation required")
+            }
+            Self::DestructiveAcknowledgementRequired => {
+                formatter.write_str("destructive acknowledgement required")
             }
             Self::ConfirmationPhraseMismatch => {
                 formatter.write_str("destructive confirmation phrase mismatch")
@@ -5410,9 +5524,32 @@ mod tests {
         }
         assert_eq!(
             summary.handle_key(&mut model, InstallerSummaryKey::Activate),
-            Err(InstallerError::ConfirmationPhraseMismatch)
+            Err(InstallerError::DestructiveAcknowledgementRequired)
         );
         assert!(!model.destructive_confirmed());
+        assert_eq!(
+            summary
+                .handle_key(&mut model, InstallerSummaryKey::PreviousControl)
+                .unwrap(),
+            InstallerSummaryUpdate::FocusChanged(InstallerSummaryControl::Acknowledgement)
+        );
+        assert_eq!(
+            summary
+                .handle_key(&mut model, InstallerSummaryKey::Activate)
+                .unwrap(),
+            InstallerSummaryUpdate::AcknowledgementChanged(true)
+        );
+        assert!(summary.acknowledgement_checked(&model));
+        assert_eq!(
+            summary
+                .handle_key(&mut model, InstallerSummaryKey::NextControl)
+                .unwrap(),
+            InstallerSummaryUpdate::FocusChanged(InstallerSummaryControl::ConfirmationField)
+        );
+        assert_eq!(
+            summary.handle_key(&mut model, InstallerSummaryKey::Activate),
+            Err(InstallerError::ConfirmationPhraseMismatch)
+        );
         summary
             .handle_key(&mut model, InstallerSummaryKey::Clear)
             .unwrap();
@@ -5434,6 +5571,7 @@ mod tests {
             "summary-target-changed",
         )));
         assert!(!model.destructive_confirmed());
+        assert!(!summary.acknowledgement_checked(&model));
         assert!(!summary.can_begin_install(&model));
 
         let mut dry_run = ready_model(InstallMode::DryRun);
@@ -5443,6 +5581,30 @@ mod tests {
                 .unwrap(),
             InstallerSummaryUpdate::ReadyToInstall
         );
+    }
+
+    #[test]
+    fn summary_checkbox_pointer_is_bounded_and_target_bound() {
+        let mut model = ready_model(InstallMode::Real);
+        let layout = InstallerWindowLayout::for_viewport(Viewport::new(1280, 800)).unwrap();
+        let checkbox_rect = layout.summary_acknowledgement_rect();
+        let mut summary = InstallerSummaryState::default();
+
+        assert_eq!(
+            summary.handle_pointer(&model, &layout, checkbox_rect.x, checkbox_rect.y),
+            InstallerSummaryUpdate::AcknowledgementChanged(true)
+        );
+        assert!(summary.acknowledgement_checked(&model));
+        assert_eq!(
+            summary.handle_pointer(&model, &layout, checkbox_rect.right(), checkbox_rect.y),
+            InstallerSummaryUpdate::None
+        );
+
+        model.set_target(InstallTarget::erase_disk(disk(
+            "/dev/vdb",
+            "summary-checkbox-target-changed",
+        )));
+        assert!(!summary.acknowledgement_checked(&model));
     }
 
     #[test]

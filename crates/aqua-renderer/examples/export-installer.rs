@@ -44,6 +44,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             prepare_user_information(&mut model, &mut forms)?;
             model.advance()?;
             model.set_mode(InstallMode::Real);
+            forms
+                .summary_mut()
+                .handle_key(&mut model, InstallerSummaryKey::Activate)?;
             for character in model.confirmation_phrase().unwrap().chars() {
                 forms
                     .summary_mut()

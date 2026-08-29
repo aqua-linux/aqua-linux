@@ -20,7 +20,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Search field | Shared packaged-QEMU-proven primitive | Applications and Global Search share render/input geometry |
 | Standard button | Shared packaged-QEMU-proven primitive | Installer footer |
 | Icon button | Shared packaged-QEMU-proven primitive | Files back/forward navigation; broader toolbar adoption remains open |
-| Checkbox | Planned | Settings and installer options |
+| Checkbox | Shared packaged-QEMU-proven primitive | Installer Summary target-bound destructive acknowledgement |
 | Switch | Shared packaged-QEMU-proven primitive | Settings motion, desktop-icon, and key-repeat toggles |
 | Slider | Planned | Audio and future bounded value controls |
 | Menu | Shared packaged-QEMU-proven primitive | Desktop icon context actions and Session action layout |
@@ -203,6 +203,38 @@ key repeat. Its four-theme selector uses one segmented-control geometry for
 both renderer and pointer routing; inter-segment gaps reject input. Their
 four-theme, three-viewport deterministic matrix is recorded in
 `component-fixtures.txt`.
+
+## Checkbox Contract
+
+### Anatomy And Geometry
+
+- A checkbox owns one stable outer rectangle, a square indicator slot, and a
+  bounded label slot. Checked, focused, and semantic state changes never move
+  either slot or alter the half-open pointer target.
+- Invalid dimensions or an empty accessible label fail closed. Focus rings may
+  expand outside the outer rectangle without changing indicator, label, or hit
+  geometry.
+
+### Input, Semantics, And Consumption
+
+- Pointer input, Enter, and Space toggle only enabled, non-loading checkboxes.
+  The primitive exposes the `checkbox` role with independent accessible name,
+  checked, disabled, and busy values.
+- The state matrix covers idle, hover, keyboard focus, pressed, disabled,
+  loading, error, success, and non-repeating attention states. Checked remains
+  a value and is not duplicated as a generic selected state.
+- Installer Summary real mode consumes the shared checkbox as a target-bound
+  acknowledgement that the selected disk will be erased. A target change
+  invalidates the acknowledgement. This UI gate is additional to, and cannot
+  authorize or replace, the model-owned exact `ERASE /dev/...` confirmation,
+  disk identity revalidation, QEMU/operator opt-ins, or transaction gates.
+- Dry-run presentation does not require the destructive acknowledgement.
+
+The deterministic matrix covers stable slots, exact boundary rejection,
+keyboard toggling, accessibility values, all nine states, four themes, and the
+three required viewports including fractional scale. The packaged installer
+QEMU flow additionally proves the real Summary consumer before exact-text
+confirmation, while the aggregate component run covers all themed states.
 
 ## Toolbar Contract
 
@@ -581,17 +613,17 @@ fractional scale.
 once and launches the packaged `aqua.component-acceptance` `wl_shm`
 `xdg-toplevel` through the real Smithay, GLES, and DRM path for LightWhite,
 Softtouch, Deepside, and Nightmare. The acceptance client renders the complete
-20-primitive shared matrix at 1280x800 from fixture revision
-`aqua-component-fixtures-17`; serial gates verify the 22-entry catalog and
-20 shared primitives, while HMP screendumps must be nonblank, theme-distinct,
+21-primitive shared matrix at 1280x800 from fixture revision
+`aqua-component-fixtures-18`; serial gates verify the 22-entry catalog and
+21 shared primitives, while HMP screendumps must be nonblank, theme-distinct,
 and exactly 1280x800.
 
 Every bounded run keeps shell chrome disabled for an unobstructed full-output
 surface, stops the managed client, restores the compositor/CRTC state, and
 returns to the recovery shell. The generated log and screenshots remain local
-build evidence and are not repository artifacts. Checkbox and slider are not
-claimed by this run because their real owning models do not yet exist.
+build evidence and are not repository artifacts. Slider is not claimed by this
+run because a real bounded audio-volume model does not yet exist.
 
 ## Next Extraction Order
 
-1. Checkbox and slider remain deferred until real option and bounded-value models exist.
+1. Slider remains deferred until a real bounded audio-volume model exists.

@@ -123,6 +123,7 @@ MODES = {
         "sendkey end 100", "sendkey ret 100",
     ),
     "installer-user-summary-confirmation": (
+        "sendkey ret 100",
         "sendkey shift-e 50", "sendkey shift-r 50", "sendkey shift-a 50",
         "sendkey shift-s 50", "sendkey shift-e 50", "sendkey spc 50",
         "sendkey slash 50", "sendkey d 50", "sendkey e 50", "sendkey v 50",

@@ -187,6 +187,12 @@ if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-user-
 }
 
 expect {
+    -exact {aqua_installer_summary_destructive_acknowledgement=true} {}
+    timeout { puts stderr "Timed out waiting for installer destructive acknowledgement"; exit 1 }
+    eof { puts stderr "QEMU exited before installer destructive acknowledgement"; exit 1 }
+}
+
+expect {
     -exact {aqua_installer_summary_confirmation_applied=true} {}
     timeout { puts stderr "Timed out waiting for installer Summary confirmation"; exit 1 }
     eof { puts stderr "QEMU exited before installer Summary confirmation"; exit 1 }

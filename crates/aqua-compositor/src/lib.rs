@@ -5460,6 +5460,19 @@ impl XdgSmokeClientState {
                 }
                 update.changed()
             }
+            InstallerStep::Summary => {
+                let update = forms.summary_mut().handle_pointer(model, &layout, x, y);
+                if update.changed() {
+                    println!("aqua_installer_pointer_summary_update={update:?}");
+                }
+                if let aqua_installer::InstallerSummaryUpdate::AcknowledgementChanged(checked) =
+                    update
+                {
+                    println!("aqua_installer_summary_destructive_acknowledgement={checked}");
+                    println!("aqua_installer_execution_allowed=false");
+                }
+                update.changed()
+            }
             _ => false,
         };
         if content_changed {
@@ -5636,6 +5649,13 @@ impl XdgSmokeClientState {
             let summary_ready = forms.summary().can_begin_install(model);
             let summary_key = match key {
                 14 => Some(InstallerSummaryKey::Backspace),
+                103 => Some(InstallerSummaryKey::PreviousControl),
+                108 => Some(InstallerSummaryKey::NextControl),
+                57 if forms.summary().active_control()
+                    == aqua_installer::InstallerSummaryControl::Acknowledgement =>
+                {
+                    Some(InstallerSummaryKey::Activate)
+                }
                 28 if !summary_ready => Some(InstallerSummaryKey::Activate),
                 28 => None,
                 _ => installer_printable_character(key, self.keyboard_shift)
@@ -5666,16 +5686,36 @@ impl XdgSmokeClientState {
                             }
                             println!("aqua_installer_execution_allowed=false");
                         }
+                        if let aqua_installer::InstallerSummaryUpdate::AcknowledgementChanged(
+                            checked,
+                        ) = update
+                        {
+                            println!(
+                                "aqua_installer_summary_destructive_acknowledgement={checked}"
+                            );
+                            println!("aqua_installer_execution_allowed=false");
+                        }
                         if matches!(
                             update,
                             aqua_installer::InstallerSummaryUpdate::ConfirmationApplied
                                 | aqua_installer::InstallerSummaryUpdate::ReadyToInstall
+                                | aqua_installer::InstallerSummaryUpdate::AcknowledgementChanged(_)
+                                | aqua_installer::InstallerSummaryUpdate::FocusChanged(_)
                         ) {
                             self.redraw_installer_buffer(qh);
                         }
                     }
                     Err(error) => {
-                        eprintln!("aqua_installer_summary_confirmation_rejected={error}")
+                        let entered = forms.summary().confirmation().as_bytes();
+                        let expected = model.confirmation_phrase().unwrap_or_default();
+                        eprintln!("aqua_installer_summary_confirmation_rejected={error}");
+                        println!(
+                            "aqua_installer_summary_confirmation_diagnostic entered_length={} entered_checksum={:016x} expected_length={} expected_checksum={:016x}",
+                            entered.len(),
+                            checksum_bytes(entered),
+                            expected.len(),
+                            checksum_bytes(expected.as_bytes())
+                        );
                     }
                 }
                 return true;
@@ -6719,13 +6759,16 @@ impl SmithayDrmSession {
                 state.keyboard_event_count += 1;
                 if code == 29 {
                     state.ctrl_pressed = pressed;
-                    FilterResult::Intercept(())
+                    state.keyboard_forward_count += 1;
+                    FilterResult::Forward
                 } else if code == 42 || code == 54 {
                     state.shift_pressed = pressed;
-                    FilterResult::Intercept(())
+                    state.keyboard_forward_count += 1;
+                    FilterResult::Forward
                 } else if code == 56 {
                     state.alt_pressed = pressed;
-                    FilterResult::Intercept(())
+                    state.keyboard_forward_count += 1;
+                    FilterResult::Forward
                 } else if state.ctrl_pressed && state.alt_pressed && matches!(code, 105 | 106) {
                     if pressed {
                         let destination = if code == 105 {
@@ -6867,7 +6910,8 @@ impl SmithayDrmSession {
             println!("desktop_notification_dismissed=true");
             return true;
         }
-        if button == 0x110 && pressed {
+        if button == 0x110 && pressed && self.session.wayland_state.pointer_focus_surface.is_none()
+        {
             let output_width = self.session.wayland_state.output_width;
             let output_height = self.session.wayland_state.output_height;
             if top_system_bar_session_hit(
@@ -7795,7 +7839,7 @@ pub fn run_aqua_component_acceptance_client(
     println!("aqua_component_acceptance_buffer=1280x800");
     println!("aqua_component_acceptance_fixture_revision={COMPONENT_FIXTURE_REVISION}");
     println!("aqua_component_acceptance_catalog=22");
-    println!("aqua_component_acceptance_shared=20");
+    println!("aqua_component_acceptance_shared=21");
     println!("aqua_component_acceptance_ready=true");
     println!("[AQUA-COMPONENTS] stage=wayland-surface status=active");
     std::io::stdout().flush()?;
@@ -9076,6 +9120,22 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
         }
         if matches!(event, client_wl_keyboard::Event::Key { .. }) {
             state.keyboard_event_received = true;
+        }
+        if let client_wl_keyboard::Event::Key {
+            key,
+            state: WEnum::Value(key_state),
+            ..
+        } = &event
+        {
+            let pressed = *key_state == client_wl_keyboard::KeyState::Pressed;
+            if matches!(*key, 42 | 54) {
+                state.keyboard_shift = pressed;
+                return;
+            }
+            if *key == 29 {
+                state.keyboard_ctrl = pressed;
+                return;
+            }
         }
         if let client_wl_keyboard::Event::Key {
             key,

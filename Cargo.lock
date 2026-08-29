@@ -75,6 +75,7 @@ dependencies = [
 name = "aqua-installer"
 version = "0.1.0"
 dependencies = [
+ "aqua-components",
  "aqua-scene",
  "sha2",
 ]
