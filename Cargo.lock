@@ -87,6 +87,7 @@ dependencies = [
  "aqua-components",
  "aqua-installer",
  "aqua-scene",
+ "aqua-service-adapters",
  "aqua-shell",
  "aqua-text",
  "png 0.18.1",
@@ -98,11 +99,16 @@ name = "aqua-scene"
 version = "0.1.0"
 
 [[package]]
+name = "aqua-service-adapters"
+version = "0.1.0"
+
+[[package]]
 name = "aqua-shell"
 version = "0.1.0"
 dependencies = [
  "aqua-components",
  "aqua-scene",
+ "aqua-service-adapters",
 ]
 
 [[package]]

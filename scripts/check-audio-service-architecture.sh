@@ -8,6 +8,9 @@ SUPERVISOR="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-media-servi
 STOP_TOOL="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-media-service-stop"
 MEDIA_CONFIG="$REPO_ROOT/br2-external/aqua/rootfs-overlay/etc/aqua/media-services.conf"
 GRAPHICS_SUPERVISOR="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-graphical-session-supervisor"
+ADAPTER="$REPO_ROOT/crates/aqua-service-adapters/src/lib.rs"
+SHELL_MODEL="$REPO_ROOT/crates/aqua-shell/src/lib.rs"
+SETTINGS_CLIENT="$REPO_ROOT/crates/aqua-compositor/src/lib.rs"
 
 need_adr() {
     grep -Fq "$1" "$ADR" || {
@@ -42,8 +45,26 @@ if grep -Eq '^BR2_PACKAGE_(ALSA_LIB|ALSA_UTILS|PIPEWIRE|WIREPLUMBER)=y$' "$DEFCO
     exit 1
 fi
 
-grep -Fq 'aqua_settings_audio_backend_applied=false' \
-    "$REPO_ROOT/crates/aqua-compositor/src/lib.rs"
+test -f "$ADAPTER"
+grep -Fq '"crates/aqua-service-adapters"' "$REPO_ROOT/Cargo.toml"
+grep -Fq 'pub trait AudioBackend' "$ADAPTER"
+grep -Fq 'pub struct AudioServiceAdapter' "$ADAPTER"
+grep -Fq 'MAX_AUDIO_DEVICES' "$ADAPTER"
+grep -Fq 'StaleGeneration' "$ADAPTER"
+grep -Fq 'ConflictingGeneration' "$ADAPTER"
+grep -Fq 'request_confirmed' "$ADAPTER"
+grep -Fq 'AudioServiceAdapter' "$SHELL_MODEL"
+grep -Fq 'authoritative_volume_percent' "$SHELL_MODEL"
+grep -Fq 'aqua_settings_audio_service_health=' "$SETTINGS_CLIENT"
+grep -Fq 'aqua_settings_audio_backend_applied={}' "$SETTINGS_CLIENT"
+if grep -Fq 'AQUA_AUDIO_DEV_SND' "$SETTINGS_CLIENT"; then
+    echo 'Settings must not treat /dev/snd as authoritative service readiness.' >&2
+    exit 1
+fi
+if grep -Eq 'wpctl|Command::new|process::Command' "$ADAPTER"; then
+    echo 'The audio adapter contract must not parse commands or spawn helper tools.' >&2
+    exit 1
+fi
 grep -Fq '| Audio | Not tested |' \
     "$REPO_ROOT/docs/aqua-linux/hardware-support.md"
 

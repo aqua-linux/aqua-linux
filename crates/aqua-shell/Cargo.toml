@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 aqua-components = { path = "../aqua-components" }
 aqua-scene = { path = "../aqua-scene" }
+aqua-service-adapters = { path = "../aqua-service-adapters" }
 
 [lib]
 path = "src/lib.rs"

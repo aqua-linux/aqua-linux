@@ -135,9 +135,13 @@ user-owned `/run/user/1000`, and explicit `video`, `audio`, and `input` groups
 now satisfy the identity and base device-permission prerequisite. The packaged
 per-user media supervisor now owns finite readiness, PipeWire-before-WirePlumber
 startup, bounded restart, reverse-order shutdown, and degraded state. It stays
-disabled while the packages are absent. Packaging remains blocked until the
-fail-closed adapter contract, legal-info review, and real QEMU media evidence
-exist. Buildroot availability alone is not an integration decision.
+disabled while the packages are absent. The `aqua-service-adapters` crate now
+provides bounded typed device and route state, monotonic reconciliation,
+deferred desired volume and mute, and fail-closed unavailable/degraded behavior.
+Settings no longer treats `/dev/snd` alone as service readiness. Packaging
+remains blocked until the supported API transport, exact legal-info review,
+and real QEMU media evidence exist. Buildroot availability alone is not an
+integration decision.
 
 ### R5: Accessibility, Internationalization, And Input
 

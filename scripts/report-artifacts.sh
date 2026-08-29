@@ -468,6 +468,7 @@ if [ -f "${MANIFEST}" ]; then
     report_status "Aqua Files Wayland surface" "graphics_desktop_runtime_launch_files"
     report_status "runtime GPU repaint" "graphics_desktop_runtime_launch_repaint"
     report_status "Aqua Settings runtime surface" "graphics_desktop_runtime_settings"
+    report_status "audio adapter QEMU safe default" "audio_adapter_qemu_safe_default"
     report_status "client damage repaint" "graphics_desktop_runtime_damage"
     report_status "normal application close" "graphics_desktop_runtime_close"
     report_status "unexpected application exit" "graphics_desktop_runtime_unexpected_exit"

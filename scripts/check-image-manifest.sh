@@ -146,6 +146,7 @@ expected = {
     ("scene_contract", "graphics_desktop_runtime_launch_files"): "ok",
     ("scene_contract", "graphics_desktop_runtime_launch_repaint"): "ok",
     ("scene_contract", "graphics_desktop_runtime_settings"): "ok",
+    ("scene_contract", "audio_adapter_qemu_safe_default"): "ok",
     ("scene_contract", "graphics_desktop_live_theme"): "ok",
     ("scene_contract", "graphics_desktop_runtime_damage"): "ok",
     ("scene_contract", "graphics_desktop_runtime_close"): "ok",

@@ -7,6 +7,10 @@ use aqua_components::{
     WorkspaceSwitcher,
 };
 use aqua_scene::Rect;
+use aqua_service_adapters::{
+    AudioAdapterError, AudioAuthoritativeState, AudioRequest, AudioServiceAdapter,
+    AudioServiceHealth,
+};
 use std::collections::VecDeque;
 use std::fs;
 use std::io::{self, Write};
@@ -1293,59 +1297,69 @@ fn parse_meminfo_kib(contents: &str, key: &str) -> io::Result<u64> {
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, format!("missing {key}")))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AudioVolumeModel {
-    available: bool,
-    volume_percent: u8,
-    muted: bool,
-}
-
-impl Default for AudioVolumeModel {
-    fn default() -> Self {
-        Self {
-            available: false,
-            volume_percent: 70,
-            muted: false,
-        }
-    }
+    adapter: AudioServiceAdapter,
 }
 
 impl AudioVolumeModel {
-    pub const fn available(&self) -> bool {
-        self.available
+    pub fn available(&self) -> bool {
+        self.adapter.state().health() == AudioServiceHealth::Ready
+            && self.adapter.state().default_output().is_some()
     }
 
     pub const fn volume_percent(&self) -> u8 {
-        self.volume_percent
+        self.adapter.desired_volume_percent()
     }
 
     pub const fn muted(&self) -> bool {
-        self.muted
+        self.adapter.desired_muted()
     }
 
-    pub fn refresh_availability(&mut self, sound_device_root: &Path) -> io::Result<()> {
-        self.available = match fs::symlink_metadata(sound_device_root) {
-            Ok(metadata) => metadata.is_dir() && !metadata.file_type().is_symlink(),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
-            Err(error) => return Err(error),
-        };
+    pub const fn service_health(&self) -> AudioServiceHealth {
+        self.adapter.state().health()
+    }
+
+    pub fn backend_applied(&self) -> bool {
+        self.adapter.backend_applied()
+    }
+
+    pub fn authoritative_volume_percent(&self) -> Option<u8> {
+        self.available()
+            .then(|| self.adapter.state().output_volume_percent())
+    }
+
+    pub fn authoritative_muted(&self) -> Option<bool> {
+        self.available()
+            .then(|| self.adapter.state().output_muted())
+    }
+
+    pub fn output_device_name(&self) -> Option<&str> {
+        self.adapter
+            .state()
+            .output_device()
+            .map(|device| device.name())
+    }
+
+    pub fn reconcile(&mut self, state: AudioAuthoritativeState) -> Result<(), AudioAdapterError> {
+        self.adapter.reconcile(state)?;
         Ok(())
     }
 
+    pub fn next_reconciliation_request(
+        &mut self,
+    ) -> Result<Option<AudioRequest>, AudioAdapterError> {
+        self.adapter.next_reconciliation_request()
+    }
+
     pub fn set_volume_percent(&mut self, volume_percent: u8) -> bool {
-        if volume_percent > 100 || self.volume_percent == volume_percent {
-            return false;
-        }
-        self.volume_percent = volume_percent;
-        true
+        self.adapter
+            .set_desired_volume(volume_percent)
+            .unwrap_or(false)
     }
 
     pub fn set_muted(&mut self, muted: bool) -> bool {
-        if self.muted == muted {
-            return false;
-        }
-        self.muted = muted;
-        true
+        self.adapter.set_desired_muted(muted)
     }
 }
 
@@ -1418,7 +1432,13 @@ impl SettingsWindowModel {
             0 => ("Reduced motion", self.reduced_motion, 0),
             1 => ("Show desktop icons", self.desktop_icons, 0),
             2 => ("Key repeat", self.key_repeat, 0),
-            4 => ("Mute output", self.audio.muted(), 1),
+            4 => (
+                "Mute output",
+                self.audio
+                    .authoritative_muted()
+                    .unwrap_or_else(|| self.audio.muted()),
+                1,
+            ),
             _ => return None,
         };
         Some(
@@ -1461,7 +1481,11 @@ impl SettingsWindowModel {
                 height: 32,
             },
             "Output volume",
-            u16::from(self.audio.volume_percent()),
+            u16::from(
+                self.audio
+                    .authoritative_volume_percent()
+                    .unwrap_or_else(|| self.audio.volume_percent()),
+            ),
             0,
             100,
             5,
@@ -1481,8 +1505,11 @@ impl SettingsWindowModel {
         Ok(())
     }
 
-    pub fn refresh_audio_status(&mut self, sound_device_root: &Path) -> io::Result<()> {
-        self.audio.refresh_availability(sound_device_root)
+    pub fn reconcile_audio_state(
+        &mut self,
+        state: AudioAuthoritativeState,
+    ) -> Result<(), AudioAdapterError> {
+        self.audio.reconcile(state)
     }
     pub fn load_or_default(path: &Path) -> Result<Self, SettingsConfigError> {
         match fs::symlink_metadata(path) {
@@ -1570,9 +1597,11 @@ impl SettingsWindowModel {
         }
         let reduced_motion = reduced_motion.ok_or(SettingsConfigError::InvalidFormat)?;
         let audio = AudioVolumeModel {
-            volume_percent: audio_volume.unwrap_or(70),
-            muted: audio_muted.unwrap_or(false),
-            ..AudioVolumeModel::default()
+            adapter: AudioServiceAdapter::with_preferences(
+                audio_volume.unwrap_or(70),
+                audio_muted.unwrap_or(false),
+            )
+            .map_err(|_| SettingsConfigError::InvalidFormat)?,
         };
         Ok(Self {
             reduced_motion,
@@ -3603,6 +3632,29 @@ pub fn probe_launcher_model() -> LauncherProbe {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use aqua_service_adapters::{AudioDevice, AudioDeviceKind};
+
+    fn ready_audio_state(
+        generation: u64,
+        volume_percent: u8,
+        muted: bool,
+    ) -> AudioAuthoritativeState {
+        AudioAuthoritativeState::new(
+            generation,
+            AudioServiceHealth::Ready,
+            vec![
+                AudioDevice::new("sink.1", "Aqua Test Output", AudioDeviceKind::Output)
+                    .expect("output fixture"),
+                AudioDevice::new("source.1", "Aqua Test Input", AudioDeviceKind::Input)
+                    .expect("input fixture"),
+            ],
+            Some("sink.1".to_string()),
+            Some("source.1".to_string()),
+            volume_percent,
+            muted,
+        )
+        .expect("authoritative audio fixture")
+    }
 
     fn close(left: f32, right: f32) {
         assert!((left - right).abs() < 0.0001, "{left} != {right}");
@@ -3987,7 +4039,9 @@ mod tests {
             model.handle_pointer(40, 300),
             SettingsUpdate::CategorySelected(4)
         );
-        model.audio.available = true;
+        model
+            .reconcile_audio_state(ready_audio_state(1, 70, false))
+            .expect("ready audio state");
         let slider = model.audio_slider();
         assert_eq!(
             model.handle_pointer(slider.rect.right() - 1, slider.rect.y),
@@ -3996,8 +4050,9 @@ mod tests {
         assert_eq!(model.audio.volume_percent(), 100);
         assert_eq!(
             model.handle_key(SettingsKey::Decrease),
-            SettingsUpdate::AudioVolumeChanged(95)
+            SettingsUpdate::AudioVolumeChanged(65)
         );
+        assert_eq!(model.audio.volume_percent(), 65);
         assert_eq!(
             model.handle_key(SettingsKey::Activate),
             SettingsUpdate::AudioMutedChanged(true)
@@ -4095,37 +4150,58 @@ mod tests {
 
     #[test]
     fn audio_volume_model_is_bounded_persistent_and_device_aware() {
-        let root = std::env::temp_dir().join(format!(
-            "aqua-audio-status-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("system clock")
-                .as_nanos()
-        ));
-        let sound_root = root.join("dev/snd");
         let mut model = SettingsWindowModel::default();
-        model
-            .refresh_audio_status(&sound_root)
-            .expect("missing audio root should be unavailable");
         assert!(!model.audio.available());
-        fs::create_dir_all(&sound_root).expect("audio fixture");
+        assert_eq!(
+            model.audio.service_health(),
+            AudioServiceHealth::Unavailable
+        );
+        assert!(!model.audio.backend_applied());
         model
-            .refresh_audio_status(&sound_root)
-            .expect("real directory should be available");
+            .reconcile_audio_state(ready_audio_state(1, 70, false))
+            .expect("ready adapter state should enable controls");
         assert!(model.audio.available());
+        assert!(model.audio.backend_applied());
+        assert_eq!(model.audio.output_device_name(), Some("Aqua Test Output"));
         assert!(model.audio.set_volume_percent(85));
         assert!(!model.audio.set_volume_percent(101));
         assert!(model.audio.set_muted(true));
+        assert!(!model.audio.backend_applied());
+        let volume_request = model
+            .audio
+            .next_reconciliation_request()
+            .expect("valid reconciliation")
+            .expect("volume request");
+        assert_eq!(
+            volume_request.intent(),
+            &aqua_service_adapters::AudioIntent::SetOutputVolume(85)
+        );
+        model
+            .reconcile_audio_state(ready_audio_state(2, 85, false))
+            .expect("volume acknowledgement");
+        let mute_request = model
+            .audio
+            .next_reconciliation_request()
+            .expect("valid reconciliation")
+            .expect("mute request");
+        assert_eq!(
+            mute_request.intent(),
+            &aqua_service_adapters::AudioIntent::SetOutputMuted(true)
+        );
+        model
+            .reconcile_audio_state(ready_audio_state(3, 85, true))
+            .expect("mute acknowledgement");
+        assert!(model.audio.backend_applied());
         let restored = SettingsWindowModel::from_config(&model.to_config())
             .expect("bounded audio preference should reload");
         assert_eq!(restored.audio.volume_percent(), 85);
         assert!(restored.audio.muted());
+        assert!(!restored.audio.available());
+        assert!(!restored.audio.backend_applied());
         assert!(matches!(
             SettingsWindowModel::from_config("version=1\nreduced_motion=false\naudio_volume=101\n"),
             Err(SettingsConfigError::InvalidFormat)
         ));
-        fs::remove_dir_all(root).expect("remove audio fixture");
     }
 
     #[cfg(unix)]

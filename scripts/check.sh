@@ -1650,7 +1650,7 @@ grep -Fq 'model.active_switch()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.theme_segmented_control()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.audio_slider()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'pub struct AudioVolumeModel' crates/aqua-shell/src/lib.rs
-grep -Fq 'aqua_settings_audio_backend_applied=false' crates/aqua-compositor/src/lib.rs
+grep -Fq 'aqua_settings_audio_backend_applied={}' crates/aqua-compositor/src/lib.rs
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=typography-acceptance' scripts/check-typography-wayland-qemu.exp
 grep -Fq 'typography_wayland_surface_ready=true' scripts/check-typography-wayland-qemu.sh
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=component-acceptance' scripts/check-component-wayland-qemu.exp

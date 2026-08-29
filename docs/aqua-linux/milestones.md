@@ -482,9 +482,11 @@ requirements, intent-only keyboard semantics, and alert accessibility. Their
 existing action authorization, target identity, and execution gates remain
 model-owned.
 Settings Audio now supplies the real bounded slider consumer: a persistent
-0–100 output-volume preference, mute state, and fail-closed `/dev/snd`
-availability check. It deliberately does not claim playback, mixer/backend
-application, routing, or physical hardware support.
+0–100 output-volume preference and mute state backed by the fail-closed
+`aqua-service-adapters` contract. Controls require a ready authoritative state
+with a valid output route; `/dev/snd` alone is insufficient, and desired values
+are not reported as applied before reconciliation. It deliberately does not
+claim playback, production PipeWire transport, or physical hardware support.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
 to recovery after each bounded session.

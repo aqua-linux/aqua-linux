@@ -209,10 +209,13 @@ Settings now uses one switch geometry for reduced motion, desktop icons, and
 key repeat. Its four-theme selector uses one segmented-control geometry for
 both renderer and pointer routing; inter-segment gaps reject input. The Audio
 category uses the slider for a persistent 0–100 output-volume preference and a
-shared switch for mute. Availability is derived from a real, non-symlink
-`/dev/snd` directory, so unavailable controls fail closed. This is a UI and
-control-plane model only: no playback backend, routing, mixer application, or
-physical-hardware support is claimed. Their
+shared switch for mute. Availability is derived only from a ready authoritative
+`aqua-service-adapters` snapshot with a valid default output route; `/dev/snd`
+alone cannot enable the controls. Desired values persist across unavailable or
+degraded service state, while the displayed value and `backend_applied` status
+remain bound to reconciliation. This is still a UI and control-plane model:
+no playback backend, PipeWire transport, mixer application, or physical-hardware
+support is claimed. Their
 four-theme, three-viewport deterministic matrix is recorded in
 `component-fixtures.txt`.
 

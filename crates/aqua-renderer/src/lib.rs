@@ -4246,8 +4246,14 @@ pub fn render_settings_window_rgba(
                 desktop_icons: model.desktop_icons,
                 key_repeat: model.key_repeat,
                 audio_available: model.audio.available(),
-                audio_volume_percent: model.audio.volume_percent(),
-                audio_muted: model.audio.muted(),
+                audio_volume_percent: model
+                    .audio
+                    .authoritative_volume_percent()
+                    .unwrap_or_else(|| model.audio.volume_percent()),
+                audio_muted: model
+                    .audio
+                    .authoritative_muted()
+                    .unwrap_or_else(|| model.audio.muted()),
                 network_interface_count: model.network_interfaces.len(),
                 network_status_available: model.network_status_available,
                 primitive_count: 0,
@@ -4460,7 +4466,13 @@ pub fn render_settings_window_rgba(
             1,
         );
         let status = if model.audio.available() {
-            format!("{}%", model.audio.volume_percent())
+            format!(
+                "{}%",
+                model
+                    .audio
+                    .authoritative_volume_percent()
+                    .unwrap_or_else(|| model.audio.volume_percent())
+            )
         } else {
             "UNAVAILABLE".to_string()
         };
@@ -4518,8 +4530,14 @@ pub fn render_settings_window_rgba(
             desktop_icons: model.desktop_icons,
             key_repeat: model.key_repeat,
             audio_available: model.audio.available(),
-            audio_volume_percent: model.audio.volume_percent(),
-            audio_muted: model.audio.muted(),
+            audio_volume_percent: model
+                .audio
+                .authoritative_volume_percent()
+                .unwrap_or_else(|| model.audio.volume_percent()),
+            audio_muted: model
+                .audio
+                .authoritative_muted()
+                .unwrap_or_else(|| model.audio.muted()),
             network_interface_count: model.network_interfaces.len(),
             network_status_available: model.network_status_available,
             primitive_count: primitives,
@@ -8183,18 +8201,30 @@ mod tests {
 
     #[test]
     fn settings_audio_category_renders_real_bounded_slider_state() {
-        let root = std::env::temp_dir().join(format!("aqua-renderer-audio-{}", std::process::id()));
-        let sound_root = root.join("dev/snd");
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&sound_root).expect("audio renderer fixture");
         let mut model = SettingsWindowModel {
             selected_category: 4,
             ..SettingsWindowModel::default()
         };
+        let output = aqua_service_adapters::AudioDevice::new(
+            "sink.1",
+            "Aqua Test Output",
+            aqua_service_adapters::AudioDeviceKind::Output,
+        )
+        .expect("output fixture");
         model
-            .refresh_audio_status(&sound_root)
-            .expect("audio device directory should be accepted");
-        assert!(model.audio.set_volume_percent(85));
+            .reconcile_audio_state(
+                aqua_service_adapters::AudioAuthoritativeState::new(
+                    1,
+                    aqua_service_adapters::AudioServiceHealth::Ready,
+                    vec![output],
+                    Some("sink.1".to_string()),
+                    None,
+                    85,
+                    false,
+                )
+                .expect("authoritative audio fixture"),
+            )
+            .expect("adapter state should be accepted");
         let (pixels, probe) = render_settings_window_rgba(600, 400, &model);
         assert!(probe.rendered);
         assert_eq!(probe.category_count, 6);
@@ -8204,7 +8234,6 @@ mod tests {
         assert!(!probe.audio_muted);
         assert_ne!(probe.checksum, 0);
         assert_eq!(pixels.len(), 600 * 400 * 4);
-        std::fs::remove_dir_all(root).expect("remove audio renderer fixture");
     }
 
     #[test]
