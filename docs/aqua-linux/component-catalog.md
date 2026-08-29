@@ -25,7 +25,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Slider | Planned | Audio and future bounded value controls |
 | Menu | Shared host-proven primitive | Desktop icon context actions and Session action layout; packaged-QEMU component acceptance remains open |
 | List row | Shared host-proven primitive | Files and Settings navigation plus installer steps |
-| Grid cell | Planned | Applications and file grid modes |
+| Grid cell | Shared host-proven primitive | Applications cards and desktop icon cells share render/input geometry; Files remains a list because no grid mode exists yet |
 | Metadata row | Shared host-proven primitive | Properties and System Overview share bounded read-only label/value columns; packaged-QEMU acceptance remains open |
 | Section group | Shared host-proven primitive | Settings and Properties share bounded heading, row, trailing-control, and footer geometry; packaged-QEMU acceptance remains open |
 | Application overview | Planned | Applications panel |
@@ -295,6 +295,37 @@ navigation, and accessibility semantics in four themes at 800x600, 1280x800,
 and fractional-scale 1536x1024. Packaged-QEMU component acceptance remains
 open.
 
+## Grid Cell Contract
+
+### Anatomy And Geometry
+
+- A grid cell owns one stable outer rectangle plus bounded icon, primary-label,
+  and optional secondary-label slots. `IconLeading` supports Applications cards;
+  `IconAbove` supports desktop items without changing activation semantics.
+- Icon size, inset, label gap, and secondary-row height are explicit. Selected,
+  focused, loading, and feedback states do not move any slot.
+- Empty accessible names, zero-sized icons, or dimensions that cannot contain
+  the declared slots fail closed.
+
+### Input, Semantics, And Consumption
+
+- Pointer activation uses the exact half-open rectangle drawn by the renderer;
+  card gaps and panel padding do not activate neighboring cells. Enter and Space
+  use the same disabled/loading gate.
+- Every valid cell exposes `gridcell` with independent name, selected, disabled,
+  and busy values. An icon remains visual content and never replaces the name.
+- Applications now derives all six visible card rectangles, icon and text slots,
+  selection surfaces, and pointer targets from the shared primitive. Desktop
+  Files, Settings, and Trash items use the vertical variant for selection,
+  icon placement, labels, and global pointer routing.
+- Files currently has a list view only, so it continues to use `ListRow`. A file
+  grid consumer will be added only with a real runtime grid mode.
+
+The deterministic matrix covers both layouts, the ten applicable states, gap
+rejection, keyboard activation, accessibility semantics, four themes, and the
+three required viewports including fractional scale. Packaged-QEMU component
+acceptance remains open.
+
 ## Metadata Row Contract
 
 ### Anatomy And Geometry
@@ -354,6 +385,6 @@ acceptance remains open.
 
 ## Next Extraction Order
 
-1. Grid cell, using the real Applications grid and Files item boundaries.
-2. Checkbox after a real installer option exists; slider after a bounded audio-volume model exists.
-3. Shell-level panels, dock, workspaces, notification, and confirmation dialog.
+1. Application overview, composing the existing search field and grid cells into one bounded panel contract.
+2. Global search, then the running-app dock and workspace switcher.
+3. Notification and confirmation dialog; checkbox and slider remain deferred until real option and bounded-value models exist.

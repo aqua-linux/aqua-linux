@@ -1046,7 +1046,7 @@ assert phases["m9"]["percent"] == 100
 assert phases["m9"]["status"] == "complete"
 assert phases["m11"]["percent"] == 100
 assert phases["m11"]["status"] == "complete"
-assert phases["m12"]["percent"] == 93
+assert phases["m12"]["percent"] == 94
 assert phases["m12"]["status"] == "in-progress"
 PY
 test -f crates/aqua-installer/Cargo.toml
@@ -1559,13 +1559,14 @@ grep -Fq 'pub fn typography_fixture_report' crates/aqua-text/src/lib.rs
 grep -Fq 'noto-sans-arabic-regular-2.009' docs/aqua-linux/typography-fixtures.txt
 grep -Fq 'pub fn typography_layout_acceptance_report' crates/aqua-renderer/src/lib.rs
 grep -Fq 'aqua-typography-layout-fixtures-1' docs/aqua-linux/typography-layout-fixtures.txt
-grep -Fq 'aqua-component-fixtures-10' docs/aqua-linux/component-fixtures.txt
+grep -Fq 'aqua-component-fixtures-11' docs/aqua-linux/component-fixtures.txt
 test -f docs/aqua-linux/component-catalog.md
 grep -Fq 'Window frame and title bar | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Top system bar | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Menu | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Section group | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Metadata row | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Grid cell | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Standard button | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Icon button | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Search field | Shared host-proven primitive' docs/aqua-linux/component-catalog.md

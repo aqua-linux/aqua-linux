@@ -6,13 +6,12 @@ use aqua_installer::{
 };
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
-    desktop_context_menu, files_back_button, files_forward_button, files_toolbar, top_system_bar,
-    AquaTheme, DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
-    FilesWindowModel, LauncherCategory, LauncherMode, LauncherState, NotificationCenter,
-    SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView,
-    TopBarState, DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT,
-    FILES_PREVIEW_VISIBLE_LINES, FILES_SIDEBAR_NAVIGATION, FILES_VISIBLE_ROWS,
-    SETTINGS_SIDEBAR_NAVIGATION, WORKSPACE_COUNT,
+    desktop_context_menu, desktop_grid_cell, files_back_button, files_forward_button,
+    files_toolbar, top_system_bar, AquaTheme, DesktopIconState, DesktopPropertiesModel, DockItem,
+    DockState, FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
+    NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
+    TerminalView, TopBarState, DESKTOP_ICONS, DOCK_ITEM_COUNT, FILES_PREVIEW_VISIBLE_LINES,
+    FILES_SIDEBAR_NAVIGATION, FILES_VISIBLE_ROWS, SETTINGS_SIDEBAR_NAVIGATION, WORKSPACE_COUNT,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -1509,6 +1508,8 @@ pub fn render_desktop_icons_rgba_with_cached_icons(
     let mut overlay = render_desktop_icons_rgba_base(width, height, state, false);
     apply_shell_palette(&mut overlay.rgba, theme);
     for (index, icon) in DESKTOP_ICONS.iter().enumerate() {
+        let cell = desktop_grid_cell(index, icon.label, state.selected() == Some(index), 0, 0);
+        let slots = cell.slots();
         let role = match icon.id {
             "files" => icons::IconRole::Files,
             "settings" => icons::IconRole::Settings,
@@ -1531,8 +1532,8 @@ pub fn render_desktop_icons_rgba_with_cached_icons(
             &mut overlay.rgba,
             width,
             height,
-            20,
-            index as u32 * DESKTOP_ICON_ROW_HEIGHT + 8,
+            slots.icon.x,
+            slots.icon.y,
             &raster,
         );
         overlay.primitive_count += 1;
@@ -1549,38 +1550,18 @@ fn render_desktop_icons_rgba_base(
     let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     let mut primitives = 0;
     for (index, icon) in DESKTOP_ICONS.iter().enumerate() {
-        let y = index as u32 * DESKTOP_ICON_ROW_HEIGHT;
-        if state.selected() == Some(index) {
-            fill_transparent_rounded_rect(
-                &mut rgba,
-                width,
-                height,
-                Rect {
-                    x: 10,
-                    y: y + 3,
-                    width: 84_u32.min(width.saturating_sub(10)),
-                    height: 96,
-                },
-                9,
-                [0x16, 0x78, 0xa9, 0x72],
-            );
-            fill_transparent_rounded_rect(
-                &mut rgba,
-                width,
-                height,
-                Rect {
-                    x: 12,
-                    y: y + 5,
-                    width: 80_u32.min(width.saturating_sub(12)),
-                    height: 92,
-                },
-                7,
-                [0x08, 0x45, 0x70, 0x54],
-            );
-            primitives += 2;
-        }
+        let cell = desktop_grid_cell(index, icon.label, state.selected() == Some(index), 0, 0);
+        let slots = cell.slots();
+        primitives += draw_grid_cell(&mut rgba, width, height, cell, AquaTheme::LightWhite);
         if draw_placeholder_icons {
-            primitives += draw_desktop_icon(&mut rgba, width, height, 20, y + 8, icon.id);
+            primitives += draw_desktop_icon(
+                &mut rgba,
+                width,
+                height,
+                slots.icon.x,
+                slots.icon.y,
+                icon.id,
+            );
         }
         let label_x = match icon.id {
             "files" => 37,
@@ -1598,7 +1579,7 @@ fn render_desktop_icons_rgba_base(
             height,
             Rect {
                 x: (104 - label_width) / 2,
-                y: y + 77,
+                y: slots.primary.y,
                 width: label_width,
                 height: 21,
             },
@@ -1608,7 +1589,7 @@ fn render_desktop_icons_rgba_base(
         draw_bitmap_text(
             &mut rgba,
             (width, height),
-            (label_x, y + 79),
+            (label_x, slots.primary.y + 2),
             icon.label,
             [0xf5, 0xfb, 0xff, 0xff],
             1,
@@ -6218,52 +6199,37 @@ fn draw_launcher_overlay(
     let visible_apps = launcher.visible_apps();
     match launcher.mode() {
         LauncherMode::Applications => {
-            let gap = 12;
-            let card_width = (panel.width.saturating_sub(48 + gap * 2)) / 3;
             for (index, app) in visible_apps.iter().take(6).enumerate() {
-                let column = index as u32 % 3;
-                let row_index = index as u32 / 3;
-                let card = Rect {
-                    x: panel.x + 24 + column * (card_width + gap),
-                    y: content_y + row_index * 112,
-                    width: card_width,
-                    height: 100,
+                let Some(cell) =
+                    launcher.application_grid_cell(index, viewport.width, viewport.height)
+                else {
+                    continue;
                 };
-                fill_rect(
-                    buffer,
-                    viewport.width,
-                    viewport.height,
-                    card,
-                    if index == launcher.selected_index() {
-                        palette.selection
-                    } else {
-                        palette.elevated
-                    },
-                    225,
-                );
+                let slots = cell.slots();
+                primitives += draw_grid_cell(buffer, viewport.width, viewport.height, cell, theme);
                 draw_app_icon(
                     buffer,
                     viewport.width,
                     viewport.height,
-                    card.x + 14,
-                    card.y + 14,
+                    slots.icon.x,
+                    slots.icon.y,
                     index,
                 );
-                draw_bitmap_text(
+                draw_fitted_bitmap_text(
                     buffer,
                     (viewport.width, viewport.height),
-                    (card.x + 60, card.y + 22),
+                    slots.primary,
                     app.name,
                     palette.text,
-                    1,
+                    FittedTextOptions::new(TextRole::Control, OutputScale::One, false),
                 );
-                draw_bitmap_text(
+                draw_fitted_bitmap_text(
                     buffer,
                     (viewport.width, viewport.height),
-                    (card.x + 14, card.y + 70),
+                    slots.secondary,
                     app.description,
                     palette.secondary_text,
-                    1,
+                    FittedTextOptions::new(TextRole::Control, OutputScale::One, false),
                 );
                 primitives += 2;
             }
