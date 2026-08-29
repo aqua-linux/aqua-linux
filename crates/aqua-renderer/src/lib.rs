@@ -2591,20 +2591,12 @@ pub fn render_terminal_window_rgba_with_theme(
         width,
         height,
     };
-    let titlebar = Rect {
-        x: 0,
-        y: 0,
-        width,
-        height: 48,
-    };
     let palette = window_chrome_palette(theme);
-    let mut primitives = draw_bright_window_chrome(
+    let mut primitives = draw_window_frame(
         &mut buffer,
         width,
         height,
-        canvas,
-        titlebar,
-        "Terminal",
+        WindowFrame::new(canvas, "Terminal", 48),
         palette,
     );
 
@@ -2704,20 +2696,12 @@ pub fn render_properties_window_rgba_with_theme(
         width,
         height,
     };
-    let titlebar = Rect {
-        x: 0,
-        y: 0,
-        width,
-        height: 52,
-    };
     let palette = window_chrome_palette(theme);
-    let mut primitives = draw_bright_window_chrome(
+    let mut primitives = draw_window_frame(
         &mut buffer,
         width,
         height,
-        canvas,
-        titlebar,
-        &model.title,
+        WindowFrame::new(canvas, &model.title, 52),
         palette,
     );
 
@@ -4206,20 +4190,12 @@ pub fn render_settings_window_rgba(
         width,
         height,
     };
-    let titlebar = Rect {
-        x: 0,
-        y: 0,
-        width,
-        height: 58,
-    };
     let palette = window_chrome_palette(model.theme);
-    let mut primitives = draw_bright_window_chrome(
+    let mut primitives = draw_window_frame(
         &mut buffer,
         width,
         height,
-        canvas,
-        titlebar,
-        model.title,
+        WindowFrame::new(canvas, model.title, 58),
         palette,
     );
 
@@ -4491,20 +4467,12 @@ pub fn render_files_window_rgba_with_theme(
         width,
         height,
     };
-    let titlebar = Rect {
-        x: 0,
-        y: 0,
-        width,
-        height: 48,
-    };
     let palette = window_chrome_palette(theme);
-    let mut primitives = draw_bright_window_chrome(
+    let mut primitives = draw_window_frame(
         &mut buffer,
         width,
         height,
-        canvas,
-        titlebar,
-        model.title,
+        WindowFrame::new(canvas, model.title, 48),
         palette,
     );
 
@@ -6515,43 +6483,86 @@ fn draw_window_controls(buffer: &mut [u8], width: u32, height: u32, x: u32, y: u
     .into_iter()
     .enumerate()
     {
-        let center_x = x + 7 + index as u32 * 22;
-        let center_y = y + 7;
-        fill_transparent_circle(
+        draw_window_control(
             buffer,
             width,
             height,
-            center_x,
-            center_y,
-            7,
-            [0xa7, 0xb2, 0xbf, 0xff],
-        );
-        fill_transparent_circle(buffer, width, height, center_x, center_y, 6, color);
-        fill_transparent_circle(
-            buffer,
-            width,
-            height,
-            center_x.saturating_sub(2),
-            center_y.saturating_sub(2),
-            2,
-            [0xff, 0xff, 0xff, 0x78],
+            Rect {
+                x: x + index as u32 * 22,
+                y,
+                width: 14,
+                height: 14,
+            },
+            color,
         );
     }
 }
 
-fn draw_bright_window_chrome(
+fn draw_window_control(buffer: &mut [u8], width: u32, height: u32, rect: Rect, color: [u8; 4]) {
+    let center_x = rect.x + rect.width / 2;
+    let center_y = rect.y + rect.height / 2;
+    fill_transparent_circle(
+        buffer,
+        width,
+        height,
+        center_x,
+        center_y,
+        7,
+        [0xa7, 0xb2, 0xbf, 0xff],
+    );
+    fill_transparent_circle(buffer, width, height, center_x, center_y, 6, color);
+    fill_transparent_circle(
+        buffer,
+        width,
+        height,
+        center_x.saturating_sub(2),
+        center_y.saturating_sub(2),
+        2,
+        [0xff, 0xff, 0xff, 0x78],
+    );
+}
+
+pub(crate) fn draw_window_frame(
     buffer: &mut [u8],
     width: u32,
     height: u32,
-    window: Rect,
-    titlebar: Rect,
-    title: &str,
+    frame: WindowFrame<'_>,
     palette: WindowChromePalette,
 ) -> usize {
-    fill_rect(buffer, width, height, window, palette.surface, 255);
-    let primitives = draw_bright_window_titlebar(buffer, width, height, titlebar, title, palette);
-    draw_rect_outline(buffer, width, height, window, palette.border, 255);
-    primitives + 2
+    fill_rect(buffer, width, height, frame.rect, palette.surface, 255);
+    fill_rect(
+        buffer,
+        width,
+        height,
+        frame.titlebar_rect(),
+        palette.titlebar,
+        255,
+    );
+    fill_rect(
+        buffer,
+        width,
+        height,
+        frame.separator_rect(),
+        palette.border,
+        255,
+    );
+    for (control, color) in [
+        (WindowControl::Close, [0xff, 0x6f, 0x67, 0xff]),
+        (WindowControl::Minimize, [0xff, 0xd0, 0x59, 0xff]),
+        (WindowControl::Maximize, [0x65, 0xd4, 0x73, 0xff]),
+    ] {
+        draw_window_control(buffer, width, height, frame.control_rect(control), color);
+    }
+    draw_fitted_bitmap_text(
+        buffer,
+        (width, height),
+        frame.title_rect(),
+        frame.title,
+        palette.text,
+        FittedTextOptions::new(TextRole::Body, OutputScale::One, false),
+    );
+    draw_rect_outline(buffer, width, height, frame.rect, palette.border, 255);
+    8
 }
 
 fn draw_bright_window_titlebar(

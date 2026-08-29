@@ -11,6 +11,7 @@ use std::sync::mpsc::{self, Receiver};
 use std::sync::Arc;
 use std::time::Duration;
 
+use aqua_components::{WindowControl, WindowFrame};
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_installer::{
     build_dry_run_plan, build_install_transaction_graph, compile_install_commands,
@@ -40,7 +41,7 @@ pub use aqua_renderer::{
     RasterPngExport, RasterPpmExport, RenderPlan, SoftwareRasterProbe, CLIENT_SAMPLE_GRID_PIXELS,
     RENDERER_STATUS, RENDER_BACKEND,
 };
-pub use aqua_scene::{static_shell_scene, ShellScene, SurfaceKind, Viewport, SCENE_STATUS};
+pub use aqua_scene::{static_shell_scene, Rect, ShellScene, SurfaceKind, Viewport, SCENE_STATUS};
 pub use aqua_shell::{
     dock_pointer_target, properties_launch_request, BottomShellTarget, DesktopContextAction,
     DesktopIconState, DesktopPointerButton, DockItem, DockState, LaunchRequest, LauncherCategory,
@@ -50,6 +51,38 @@ pub use aqua_shell::{
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_text::OutputScale;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FirstPartyWindowAction {
+    Close,
+    Minimize,
+    Maximize,
+    Move,
+    Resize,
+    None,
+}
+
+pub fn first_party_window_action(
+    frame: WindowFrame<'_>,
+    pointer_x: u32,
+    pointer_y: u32,
+) -> FirstPartyWindowAction {
+    if frame.resize_hit(pointer_x, pointer_y) {
+        return FirstPartyWindowAction::Resize;
+    }
+    if let Some(control) = frame.control_at(pointer_x, pointer_y) {
+        return match control {
+            WindowControl::Close => FirstPartyWindowAction::Close,
+            WindowControl::Minimize => FirstPartyWindowAction::Minimize,
+            WindowControl::Maximize => FirstPartyWindowAction::Maximize,
+        };
+    }
+    if frame.move_hit(pointer_x, pointer_y) {
+        FirstPartyWindowAction::Move
+    } else {
+        FirstPartyWindowAction::None
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LaunchPreflight {
@@ -4987,6 +5020,69 @@ struct XdgSmokeClientState {
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl XdgSmokeClientState {
+    fn handle_window_frame_pointer(&mut self, serial: u32) -> bool {
+        let titlebar_height = match self.app_id.as_str() {
+            "aqua.terminal" | "aqua.files" => 48,
+            "aqua.properties" => 52,
+            "aqua.settings" => 58,
+            _ => return false,
+        };
+        let frame = WindowFrame::new(
+            Rect {
+                x: 0,
+                y: 0,
+                width: self.buffer_width,
+                height: self.buffer_height,
+            },
+            &self.title,
+            titlebar_height,
+        );
+        let pointer_x = self.pointer_surface_x.max(0.0) as u32;
+        let pointer_y = self.pointer_surface_y.max(0.0) as u32;
+        let action = first_party_window_action(frame, pointer_x, pointer_y);
+
+        match action {
+            FirstPartyWindowAction::Close => {
+                self.close_event_received = true;
+                self.interactive_requests_sent = true;
+            }
+            FirstPartyWindowAction::Minimize => {
+                if let Some(toplevel) = self.xdg_toplevel.as_ref() {
+                    toplevel.set_minimized();
+                    self.interactive_requests_sent = true;
+                }
+            }
+            FirstPartyWindowAction::Maximize => {
+                if let Some(toplevel) = self.xdg_toplevel.as_ref() {
+                    toplevel.set_maximized();
+                    self.interactive_requests_sent = true;
+                }
+            }
+            FirstPartyWindowAction::Move => {
+                if let (Some(toplevel), Some(seat)) =
+                    (self.xdg_toplevel.as_ref(), self.seat.as_ref())
+                {
+                    toplevel._move(seat, serial);
+                    self.interactive_requests_sent = true;
+                }
+            }
+            FirstPartyWindowAction::Resize => {
+                if let (Some(toplevel), Some(seat)) =
+                    (self.xdg_toplevel.as_ref(), self.seat.as_ref())
+                {
+                    toplevel.resize(seat, serial, client_xdg_toplevel::ResizeEdge::BottomRight);
+                    self.interactive_requests_sent = true;
+                }
+            }
+            FirstPartyWindowAction::None => {}
+        }
+        println!(
+            "aqua_window_frame_pointer app_id={} x={pointer_x} y={pointer_y} action={action:?}",
+            self.app_id
+        );
+        true
+    }
+
     fn configured_theme() -> aqua_shell::AquaTheme {
         if let Ok(value) = std::env::var("AQUA_THEME") {
             if let Some(theme) = aqua_shell::AquaTheme::parse(&value) {
@@ -9050,25 +9146,7 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                 state.handle_installer_pointer(pointer_x, pointer_y, qh);
                 return;
             } else if state.terminal_session.is_some() {
-                let pointer_x = state.pointer_surface_x.max(0.0) as u32;
-                let pointer_y = state.pointer_surface_y.max(0.0) as u32;
-                if let (Some(toplevel), Some(seat)) =
-                    (state.xdg_toplevel.as_ref(), state.seat.as_ref())
-                {
-                    let resize_grip = pointer_x >= state.buffer_width.saturating_sub(24)
-                        && pointer_y >= state.buffer_height.saturating_sub(24);
-                    if resize_grip {
-                        toplevel.resize(seat, serial, client_xdg_toplevel::ResizeEdge::BottomRight);
-                        state.interactive_requests_sent = true;
-                        println!(
-                            "aqua_terminal_pointer_resize_request x={pointer_x} y={pointer_y}"
-                        );
-                    } else if pointer_y < 44 {
-                        toplevel._move(seat, serial);
-                        state.interactive_requests_sent = true;
-                        println!("aqua_terminal_pointer_move_request x={pointer_x} y={pointer_y}");
-                    }
-                }
+                state.handle_window_frame_pointer(serial);
                 return;
             } else if let Some(navigator) = state.files_navigator.as_mut() {
                 let pointer_x = state.pointer_surface_x.max(0.0) as u32;
@@ -9131,6 +9209,9 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                     return;
                 }
             }
+            if state.handle_window_frame_pointer(serial) {
+                return;
+            }
             if !state.interactive_requests_sent {
                 if let (Some(toplevel), Some(seat)) =
                     (state.xdg_toplevel.as_ref(), state.seat.as_ref())
@@ -9171,6 +9252,45 @@ delegate_noop!(XdgSmokeClientState: ignore client_wl_buffer::WlBuffer);
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shared_window_frame_routes_controls_move_and_resize_without_overlap() {
+        let frame = WindowFrame::new(
+            Rect {
+                x: 0,
+                y: 0,
+                width: 800,
+                height: 600,
+            },
+            "Terminal",
+            48,
+        );
+
+        assert_eq!(
+            first_party_window_action(frame, 25, 24),
+            FirstPartyWindowAction::Close
+        );
+        assert_eq!(
+            first_party_window_action(frame, 47, 24),
+            FirstPartyWindowAction::Minimize
+        );
+        assert_eq!(
+            first_party_window_action(frame, 69, 24),
+            FirstPartyWindowAction::Maximize
+        );
+        assert_eq!(
+            first_party_window_action(frame, 200, 47),
+            FirstPartyWindowAction::Move
+        );
+        assert_eq!(
+            first_party_window_action(frame, 200, 48),
+            FirstPartyWindowAction::None
+        );
+        assert_eq!(
+            first_party_window_action(frame, 799, 599),
+            FirstPartyWindowAction::Resize
+        );
+    }
 
     #[test]
     fn status_identifies_aqua_linux() {

@@ -540,7 +540,7 @@ Not implemented yet:
 - QEMU confirms the shell prompt in a normal Aqua window. Terminal launches omit the redundant application-opened notification, and the compositor caches client revisions after frame presentation so a delivered frame callback does not force a false follow-up repaint.
 - Desktop-only system overview content now yields while a client window is mapped, keeping the terminal and other application surfaces unobscured; the session menu can still promote that shell region explicitly.
 - The QEMU acceptance path waits for a stable repaint queue, forwards all 40 press/release events for `echo aquaterminalok`, observes Enter, verifies parsed VT100 output, repaints the result, closes with Alt+F4, reaps the process, and confirms the first-party `never` restart policy.
-- Milestone 8 acceptance covers typed command execution and Alt+F8 resize through a real xdg configure, including a 640x478 buffer, 74x21 parser grid, PTY resize, repaint, and clean close. Pointer titlebar move and bottom-right resize requests are implemented; broader key and clipboard support remain later enhancements.
+- Milestone 8 acceptance covers typed command execution and Alt+F8 resize through a real xdg configure, including a 640x478 buffer, 74x21 parser grid, PTY resize, repaint, and clean close. Terminal, Files, Settings, and Properties now share exact renderer and pointer geometry for their title bar, close/minimize/maximize controls, move target, and bottom-right resize grip. Packaged-QEMU acceptance of that shared pointer path and broader terminal key and clipboard support remain later work.
 
 ## Developer Probe Index
 

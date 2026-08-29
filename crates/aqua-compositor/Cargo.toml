@@ -7,6 +7,7 @@ rust-version.workspace = true
 default-run = "aqua-compositor"
 
 [dependencies]
+aqua-components = { path = "../aqua-components" }
 aqua-installer = { path = "../aqua-installer" }
 aqua-renderer = { path = "../aqua-renderer" }
 aqua-scene = { path = "../aqua-scene" }

@@ -13,7 +13,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Component | Status | Current consumer or next boundary |
 | --- | --- | --- |
 | Top system bar | Planned | Shell top-level status and session controls |
-| Window frame and title bar | Planned | Compositor and first-party window chrome |
+| Window frame and title bar | Shared host-proven primitive | Terminal, Files, Settings, and Properties renderer/input geometry; packaged-QEMU acceptance remains open |
 | Sidebar navigation | Shared host-proven primitive | Files and Settings share render/input geometry; installer uses its row composition |
 | Toolbar | Shared host-proven primitive | Files navigation and location controls |
 | Segmented control | Shared host-proven primitive | Settings theme selection |
@@ -203,8 +203,40 @@ The deterministic matrix covers the toolbar in four themes at 800x600,
 1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance
 remains open.
 
+## Window Frame And Title Bar Contract
+
+### Anatomy And Geometry
+
+- A window frame owns the full surface rectangle, bounded title-bar and title
+  rectangles, bottom separator, three 14-pixel traffic-control targets, and a
+  bottom-right resize grip.
+- The title-bar height is explicit per application and shared by rendering and
+  pointer routing. The move target excludes all traffic controls, and the
+  resize grip never overlaps the title bar.
+- Invalid frames fail closed: the current desktop contract requires at least
+  240x160, a 36-72 pixel title bar, and a 16-32 pixel resize grip.
+
+### Input, Semantics, And Consumption
+
+- The controls expose close, minimize, and maximize actions in that order;
+  title-bar padding requests an xdg-toplevel move and the bottom-right grip
+  requests an xdg-toplevel resize.
+- The frame exposes the `window` role, a non-empty title as its accessible
+  name, and focused state independently from the selected theme.
+- Terminal, Files, Settings, and Properties render and hit-test the same frame
+  geometry. Their existing 48, 48, 58, and 52 pixel title-bar sizes are now
+  explicit instead of being duplicated as unrelated renderer and client
+  constants.
+- Installer keeps its responsive full-output layout contract and is not
+  claimed as a consumer until that distinct presentation path is migrated.
+
+The deterministic matrix covers focused window geometry and input boundaries
+in four themes at 800x600, 1280x800, and fractional-scale 1536x1024. A pure
+compositor routing test proves controls, move, content, and resize targets do
+not overlap. Packaged-QEMU component acceptance remains open.
+
 ## Next Extraction Order
 
-1. Window frame and title bar, menu, and section structures.
+1. Menu and section structures.
 2. Checkbox after a real installer option exists; slider after a bounded audio-volume model exists.
 3. Shell-level panels, dock, workspaces, notification, and confirmation dialog.

@@ -40,6 +40,7 @@ dependencies = [
 name = "aqua-compositor"
 version = "0.1.0"
 dependencies = [
+ "aqua-components",
  "aqua-installer",
  "aqua-renderer",
  "aqua-scene",
