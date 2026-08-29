@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 pub const SETTINGS_CONFIG_VERSION: u8 = 1;
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AquaTheme {
     #[default]
     LightWhite,
