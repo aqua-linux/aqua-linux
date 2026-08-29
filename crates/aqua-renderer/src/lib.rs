@@ -2745,18 +2745,15 @@ pub fn render_properties_window_rgba_with_theme(
     );
     primitives += 2;
 
-    let details = Rect {
-        x: 24,
-        y: 184,
-        width: width.saturating_sub(48),
-        height: height.saturating_sub(208),
-    };
-    fill_rect(&mut buffer, width, height, details, palette.field, 255);
-    draw_rect_outline(&mut buffer, width, height, details, palette.border, 255);
+    let details = model.details_section_group(width, height);
+    primitives += draw_section_group(&mut buffer, width, height, details, theme);
+    let location_row = details.row_rect(0);
+    let items_row = details.row_rect(1);
+    let footer = details.footer_rect();
     draw_bitmap_text(
         &mut buffer,
         (width, height),
-        (40, 198),
+        (location_row.x, location_row.y + 6),
         "Location",
         palette.secondary_text,
         1,
@@ -2764,7 +2761,7 @@ pub fn render_properties_window_rgba_with_theme(
     draw_bitmap_text(
         &mut buffer,
         (width, height),
-        (128, 198),
+        (location_row.x + 88, location_row.y + 6),
         &model.location,
         palette.text,
         1,
@@ -2773,7 +2770,7 @@ pub fn render_properties_window_rgba_with_theme(
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (40, 220),
+            (items_row.x, items_row.y + 6),
             "Items",
             palette.secondary_text,
             1,
@@ -2782,18 +2779,13 @@ pub fn render_properties_window_rgba_with_theme(
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (128, 220),
+            (items_row.x + 88, items_row.y + 6),
             &format!("{item_count}{suffix}"),
             palette.text,
             1,
         );
     }
-    let action = Rect {
-        x: width.saturating_sub(178),
-        y: 242,
-        width: 138,
-        height: 30,
-    };
+    let action = details.footer_trailing_rect(138, 30);
     fill_rect(&mut buffer, width, height, action, palette.accent, 255);
     draw_bitmap_text(
         &mut buffer,
@@ -2809,7 +2801,7 @@ pub fn render_properties_window_rgba_with_theme(
     draw_bitmap_text(
         &mut buffer,
         (width, height),
-        (40, 252),
+        (footer.x, footer.y + 10),
         &format!("Updated {}", model.refresh_generation),
         palette.secondary_text,
         1,
@@ -4234,20 +4226,23 @@ pub fn render_settings_window_rgba(
         primitives += 1;
     }
 
+    let section = model.section_group();
+    primitives += draw_section_group(&mut buffer, width, height, section, model.theme);
     let heading = model.categories[model.selected_category];
     draw_bitmap_text(
         &mut buffer,
         (width, height),
-        (218, 92),
+        (section.heading_rect().x, section.heading_rect().y + 16),
         heading,
         palette.text,
         2,
     );
+    let first_row = section.row_rect(0);
     if model.selected_category == 0 {
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (218, 142),
+            (first_row.x, first_row.y + 16),
             "REDUCED MOTION",
             palette.text,
             1,
@@ -4255,7 +4250,7 @@ pub fn render_settings_window_rgba(
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (218, 164),
+            (first_row.x, first_row.y + 38),
             "Limit desktop animation",
             palette.secondary_text,
             1,
@@ -4280,7 +4275,7 @@ pub fn render_settings_window_rgba(
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (218, 142),
+            (first_row.x, first_row.y + 16),
             "SHOW DESKTOP ICONS",
             palette.text,
             1,
@@ -4288,7 +4283,7 @@ pub fn render_settings_window_rgba(
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (218, 164),
+            (first_row.x, first_row.y + 38),
             "Show home and storage items",
             palette.secondary_text,
             1,
@@ -4304,7 +4299,7 @@ pub fn render_settings_window_rgba(
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (218, 142),
+            (first_row.x, first_row.y + 16),
             "KEY REPEAT",
             palette.text,
             1,
@@ -4312,7 +4307,7 @@ pub fn render_settings_window_rgba(
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (218, 164),
+            (first_row.x, first_row.y + 38),
             "Repeat held keyboard keys",
             palette.secondary_text,
             1,
@@ -4328,7 +4323,7 @@ pub fn render_settings_window_rgba(
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (218, 142),
+            (first_row.x, first_row.y + 16),
             "NETWORK STATUS",
             palette.text,
             1,
@@ -4346,7 +4341,7 @@ pub fn render_settings_window_rgba(
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (218, 174),
+            (section.row_rect(1).x, section.row_rect(1).y + 14),
             &adapter,
             palette.text,
             2,
@@ -4354,7 +4349,7 @@ pub fn render_settings_window_rgba(
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (218, 208),
+            (section.row_rect(2).x, section.row_rect(2).y + 14),
             &state,
             palette.accent,
             1,
@@ -4362,7 +4357,7 @@ pub fn render_settings_window_rgba(
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (218, 246),
+            (section.row_rect(3).x, section.row_rect(3).y + 18),
             "Configuration disabled",
             palette.secondary_text,
             1,
@@ -4372,30 +4367,13 @@ pub fn render_settings_window_rgba(
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (218, 142),
+            (first_row.x, first_row.y + 16),
             "SETTINGS WILL APPEAR HERE",
             palette.secondary_text,
             1,
         );
         primitives += 1;
     }
-    if model.keyboard_focus {
-        fill_rect(
-            &mut buffer,
-            width,
-            height,
-            Rect {
-                x: 202,
-                y: 76,
-                width: width.saturating_sub(218),
-                height: 1,
-            },
-            palette.accent,
-            255,
-        );
-        primitives += 1;
-    }
-
     let checksum = checksum_bytes(&buffer);
     (
         buffer,

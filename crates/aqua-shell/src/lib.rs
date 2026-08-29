@@ -1,5 +1,5 @@
 use aqua_components::{
-    ComponentState, IconButton, IconButtonGlyph, Menu, SearchField, SegmentedControl,
+    ComponentState, IconButton, IconButtonGlyph, Menu, SearchField, SectionGroup, SegmentedControl,
     SidebarNavigation, SwitchControl, Toolbar,
 };
 use aqua_scene::Rect;
@@ -749,6 +749,20 @@ impl DesktopPropertiesModel {
         }
     }
 
+    pub fn details_section_group(&self, width: u32, height: u32) -> SectionGroup<'_> {
+        SectionGroup::new(
+            Rect {
+                x: 24,
+                y: 184,
+                width: width.saturating_sub(48),
+                height: height.saturating_sub(208),
+            },
+            &self.title,
+            2,
+        )
+        .with_structure(0, 34, 16, 8, 18, 4)
+    }
+
     pub fn refresh(
         &mut self,
         home_root: &Path,
@@ -1216,6 +1230,26 @@ impl Default for SettingsWindowModel {
 }
 
 impl SettingsWindowModel {
+    pub fn section_group(&self) -> SectionGroup<'static> {
+        let (row_count, row_height, row_gap) = match self.selected_category {
+            0 => (2, 48, 40),
+            3 => (4, 24, 10),
+            _ => (1, 48, 0),
+        };
+        SectionGroup::new(
+            Rect {
+                x: 202,
+                y: 76,
+                width: 378,
+                height: 202,
+            },
+            self.categories[self.selected_category],
+            row_count,
+        )
+        .with_structure(34, 0, 16, 16, row_height, row_gap)
+        .with_focus(self.keyboard_focus)
+    }
+
     pub fn active_switch(&self) -> Option<SwitchControl<'static>> {
         let (label, checked) = match self.selected_category {
             0 => ("Reduced motion", self.reduced_motion),
@@ -1225,12 +1259,7 @@ impl SettingsWindowModel {
         };
         Some(
             SwitchControl::new(
-                Rect {
-                    x: 474,
-                    y: 132,
-                    width: 82,
-                    height: 36,
-                },
+                self.section_group().trailing_rect(0, 82, 36),
                 label,
                 checked,
             )
@@ -1248,12 +1277,7 @@ impl SettingsWindowModel {
             .position(|theme| *theme == self.theme)
             .unwrap_or(0);
         SegmentedControl::new(
-            Rect {
-                x: 218,
-                y: 214,
-                width: 346,
-                height: 48,
-            },
+            self.section_group().row_rect(1),
             "Desktop theme",
             AquaTheme::ALL.len(),
             selected_index,
@@ -3415,6 +3439,10 @@ mod tests {
         assert_eq!(files.item_count, Some(2));
         assert!(!files.enumeration_capped);
         assert_eq!(files.primary_action().label(), "Refresh Contents");
+        let details = files.details_section_group(480, 300);
+        assert!(details.is_valid());
+        assert_eq!(details.row_rect(0).y, 192);
+        assert_eq!(details.footer_trailing_rect(138, 30).x, 302);
 
         let mut settings = DesktopPropertiesModel::load("settings", &home, &system)
             .expect("load Settings properties");
@@ -3489,6 +3517,11 @@ mod tests {
     #[test]
     fn settings_model_selects_categories_and_toggles_reduced_motion() {
         let mut model = SettingsWindowModel::default();
+        let appearance = model.section_group();
+        assert!(appearance.is_valid());
+        assert_eq!(appearance.heading_rect().x, 218);
+        assert_eq!(appearance.row_rect(1), model.theme_segmented_control().rect);
+        assert_eq!(model.active_switch().unwrap().rect.x, 482);
         assert_eq!(
             model.handle_pointer(500, 150),
             SettingsUpdate::ReducedMotionChanged(true)

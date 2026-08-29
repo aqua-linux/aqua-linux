@@ -5,7 +5,7 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 12 now has accepted typography, elevation, Aqua Core Icon integration, semantic state motion, and ten shared component primitives. The independent aqua-components crate owns renderer-neutral window-frame, menu, standard-button, icon-button, search-field, switch, segmented-control, toolbar, list-row, and sidebar-navigation contracts. Desktop context actions now share exact renderer and pointer rows; Session actions consume the same bounded menu-row and gap semantics while retaining explicit confirmation. Deterministic theme/viewport fixtures are accepted, while packaged-QEMU component acceptance and 12 catalog entries stay open. Checkbox and slider remain planned until real installer-option and audio-volume models exist. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
+  "currentStage": "Milestone 12 now has accepted typography, elevation, Aqua Core Icon integration, semantic state motion, and eleven shared component primitives. The independent aqua-components crate owns renderer-neutral window-frame, menu, section-group, standard-button, icon-button, search-field, switch, segmented-control, toolbar, list-row, and sidebar-navigation contracts. Settings and Properties now share bounded section headings, rows, trailing controls, and footer geometry while existing menu consumers retain their shared input paths. Deterministic theme/viewport fixtures are accepted, while packaged-QEMU component acceptance and 11 catalog entries stay open. Checkbox and slider remain planned until real installer-option and audio-volume models exist. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
   "updated": "2026-08-29",
   "overallPercent": 92,
   "readiness": {
@@ -124,14 +124,14 @@
     {
       "id": "m12",
       "name": "Visual Fidelity and Component System",
-      "percent": 90,
+      "percent": 91,
       "status": "in-progress",
       "updated": "2026-08-29",
-      "summary": "The shared aqua-text crate, tokenized elevation path, Aqua Core Icon pipeline, and semantic motion system have deterministic host fixtures plus packaged QEMU evidence. The independent aqua-components crate now owns renderer-neutral window-frame, menu, standard-button, icon-button, search-field, switch, segmented-control, toolbar, list-row, and sidebar-navigation anatomy, stable state geometry, input activation, and accessibility semantics. Desktop context actions share menu drawing and pointer rows, Session actions share menu row layout, and other existing consumers retain their applicable primitives. All ten primitives have deterministic four-theme acceptance at 800x600, 1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance and 12 of 22 catalog entries remain open. Checkbox and slider remain planned until real installer-option and audio-volume models exist."
+      "summary": "The shared aqua-text crate, tokenized elevation path, Aqua Core Icon pipeline, and semantic motion system have deterministic host fixtures plus packaged QEMU evidence. The independent aqua-components crate now owns renderer-neutral window-frame, menu, section-group, standard-button, icon-button, search-field, switch, segmented-control, toolbar, list-row, and sidebar-navigation anatomy, stable state geometry, input activation, and accessibility semantics. Settings and Properties share bounded section heading, row, trailing-control, and footer placement while existing consumers retain their applicable primitives. All eleven primitives have deterministic four-theme acceptance at 800x600, 1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance and 11 of 22 catalog entries remain open. Checkbox and slider remain planned until real installer-option and audio-volume models exist."
     }
   ],
   "nextSteps": [
-    "Extract the shared section-group primitive and migrate real Settings and Properties group geometry without inventing placeholder state.",
+    "Extract a shared metadata-row primitive from the real Properties and system-information boundaries without inventing placeholder state.",
     "Baseline the R2 presentation path and enforce production no-readback, frame scheduling, damage, latency, resource, and dropped-frame acceptance while keeping diagnostic readback isolated.",
     "Implement the R3-R6 Wayland compatibility, unprivileged session, system service, accessibility, internationalization, signed update, rollback, and security gates.",
     "Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation."

@@ -27,7 +27,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | List row | Shared host-proven primitive | Files and Settings navigation plus installer steps |
 | Grid cell | Planned | Applications and file grid modes |
 | Metadata row | Planned | Properties and system information |
-| Section group | Planned | Settings and Properties |
+| Section group | Shared host-proven primitive | Settings and Properties share bounded heading, row, trailing-control, and footer geometry; packaged-QEMU acceptance remains open |
 | Application overview | Planned | Applications panel |
 | Global search | Planned | Search panel and result actions |
 | Running-app dock | Planned | Bottom-center shell group |
@@ -267,8 +267,38 @@ navigation, and accessibility semantics in four themes at 800x600, 1280x800,
 and fractional-scale 1536x1024. Packaged-QEMU component acceptance remains
 open.
 
+## Section Group Contract
+
+### Anatomy And Geometry
+
+- A section group owns one bordered surface, a non-empty accessible name,
+  optional header and footer regions, content insets, row count, row height,
+  and inter-row gap.
+- Heading, content, footer, and row rectangles are derived from the declared
+  surface. Trailing controls are aligned inside a specific row or footer and
+  cannot extend beyond its content bounds.
+- Row hit testing uses the same half-open rectangles as rendering. Insets,
+  header and footer space, and inter-row gaps reject row selection.
+- Invalid names, empty row sets, zero-sized geometry, overflowing reserved
+  regions, and rows that exceed the content region fail closed.
+
+### Semantics And Consumption
+
+- The container exposes the `group` role, accessible name, and focused state;
+  child switches, segmented controls, and actions retain their own roles and
+  activation contracts.
+- Settings derives its Appearance and preference-section heading, rows,
+  trailing switch, and theme control placement from the shared geometry.
+- Properties derives both metadata rows plus its refresh-status footer and
+  trailing action from the same primitive.
+
+The deterministic matrix covers section bounds, gap rejection, trailing
+placement, focus indication, and accessibility semantics in four themes at
+800x600, 1280x800, and fractional-scale 1536x1024. Packaged-QEMU component
+acceptance remains open.
+
 ## Next Extraction Order
 
-1. Section structures.
+1. Metadata row, building on the shared Properties section geometry.
 2. Checkbox after a real installer option exists; slider after a bounded audio-volume model exists.
 3. Shell-level panels, dock, workspaces, notification, and confirmation dialog.
