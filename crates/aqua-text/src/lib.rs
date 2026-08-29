@@ -9,9 +9,14 @@ use unicode_segmentation::UnicodeSegmentation;
 
 pub const UI_FONT_FAMILY: &str = "Noto Sans";
 pub const UI_FONT_REVISION: &str = "noto-sans-regular-aqua-1";
+pub const ARABIC_FALLBACK_FONT_FAMILY: &str = "Noto Sans Arabic";
+pub const ARABIC_FALLBACK_FONT_REVISION: &str = "noto-sans-arabic-regular-2.009";
+pub const TYPOGRAPHY_FIXTURE_REVISION: &str = "aqua-typography-fixtures-1";
 pub const DEFAULT_GLYPH_CACHE_CAPACITY: usize = 2048;
 pub const UI_FONT_BYTES: &[u8] =
     include_bytes!("../../../docs/aqua-linux/assets/fonts/NotoSans-Regular.ttf");
+pub const ARABIC_FALLBACK_FONT_BYTES: &[u8] =
+    include_bytes!("../../../docs/aqua-linux/assets/fonts/NotoSansArabic-Regular.ttf");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OutputScale {
@@ -109,6 +114,7 @@ pub struct ShapedGlyph {
 pub struct ShapedRun {
     pub byte_range: Range<usize>,
     pub direction: TextDirection,
+    pub font_id: &'static str,
     pub glyphs: Vec<ShapedGlyph>,
     pub advance: f32,
 }
@@ -122,6 +128,8 @@ pub struct ShapedLine {
     pub baseline: f32,
     pub role: TextRole,
     pub scale: OutputScale,
+    pub fallback_runs: usize,
+    pub fallback_glyphs: usize,
     pub missing_glyphs: usize,
 }
 
@@ -147,8 +155,18 @@ pub struct GlyphBitmap {
 
 struct FontEntry {
     id: &'static str,
+    family: &'static str,
     shaping: Face<'static>,
     raster: Font,
+}
+
+impl FontEntry {
+    fn supports_grapheme(&self, grapheme: &str) -> bool {
+        grapheme
+            .chars()
+            .filter(|character| requires_glyph(*character))
+            .all(|character| self.shaping.glyph_index(character).is_some())
+    }
 }
 
 pub struct TextService {
@@ -167,15 +185,20 @@ impl TextService {
         if cache_capacity == 0 {
             return Err("glyph cache capacity must be non-zero");
         }
-        let shaping = Face::from_slice(UI_FONT_BYTES, 0).ok_or("invalid embedded shaping font")?;
-        let raster = Font::from_bytes(UI_FONT_BYTES, FontSettings::default())
-            .map_err(|_| "invalid embedded raster font")?;
+        let primary = load_font(
+            UI_FONT_REVISION,
+            UI_FONT_FAMILY,
+            UI_FONT_BYTES,
+            "invalid embedded UI font",
+        )?;
+        let arabic = load_font(
+            ARABIC_FALLBACK_FONT_REVISION,
+            ARABIC_FALLBACK_FONT_FAMILY,
+            ARABIC_FALLBACK_FONT_BYTES,
+            "invalid embedded Arabic fallback font",
+        )?;
         Ok(Self {
-            fonts: vec![FontEntry {
-                id: UI_FONT_REVISION,
-                shaping,
-                raster,
-            }],
+            fonts: vec![primary, arabic],
             glyph_cache: HashMap::new(),
             cache_order: VecDeque::new(),
             cache_capacity,
@@ -186,6 +209,10 @@ impl TextService {
         self.fonts.iter().map(|font| font.id)
     }
 
+    pub fn font_families(&self) -> impl Iterator<Item = &'static str> + '_ {
+        self.fonts.iter().map(|font| font.family)
+    }
+
     pub fn cache_len(&self) -> usize {
         self.glyph_cache.len()
     }
@@ -194,6 +221,8 @@ impl TextService {
         let pixel_size = scale.apply(role.metrics().logical_size);
         let bidi = BidiInfo::new(text, None);
         let mut runs = Vec::new();
+        let mut fallback_runs = 0;
+        let mut fallback_glyphs = 0;
         let mut missing_glyphs = 0;
 
         for paragraph in &bidi.paragraphs {
@@ -204,42 +233,52 @@ impl TextService {
                 } else {
                     TextDirection::LeftToRight
                 };
-                let run_text = &text[byte_range.clone()];
-                let mut buffer = UnicodeBuffer::new();
-                buffer.push_str(run_text);
-                buffer.set_direction(match direction {
-                    TextDirection::LeftToRight => BuzzDirection::LeftToRight,
-                    TextDirection::RightToLeft => BuzzDirection::RightToLeft,
-                });
-                buffer.guess_segment_properties();
-                let shaped = rustybuzz::shape(&self.fonts[0].shaping, &[], buffer);
-                let units_per_em = self.fonts[0].shaping.units_per_em() as f32;
-                let factor = pixel_size / units_per_em;
-                let glyphs = shaped
-                    .glyph_infos()
-                    .iter()
-                    .zip(shaped.glyph_positions())
-                    .map(|(info, position)| {
-                        if info.glyph_id == 0 {
-                            missing_glyphs += 1;
-                        }
-                        ShapedGlyph {
-                            font_id: self.fonts[0].id,
-                            glyph_id: u16::try_from(info.glyph_id).unwrap_or(0),
-                            cluster: byte_range.start + info.cluster as usize,
-                            x_advance: position.x_advance as f32 * factor,
-                            x_offset: position.x_offset as f32 * factor,
-                            y_offset: position.y_offset as f32 * factor,
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                let advance = glyphs.iter().map(|glyph| glyph.x_advance).sum();
-                runs.push(ShapedRun {
-                    byte_range,
-                    direction,
-                    glyphs,
-                    advance,
-                });
+                let mut font_segments = self.font_segments(text, byte_range);
+                if direction == TextDirection::RightToLeft {
+                    font_segments.reverse();
+                }
+                for (segment_range, font_index) in font_segments {
+                    let font = &self.fonts[font_index];
+                    let mut buffer = UnicodeBuffer::new();
+                    buffer.push_str(&text[segment_range.clone()]);
+                    buffer.set_direction(match direction {
+                        TextDirection::LeftToRight => BuzzDirection::LeftToRight,
+                        TextDirection::RightToLeft => BuzzDirection::RightToLeft,
+                    });
+                    buffer.guess_segment_properties();
+                    let shaped = rustybuzz::shape(&font.shaping, &[], buffer);
+                    let factor = pixel_size / font.shaping.units_per_em() as f32;
+                    let glyphs = shaped
+                        .glyph_infos()
+                        .iter()
+                        .zip(shaped.glyph_positions())
+                        .map(|(info, position)| {
+                            if info.glyph_id == 0 {
+                                missing_glyphs += 1;
+                            }
+                            ShapedGlyph {
+                                font_id: font.id,
+                                glyph_id: u16::try_from(info.glyph_id).unwrap_or(0),
+                                cluster: segment_range.start + info.cluster as usize,
+                                x_advance: position.x_advance as f32 * factor,
+                                x_offset: position.x_offset as f32 * factor,
+                                y_offset: position.y_offset as f32 * factor,
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    if font_index > 0 {
+                        fallback_runs += 1;
+                        fallback_glyphs += glyphs.len();
+                    }
+                    let advance = glyphs.iter().map(|glyph| glyph.x_advance).sum();
+                    runs.push(ShapedRun {
+                        byte_range: segment_range,
+                        direction,
+                        font_id: font.id,
+                        glyphs,
+                        advance,
+                    });
+                }
             }
         }
 
@@ -252,8 +291,91 @@ impl TextService {
             runs,
             role,
             scale,
+            fallback_runs,
+            fallback_glyphs,
             missing_glyphs,
         }
+    }
+
+    fn font_segments(&self, text: &str, byte_range: Range<usize>) -> Vec<(Range<usize>, usize)> {
+        let run_text = &text[byte_range.clone()];
+        let mut segments = Vec::new();
+        let mut active: Option<(usize, usize, usize)> = None;
+        for (relative_start, grapheme) in run_text.grapheme_indices(true) {
+            let start = byte_range.start + relative_start;
+            let end = start + grapheme.len();
+            let font_index = self
+                .fonts
+                .iter()
+                .position(|font| font.supports_grapheme(grapheme))
+                .unwrap_or(0);
+            match active {
+                Some((segment_start, _, active_font)) if active_font == font_index => {
+                    active = Some((segment_start, end, active_font));
+                }
+                Some((segment_start, segment_end, active_font)) => {
+                    segments.push((segment_start..segment_end, active_font));
+                    active = Some((start, end, font_index));
+                }
+                None => active = Some((start, end, font_index)),
+            }
+        }
+        if let Some((start, end, font_index)) = active {
+            segments.push((start..end, font_index));
+        }
+        segments
+    }
+
+    pub fn typography_fixture_report(&self) -> String {
+        const FIXTURES: [(&str, &str); 4] = [
+            ("latin-ligature", "Aqua office"),
+            ("turkish", "İşletim sistemi"),
+            ("combining", "Cafe\u{301}"),
+            ("mixed-bidi", "Aqua مرحبا 12"),
+        ];
+        let mut lines = vec![format!("fixture_revision={TYPOGRAPHY_FIXTURE_REVISION}")];
+        lines.push(format!(
+            "font_order={}",
+            self.fonts
+                .iter()
+                .map(|font| font.id)
+                .collect::<Vec<_>>()
+                .join(",")
+        ));
+        for scale in OutputScale::ALL {
+            for (name, text) in FIXTURES {
+                let shaped = self.shape_line(text, TextRole::Body, scale);
+                let runs = shaped
+                    .runs
+                    .iter()
+                    .map(|run| {
+                        format!(
+                            "{}:{}:{}",
+                            run.font_id,
+                            match run.direction {
+                                TextDirection::LeftToRight => "ltr",
+                                TextDirection::RightToLeft => "rtl",
+                            },
+                            run.glyphs.len()
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("|");
+                lines.push(format!(
+                    "fixture={name} scale={}/{} width_64={} baseline_64={} height_64={} fallback_runs={} fallback_glyphs={} missing_glyphs={} runs={runs}",
+                    scale.numerator(),
+                    scale.denominator(),
+                    fixed_64(shaped.width),
+                    fixed_64(shaped.baseline),
+                    fixed_64(shaped.height),
+                    shaped.fallback_runs,
+                    shaped.fallback_glyphs,
+                    shaped.missing_glyphs,
+                ));
+            }
+        }
+        lines.push(String::new());
+        lines.join("\n")
     }
 
     pub fn ellipsize(
@@ -330,6 +452,35 @@ impl TextService {
         }
         self.glyph_cache.get(&key)
     }
+}
+
+fn load_font(
+    id: &'static str,
+    family: &'static str,
+    bytes: &'static [u8],
+    error: &'static str,
+) -> Result<FontEntry, &'static str> {
+    let shaping = Face::from_slice(bytes, 0).ok_or(error)?;
+    let raster = Font::from_bytes(bytes, FontSettings::default()).map_err(|_| error)?;
+    Ok(FontEntry {
+        id,
+        family,
+        shaping,
+        raster,
+    })
+}
+
+fn requires_glyph(character: char) -> bool {
+    !character.is_whitespace()
+        && !character.is_control()
+        && character != '\u{200c}'
+        && character != '\u{200d}'
+        && !(('\u{fe00}'..='\u{fe0f}').contains(&character))
+        && !(('\u{e0100}'..='\u{e01ef}').contains(&character))
+}
+
+fn fixed_64(value: f32) -> i32 {
+    (value * 64.0).round() as i32
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -409,6 +560,52 @@ mod tests {
             .runs
             .iter()
             .any(|run| run.direction == TextDirection::RightToLeft));
+        assert_eq!(line.missing_glyphs, 0);
+        assert!(line.fallback_runs > 0);
+        assert!(line.fallback_glyphs > 0);
+        assert!(line.runs.iter().any(|run| {
+            run.font_id == ARABIC_FALLBACK_FONT_REVISION
+                && run.direction == TextDirection::RightToLeft
+        }));
+    }
+
+    #[test]
+    fn fallback_order_is_deterministic_and_baseline_stays_role_bound() {
+        let service = TextService::new().unwrap();
+        assert_eq!(
+            service.font_ids().collect::<Vec<_>>(),
+            vec![UI_FONT_REVISION, ARABIC_FALLBACK_FONT_REVISION]
+        );
+        assert_eq!(
+            service.font_families().collect::<Vec<_>>(),
+            vec![UI_FONT_FAMILY, ARABIC_FALLBACK_FONT_FAMILY]
+        );
+        let latin = service.shape_line("Aqua", TextRole::Body, OutputScale::FiveQuarters);
+        let arabic = service.shape_line("مرحبا", TextRole::Body, OutputScale::FiveQuarters);
+        assert_eq!(latin.baseline, arabic.baseline);
+        assert_eq!(latin.height, arabic.height);
+        assert_eq!(latin.fallback_runs, 0);
+        assert_eq!(arabic.fallback_runs, 1);
+        assert_eq!(arabic.missing_glyphs, 0);
+    }
+
+    #[test]
+    fn unsupported_text_reports_missing_glyphs_without_changing_font_order() {
+        let service = TextService::new().unwrap();
+        let line = service.shape_line("Aqua 🫧", TextRole::Body, OutputScale::One);
+        assert!(line.missing_glyphs > 0);
+        assert_eq!(line.runs[0].font_id, UI_FONT_REVISION);
+    }
+
+    #[test]
+    fn fixture_report_is_complete_and_deterministic() {
+        let service = TextService::new().unwrap();
+        let first = service.typography_fixture_report();
+        let second = service.typography_fixture_report();
+        assert_eq!(first, second);
+        assert_eq!(first.matches("fixture=").count(), 16);
+        assert!(first.contains("fixture=mixed-bidi"));
+        assert!(first.contains("missing_glyphs=0"));
     }
 
     #[test]

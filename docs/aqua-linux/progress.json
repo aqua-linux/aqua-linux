@@ -5,7 +5,7 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 12 implementation has started with the shared aqua-text service. Runtime text now flows through Rustybuzz shaping, Unicode bidi runs, grapheme-safe layout, Turkish case handling, named roles, supported output scales, and a bounded scale-native glyph cache. Deterministic multi-font fallback and packaged QEMU typography captures remain open. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
+  "currentStage": "Milestone 12 typography now includes deterministic Noto Sans to Noto Sans Arabic fallback, stable fallback baselines, explicit missing-glyph diagnostics, and a committed 16-case fixture report across the four supported scales. Packaged QEMU typography captures and long-label acceptance remain open. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
   "updated": "2026-08-29",
   "overallPercent": 85,
   "rules": [
@@ -115,14 +115,14 @@
     {
       "id": "m12",
       "name": "Visual Fidelity and Component System",
-      "percent": 5,
+      "percent": 10,
       "status": "in-progress",
       "updated": "2026-08-29",
-      "summary": "The shared aqua-text crate now owns Rustybuzz shaping, Unicode bidi visual runs, grapheme-safe wrapping and ellipsis, Turkish case behavior, six named text roles, four supported output scales, and a bounded scale-native glyph cache. The software renderer uses shaped glyph IDs instead of rasterizing independent characters. Deterministic multi-font fallback, complete fixture coverage, packaged QEMU evidence, elevation, icons, motion, and the component catalog remain open."
+      "summary": "The shared aqua-text crate owns Rustybuzz shaping, Unicode bidi visual runs, grapheme-safe wrapping and ellipsis, Turkish case behavior, six named text roles, four supported output scales, and a bounded scale-native glyph cache. A packaged Noto Sans Arabic face now provides deterministic grapheme-aware fallback without changing role baselines, and a committed 16-case report locks font selection and metrics. Packaged QEMU typography evidence, long-label acceptance, elevation, icons, motion, and the component catalog remain open."
     }
   ],
   "nextSteps": [
-    "Add deterministic multi-font fallback and stable typography fixtures to the shared aqua-text service.",
+    "Add packaged QEMU typography captures and long localized-label overlap acceptance.",
     "Implement tokenized elevation levels with bounded damage and reusable shadow masks.",
     "Implement reviewed SVG loading and scale-native Aqua Core Icon rasterization and caching.",
     "Implement semantic, interruptible, frame-driven state motion and reduced-motion behavior.",

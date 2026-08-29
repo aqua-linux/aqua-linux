@@ -23,6 +23,7 @@ check_output_contains() {
 cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --workspace
+scripts/check-typography-fixtures.sh
 scripts/check-graphical-session-supervisor.sh
 scripts/check-default-recovery-safety.sh
 scripts/check-graphical-session-stop.sh
@@ -1040,7 +1041,7 @@ assert phases["m9"]["percent"] == 100
 assert phases["m9"]["status"] == "complete"
 assert phases["m11"]["percent"] == 100
 assert phases["m11"]["status"] == "complete"
-assert phases["m12"]["percent"] == 5
+assert phases["m12"]["percent"] == 10
 assert phases["m12"]["status"] == "in-progress"
 PY
 test -f crates/aqua-installer/Cargo.toml
@@ -1527,10 +1528,14 @@ grep -Fq 'manifest.sha256' scripts/write-installer-artifact-disk-docker.sh
 grep -Fq 'name = "aqua-shell"' crates/aqua-shell/Cargo.toml
 test -f crates/aqua-text/Cargo.toml
 test -f crates/aqua-text/src/lib.rs
+test -x scripts/check-typography-fixtures.sh
+test -f docs/aqua-linux/typography-fixtures.txt
 grep -Fq '"crates/aqua-text"' Cargo.toml
 grep -Fq 'rustybuzz = "0.20.1"' crates/aqua-text/Cargo.toml
 grep -Fq 'pub struct TextService' crates/aqua-text/src/lib.rs
 grep -Fq 'pub fn shape_line' crates/aqua-text/src/lib.rs
+grep -Fq 'pub fn typography_fixture_report' crates/aqua-text/src/lib.rs
+grep -Fq 'noto-sans-arabic-regular-2.009' docs/aqua-linux/typography-fixtures.txt
 grep -Fq 'aqua-text = { path = "../aqua-text" }' crates/aqua-renderer/Cargo.toml
 grep -Fq 'export-visible-preview-html' docs/aqua-linux/compositor.md
 grep -Fq 'smoke-nested-preview-loop' docs/aqua-linux/compositor.md

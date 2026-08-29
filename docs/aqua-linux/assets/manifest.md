@@ -60,6 +60,7 @@ legacy material.
 | Primary wordmark | `assets/aqua-wordmark-primary.png` | approved | Aqua Linux wordmark |
 | Combined logo | `assets/aqua-logo-primary.png` | approved | Installer/About/future splash source |
 | UI font | `assets/fonts/NotoSans-Regular.ttf` | present | First-party UI text |
+| Arabic fallback font | `assets/fonts/NotoSansArabic-Regular.ttf` | present | Deterministic Arabic fallback from the official `notofonts/noto-fonts` repository; Noto Sans Arabic 2.009; SHA-256 `ceea25b464a656dc3b26849bab9356740401af62aedf1bfa8b7f0d9b75925b1b` |
 | UI font license | `assets/fonts/OFL.txt` | present | SIL OFL license copy |
 
 ## Aqua Core Icons
