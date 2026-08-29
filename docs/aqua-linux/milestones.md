@@ -500,6 +500,27 @@ Expected output:
 Milestone completion requires all five workstreams. Token definitions and
 static mockups establish the contract but do not count as runtime completion.
 
+## Post-M12: Aqua UI Framework Consolidation
+
+[ADR 0003](adr-0003-aqua-ui-framework.md) fixes the long-term direction: Aqua
+Linux will consolidate its typography, theme, icon, elevation, motion,
+components, layout, focus, input, accessibility, lifecycle, and rendering
+contracts into an Aqua-owned UI design system and internal framework.
+
+This work follows general desktop functionality rather than preceding it. The
+existing `aqua-text`, `aqua-components`, `aqua-renderer`, `aqua-shell`, and
+first-party application paths continue to collect real requirements. Reusable
+behavior graduates only after shared geometry drives rendering and input, real
+consumers exist, semantic states and accessibility are specified, deterministic
+fixtures pass, and representative packaged-QEMU evidence reaches the real
+Smithay/GLES/DRM path.
+
+The consolidation is not permission to introduce a speculative toolkit,
+replace the custom compositor, weaken domain authorization, or claim a stable
+third-party SDK. Its first target is one coherent internal developer surface
+for Aqua's own Shell, Files, Settings, Terminal, Properties, Installer, and
+future first-party applications.
+
 ## V1 Product Readiness Gates
 
 M0-M12 are scoped implementation milestones. Their percentages record delivery

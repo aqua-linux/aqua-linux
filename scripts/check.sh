@@ -1150,6 +1150,14 @@ grep -Fq 'upstream Weston simple-shm C reference client' docs/aqua-linux/progres
 grep -Fq 'weston-simple-shm' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'libweston-12' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'rounded arithmetic mean of the 13 M0-M12 phase percentages' docs/aqua-linux/progress.json
+test -f docs/aqua-linux/adr-0003-aqua-ui-framework.md
+grep -Fq 'Status' docs/aqua-linux/adr-0003-aqua-ui-framework.md
+grep -Fq 'Accepted on 2026-08-29' docs/aqua-linux/adr-0003-aqua-ui-framework.md
+grep -Fq 'aqua-text' docs/aqua-linux/adr-0003-aqua-ui-framework.md
+grep -Fq 'aqua-components' docs/aqua-linux/adr-0003-aqua-ui-framework.md
+grep -Fq 'aqua-renderer' docs/aqua-linux/adr-0003-aqua-ui-framework.md
+grep -Fq 'Post-M12: Aqua UI Framework Consolidation' docs/aqua-linux/milestones.md
+grep -Fq 'ADR 0003' docs/aqua-linux/ui-contract.md
 grep -Fq 'Aqua Linux v1.0 readiness is governed separately by the mandatory gates in docs/aqua-linux/v1-readiness.md.' docs/aqua-linux/progress.json
 grep -Fq '"dailyUseReady": false' docs/aqua-linux/progress.json
 grep -Fq '"hardwareProven": false' docs/aqua-linux/progress.json
