@@ -86,6 +86,24 @@ expect {
     eof { puts stderr "QEMU exited after unprivileged session verification"; exit 1 }
 }
 
+run_shell_check {media_ok=1; grep -Fq 'state=disabled' /run/aqua/media-service-supervisor.state || media_ok=0; grep -Fq 'service_owner_uid=1000' /run/aqua/media-service-supervisor.state || media_ok=0; grep -Fq 'root_media_daemon=false' /run/aqua/media-service-supervisor.state || media_ok=0} "checking the packaged media supervisor safe default"
+run_shell_check {grep -Fq 'status=disabled reason=packages-not-enabled root_media_daemon=false' /run/aqua/media-service-supervisor.log || media_ok=0; grep -Fq 'status=media-disabled state=disabled reason=packages-not-enabled' /run/aqua/graphical-session-supervisor.log || media_ok=0} "checking media supervision session integration"
+run_shell_check {test ! -e /run/aqua/media-service-supervisor.pid || media_ok=0; command -v pipewire >/dev/null 2>&1 && media_ok=0 || true; command -v wireplumber >/dev/null 2>&1 && media_ok=0 || true} "checking disabled media packages and clean PID state"
+send -- {[ "$media_ok" = 1 ] && echo '[AQUA-TEST] stage=media-supervisor-qemu status=ok user=aqua uid=1000 state=disabled packages=absent root_daemon=false graphics_continues=true'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=media-supervisor-qemu status=ok user=aqua uid=1000 state=disabled packages=absent root_daemon=false graphics_continues=true} {}
+    timeout { puts stderr "Packaged media supervisor safe-default contract failed"; exit 1 }
+    eof { puts stderr "QEMU exited before media supervisor verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Media supervisor verification did not return to shell"; exit 1 }
+    eof { puts stderr "QEMU exited after media supervisor verification"; exit 1 }
+}
+
 send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=graphical-boot-qemu status=ok activation=supervised drm_wayland=active persistent=true scenario=desktop-event-loop fixtures=false recovery_tty=available'}
 send -- "\r"
 

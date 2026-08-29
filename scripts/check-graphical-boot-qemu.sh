@@ -87,6 +87,7 @@ expect "${ROOT_DIR}/scripts/check-graphical-boot-qemu.exp"
 
 grep -Fq '[AQUA-BOOT] stage=graphical-session-activation status=started mode=supervised boot_graphics=true recovery_tty=true' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=unprivileged-session-qemu status=ok user=aqua uid=1000 gid=1000 groups=video,audio,input runtime=/run/user/1000 mode=0700 compositor_uid=1000' "${SERIAL_LOG}"
+grep -Fq '[AQUA-TEST] stage=media-supervisor-qemu status=ok user=aqua uid=1000 state=disabled packages=absent root_daemon=false graphics_continues=true' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=graphical-boot-qemu status=ok activation=supervised drm_wayland=active persistent=true scenario=desktop-event-loop fixtures=false recovery_tty=available' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-system-overview-qemu status=ok data=clock,kernel,uptime,load,memory gpu_texture=true visible=true' "${SERIAL_LOG}"
 test -s "${CLEAN_DESKTOP_SCREENSHOT_PNG}"

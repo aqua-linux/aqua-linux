@@ -16,8 +16,8 @@ MODES = {
     "launcher": (
         "mouse_move 1 1", "mouse_button 1", "mouse_button 0",
         "sendkey a 100", "sendkey b 100", "sendkey meta_l 100",
-        "mouse_move -728 -337", "mouse_button 1", "mouse_button 0",
-        "mouse_move 220 0", "mouse_button 1", "mouse_button 0",
+        "mouse_move -3000 -3000", "mouse_move 200 100",
+        "mouse_button 1", "mouse_button 0",
     ),
     "launcher-after-dock": (
         "sendkey f 100", "sendkey i 100", "sendkey l 100",
@@ -72,7 +72,7 @@ MODES = {
         + ("mouse_move 1 0", "mouse_move -1 0") * 8
     ),
     "settings-reset": (
-        "mouse_move -3000 -3000", "mouse_move 800 500",
+        "mouse_move -3000 -3000", "mouse_move 300 180",
         "mouse_button 1", "mouse_button 0", "sendkey home 100",
     ),
     "close-settings": ("sendkey alt-f4 250",),

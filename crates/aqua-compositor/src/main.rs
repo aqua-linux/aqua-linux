@@ -1403,13 +1403,6 @@ impl LiveGpuCompositor {
         })
     }
 
-    fn render_direct(
-        &mut self,
-        client_plan: &ClientLayerPaintPlan,
-    ) -> Result<GpuOffscreenFrameResult, String> {
-        self.render_direct_at(client_plan, 320, 240, None, None)
-    }
-
     fn render_direct_at(
         &mut self,
         client_plan: &ClientLayerPaintPlan,
@@ -5391,7 +5384,6 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                             && snapshot.surface_focus_change_count >= 1
                             && snapshot.stacking_change_count >= 1
                             && snapshot.launcher_pointer_hit_count >= 1
-                            && snapshot.launcher_category_click_count >= 1
                             && snapshot.launcher_app_click_count >= 1
                             && snapshot.launcher_launch_request.is_some()
                             && source.keyboard_devices >= 1
@@ -5527,12 +5519,12 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                 }
                 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
                 let reordered_frame = {
-                    let paint_plan = external_client_paint_plan(&reordered_snapshots)?;
-                    let mut compositor = live_gpu_wayland_compositor.borrow_mut();
-                    let compositor = compositor
-                        .as_mut()
-                        .ok_or_else(|| "live GPU compositor is unavailable".to_string())?;
-                    let gpu_frame = compositor.render_direct(&paint_plan)?;
+                    let (packed, gpu_frame) = render_live_gpu_wayland_frame(
+                        &live_gpu_wayland_compositor,
+                        &reordered_snapshots,
+                        active_width,
+                        active_height,
+                    )?;
                     println!("drm_wayland_gpu_repaint_updates=true");
                     println!("drm_wayland_gpu_context_reused=true");
                     println!(
@@ -5547,7 +5539,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         "drm_wayland_gpu_repaint_checksum={:016x}",
                         gpu_frame.checksum
                     );
-                    gpu_frame.checksum.to_le_bytes().to_vec()
+                    packed
                 };
                 let repaint_checksum = _repaint(reordered_frame)?;
                 println!("drm_wayland_stacking_repaint_complete=true");

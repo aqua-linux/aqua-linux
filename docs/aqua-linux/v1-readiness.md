@@ -132,10 +132,12 @@ packaging. [ADR 0004](adr-0004-audio-service-stack.md) selects ALSA,
 PipeWire, WirePlumber, and eudev for audio. Buildroot 2025.02.17 now supplies
 the supported LTS baseline. The locked `aqua` UID/GID 1000 session,
 user-owned `/run/user/1000`, and explicit `video`, `audio`, and `input` groups
-now satisfy the identity and base device-permission prerequisite. Packaging
-remains blocked until Aqua has ordered per-user media-service supervision and
-fail-closed adapter evidence. Buildroot availability alone is not an
-integration decision.
+now satisfy the identity and base device-permission prerequisite. The packaged
+per-user media supervisor now owns finite readiness, PipeWire-before-WirePlumber
+startup, bounded restart, reverse-order shutdown, and degraded state. It stays
+disabled while the packages are absent. Packaging remains blocked until the
+fail-closed adapter contract, legal-info review, and real QEMU media evidence
+exist. Buildroot availability alone is not an integration decision.
 
 ### R5: Accessibility, Internationalization, And Input
 
