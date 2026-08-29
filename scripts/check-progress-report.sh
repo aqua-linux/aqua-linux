@@ -38,6 +38,20 @@ if not isinstance(data.get("overallPercent"), int):
 elif not 0 <= data["overallPercent"] <= 100:
     errors.append("overallPercent must be between 0 and 100")
 
+readiness = data.get("readiness")
+if not isinstance(readiness, dict):
+    errors.append("readiness must be an object")
+else:
+    if readiness.get("classification") != "packaged-QEMU-proven prototype":
+        errors.append("readiness classification must match the current prototype boundary")
+    if readiness.get("evidenceLevel") != "packaged-QEMU-proven":
+        errors.append("readiness evidenceLevel must be packaged-QEMU-proven")
+    for key in ("dailyUseReady", "hardwareProven", "releaseReady"):
+        if readiness.get(key) is not False:
+            errors.append(f"readiness {key} must remain false until its mandatory gates pass")
+    if not readiness.get("summary"):
+        errors.append("readiness must include a summary")
+
 phases = data.get("phases")
 if not isinstance(phases, list) or len(phases) != 13:
     errors.append("progress report must track 13 v1 phases")
@@ -61,7 +75,13 @@ with open(markdown_path, "r", encoding="utf-8") as handle:
 
 for needle in [
     "# Aqua Linux v1.0 Progress Report",
-    f"**Overall progress: {data.get('overallPercent')}%**",
+    f"**Roadmap implementation progress: {data.get('overallPercent')}%**",
+    "## Product Readiness",
+    "| Classification | packaged-QEMU-proven prototype |",
+    "| Daily-use ready | No |",
+    "| Hardware-proven | No |",
+    "| Release-ready | No |",
+    "[v1-readiness.md](v1-readiness.md)",
     "| Updated | Phase | Status | Progress | Summary |",
     "Repository and Build Skeleton",
     "Buildroot Boot to Text Recovery",

@@ -59,6 +59,8 @@ Product consequences:
 
 The first desktop visual target is documented in [visual-reference.md](visual-reference.md).
 Detailed implementation milestones are listed in [milestones.md](milestones.md).
+Mandatory product qualification is defined separately in
+[v1-readiness.md](v1-readiness.md).
 
 ## Boot Requirements
 
@@ -117,6 +119,14 @@ Buildroot constraints:
 - Do not add a package manager as the default early runtime model unless explicitly decided later.
 - Prefer one reliable graphical session over many partially integrated desktop options.
 - Keep QEMU as the first reproducible target before expanding to real hardware.
+
+Buildroot is the correct base while Aqua remains a focused, controlled OS with
+a deliberately small application model. It does not provide a desktop product
+boundary by itself: Aqua must still own the unprivileged session, service
+integration, protocol compatibility, updates, rollback, security, recovery,
+and hardware qualification. If the product goal later changes to a broad,
+user-managed package ecosystem or general binary compatibility, review the base
+through a new ADR rather than allowing the architecture to drift implicitly.
 
 Chromium OS-like simplicity principles:
 
@@ -222,10 +232,16 @@ The Aqua desktop should be split into independent components:
 - `aqua-files`: first-party file manager.
 - `aqua-terminal`: terminal emulator app, not the primary shell identity.
 - `aqua-installer`: graphical installer.
+- `aqua-session`: session startup, environment setup, and fallback behavior.
+- `aqua-service-adapters`: bounded integration with network, audio, power,
+  time, locale, storage, and device services selected by ADR.
+- `aqua-privilege-broker`: narrow authenticated operations that cannot run in
+  the unprivileged desktop session.
+- `aqua-update`: signed image discovery, staged activation, boot-success
+  confirmation, rollback, and recovery status.
+- `aqua-assets`: packaged icons, wallpapers, cursors, sounds, and themes.
 
 The installer state and safety contract is documented in [installer.md](installer.md).
-- `aqua-session`: session startup, environment setup, and fallback behavior.
-- `aqua-assets`: packaged icons, wallpapers, cursors, sounds, and themes.
 
 The text, icon, and component names above describe owned logical modules. They
 may initially live inside existing crates and should be split into independent
@@ -391,3 +407,13 @@ These decisions need owner input before implementation changes:
 - Should Aqua Linux support third-party Linux GUI apps in the first demo, or only first-party Aqua apps?
 - Authentication policy may choose first-run setup followed by login, but the canonical login/session screen is required before v1.
 - Visual direction is resolved by the public Aqua visual/UI contracts derived from the private boards supplied on 2026-08-27.
+
+## Product Readiness Boundary
+
+The implementation phases above describe how the OS is built; they do not by
+themselves prove it is ready for daily use. V1 qualification is blocked until
+the measurable gates in [v1-readiness.md](v1-readiness.md) cover presentation
+performance, Wayland compatibility, unprivileged sessions, core system
+services, accessibility and internationalization, signed updates and rollback,
+security and supply chain, physical hardware, and stability. The generated
+roadmap percentage must not be used as a substitute for those gates.

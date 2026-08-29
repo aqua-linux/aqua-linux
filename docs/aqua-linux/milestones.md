@@ -470,3 +470,22 @@ Expected output:
 
 Milestone completion requires all five workstreams. Token definitions and
 static mockups establish the contract but do not count as runtime completion.
+
+## V1 Product Readiness Gates
+
+M0-M12 are scoped implementation milestones. Their percentages record delivery
+against those contracts and do not measure daily-use or release readiness.
+After M12, work is governed by the mandatory, evidence-based gates in
+[v1-readiness.md](v1-readiness.md):
+
+1. Component and experience closure.
+2. Presentation performance and frame correctness.
+3. Wayland compatibility and display behavior.
+4. Unprivileged session and core system services.
+5. Accessibility, internationalization, and complete input behavior.
+6. Signed updates, supply chain, security, and recovery.
+7. Physical hardware, stability, and release qualification.
+
+A milestone may remain complete when its original bounded contract is proven,
+while a readiness gate stays open because it requires broader integration or a
+higher evidence level. V1.0 cannot be declared from milestone arithmetic alone.

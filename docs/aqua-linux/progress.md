@@ -2,7 +2,7 @@
 
 > Generated from `docs/aqua-linux/progress.json`. Update the changed phase date, then run `scripts/write-progress-report.sh`.
 
-**Overall progress: 91%**
+**Roadmap implementation progress: 91%**
 
 | Field | Value |
 | --- | --- |
@@ -11,6 +11,19 @@
 | Graphics target | custom Wayland compositor |
 | Development target | QEMU x86_64 |
 | Hardware target | MSI Sword 17 later |
+
+## Product Readiness
+
+Roadmap progress and product readiness are separate measurements. Mandatory release gates are defined in [v1-readiness.md](v1-readiness.md).
+
+| Field | Value |
+| --- | --- |
+| Classification | packaged-QEMU-proven prototype |
+| Evidence level | packaged-QEMU-proven |
+| Daily-use ready | No |
+| Hardware-proven | No |
+| Release-ready | No |
+| Summary | The booted Buildroot image and custom compositor have substantial packaged-QEMU evidence, but the mandatory R1-R7 product gates remain open. Roadmap progress is not a release-readiness score. |
 
 ## Current Stage
 
@@ -38,8 +51,9 @@ Phases are ordered by their most recent update.
 
 ## Completion Rules
 
-- Aqua Linux v1.0 is treated as 100%.
-- Overall progress is the rounded arithmetic mean of the 13 phase percentages so the public value is reproducible.
+- Roadmap implementation progress is the rounded arithmetic mean of the 13 M0-M12 phase percentages so the public value is reproducible.
+- The roadmap percentage measures scoped implementation work; it is not a daily-use, hardware-support, or release-readiness score.
+- Aqua Linux v1.0 readiness is governed separately by the mandatory gates in docs/aqua-linux/v1-readiness.md.
 - Progress advances only when bootable OS, compositor, installer, or validation contracts move forward.
 - Host mockups and website work do not count as OS completion unless they become packaged runtime assets.
 - The project remains Buildroot-based and does not use Ubuntu, Debian, KDE, GNOME, XFCE, LXQt, or a theme-pack base.
@@ -47,5 +61,6 @@ Phases are ordered by their most recent update.
 ## Next Developments
 
 1. Build the complete shared component catalog and deterministic visual-regression matrix.
-2. Replace QEMU GLES readback in the desktop presentation path and define explicit v1 readiness gates for Wayland protocol coverage, unprivileged sessions, system services, accessibility, updates, and performance.
-3. Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation.
+2. Baseline the R2 presentation path and enforce production no-readback, frame scheduling, damage, latency, resource, and dropped-frame acceptance while keeping diagnostic readback isolated.
+3. Implement the R3-R6 Wayland compatibility, unprivileged session, system service, accessibility, internationalization, signed update, rollback, and security gates.
+4. Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation.

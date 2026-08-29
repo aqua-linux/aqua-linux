@@ -1148,8 +1148,12 @@ grep -Fq '"id": "m5"' docs/aqua-linux/progress.json
 grep -Fq 'upstream Weston simple-shm C reference client' docs/aqua-linux/progress.json
 grep -Fq 'weston-simple-shm' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'libweston-12' br2-external/aqua/board/aqua/x86_64/post-build.sh
-grep -Fq 'rounded arithmetic mean of the 13 phase percentages' docs/aqua-linux/progress.json
-grep -Fq 'Aqua Linux v1.0 is treated as 100%.' docs/aqua-linux/progress.json
+grep -Fq 'rounded arithmetic mean of the 13 M0-M12 phase percentages' docs/aqua-linux/progress.json
+grep -Fq 'Aqua Linux v1.0 readiness is governed separately by the mandatory gates in docs/aqua-linux/v1-readiness.md.' docs/aqua-linux/progress.json
+grep -Fq '"dailyUseReady": false' docs/aqua-linux/progress.json
+grep -Fq '"hardwareProven": false' docs/aqua-linux/progress.json
+grep -Fq '"releaseReady": false' docs/aqua-linux/progress.json
+test -f docs/aqua-linux/v1-readiness.md
 test -f docs/aqua-linux/ui-contract.md
 grep -Fxq '/docs/aqua-linux/local-references/' .gitignore
 test -z "$(find docs/aqua-linux/assets -maxdepth 1 -name 'reference-*.png' -print)"

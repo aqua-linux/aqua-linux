@@ -6,6 +6,9 @@ Aqua Linux is an active prototype. QEMU x86_64 is the only validated machine
 target. MSI Sword 17 is the planned physical validation target, not a currently
 supported installation target. Do not infer support for a physical component
 from a matching kernel option or from successful virtual hardware tests.
+Hardware evidence is one mandatory part of the broader
+[v1 readiness gates](v1-readiness.md); roadmap milestone percentages do not
+change the support status recorded here.
 
 ## Status Meanings
 
