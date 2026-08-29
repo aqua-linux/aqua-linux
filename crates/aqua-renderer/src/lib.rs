@@ -6,12 +6,12 @@ use aqua_installer::{
 };
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
-    AquaTheme, DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
-    FilesWindowModel, LauncherCategory, LauncherMode, LauncherState, NotificationCenter,
-    SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView,
-    TopBarState, DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT, FILES_BACK_BUTTON,
-    FILES_FORWARD_BUTTON, FILES_PREVIEW_VISIBLE_LINES, FILES_SIDEBAR_NAVIGATION,
-    FILES_VISIBLE_ROWS, SETTINGS_SIDEBAR_NAVIGATION, WORKSPACE_COUNT,
+    files_back_button, files_forward_button, files_toolbar, AquaTheme, DesktopIconState,
+    DesktopPropertiesModel, DockItem, DockState, FilesEntryKind, FilesWindowModel,
+    LauncherCategory, LauncherMode, LauncherState, NotificationCenter, SessionAction,
+    SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView, TopBarState,
+    DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT, FILES_PREVIEW_VISIBLE_LINES,
+    FILES_SIDEBAR_NAVIGATION, FILES_VISIBLE_ROWS, SETTINGS_SIDEBAR_NAVIGATION, WORKSPACE_COUNT,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -4508,18 +4508,13 @@ pub fn render_files_window_rgba_with_theme(
         palette,
     );
 
-    let toolbar = Rect {
-        x: 2,
-        y: 50,
-        width: width.saturating_sub(4),
-        height: 58,
-    };
-    fill_rect(&mut buffer, width, height, toolbar, palette.toolbar, 255);
+    let toolbar = files_toolbar(width);
+    primitives += draw_toolbar(&mut buffer, width, height, toolbar, theme);
     primitives += draw_icon_button(
         &mut buffer,
         width,
         height,
-        FILES_BACK_BUTTON.with_state(if model.can_go_back {
+        files_back_button().with_state(if model.can_go_back {
             ComponentState::Idle
         } else {
             ComponentState::Disabled
@@ -4530,7 +4525,7 @@ pub fn render_files_window_rgba_with_theme(
         &mut buffer,
         width,
         height,
-        FILES_FORWARD_BUTTON.with_state(if model.can_go_forward {
+        files_forward_button().with_state(if model.can_go_forward {
             ComponentState::Idle
         } else {
             ComponentState::Disabled
@@ -4545,7 +4540,7 @@ pub fn render_files_window_rgba_with_theme(
     };
     fill_rect(&mut buffer, width, height, location, palette.field, 255);
     draw_rect_outline(&mut buffer, width, height, location, palette.border, 255);
-    primitives += 3;
+    primitives += 2;
     draw_bitmap_text(
         &mut buffer,
         (width, height),

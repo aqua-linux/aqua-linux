@@ -84,7 +84,8 @@ impl SharedComponentKind {
     pub const fn is_shared_primitive(self) -> bool {
         matches!(
             self,
-            Self::SegmentedControl
+            Self::Toolbar
+                | Self::SegmentedControl
                 | Self::SearchField
                 | Self::StandardButton
                 | Self::IconButton
@@ -647,6 +648,101 @@ impl<'a> SegmentedControl<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Toolbar<'a> {
+    pub rect: Rect,
+    pub label: &'a str,
+    pub horizontal_padding: u32,
+    pub vertical_padding: u32,
+    pub item_gap: u32,
+}
+
+impl<'a> Toolbar<'a> {
+    pub const fn new(rect: Rect, label: &'a str) -> Self {
+        Self {
+            rect,
+            label,
+            horizontal_padding: 18,
+            vertical_padding: 7,
+            item_gap: 8,
+        }
+    }
+
+    pub const fn with_spacing(
+        mut self,
+        horizontal_padding: u32,
+        vertical_padding: u32,
+        item_gap: u32,
+    ) -> Self {
+        self.horizontal_padding = horizontal_padding;
+        self.vertical_padding = vertical_padding;
+        self.item_gap = item_gap;
+        self
+    }
+
+    pub const fn content_rect(self) -> Rect {
+        Rect {
+            x: self.rect.x.saturating_add(self.horizontal_padding),
+            y: self.rect.y.saturating_add(self.vertical_padding),
+            width: self
+                .rect
+                .width
+                .saturating_sub(self.horizontal_padding.saturating_mul(2)),
+            height: self
+                .rect
+                .height
+                .saturating_sub(self.vertical_padding.saturating_mul(2)),
+        }
+    }
+
+    pub const fn leading_item_rect(self, index: usize, width: u32, height: u32) -> Rect {
+        let content = self.content_rect();
+        let requested_x = content
+            .x
+            .saturating_add((index as u32).saturating_mul(width.saturating_add(self.item_gap)));
+        let x = min_u32(requested_x, content.right());
+        Rect {
+            x,
+            y: content
+                .y
+                .saturating_add(content.height.saturating_sub(height) / 2),
+            width: min_u32(width, content.right().saturating_sub(x)),
+            height: min_u32(height, content.height),
+        }
+    }
+
+    pub const fn is_valid(self) -> bool {
+        !self.label.is_empty()
+            && self.rect.width >= 96
+            && self.rect.height >= 36
+            && self.horizontal_padding.saturating_mul(2) < self.rect.width
+            && self.vertical_padding.saturating_mul(2) < self.rect.height
+    }
+
+    pub const fn contains(self, x: u32, y: u32) -> bool {
+        self.is_valid() && rect_contains(self.rect, x, y)
+    }
+
+    pub const fn separator_rect(self) -> Rect {
+        Rect {
+            x: self.rect.x,
+            y: self.rect.bottom().saturating_sub(1),
+            width: self.rect.width,
+            height: 1,
+        }
+    }
+
+    pub const fn accessibility(self) -> ComponentAccessibility<'a> {
+        ComponentAccessibility {
+            role: "toolbar",
+            name: self.label,
+            disabled: false,
+            busy: false,
+            selected: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListRowRole {
     Option,
     Navigation,
@@ -862,7 +958,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_seven_shared_primitives() {
+    fn catalog_tracks_the_eight_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -871,6 +967,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 SharedComponentKind::SidebarNavigation,
+                SharedComponentKind::Toolbar,
                 SharedComponentKind::SegmentedControl,
                 SharedComponentKind::SearchField,
                 SharedComponentKind::StandardButton,
@@ -962,6 +1059,7 @@ mod tests {
         let search = SearchField::new(rect, "", "", "Search");
         let switch = SwitchControl::new(rect, "", false);
         let segmented = SegmentedControl::new(rect, "", 3, 0);
+        let toolbar = Toolbar::new(rect, "");
         let navigation = SidebarNavigation::new(rect, "", rect, 40);
         assert!(!button.can_activate());
         assert!(!row.can_activate());
@@ -969,6 +1067,7 @@ mod tests {
         assert!(!search.accepts_input());
         assert!(!switch.can_toggle());
         assert!(!segmented.is_valid());
+        assert!(!toolbar.is_valid());
         assert!(!navigation.is_valid());
         assert_eq!(navigation.hit_test(11, 21, 1), None);
     }
@@ -1048,5 +1147,29 @@ mod tests {
             Some(0)
         );
         assert_eq!(segmented.accessibility().role, "radiogroup");
+    }
+
+    #[test]
+    fn toolbar_owns_bounded_content_and_leading_item_geometry() {
+        let toolbar = Toolbar::new(
+            Rect {
+                x: 2,
+                y: 50,
+                width: 636,
+                height: 58,
+            },
+            "File navigation",
+        )
+        .with_spacing(16, 14, 8);
+        assert!(toolbar.is_valid());
+        assert_eq!(toolbar.content_rect().y, 64);
+        assert_eq!(toolbar.leading_item_rect(0, 28, 28).x, 18);
+        assert_eq!(toolbar.leading_item_rect(1, 28, 28).x, 54);
+        assert_eq!(toolbar.leading_item_rect(0, 28, 28).y, 65);
+        assert_eq!(toolbar.leading_item_rect(99, 28, 28).width, 0);
+        assert_eq!(toolbar.separator_rect().bottom(), toolbar.rect.bottom());
+        assert!(toolbar.contains(637, 107));
+        assert!(!toolbar.contains(638, 107));
+        assert_eq!(toolbar.accessibility().role, "toolbar");
     }
 }

@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-4";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-5";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -364,6 +364,26 @@ pub(crate) fn draw_segmented_control(
     primitives
 }
 
+pub(crate) fn draw_toolbar(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    toolbar: Toolbar<'_>,
+    theme: AquaTheme,
+) -> usize {
+    let palette = window_chrome_palette(theme);
+    fill_rect(buffer, width, height, toolbar.rect, palette.toolbar, 255);
+    fill_rect(
+        buffer,
+        width,
+        height,
+        toolbar.separator_rect(),
+        palette.border,
+        220,
+    );
+    2
+}
+
 pub(crate) fn draw_standard_button(
     buffer: &mut [u8],
     width: u32,
@@ -502,6 +522,7 @@ pub struct ComponentAcceptanceProbe {
     pub segmented_control_state_count: usize,
     pub switch_state_count: usize,
     pub sidebar_row_count: usize,
+    pub toolbar_ready: bool,
     pub stable_geometry: bool,
     pub input_semantics: bool,
     pub accessibility_semantics: bool,
@@ -517,6 +538,7 @@ impl ComponentAcceptanceProbe {
             && self.segmented_control_state_count == ComponentState::SEGMENTED_CONTROL_STATES.len()
             && self.switch_state_count == ComponentState::SWITCH_STATES.len()
             && self.sidebar_row_count == ComponentState::LIST_ROW_STATES.len()
+            && self.toolbar_ready
             && self.stable_geometry
             && self.input_semantics
             && self.accessibility_semantics
@@ -627,6 +649,30 @@ pub fn render_component_acceptance_rgba(
             && semantics.busy == (state == ComponentState::Loading)
             && semantics.invalid == (state == ComponentState::Error);
     }
+
+    let fixture_toolbar = Toolbar::new(
+        Rect {
+            x: 48,
+            y: 526,
+            width: 340,
+            height: 72,
+        },
+        "Fixture actions",
+    );
+    draw_toolbar(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        fixture_toolbar,
+        theme,
+    );
+    let toolbar_semantics = fixture_toolbar.accessibility();
+    let toolbar_ready = fixture_toolbar.is_valid()
+        && fixture_toolbar.content_rect().fits_in(viewport)
+        && fixture_toolbar.separator_rect().bottom() == fixture_toolbar.rect.bottom()
+        && fixture_toolbar.contains(fixture_toolbar.rect.x, fixture_toolbar.rect.y)
+        && toolbar_semantics.role == "toolbar"
+        && !toolbar_semantics.name.is_empty();
 
     let icon_size = scale.apply(28.0).round() as u32;
     let icon_stride_x = scale.apply(58.0).round() as u32;
@@ -789,6 +835,7 @@ pub fn render_component_acceptance_rgba(
         segmented_control_state_count: ComponentState::SEGMENTED_CONTROL_STATES.len(),
         switch_state_count: ComponentState::SWITCH_STATES.len(),
         sidebar_row_count: ComponentState::LIST_ROW_STATES.len(),
+        toolbar_ready,
         stable_geometry,
         input_semantics,
         accessibility_semantics,
@@ -816,7 +863,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} sidebar_rows={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} sidebar_rows={} toolbar_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -829,6 +876,7 @@ pub fn component_acceptance_report() -> String {
                 probe.segmented_control_state_count,
                 probe.list_row_state_count,
                 probe.sidebar_row_count,
+                probe.toolbar_ready,
                 probe.stable_geometry,
                 probe.input_semantics,
                 probe.accessibility_semantics,
@@ -855,6 +903,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 SharedComponentKind::SidebarNavigation,
+                SharedComponentKind::Toolbar,
                 SharedComponentKind::SegmentedControl,
                 SharedComponentKind::SearchField,
                 SharedComponentKind::StandardButton,
@@ -903,10 +952,10 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation")
+                .matches("components=standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar")
                 .count(),
             12
         );
-        assert_eq!(first.matches("ready=true").count(), 12);
+        assert_eq!(first.matches(" ready=true checksum=").count(), 12);
     }
 }

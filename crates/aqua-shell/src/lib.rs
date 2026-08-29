@@ -1,6 +1,6 @@
 use aqua_components::{
     ComponentState, IconButton, IconButtonGlyph, SearchField, SegmentedControl, SidebarNavigation,
-    SwitchControl,
+    SwitchControl, Toolbar,
 };
 use aqua_scene::Rect;
 use std::collections::VecDeque;
@@ -107,26 +107,34 @@ pub const FILES_SIDEBAR_NAVIGATION: SidebarNavigation<'static> = SidebarNavigati
     },
     46,
 );
-pub const FILES_BACK_BUTTON: IconButton<'static> = IconButton::new(
-    Rect {
-        x: 18,
-        y: 68,
-        width: 28,
-        height: 28,
-    },
-    "Back",
-    IconButtonGlyph::Back,
-);
-pub const FILES_FORWARD_BUTTON: IconButton<'static> = IconButton::new(
-    Rect {
-        x: 54,
-        y: 68,
-        width: 28,
-        height: 28,
-    },
-    "Forward",
-    IconButtonGlyph::Forward,
-);
+pub const fn files_toolbar(width: u32) -> Toolbar<'static> {
+    Toolbar::new(
+        Rect {
+            x: 2,
+            y: 50,
+            width: width.saturating_sub(4),
+            height: 58,
+        },
+        "File navigation",
+    )
+    .with_spacing(16, 14, 8)
+}
+
+pub const fn files_back_button() -> IconButton<'static> {
+    IconButton::new(
+        files_toolbar(640).leading_item_rect(0, 28, 28),
+        "Back",
+        IconButtonGlyph::Back,
+    )
+}
+
+pub const fn files_forward_button() -> IconButton<'static> {
+    IconButton::new(
+        files_toolbar(640).leading_item_rect(1, 28, 28),
+        "Forward",
+        IconButtonGlyph::Forward,
+    )
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MotionEasing {
@@ -1801,7 +1809,7 @@ impl FilesWindowModel {
     }
 
     pub fn select_at(&mut self, x: u32, y: u32) -> FilesSelection {
-        let back = FILES_BACK_BUTTON.with_state(if self.can_go_back {
+        let back = files_back_button().with_state(if self.can_go_back {
             ComponentState::Idle
         } else {
             ComponentState::Disabled
@@ -1809,7 +1817,7 @@ impl FilesWindowModel {
         if back.pointer_hit(x, y) {
             return FilesSelection::Back;
         }
-        let forward = FILES_FORWARD_BUTTON.with_state(if self.can_go_forward {
+        let forward = files_forward_button().with_state(if self.can_go_forward {
             ComponentState::Idle
         } else {
             ComponentState::Disabled
@@ -3939,7 +3947,7 @@ mod tests {
         assert_eq!(model.select_at(20, 70), FilesSelection::None);
         model.can_go_back = true;
         assert_eq!(model.select_at(20, 70), FilesSelection::Back);
-        assert_eq!(model.select_at(20, 65), FilesSelection::None);
+        assert_eq!(model.select_at(20, 64), FilesSelection::None);
         assert_eq!(model.select_at(220, 140), FilesSelection::Entry(0));
         assert_eq!(model.selected_entry, Some(0));
         assert_eq!(model.select_at(40, 180), FilesSelection::Sidebar(1));
