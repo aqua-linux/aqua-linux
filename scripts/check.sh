@@ -1043,7 +1043,7 @@ assert phases["m9"]["percent"] == 100
 assert phases["m9"]["status"] == "complete"
 assert phases["m11"]["percent"] == 100
 assert phases["m11"]["status"] == "complete"
-assert phases["m12"]["percent"] == 35
+assert phases["m12"]["percent"] == 40
 assert phases["m12"]["status"] == "in-progress"
 PY
 test -f crates/aqua-installer/Cargo.toml
@@ -1534,6 +1534,8 @@ test -x scripts/check-typography-fixtures.sh
 test -x scripts/check-typography-layout-fixtures.sh
 test -x scripts/check-typography-wayland-qemu.sh
 test -x scripts/check-typography-wayland-qemu.exp
+test -x scripts/check-elevation-wayland-qemu.sh
+test -x scripts/check-elevation-wayland-qemu.exp
 test -f docs/aqua-linux/typography-fixtures.txt
 test -f docs/aqua-linux/typography-layout-fixtures.txt
 grep -Fq '"crates/aqua-text"' Cargo.toml
@@ -1546,8 +1548,13 @@ grep -Fq 'pub fn typography_layout_acceptance_report' crates/aqua-renderer/src/l
 grep -Fq 'aqua-typography-layout-fixtures-1' docs/aqua-linux/typography-layout-fixtures.txt
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=typography-acceptance' scripts/check-typography-wayland-qemu.exp
 grep -Fq 'typography_wayland_surface_ready=true' scripts/check-typography-wayland-qemu.sh
+grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=elevation-acceptance' scripts/check-elevation-wayland-qemu.exp
+grep -Fq 'elevation_wayland_focused_surface_count=1' scripts/check-elevation-wayland-qemu.sh
+grep -Fq 'gpu_shadow_damage_rects=2' scripts/check-elevation-wayland-qemu.sh
+grep -Fq 'elevation-acceptance' crates/aqua-compositor/src/main.rs
 grep -Fq 'aqua-typography-acceptance' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'typography_qemu = ' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'elevation_qemu = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'aqua-text = { path = "../aqua-text" }' crates/aqua-renderer/Cargo.toml
 grep -Fq 'export-visible-preview-html' docs/aqua-linux/compositor.md
 grep -Fq 'smoke-nested-preview-loop' docs/aqua-linux/compositor.md
