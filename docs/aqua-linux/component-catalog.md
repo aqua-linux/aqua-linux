@@ -23,7 +23,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Checkbox | Planned | Settings and installer options |
 | Switch | Shared host-proven primitive | Settings motion, desktop-icon, and key-repeat toggles |
 | Slider | Planned | Audio and future bounded value controls |
-| Menu | Planned | Session, context, and overflow actions |
+| Menu | Shared host-proven primitive | Desktop icon context actions and Session action layout; packaged-QEMU component acceptance remains open |
 | List row | Shared host-proven primitive | Files and Settings navigation plus installer steps |
 | Grid cell | Planned | Applications and file grid modes |
 | Metadata row | Planned | Properties and system information |
@@ -235,8 +235,40 @@ in four themes at 800x600, 1280x800, and fractional-scale 1536x1024. A pure
 compositor routing test proves controls, move, content, and resize targets do
 not overlap. Packaged-QEMU component acceptance remains open.
 
+## Menu Contract
+
+### Anatomy And Geometry
+
+- A menu owns one bounded surface rectangle, non-empty accessible name, item
+  count, selected index, row start, row height, and inter-row gap.
+- Every item rectangle is derived from the same row geometry used for drawing
+  and pointer routing. Half-open item bounds reject menu padding and gaps.
+- Invalid menus fail closed: empty names, zero or more than 32 items, an
+  out-of-range selection, zero-sized surfaces or rows, and rows extending past
+  the declared surface are rejected.
+- Local menu geometry can be translated into compositor coordinates without
+  changing row dimensions or selection semantics.
+
+### Input, Semantics, And Consumption
+
+- Previous and next keyboard movement wrap within the bounded item count;
+  Home and End resolve directly to the first and last item.
+- The container exposes the `menu` role, name, and item count. Each valid item
+  exposes `menuitem`, name, selected, disabled, and destructive semantics.
+- Desktop icon context menus now share exact local renderer geometry with
+  global desktop pointer hit testing. Open, Properties, Empty Trash, and its
+  explicit confirmation path retain their existing execution gates.
+- The Session menu derives all four action rows and gaps from the same
+  primitive while retaining its existing keyboard selection and second-Enter
+  confirmation requirement.
+
+The deterministic matrix covers menu drawing, gap rejection, keyboard
+navigation, and accessibility semantics in four themes at 800x600, 1280x800,
+and fractional-scale 1536x1024. Packaged-QEMU component acceptance remains
+open.
+
 ## Next Extraction Order
 
-1. Menu and section structures.
+1. Section structures.
 2. Checkbox after a real installer option exists; slider after a bounded audio-volume model exists.
 3. Shell-level panels, dock, workspaces, notification, and confirmation dialog.

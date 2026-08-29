@@ -1,6 +1,6 @@
 use aqua_components::{
-    ComponentState, IconButton, IconButtonGlyph, SearchField, SegmentedControl, SidebarNavigation,
-    SwitchControl, Toolbar,
+    ComponentState, IconButton, IconButtonGlyph, Menu, SearchField, SegmentedControl,
+    SidebarNavigation, SwitchControl, Toolbar,
 };
 use aqua_scene::Rect;
 use std::collections::VecDeque;
@@ -805,25 +805,10 @@ impl DesktopIconState {
         self.trash_empty_confirmation
     }
 
-    fn context_menu_y(index: usize) -> u32 {
-        DESKTOP_ICON_Y
-            + (index as u32 * DESKTOP_ICON_ROW_HEIGHT + 32)
-                .min(DESKTOP_ICON_LAYER_HEIGHT.saturating_sub(76))
-    }
-
     fn context_menu_row(&self, x: u32, y: u32) -> Option<(usize, usize)> {
         let icon_index = self.context_menu?;
-        let menu_y = Self::context_menu_y(icon_index);
-        if !(DESKTOP_CONTEXT_MENU_X..DESKTOP_CONTEXT_MENU_X + DESKTOP_CONTEXT_MENU_WIDTH)
-            .contains(&x)
-            || !(menu_y..menu_y + DESKTOP_CONTEXT_MENU_ROW_HEIGHT * 2).contains(&y)
-        {
-            return None;
-        }
-        Some((
-            icon_index,
-            ((y - menu_y) / DESKTOP_CONTEXT_MENU_ROW_HEIGHT) as usize,
-        ))
+        let menu = desktop_context_menu(icon_index)?.translated(DESKTOP_ICON_X, DESKTOP_ICON_Y);
+        menu.item_at(x, y).map(|row| (icon_index, row))
     }
 
     pub fn pointer_target(x: u32, y: u32) -> Option<usize> {
@@ -929,6 +914,28 @@ impl DesktopIconState {
             }
         }
     }
+}
+
+pub fn desktop_context_menu(icon_index: usize) -> Option<Menu<'static>> {
+    if icon_index >= DESKTOP_ICONS.len() {
+        return None;
+    }
+    let local_y = (icon_index as u32 * DESKTOP_ICON_ROW_HEIGHT + 32)
+        .min(DESKTOP_ICON_LAYER_HEIGHT.saturating_sub(76));
+    Some(Menu::new(
+        Rect {
+            x: DESKTOP_CONTEXT_MENU_X.saturating_sub(DESKTOP_ICON_X),
+            y: local_y,
+            width: DESKTOP_CONTEXT_MENU_WIDTH,
+            height: DESKTOP_CONTEXT_MENU_ROW_HEIGHT * 2,
+        },
+        "Desktop icon actions",
+        2,
+        0,
+        0,
+        DESKTOP_CONTEXT_MENU_ROW_HEIGHT,
+        0,
+    ))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2975,6 +2982,28 @@ impl SessionMenuState {
         self.confirmation
     }
 
+    pub fn menu_layout(&self, width: u32, height: u32) -> Menu<'static> {
+        let high_resolution = width >= 480 || height >= 280;
+        let outer_padding = if high_resolution { 22 } else { 12 };
+        let row_start = if high_resolution { 62 } else { 40 };
+        let row_stride = if high_resolution { 45 } else { 34 };
+        let row_height = if high_resolution { 38 } else { 30 };
+        Menu::new(
+            Rect {
+                x: outer_padding,
+                y: 0,
+                width: width.saturating_sub(outer_padding * 2),
+                height,
+            },
+            "Aqua Session",
+            SessionAction::ALL.len(),
+            self.selected_index,
+            row_start,
+            row_height,
+            row_stride - row_height,
+        )
+    }
+
     pub fn close(&mut self) {
         self.open = false;
         self.selected_index = 0;
@@ -3308,6 +3337,12 @@ mod tests {
 
     #[test]
     fn desktop_icons_select_activate_and_open_context_menu() {
+        let geometry = desktop_context_menu(1).expect("bounded icon menu should exist");
+        assert!(geometry.is_valid());
+        assert_eq!(geometry.item_rect(0).y, 136);
+        assert_eq!(geometry.item_rect(1).y, 172);
+        assert!(desktop_context_menu(DESKTOP_ICONS.len()).is_none());
+
         let mut state = DesktopIconState::default();
         let first = state.pointer_press(48, 90, DesktopPointerButton::Primary, 1_000);
         assert!(first.redraw_requested);
@@ -3836,6 +3871,11 @@ mod tests {
         );
         menu.handle_event(SessionMenuEvent::MoveSelection(-1));
         assert_eq!(menu.selected_action(), SessionAction::Recovery);
+        let layout = menu.menu_layout(512, 293);
+        assert!(layout.is_valid());
+        assert_eq!(layout.item_rect(0).y, 62);
+        assert_eq!(layout.item_rect(3).y, 197);
+        assert_eq!(layout.item_at(24, 103), None);
 
         let armed = menu.handle_event(SessionMenuEvent::Activate);
         assert!(armed.confirmation_changed);

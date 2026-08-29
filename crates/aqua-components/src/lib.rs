@@ -85,6 +85,7 @@ impl SharedComponentKind {
         matches!(
             self,
             Self::WindowFrame
+                | Self::Menu
                 | Self::Toolbar
                 | Self::SegmentedControl
                 | Self::SearchField
@@ -884,6 +885,161 @@ impl<'a> WindowFrame<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuNavigationKey {
+    Previous,
+    Next,
+    Home,
+    End,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MenuAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub item_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MenuItemAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub selected: bool,
+    pub disabled: bool,
+    pub destructive: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Menu<'a> {
+    pub rect: Rect,
+    pub name: &'a str,
+    pub item_count: usize,
+    pub selected_index: usize,
+    pub row_start: u32,
+    pub row_height: u32,
+    pub row_gap: u32,
+}
+
+impl<'a> Menu<'a> {
+    pub const fn new(
+        rect: Rect,
+        name: &'a str,
+        item_count: usize,
+        selected_index: usize,
+        row_start: u32,
+        row_height: u32,
+        row_gap: u32,
+    ) -> Self {
+        Self {
+            rect,
+            name,
+            item_count,
+            selected_index,
+            row_start,
+            row_height,
+            row_gap,
+        }
+    }
+
+    pub const fn translated(mut self, x: u32, y: u32) -> Self {
+        self.rect.x = self.rect.x.saturating_add(x);
+        self.rect.y = self.rect.y.saturating_add(y);
+        self
+    }
+
+    pub const fn item_rect(self, index: usize) -> Rect {
+        if index >= self.item_count {
+            return Rect {
+                x: self.rect.x,
+                y: self.rect.y,
+                width: 0,
+                height: 0,
+            };
+        }
+        Rect {
+            x: self.rect.x,
+            y: self.rect.y.saturating_add(self.row_start).saturating_add(
+                (index as u32).saturating_mul(self.row_height.saturating_add(self.row_gap)),
+            ),
+            width: self.rect.width,
+            height: self.row_height,
+        }
+    }
+
+    pub const fn item_at(self, x: u32, y: u32) -> Option<usize> {
+        if !self.is_valid() {
+            return None;
+        }
+        let mut index = 0;
+        while index < self.item_count {
+            if rect_contains(self.item_rect(index), x, y) {
+                return Some(index);
+            }
+            index += 1;
+        }
+        None
+    }
+
+    pub const fn keyboard_target(self, key: MenuNavigationKey) -> Option<usize> {
+        if !self.is_valid() {
+            return None;
+        }
+        Some(match key {
+            MenuNavigationKey::Previous => {
+                if self.selected_index == 0 {
+                    self.item_count - 1
+                } else {
+                    self.selected_index - 1
+                }
+            }
+            MenuNavigationKey::Next => (self.selected_index + 1) % self.item_count,
+            MenuNavigationKey::Home => 0,
+            MenuNavigationKey::End => self.item_count - 1,
+        })
+    }
+
+    pub const fn is_valid(self) -> bool {
+        if self.name.is_empty()
+            || self.item_count == 0
+            || self.item_count > 32
+            || self.selected_index >= self.item_count
+            || self.rect.width == 0
+            || self.rect.height == 0
+            || self.row_height == 0
+        {
+            return false;
+        }
+        self.item_rect(self.item_count - 1).bottom() <= self.rect.bottom()
+    }
+
+    pub const fn accessibility(self) -> MenuAccessibility<'a> {
+        MenuAccessibility {
+            role: "menu",
+            name: self.name,
+            item_count: self.item_count,
+        }
+    }
+
+    pub const fn item_accessibility(
+        self,
+        index: usize,
+        name: &str,
+        disabled: bool,
+        destructive: bool,
+    ) -> Option<MenuItemAccessibility<'_>> {
+        if !self.is_valid() || index >= self.item_count || name.is_empty() {
+            return None;
+        }
+        Some(MenuItemAccessibility {
+            role: "menuitem",
+            name,
+            selected: index == self.selected_index,
+            disabled,
+            destructive,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListRowRole {
     Option,
     Navigation,
@@ -1099,7 +1255,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_nine_shared_primitives() {
+    fn catalog_tracks_the_ten_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -1115,6 +1271,7 @@ mod tests {
                 SharedComponentKind::StandardButton,
                 SharedComponentKind::IconButton,
                 SharedComponentKind::Switch,
+                SharedComponentKind::Menu,
                 SharedComponentKind::ListRow,
             ]
         );
@@ -1203,6 +1360,7 @@ mod tests {
         let segmented = SegmentedControl::new(rect, "", 3, 0);
         let toolbar = Toolbar::new(rect, "");
         let navigation = SidebarNavigation::new(rect, "", rect, 40);
+        let menu = Menu::new(rect, "", 2, 0, 0, 20, 0);
         assert!(!button.can_activate());
         assert!(!row.can_activate());
         assert!(!icon.can_activate());
@@ -1211,6 +1369,7 @@ mod tests {
         assert!(!segmented.is_valid());
         assert!(!toolbar.is_valid());
         assert!(!navigation.is_valid());
+        assert!(!menu.is_valid());
         assert_eq!(navigation.hit_test(11, 21, 1), None);
     }
 
@@ -1338,5 +1497,36 @@ mod tests {
         assert_eq!(frame.title_rect().x, 92);
         assert_eq!(frame.accessibility().role, "window");
         assert_eq!(frame.accessibility().name, "Terminal");
+    }
+
+    #[test]
+    fn menu_rows_share_pointer_keyboard_and_accessibility_geometry() {
+        let menu = Menu::new(
+            Rect {
+                x: 108,
+                y: 32,
+                width: 120,
+                height: 72,
+            },
+            "Files actions",
+            2,
+            0,
+            0,
+            32,
+            4,
+        );
+        assert!(menu.is_valid());
+        assert_eq!(menu.item_rect(1).y, 68);
+        assert_eq!(menu.item_at(120, 63), Some(0));
+        assert_eq!(menu.item_at(120, 65), None);
+        assert_eq!(menu.item_at(120, 68), Some(1));
+        assert_eq!(menu.keyboard_target(MenuNavigationKey::Previous), Some(1));
+        assert_eq!(menu.keyboard_target(MenuNavigationKey::End), Some(1));
+        assert_eq!(menu.accessibility().role, "menu");
+        let item = menu
+            .item_accessibility(1, "Properties", false, false)
+            .expect("bounded item semantics should exist");
+        assert_eq!(item.role, "menuitem");
+        assert!(!item.selected);
     }
 }
