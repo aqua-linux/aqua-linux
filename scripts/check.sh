@@ -1040,8 +1040,8 @@ assert phases["m9"]["percent"] == 100
 assert phases["m9"]["status"] == "complete"
 assert phases["m11"]["percent"] == 100
 assert phases["m11"]["status"] == "complete"
-assert phases["m12"]["percent"] == 0
-assert phases["m12"]["status"] == "not-started"
+assert phases["m12"]["percent"] == 5
+assert phases["m12"]["status"] == "in-progress"
 PY
 test -f crates/aqua-installer/Cargo.toml
 test -f crates/aqua-installer/src/lib.rs
@@ -1525,6 +1525,13 @@ grep -Fq 'rootfs.tar' scripts/write-installer-artifact-disk-docker.sh
 grep -Fq 'bootx64.efi' scripts/write-installer-artifact-disk-docker.sh
 grep -Fq 'manifest.sha256' scripts/write-installer-artifact-disk-docker.sh
 grep -Fq 'name = "aqua-shell"' crates/aqua-shell/Cargo.toml
+test -f crates/aqua-text/Cargo.toml
+test -f crates/aqua-text/src/lib.rs
+grep -Fq '"crates/aqua-text"' Cargo.toml
+grep -Fq 'rustybuzz = "0.20.1"' crates/aqua-text/Cargo.toml
+grep -Fq 'pub struct TextService' crates/aqua-text/src/lib.rs
+grep -Fq 'pub fn shape_line' crates/aqua-text/src/lib.rs
+grep -Fq 'aqua-text = { path = "../aqua-text" }' crates/aqua-renderer/Cargo.toml
 grep -Fq 'export-visible-preview-html' docs/aqua-linux/compositor.md
 grep -Fq 'smoke-nested-preview-loop' docs/aqua-linux/compositor.md
 grep -Fq 'probe-manual-nested-preview-backend' docs/aqua-linux/compositor.md

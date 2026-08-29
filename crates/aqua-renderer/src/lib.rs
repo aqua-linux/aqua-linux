@@ -12,14 +12,12 @@ use aqua_shell::{
     TopBarState, DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT,
     FILES_PREVIEW_VISIBLE_LINES, FILES_VISIBLE_ROWS, WORKSPACE_COUNT,
 };
-use fontdue::{Font, FontSettings};
-use std::sync::OnceLock;
+pub use aqua_text::UI_FONT_FAMILY;
+use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, TextRole, TextService};
+use std::sync::{Mutex, OnceLock};
 
-pub const UI_FONT_FAMILY: &str = "Noto Sans";
 pub const UI_FONT_SOURCE: &str = "embedded-ttf";
-const UI_FONT_BYTES: &[u8] =
-    include_bytes!("../../../docs/aqua-linux/assets/fonts/NotoSans-Regular.ttf");
-static UI_FONT: OnceLock<Option<Font>> = OnceLock::new();
+static TEXT_SERVICE: OnceLock<Option<Mutex<TextService>>> = OnceLock::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WindowChromePalette {
@@ -179,12 +177,12 @@ fn apply_shell_palette(rgba: &mut [u8], theme: AquaTheme) {
 }
 
 pub fn embedded_ui_font_ready() -> bool {
-    ui_font().is_some()
+    text_service().is_some()
 }
 
-fn ui_font() -> Option<&'static Font> {
-    UI_FONT
-        .get_or_init(|| Font::from_bytes(UI_FONT_BYTES, FontSettings::default()).ok())
+fn text_service() -> Option<&'static Mutex<TextService>> {
+    TEXT_SERVICE
+        .get_or_init(|| TextService::new().ok().map(Mutex::new))
         .as_ref()
 }
 
@@ -6612,56 +6610,78 @@ fn draw_bitmap_text(
     color: [u8; 4],
     scale: u32,
 ) {
-    if let Some(font) = ui_font() {
-        draw_ttf_text(buffer, canvas, origin, text, color, scale, font);
-        return;
+    if let Some(service) = text_service() {
+        if let Ok(mut service) = service.lock() {
+            draw_shaped_text(buffer, canvas, origin, text, color, scale, &mut service);
+            return;
+        }
     }
     draw_legacy_bitmap_text(buffer, canvas, origin, text, color, scale);
 }
 
-fn draw_ttf_text(
+fn draw_shaped_text(
     buffer: &mut [u8],
     canvas: (u32, u32),
     origin: (u32, u32),
     text: &str,
     color: [u8; 4],
     scale: u32,
-    font: &Font,
+    service: &mut TextService,
 ) {
     let (width, height) = canvas;
-    let pixel_size: f32 = if scale > 1 { 22.0 } else { 13.0 };
-    let baseline = origin.1 as i32 + pixel_size.ceil() as i32;
+    let (role, output_scale) = if scale > 1 {
+        (TextRole::Caption, OutputScale::Two)
+    } else {
+        (TextRole::Body, OutputScale::One)
+    };
+    let line = service.shape_line(text, role, output_scale);
+    let baseline = origin.1 as i32 + line.baseline.ceil() as i32;
     let mut cursor = origin.0 as f32;
-    for character in text.chars() {
-        let (metrics, coverage) = font.rasterize(character, pixel_size);
-        let glyph_x = cursor.floor() as i32 + metrics.xmin;
-        let glyph_y = baseline - metrics.height as i32 - metrics.ymin;
-        for row in 0..metrics.height {
-            for column in 0..metrics.width {
-                let alpha = coverage[row * metrics.width + column];
-                if alpha == 0 {
-                    continue;
+    for run in &line.runs {
+        for shaped in &run.glyphs {
+            let key = GlyphCacheKey {
+                font_id: shaped.font_id,
+                glyph_id: shaped.glyph_id,
+                role,
+                scale: output_scale,
+                mode: RenderingMode::Grayscale,
+            };
+            let Some(glyph) = service.rasterize(key) else {
+                cursor += shaped.x_advance;
+                continue;
+            };
+            let glyph_x = (cursor + shaped.x_offset).floor() as i32 + glyph.metrics.xmin;
+            let glyph_y = baseline
+                - glyph.metrics.height as i32
+                - glyph.metrics.ymin
+                - shaped.y_offset.round() as i32;
+            for row in 0..glyph.metrics.height {
+                for column in 0..glyph.metrics.width {
+                    let alpha = glyph.coverage[row * glyph.metrics.width + column];
+                    if alpha == 0 {
+                        continue;
+                    }
+                    let x = glyph_x + column as i32;
+                    let y = glyph_y + row as i32;
+                    if x < 0 || y < 0 || x >= width as i32 || y >= height as i32 {
+                        continue;
+                    }
+                    let offset = ((y as u32 * width + x as u32) * 4) as usize;
+                    let destination = [
+                        buffer[offset],
+                        buffer[offset + 1],
+                        buffer[offset + 2],
+                        buffer[offset + 3],
+                    ];
+                    buffer[offset..offset + 4].copy_from_slice(&blend_source_over(
+                        color,
+                        destination,
+                        alpha,
+                    ));
                 }
-                let x = glyph_x + column as i32;
-                let y = glyph_y + row as i32;
-                if x < 0 || y < 0 || x >= width as i32 || y >= height as i32 {
-                    continue;
-                }
-                let offset = ((y as u32 * width + x as u32) * 4) as usize;
-                let destination = [
-                    buffer[offset],
-                    buffer[offset + 1],
-                    buffer[offset + 2],
-                    buffer[offset + 3],
-                ];
-                buffer[offset..offset + 4].copy_from_slice(&blend_source_over(
-                    color,
-                    destination,
-                    alpha,
-                ));
             }
+            cursor += shaped.x_advance;
         }
-        cursor += metrics.advance_width;
     }
 }
 
@@ -7415,13 +7435,27 @@ mod tests {
     #[test]
     fn embedded_ui_font_rasterizes_antialiased_latin_text() {
         assert!(embedded_ui_font_ready());
-        let font = ui_font().expect("embedded Noto Sans should parse");
-        for character in ['A', 'q', 'ğ', 'İ', 'ş'] {
-            let (metrics, coverage) = font.rasterize(character, 18.0);
-            assert!(metrics.width > 0);
-            assert!(metrics.height > 0);
-            assert!(coverage.iter().any(|alpha| *alpha > 0 && *alpha < 255));
+        let service = text_service().expect("embedded Noto Sans should parse");
+        let mut service = service.lock().expect("text service should not be poisoned");
+        let line = service.shape_line("Aqğİş", TextRole::Body, OutputScale::One);
+        for shaped in line.runs.iter().flat_map(|run| &run.glyphs) {
+            let glyph = service
+                .rasterize(GlyphCacheKey {
+                    font_id: shaped.font_id,
+                    glyph_id: shaped.glyph_id,
+                    role: TextRole::Body,
+                    scale: OutputScale::One,
+                    mode: RenderingMode::Grayscale,
+                })
+                .expect("shaped glyph should rasterize");
+            assert!(glyph.metrics.width > 0);
+            assert!(glyph.metrics.height > 0);
+            assert!(glyph
+                .coverage
+                .iter()
+                .any(|alpha| *alpha > 0 && *alpha < 255));
         }
+        assert_eq!(aqua_text::UI_FONT_REVISION, "noto-sans-regular-aqua-1");
     }
 
     #[test]
