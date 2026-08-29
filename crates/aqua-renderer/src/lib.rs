@@ -6,12 +6,13 @@ use aqua_installer::{
 };
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
-    files_back_button, files_forward_button, files_toolbar, AquaTheme, DesktopIconState,
-    DesktopPropertiesModel, DockItem, DockState, FilesEntryKind, FilesWindowModel,
-    LauncherCategory, LauncherMode, LauncherState, NotificationCenter, SessionAction,
-    SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView, TopBarState,
-    DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT, FILES_PREVIEW_VISIBLE_LINES,
-    FILES_SIDEBAR_NAVIGATION, FILES_VISIBLE_ROWS, SETTINGS_SIDEBAR_NAVIGATION, WORKSPACE_COUNT,
+    desktop_context_menu, files_back_button, files_forward_button, files_toolbar, AquaTheme,
+    DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
+    FilesWindowModel, LauncherCategory, LauncherMode, LauncherState, NotificationCenter,
+    SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView,
+    TopBarState, DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT,
+    FILES_PREVIEW_VISIBLE_LINES, FILES_SIDEBAR_NAVIGATION, FILES_VISIBLE_ROWS,
+    SETTINGS_SIDEBAR_NAVIGATION, WORKSPACE_COUNT,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -1597,18 +1598,17 @@ fn render_desktop_icons_rgba_base(
         );
         primitives += 2;
     }
-    if let Some(index) = state.context_menu() {
-        let y = (index as u32 * DESKTOP_ICON_ROW_HEIGHT + 32).min(height.saturating_sub(76));
+    if let Some((index, menu)) = state
+        .context_menu()
+        .and_then(|index| desktop_context_menu(index).map(|menu| (index, menu)))
+    {
+        let first_row = menu.item_rect(0);
+        let second_row = menu.item_rect(1);
         fill_transparent_rect(
             &mut rgba,
             width,
             height,
-            Rect {
-                x: 108,
-                y,
-                width: width.saturating_sub(112),
-                height: 72,
-            },
+            menu.rect,
             [0x03, 0x2c, 0x49, 0xf0],
         );
         fill_transparent_rect(
@@ -1616,9 +1616,9 @@ fn render_desktop_icons_rgba_base(
             width,
             height,
             Rect {
-                x: 109,
-                y: y + 1,
-                width: width.saturating_sub(114),
+                x: menu.rect.x + 1,
+                y: menu.rect.y + 1,
+                width: menu.rect.width.saturating_sub(2),
                 height: 2,
             },
             [0x9f, 0xe9, 0xff, 0xc0],
@@ -1628,9 +1628,9 @@ fn render_desktop_icons_rgba_base(
             width,
             height,
             Rect {
-                x: 116,
-                y: y + 35,
-                width: width.saturating_sub(124),
+                x: menu.rect.x + 8,
+                y: first_row.bottom().saturating_sub(1),
+                width: menu.rect.width.saturating_sub(16),
                 height: 1,
             },
             [0x58, 0x9c, 0xb7, 0xb0],
@@ -1638,7 +1638,7 @@ fn render_desktop_icons_rgba_base(
         draw_bitmap_text(
             &mut rgba,
             (width, height),
-            (120, y + 9),
+            (first_row.x + 12, first_row.y + 9),
             "OPEN",
             [0xf1, 0xfb, 0xff, 0xff],
             1,
@@ -1646,7 +1646,7 @@ fn render_desktop_icons_rgba_base(
         draw_bitmap_text(
             &mut rgba,
             (width, height),
-            (120, y + 42),
+            (second_row.x + 12, second_row.y + 6),
             if DESKTOP_ICONS[index].id == "trash" {
                 if state.trash_empty_confirmation() {
                     "CONFIRM EMPTY"
@@ -2141,10 +2141,8 @@ fn render_session_menu_overlay_rgba_base(
     let text_scale = if high_resolution { 2 } else { 1 };
     let outer_padding = if high_resolution { 22 } else { 12 };
     let header_y = if high_resolution { 18 } else { 12 };
-    let row_start = if high_resolution { 62 } else { 40 };
-    let row_stride = if high_resolution { 45 } else { 34 };
-    let row_height = if high_resolution { 38 } else { 30 };
     let icon_scale = if high_resolution { 2 } else { 1 };
+    let menu_layout = menu.menu_layout(width, height);
 
     fill_transparent_rect(
         &mut rgba,
@@ -2222,12 +2220,7 @@ fn render_session_menu_overlay_rgba_base(
     let mut primitives = 7;
     let labels = ["Log Out", "Restart", "Shut Down", "Recovery"];
     for (index, action) in SessionAction::ALL.iter().copied().enumerate() {
-        let row = Rect {
-            x: outer_padding,
-            y: row_start + index as u32 * row_stride,
-            width: width.saturating_sub(outer_padding * 2),
-            height: row_height,
-        };
+        let row = menu_layout.item_rect(index);
         if action == menu.selected_action() {
             fill_transparent_rect(&mut rgba, width, height, row, [0x72, 0xda, 0xf2, 0x82]);
             fill_transparent_rect(

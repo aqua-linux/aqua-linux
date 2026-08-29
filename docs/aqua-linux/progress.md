@@ -2,7 +2,7 @@
 
 > Generated from `docs/aqua-linux/progress.json`. Update the changed phase date, then run `scripts/write-progress-report.sh`.
 
-**Roadmap implementation progress: 91%**
+**Roadmap implementation progress: 92%**
 
 | Field | Value |
 | --- | --- |
@@ -27,7 +27,7 @@ Roadmap progress and product readiness are separate measurements. Mandatory rele
 
 ## Current Stage
 
-Milestone 12 now has accepted typography, elevation, Aqua Core Icon integration, semantic state motion, and nine shared component primitives. The independent aqua-components crate owns renderer-neutral window-frame, standard-button, icon-button, search-field, switch, segmented-control, toolbar, list-row, and sidebar-navigation contracts. Terminal, Files, Settings, and Properties now share exact frame geometry across rendering and pointer routing, including close, minimize, maximize, move, and bottom-right resize targets. Deterministic theme/viewport fixtures are accepted, while packaged-QEMU component acceptance and 13 catalog entries stay open. Checkbox and slider remain planned until real installer-option and audio-volume models exist. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.
+Milestone 12 now has accepted typography, elevation, Aqua Core Icon integration, semantic state motion, and ten shared component primitives. The independent aqua-components crate owns renderer-neutral window-frame, menu, standard-button, icon-button, search-field, switch, segmented-control, toolbar, list-row, and sidebar-navigation contracts. Desktop context actions now share exact renderer and pointer rows; Session actions consume the same bounded menu-row and gap semantics while retaining explicit confirmation. Deterministic theme/viewport fixtures are accepted, while packaged-QEMU component acceptance and 12 catalog entries stay open. Checkbox and slider remain planned until real installer-option and audio-volume models exist. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.
 
 ## Phases
 
@@ -35,7 +35,7 @@ Phases are ordered by their most recent update.
 
 | Updated | Phase | Status | Progress | Summary |
 | --- | --- | --- | ---: | --- |
-| 2026-08-29 | M12: Visual Fidelity and Component System | In Progress | 89% | The shared aqua-text crate, tokenized elevation path, Aqua Core Icon pipeline, and semantic motion system have deterministic host fixtures plus packaged QEMU evidence. The independent aqua-components crate now owns renderer-neutral window-frame, standard-button, icon-button, search-field, switch, segmented-control, toolbar, list-row, and sidebar-navigation anatomy, stable state geometry, input activation, and accessibility semantics. Terminal, Files, Settings, and Properties use the shared frame for drawing and pointer routing; other existing consumers retain their applicable shared primitives. All nine primitives have deterministic four-theme acceptance at 800x600, 1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance and 13 of 22 catalog entries remain open. Checkbox and slider remain planned until real installer-option and audio-volume models exist. |
+| 2026-08-29 | M12: Visual Fidelity and Component System | In Progress | 90% | The shared aqua-text crate, tokenized elevation path, Aqua Core Icon pipeline, and semantic motion system have deterministic host fixtures plus packaged QEMU evidence. The independent aqua-components crate now owns renderer-neutral window-frame, menu, standard-button, icon-button, search-field, switch, segmented-control, toolbar, list-row, and sidebar-navigation anatomy, stable state geometry, input activation, and accessibility semantics. Desktop context actions share menu drawing and pointer rows, Session actions share menu row layout, and other existing consumers retain their applicable primitives. All ten primitives have deterministic four-theme acceptance at 800x600, 1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance and 12 of 22 catalog entries remain open. Checkbox and slider remain planned until real installer-option and audio-volume models exist. |
 | 2026-08-28 | M2: Asset and Visual System Intake | Complete | 100% | Public contracts capture the permanent desktop, application, search, first-party app, installer, completion, and four-theme direction derived from private Git-ignored boards. Approved transparent brand exports and the reproducible pale-wave wallpaper are used by the runtime. Thirteen project-authored Aqua Core Icons permanently cover core application, desktop, notification, and status roles with explicit MIT licensing; no temporary icon package remains. |
 | 2026-08-28 | M11: Polish and Public Readiness | Complete | 100% | The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, permanent Aqua Core Icons, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, four live-refreshed themes, and three real workspaces. Current QEMU captures carry a provenance manifest, the public hardware matrix prevents physical support overclaims, and the default-image gate enforces recovery-safe startup. Structured issue forms, private security routing, canonical labels, a pull request safety checklist, and CI-enforced contributor contracts now define public intake and triage. |
 | 2026-08-22 | M4: Scene and Surface Renderer | Complete | 100% | The Smithay GLES2 renderer composes the packaged wallpaper, shared surfaces, optional two-pass blur, and live wl_shm textures at the native output size. Physical DRM retains XRGB8888 GBM front/back dma-buf scanout. QEMU keeps GLES readback for the desktop, but a full-output client that explicitly supplies a complete Wayland opaque region may use the dumb-buffer bridge after one GPU validation frame. Packaged installer acceptance measured 30 bridged frames at a 61 ms median total while preserving distinct 1280x800 captures. |
@@ -60,7 +60,7 @@ Phases are ordered by their most recent update.
 
 ## Next Developments
 
-1. Extract shared menu and section-group primitives and migrate real first-party consumers without inventing placeholder state.
+1. Extract the shared section-group primitive and migrate real Settings and Properties group geometry without inventing placeholder state.
 2. Baseline the R2 presentation path and enforce production no-readback, frame scheduling, damage, latency, resource, and dropped-frame acceptance while keeping diagnostic readback isolated.
 3. Implement the R3-R6 Wayland compatibility, unprivileged session, system service, accessibility, internationalization, signed update, rollback, and security gates.
 4. Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation.

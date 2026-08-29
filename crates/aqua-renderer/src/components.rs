@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-6";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-7";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -524,6 +524,7 @@ pub struct ComponentAcceptanceProbe {
     pub sidebar_row_count: usize,
     pub toolbar_ready: bool,
     pub window_frame_ready: bool,
+    pub menu_ready: bool,
     pub stable_geometry: bool,
     pub input_semantics: bool,
     pub accessibility_semantics: bool,
@@ -541,6 +542,7 @@ impl ComponentAcceptanceProbe {
             && self.sidebar_row_count == ComponentState::LIST_ROW_STATES.len()
             && self.toolbar_ready
             && self.window_frame_ready
+            && self.menu_ready
             && self.stable_geometry
             && self.input_semantics
             && self.accessibility_semantics
@@ -860,6 +862,82 @@ pub fn render_component_acceptance_rgba(
         }
     }
 
+    let fixture_menu = Menu::new(
+        Rect {
+            x: viewport.width.saturating_sub(220),
+            y: viewport.height.saturating_sub(184),
+            width: 188,
+            height: 152,
+        },
+        "Fixture menu",
+        4,
+        1,
+        0,
+        34,
+        4,
+    );
+    fill_rounded_rect(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        fixture_menu.rect,
+        8,
+        palette.surface,
+        255,
+    );
+    draw_rect_outline(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        fixture_menu.rect,
+        palette.border,
+        255,
+    );
+    let menu_labels = ["Open", "Properties", "Rename", "Remove"];
+    for (index, label) in menu_labels.into_iter().enumerate() {
+        let row = fixture_menu.item_rect(index);
+        if index == fixture_menu.selected_index {
+            fill_rect(
+                &mut buffer,
+                viewport.width,
+                viewport.height,
+                row,
+                palette.accent_soft,
+                255,
+            );
+        }
+        draw_fitted_bitmap_text(
+            &mut buffer,
+            (viewport.width, viewport.height),
+            Rect {
+                x: row.x.saturating_add(12),
+                width: row.width.saturating_sub(24),
+                ..row
+            },
+            label,
+            palette.text,
+            FittedTextOptions::new(TextRole::Control, scale, true),
+        );
+    }
+    let menu_semantics = fixture_menu.accessibility();
+    let selected_row = fixture_menu.item_rect(fixture_menu.selected_index);
+    let menu_ready = fixture_menu.is_valid()
+        && selected_row.fits_in(viewport)
+        && fixture_menu.item_at(selected_row.x, selected_row.y)
+            == Some(fixture_menu.selected_index)
+        && fixture_menu
+            .item_at(
+                fixture_menu.item_rect(0).x,
+                fixture_menu.item_rect(0).bottom(),
+            )
+            .is_none()
+        && fixture_menu.keyboard_target(MenuNavigationKey::Previous) == Some(0)
+        && menu_semantics.role == "menu"
+        && !menu_semantics.name.is_empty()
+        && fixture_menu
+            .item_accessibility(3, "Remove", false, true)
+            .is_some_and(|item| item.role == "menuitem" && item.destructive);
+
     let probe = ComponentAcceptanceProbe {
         viewport,
         theme,
@@ -873,6 +951,7 @@ pub fn render_component_acceptance_rgba(
         sidebar_row_count: ComponentState::LIST_ROW_STATES.len(),
         toolbar_ready,
         window_frame_ready,
+        menu_ready,
         stable_geometry,
         input_semantics,
         accessibility_semantics,
@@ -900,7 +979,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=window-frame,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=window-frame,menu,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -915,6 +994,7 @@ pub fn component_acceptance_report() -> String {
                 probe.sidebar_row_count,
                 probe.toolbar_ready,
                 probe.window_frame_ready,
+                probe.menu_ready,
                 probe.stable_geometry,
                 probe.input_semantics,
                 probe.accessibility_semantics,
@@ -948,6 +1028,7 @@ mod tests {
                 SharedComponentKind::StandardButton,
                 SharedComponentKind::IconButton,
                 SharedComponentKind::Switch,
+                SharedComponentKind::Menu,
                 SharedComponentKind::ListRow,
             ]
         );
@@ -991,7 +1072,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=window-frame,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar")
+                .matches("components=window-frame,menu,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar")
                 .count(),
             12
         );
