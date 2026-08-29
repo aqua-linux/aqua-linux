@@ -245,6 +245,12 @@ The Aqua desktop should be split into independent components:
 - `aqua-assets`: packaged icons, wallpapers, cursors, sounds, and themes.
 
 The installer state and safety contract is documented in [installer.md](installer.md).
+The audio service boundary is fixed by
+[ADR 0004](adr-0004-audio-service-stack.md): ALSA plus eudev provide the
+hardware-facing boundary, PipeWire owns the per-user media graph, WirePlumber
+owns session policy, and Aqua's adapter exposes authoritative state without
+parsing diagnostic CLI output. Packaging remains gated on the supported
+Buildroot and unprivileged-session prerequisites.
 
 The text, icon, and component names above describe owned logical modules. They
 may initially live inside existing crates and should be split into independent

@@ -134,6 +134,16 @@ If `/usr/bin/aqua-compositor` is packaged, boot also runs the recovery-safe boot
 
 Boot also runs non-graphical compositor contract probes for runtime assets, static scene geometry, and the headless render plan. These write logs under `/run/aqua-compositor-*.log` and emit serial markers, but they do not draw pixels or start a desktop.
 
+## Audio Packaging Boundary
+
+[ADR 0004](adr-0004-audio-service-stack.md) selects ALSA/eudev below per-user
+PipeWire and WirePlumber, with Aqua consuming authoritative service state
+through a bounded adapter. The current Buildroot 2024.02.12 defconfig keeps all
+of those audio userspace packages disabled. Aqua must first move to a supported
+Buildroot LTS, establish the unprivileged user session and its owned runtime
+directory, and prove ordered supervision and device permissions. No root-owned
+media daemon or globally writable `/dev/snd` fallback is permitted.
+
 `/usr/bin/aqua-session-check` is the recovery-safe aggregate checker for the same contract. Boot writes its output to `/run/aqua-session-check.log`, and users can run it manually from the recovery shell.
 
 ## Current Boot Choice
