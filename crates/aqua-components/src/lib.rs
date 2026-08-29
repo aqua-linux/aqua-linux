@@ -84,7 +84,8 @@ impl SharedComponentKind {
     pub const fn is_shared_primitive(self) -> bool {
         matches!(
             self,
-            Self::Toolbar
+            Self::WindowFrame
+                | Self::Toolbar
                 | Self::SegmentedControl
                 | Self::SearchField
                 | Self::StandardButton
@@ -743,6 +744,146 @@ impl<'a> Toolbar<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowControl {
+    Close,
+    Minimize,
+    Maximize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WindowFrameAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub focused: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WindowFrame<'a> {
+    pub rect: Rect,
+    pub title: &'a str,
+    pub titlebar_height: u32,
+    pub resize_grip_size: u32,
+    pub focused: bool,
+}
+
+impl<'a> WindowFrame<'a> {
+    pub const fn new(rect: Rect, title: &'a str, titlebar_height: u32) -> Self {
+        Self {
+            rect,
+            title,
+            titlebar_height,
+            resize_grip_size: 24,
+            focused: true,
+        }
+    }
+
+    pub const fn with_focus(mut self, focused: bool) -> Self {
+        self.focused = focused;
+        self
+    }
+
+    pub const fn titlebar_rect(self) -> Rect {
+        Rect {
+            x: self.rect.x,
+            y: self.rect.y,
+            width: self.rect.width,
+            height: min_u32(self.titlebar_height, self.rect.height),
+        }
+    }
+
+    pub const fn title_rect(self) -> Rect {
+        let titlebar = self.titlebar_rect();
+        Rect {
+            x: titlebar.x.saturating_add(92),
+            y: titlebar.y,
+            width: titlebar.width.saturating_sub(112),
+            height: titlebar.height,
+        }
+    }
+
+    pub const fn control_rect(self, control: WindowControl) -> Rect {
+        let index = match control {
+            WindowControl::Close => 0,
+            WindowControl::Minimize => 1,
+            WindowControl::Maximize => 2,
+        };
+        let titlebar = self.titlebar_rect();
+        Rect {
+            x: titlebar.x.saturating_add(18_u32.saturating_add(index * 22)),
+            y: titlebar
+                .y
+                .saturating_add(titlebar.height.saturating_sub(14) / 2),
+            width: 14,
+            height: 14,
+        }
+    }
+
+    pub const fn control_at(self, x: u32, y: u32) -> Option<WindowControl> {
+        if rect_contains(self.control_rect(WindowControl::Close), x, y) {
+            Some(WindowControl::Close)
+        } else if rect_contains(self.control_rect(WindowControl::Minimize), x, y) {
+            Some(WindowControl::Minimize)
+        } else if rect_contains(self.control_rect(WindowControl::Maximize), x, y) {
+            Some(WindowControl::Maximize)
+        } else {
+            None
+        }
+    }
+
+    pub const fn move_hit(self, x: u32, y: u32) -> bool {
+        self.is_valid()
+            && rect_contains(self.titlebar_rect(), x, y)
+            && self.control_at(x, y).is_none()
+    }
+
+    pub const fn resize_grip_rect(self) -> Rect {
+        let size = min_u32(
+            self.resize_grip_size,
+            min_u32(self.rect.width, self.rect.height),
+        );
+        Rect {
+            x: self.rect.right().saturating_sub(size),
+            y: self.rect.bottom().saturating_sub(size),
+            width: size,
+            height: size,
+        }
+    }
+
+    pub const fn resize_hit(self, x: u32, y: u32) -> bool {
+        self.is_valid() && rect_contains(self.resize_grip_rect(), x, y)
+    }
+
+    pub const fn separator_rect(self) -> Rect {
+        let titlebar = self.titlebar_rect();
+        Rect {
+            x: titlebar.x,
+            y: titlebar.bottom().saturating_sub(1),
+            width: titlebar.width,
+            height: 1,
+        }
+    }
+
+    pub const fn is_valid(self) -> bool {
+        !self.title.is_empty()
+            && self.rect.width >= 240
+            && self.rect.height >= 160
+            && self.titlebar_height >= 36
+            && self.titlebar_height <= 72
+            && self.titlebar_height < self.rect.height
+            && self.resize_grip_size >= 16
+            && self.resize_grip_size <= 32
+    }
+
+    pub const fn accessibility(self) -> WindowFrameAccessibility<'a> {
+        WindowFrameAccessibility {
+            role: "window",
+            name: self.title,
+            focused: self.focused,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListRowRole {
     Option,
     Navigation,
@@ -958,7 +1099,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_eight_shared_primitives() {
+    fn catalog_tracks_the_nine_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -966,6 +1107,7 @@ mod tests {
                 .filter(|component| component.is_shared_primitive())
                 .collect::<Vec<_>>(),
             vec![
+                SharedComponentKind::WindowFrame,
                 SharedComponentKind::SidebarNavigation,
                 SharedComponentKind::Toolbar,
                 SharedComponentKind::SegmentedControl,
@@ -1171,5 +1313,30 @@ mod tests {
         assert!(toolbar.contains(637, 107));
         assert!(!toolbar.contains(638, 107));
         assert_eq!(toolbar.accessibility().role, "toolbar");
+    }
+
+    #[test]
+    fn window_frame_unifies_title_controls_move_and_resize_geometry() {
+        let frame = WindowFrame::new(
+            Rect {
+                x: 0,
+                y: 0,
+                width: 680,
+                height: 430,
+            },
+            "Terminal",
+            48,
+        );
+        assert!(frame.is_valid());
+        assert_eq!(frame.titlebar_rect().height, 48);
+        assert_eq!(frame.control_at(20, 20), Some(WindowControl::Close));
+        assert!(!frame.move_hit(20, 20));
+        assert!(frame.move_hit(120, 47));
+        assert!(!frame.move_hit(120, 48));
+        assert!(frame.resize_hit(679, 429));
+        assert!(!frame.resize_hit(655, 405));
+        assert_eq!(frame.title_rect().x, 92);
+        assert_eq!(frame.accessibility().role, "window");
+        assert_eq!(frame.accessibility().name, "Terminal");
     }
 }

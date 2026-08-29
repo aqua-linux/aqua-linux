@@ -1046,7 +1046,7 @@ assert phases["m9"]["percent"] == 100
 assert phases["m9"]["status"] == "complete"
 assert phases["m11"]["percent"] == 100
 assert phases["m11"]["status"] == "complete"
-assert phases["m12"]["percent"] == 88
+assert phases["m12"]["percent"] == 89
 assert phases["m12"]["status"] == "in-progress"
 PY
 test -f crates/aqua-installer/Cargo.toml
@@ -1559,8 +1559,9 @@ grep -Fq 'pub fn typography_fixture_report' crates/aqua-text/src/lib.rs
 grep -Fq 'noto-sans-arabic-regular-2.009' docs/aqua-linux/typography-fixtures.txt
 grep -Fq 'pub fn typography_layout_acceptance_report' crates/aqua-renderer/src/lib.rs
 grep -Fq 'aqua-typography-layout-fixtures-1' docs/aqua-linux/typography-layout-fixtures.txt
-grep -Fq 'aqua-component-fixtures-5' docs/aqua-linux/component-fixtures.txt
+grep -Fq 'aqua-component-fixtures-6' docs/aqua-linux/component-fixtures.txt
 test -f docs/aqua-linux/component-catalog.md
+grep -Fq 'Window frame and title bar | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Standard button | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Icon button | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Search field | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
@@ -1571,6 +1572,7 @@ grep -Fq 'List row | Shared host-proven primitive' docs/aqua-linux/component-cat
 grep -Fq 'Sidebar navigation | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 test -f crates/aqua-components/Cargo.toml
 grep -Fq 'pub enum SharedComponentKind' crates/aqua-components/src/lib.rs
+grep -Fq 'pub struct WindowFrame' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct IconButton' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct SearchField' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct SwitchControl' crates/aqua-components/src/lib.rs
@@ -1579,6 +1581,9 @@ grep -Fq 'pub struct Toolbar' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct SidebarNavigation' crates/aqua-components/src/lib.rs
 grep -Fq 'aqua-components = { path = "../aqua-components" }' crates/aqua-shell/Cargo.toml
 grep -Fq 'aqua-components = { path = "../aqua-components" }' crates/aqua-renderer/Cargo.toml
+grep -Fq 'aqua-components = { path = "../aqua-components" }' crates/aqua-compositor/Cargo.toml
+grep -Fq 'pub fn first_party_window_action(' crates/aqua-compositor/src/lib.rs
+grep -Fq 'WindowFrame::new(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'StandardButton::new(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'ListRow::new(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'launcher.search_field(' crates/aqua-renderer/src/lib.rs
