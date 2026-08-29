@@ -30,7 +30,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Section group | Shared host-proven primitive | Settings and Properties share bounded heading, row, trailing-control, and footer geometry; packaged-QEMU acceptance remains open |
 | Application overview | Shared host-proven primitive | Applications panel surface, title, search, grid layout, and pointer geometry; packaged-QEMU acceptance remains open |
 | Global search | Shared host-proven primitive | Split result list, quick-action panel, and exact pointer geometry; packaged-QEMU acceptance remains open |
-| Running-app dock | Planned | Bottom-center shell group |
+| Running-app dock | Shared host-proven primitive | Centered Files, Settings, and Trash targets with running indicators; packaged-QEMU acceptance remains open |
 | Workspace switcher | Planned | Bottom-right shell group |
 | Notification | Planned | Shell notification center |
 | Confirmation dialog | Planned | Destructive and session confirmation paths |
@@ -443,8 +443,37 @@ gap rejection, accessibility semantics, four themes, and the three required
 viewports including fractional scale. Packaged-QEMU component acceptance remains
 open.
 
+## Running-App Dock Contract
+
+### Anatomy And Geometry
+
+- The running-app dock owns the centered bottom-shell surface and three stable
+  72-pixel item targets for Files, Settings, and Trash.
+- Each target derives a centered 64-pixel visual container, a centered 48-pixel
+  production icon raster slot, and a bounded bottom running indicator. Cached
+  Aqua Core icons and deterministic placeholder rendering consume these slots.
+- Item count, target width, icon sizes, indicator size, and bottom inset are
+  explicit. Empty names, unsupported counts, undersized bounds, overflowing
+  slots, or a surface width inconsistent with its item count fail closed.
+
+### Input, Semantics, And Consumption
+
+- Pointer routing uses the exact half-open item rectangles rendered in the
+  centered group. The surrounding transparent bottom-shell space cannot launch
+  an application, and the dock's right edge does not spill into workspaces.
+- The container exposes a named `toolbar` role. Files, Settings, and Trash retain
+  independent `button` names plus running state; their existing allowlisted
+  launch requests and duplicate-instance behavior remain unchanged.
+- Both cached-icon and deterministic renderer paths use the shared surface,
+  visual, raster, and running-indicator geometry. Shell and compositor input use
+  the same item lookup.
+
+The deterministic matrix covers item boundaries, visual/raster centering,
+running status, accessibility semantics, four themes, and the three required
+viewports including fractional scale. Packaged-QEMU acceptance remains open.
+
 ## Next Extraction Order
 
-1. Running-app dock and workspace switcher.
+1. Workspace switcher.
 2. Notification and confirmation dialog.
 3. Checkbox and slider remain deferred until real option and bounded-value models exist.

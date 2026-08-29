@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-13";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-14";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -714,6 +714,34 @@ pub(crate) fn draw_global_search(
     6
 }
 
+pub(crate) fn draw_running_app_dock(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    dock: RunningAppDock<'_>,
+    theme: AquaTheme,
+) -> usize {
+    if !dock.is_valid() {
+        return 0;
+    }
+    let palette = window_chrome_palette(theme);
+    fill_rounded_rect(buffer, width, height, dock.rect, 12, palette.surface, 232);
+    draw_rect_outline(buffer, width, height, dock.rect, palette.border, 220);
+    let mut primitives = 2;
+    for index in 0..dock.item_count {
+        draw_rect_outline(
+            buffer,
+            width,
+            height,
+            dock.raster_icon_rect(index),
+            palette.accent_soft,
+            180,
+        );
+        primitives += 1;
+    }
+    primitives
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComponentAcceptanceProbe {
     pub viewport: Viewport,
@@ -735,6 +763,7 @@ pub struct ComponentAcceptanceProbe {
     pub top_system_bar_ready: bool,
     pub application_overview_ready: bool,
     pub global_search_ready: bool,
+    pub running_app_dock_ready: bool,
     pub stable_geometry: bool,
     pub input_semantics: bool,
     pub accessibility_semantics: bool,
@@ -759,6 +788,7 @@ impl ComponentAcceptanceProbe {
             && self.top_system_bar_ready
             && self.application_overview_ready
             && self.global_search_ready
+            && self.running_app_dock_ready
             && self.stable_geometry
             && self.input_semantics
             && self.accessibility_semantics
@@ -1482,6 +1512,52 @@ pub fn render_component_acceptance_rgba(
         && global_search_semantics.result_count == 2
         && global_search_semantics.quick_action_count == 2;
 
+    let fixture_running_dock = RunningAppDock::new(
+        Rect {
+            x: viewport.width.saturating_sub(236),
+            y: viewport.height.saturating_sub(88),
+            width: 216,
+            height: 72,
+        },
+        "Running applications",
+        3,
+    );
+    draw_running_app_dock(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        fixture_running_dock,
+        theme,
+    );
+    let first_dock_item = fixture_running_dock.item_rect(0);
+    let first_dock_icon = fixture_running_dock.raster_icon_rect(0);
+    let first_dock_indicator = fixture_running_dock.indicator_rect(0);
+    fill_rounded_rect(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        first_dock_indicator,
+        3,
+        palette.accent,
+        255,
+    );
+    let dock_semantics = fixture_running_dock.accessibility();
+    let running_app_dock_ready = fixture_running_dock.is_valid()
+        && first_dock_item.fits_in(viewport)
+        && first_dock_icon.fits_in(viewport)
+        && first_dock_indicator.fits_in(viewport)
+        && fixture_running_dock.item_at(first_dock_item.x, first_dock_item.y) == Some(0)
+        && fixture_running_dock.item_at(first_dock_item.right(), first_dock_item.y) == Some(1)
+        && fixture_running_dock
+            .item_at(fixture_running_dock.rect.right(), first_dock_item.y)
+            .is_none()
+        && dock_semantics.role == "toolbar"
+        && dock_semantics.name == "Running applications"
+        && dock_semantics.item_count == 3
+        && fixture_running_dock
+            .item_accessibility(0, "Files", true)
+            .is_some_and(|item| item.role == "button" && item.running);
+
     let probe = ComponentAcceptanceProbe {
         viewport,
         theme,
@@ -1502,6 +1578,7 @@ pub fn render_component_acceptance_rgba(
         top_system_bar_ready,
         application_overview_ready,
         global_search_ready,
+        running_app_dock_ready,
         stable_geometry,
         input_semantics,
         accessibility_semantics,
@@ -1529,7 +1606,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} global_search_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} global_search_ready={} running_app_dock_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -1551,6 +1628,7 @@ pub fn component_acceptance_report() -> String {
                 probe.top_system_bar_ready,
                 probe.application_overview_ready,
                 probe.global_search_ready,
+                probe.running_app_dock_ready,
                 probe.stable_geometry,
                 probe.input_semantics,
                 probe.accessibility_semantics,
@@ -1592,6 +1670,7 @@ mod tests {
                 SharedComponentKind::SectionGroup,
                 SharedComponentKind::ApplicationOverview,
                 SharedComponentKind::GlobalSearch,
+                SharedComponentKind::RunningAppDock,
             ]
         );
     }
@@ -1634,7 +1713,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,sidebar-navigation,toolbar")
+                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,sidebar-navigation,toolbar")
                 .count(),
             12
         );

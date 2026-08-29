@@ -1,8 +1,8 @@
 use aqua_components::{
     ApplicationOverview, ComponentState, GlobalSearch, GridCell, GridCellLayout, IconButton,
-    IconButtonGlyph, ListRow, ListRowRole, Menu, MetadataRow, SearchField, SectionGroup,
-    SegmentedControl, SidebarNavigation, StandardButton, StandardButtonVariant, SwitchControl,
-    Toolbar, TopSystemBar,
+    IconButtonGlyph, ListRow, ListRowRole, Menu, MetadataRow, RunningAppDock, SearchField,
+    SectionGroup, SegmentedControl, SidebarNavigation, StandardButton, StandardButtonVariant,
+    SwitchControl, Toolbar, TopSystemBar,
 };
 use aqua_scene::Rect;
 use std::collections::VecDeque;
@@ -522,6 +522,14 @@ impl DockItem {
         }
     }
 
+    pub const fn accessibility_name(self) -> &'static str {
+        match self {
+            Self::Files => "Files",
+            Self::Settings => "Settings",
+            Self::Trash => "Trash",
+        }
+    }
+
     pub const fn launch_request(self) -> Option<LaunchRequest> {
         match self {
             Self::Files | Self::Trash => Some(LaunchRequest {
@@ -568,6 +576,21 @@ pub enum BottomShellTarget {
     Workspace(usize),
 }
 
+pub const fn running_app_dock(width: u32, height: u32) -> RunningAppDock<'static> {
+    let item_width = 72_u32;
+    let content_width = item_width.saturating_mul(DOCK_ITEM_COUNT as u32);
+    RunningAppDock::new(
+        Rect {
+            x: width.saturating_sub(content_width) / 2,
+            y: 0,
+            width: content_width,
+            height,
+        },
+        "Running applications",
+        DOCK_ITEM_COUNT,
+    )
+}
+
 pub fn dock_pointer_target(
     local_x: u32,
     local_y: u32,
@@ -585,12 +608,10 @@ pub fn dock_pointer_target(
         return Some(BottomShellTarget::Search);
     }
 
-    let item_width = 72_u32;
-    let content_width = item_width * DOCK_ITEM_COUNT as u32;
-    let start_x = width.saturating_sub(content_width) / 2;
-    if (start_x..start_x + content_width).contains(&local_x) {
+    let running_dock = running_app_dock(width, height);
+    if let Some(index) = running_dock.item_at(local_x, local_y) {
         return DockItem::ALL
-            .get(((local_x - start_x) / item_width) as usize)
+            .get(index)
             .copied()
             .map(BottomShellTarget::Application);
     }
@@ -4064,6 +4085,12 @@ mod tests {
 
     #[test]
     fn dock_hit_test_and_launch_requests_are_bounded() {
+        let running_dock = running_app_dock(760, 72);
+        assert!(running_dock.is_valid());
+        assert_eq!(running_dock.rect.x, 272);
+        assert_eq!(running_dock.item_rect(0).x, 272);
+        assert_eq!(running_dock.icon_rect(1).x, 348);
+        assert_eq!(running_dock.indicator_rect(2).x, 449);
         assert_eq!(
             dock_pointer_target(24, 36, 760, 72),
             Some(BottomShellTarget::Applications)
@@ -4089,6 +4116,7 @@ mod tests {
             Some(BottomShellTarget::Workspace(1))
         );
         assert_eq!(dock_pointer_target(200, 36, 760, 72), None);
+        assert_eq!(dock_pointer_target(488, 36, 760, 72), None);
         assert_eq!(
             DockItem::Settings.launch_request().unwrap().app_id,
             "settings"
