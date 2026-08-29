@@ -1541,6 +1541,8 @@ test -x scripts/check-typography-fixtures.sh
 test -x scripts/check-typography-layout-fixtures.sh
 test -x scripts/check-typography-wayland-qemu.sh
 test -x scripts/check-typography-wayland-qemu.exp
+test -x scripts/check-component-wayland-qemu.sh
+test -x scripts/check-component-wayland-qemu.exp
 test -x scripts/check-elevation-wayland-qemu.sh
 test -x scripts/check-elevation-wayland-qemu.exp
 test -x scripts/check-icon-fixtures.sh
@@ -1561,26 +1563,26 @@ grep -Fq 'pub fn typography_layout_acceptance_report' crates/aqua-renderer/src/l
 grep -Fq 'aqua-typography-layout-fixtures-1' docs/aqua-linux/typography-layout-fixtures.txt
 grep -Fq 'aqua-component-fixtures-17' docs/aqua-linux/component-fixtures.txt
 test -f docs/aqua-linux/component-catalog.md
-grep -Fq 'Window frame and title bar | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Top system bar | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Menu | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Section group | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Metadata row | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Grid cell | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Application overview | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Global search | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Running-app dock | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Workspace switcher | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Notification | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Confirmation dialog | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Standard button | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Icon button | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Search field | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Switch | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Segmented control | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Toolbar | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'List row | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Sidebar navigation | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Window frame and title bar | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Top system bar | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Menu | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Section group | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Metadata row | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Grid cell | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Application overview | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Global search | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Running-app dock | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Workspace switcher | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Notification | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Confirmation dialog | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Standard button | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Icon button | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Search field | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Switch | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Segmented control | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Toolbar | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'List row | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Sidebar navigation | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
 test -f crates/aqua-components/Cargo.toml
 grep -Fq 'pub enum SharedComponentKind' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct WindowFrame' crates/aqua-components/src/lib.rs
@@ -1622,6 +1624,9 @@ grep -Fq 'model.active_switch()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.theme_segmented_control()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=typography-acceptance' scripts/check-typography-wayland-qemu.exp
 grep -Fq 'typography_wayland_surface_ready=true' scripts/check-typography-wayland-qemu.sh
+grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=component-acceptance' scripts/check-component-wayland-qemu.exp
+grep -Fq 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-17' scripts/check-component-wayland-qemu.sh
+grep -Fq 'component_wayland_shared_primitive_count=20' scripts/check-component-wayland-qemu.sh
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=elevation-acceptance' scripts/check-elevation-wayland-qemu.exp
 grep -Fq 'elevation_wayland_focused_surface_count=1' scripts/check-elevation-wayland-qemu.sh
 grep -Fq 'gpu_shadow_damage_rects=2' scripts/check-elevation-wayland-qemu.sh
@@ -1631,9 +1636,12 @@ grep -Fq 'desktop_icon_raster_cache_hits=3' scripts/check-icon-wayland-qemu.sh
 grep -Fq 'icon-acceptance' crates/aqua-compositor/src/main.rs
 grep -Fq 'elevation-acceptance' crates/aqua-compositor/src/main.rs
 grep -Fq 'aqua-typography-acceptance' br2-external/aqua/board/aqua/x86_64/post-build.sh
+grep -Fq 'aqua-component-acceptance' br2-external/aqua/board/aqua/x86_64/post-build.sh
+grep -Fq 'component-acceptance' crates/aqua-compositor/src/main.rs
 grep -Fq 'typography_qemu = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'elevation_qemu = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'icon_qemu = ' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'component_qemu = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'icon_rasterization = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'resvg = { version = "0.45.1", default-features = false }' crates/aqua-renderer/Cargo.toml
 grep -Fq 'pub struct IconRasterCache' crates/aqua-renderer/src/icons.rs

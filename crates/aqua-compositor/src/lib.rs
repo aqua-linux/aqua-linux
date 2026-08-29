@@ -24,11 +24,11 @@ use aqua_installer::{
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_renderer::{
-    embedded_ui_font_ready, render_files_window_rgba_with_theme,
+    embedded_ui_font_ready, render_component_acceptance_rgba, render_files_window_rgba_with_theme,
     render_installer_window_rgba_with_theme, render_properties_window_rgba_with_theme,
     render_settings_window_rgba, render_terminal_window_rgba_with_theme,
     render_typography_layout_acceptance_rgba, InstallerImageSource, InstallerRenderOptions,
-    UI_FONT_FAMILY, UI_FONT_SOURCE,
+    COMPONENT_FIXTURE_REVISION, UI_FONT_FAMILY, UI_FONT_SOURCE,
 };
 pub use aqua_renderer::{
     export_composited_preview_png_with_client_layers,
@@ -5036,6 +5036,7 @@ struct XdgSmokeClientState {
     installer_progress_checkpoint: usize,
     installer_progress_rehearsal_enabled: bool,
     typography_acceptance: bool,
+    component_acceptance: bool,
     keyboard_shift: bool,
     keyboard_ctrl: bool,
     pointer_surface_x: f64,
@@ -5321,6 +5322,20 @@ impl XdgSmokeClientState {
             app_id: "aqua.typography-acceptance".to_string(),
             theme,
             typography_acceptance: true,
+            ..Self::default()
+        }
+    }
+
+    fn component_acceptance_app() -> Self {
+        let theme = Self::configured_theme();
+        println!("aqua_component_acceptance_theme={}", theme.id());
+        Self {
+            buffer_width: 1280,
+            buffer_height: 800,
+            title: "Aqua Component Acceptance".to_string(),
+            app_id: "aqua.component-acceptance".to_string(),
+            theme,
+            component_acceptance: true,
             ..Self::default()
         }
     }
@@ -5909,7 +5924,16 @@ impl XdgSmokeClientState {
         if let Some(terminal) = self.terminal_session.as_mut() {
             terminal.drain_output();
         }
-        let pixels = if self.typography_acceptance {
+        let pixels = if self.component_acceptance {
+            let (pixels, probe) = render_component_acceptance_rgba(
+                Viewport::new(width, height),
+                self.theme,
+                OutputScale::One,
+            )
+            .expect("Aqua component acceptance raster should render");
+            assert!(probe.is_ready());
+            pixels
+        } else if self.typography_acceptance {
             let (pixels, probe) = render_typography_layout_acceptance_rgba(
                 Viewport::new(width, height),
                 self.theme,
@@ -7742,6 +7766,47 @@ pub fn run_aqua_typography_acceptance_client(
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+pub fn run_aqua_component_acceptance_client(
+    socket_path: impl AsRef<Path>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::io::Write as _;
+
+    let stream = std::os::unix::net::UnixStream::connect(socket_path.as_ref())?;
+    let connection = ClientConnection::from_socket(stream)?;
+    let mut event_queue = connection.new_event_queue();
+    let queue_handle = event_queue.handle();
+    connection.display().get_registry(&queue_handle, ());
+    connection.flush()?;
+
+    let mut state = XdgSmokeClientState::component_acceptance_app();
+    for _ in 0..32 {
+        event_queue.blocking_dispatch(&mut state)?;
+        connection.flush()?;
+        if state.client_buffer_attached {
+            break;
+        }
+    }
+    if !state.client_buffer_attached {
+        return Err("Aqua component acceptance client did not attach its wl_shm buffer".into());
+    }
+
+    println!("aqua_component_acceptance_connected=true");
+    println!("aqua_component_acceptance_app_id=aqua.component-acceptance");
+    println!("aqua_component_acceptance_buffer=1280x800");
+    println!("aqua_component_acceptance_fixture_revision={COMPONENT_FIXTURE_REVISION}");
+    println!("aqua_component_acceptance_catalog=22");
+    println!("aqua_component_acceptance_shared=20");
+    println!("aqua_component_acceptance_ready=true");
+    println!("[AQUA-COMPONENTS] stage=wayland-surface status=active");
+    std::io::stdout().flush()?;
+
+    run_aqua_ui_event_loop(&connection, &mut event_queue, &mut state)?;
+    println!("aqua_component_acceptance_close_received=true");
+    println!("[AQUA-COMPONENTS] stage=wayland-surface status=ok");
+    Ok(())
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 pub fn run_aqua_terminal_client(
     socket_path: impl AsRef<Path>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -9432,6 +9497,25 @@ mod tests {
         assert_eq!(state.buffer_width, 1280);
         assert_eq!(state.buffer_height, 800);
         assert!(state.typography_acceptance);
+        assert_eq!(pixels.len(), 1280 * 800 * 4);
+        assert!(probe.is_ready());
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn component_wayland_client_state_uses_accepted_full_output_raster() {
+        let state = XdgSmokeClientState::component_acceptance_app();
+        let (pixels, probe) = render_component_acceptance_rgba(
+            Viewport::new(state.buffer_width, state.buffer_height),
+            state.theme,
+            OutputScale::One,
+        )
+        .expect("component acceptance surface should render");
+
+        assert_eq!(state.app_id, "aqua.component-acceptance");
+        assert_eq!(state.buffer_width, 1280);
+        assert_eq!(state.buffer_height, 800);
+        assert!(state.component_acceptance);
         assert_eq!(pixels.len(), 1280 * 800 * 4);
         assert!(probe.is_ready());
     }

@@ -4081,6 +4081,9 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     let typography_scenario =
         env::var("AQUA_DRM_WAYLAND_SCENARIO").as_deref() == Ok("typography-acceptance");
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let component_scenario =
+        env::var("AQUA_DRM_WAYLAND_SCENARIO").as_deref() == Ok("component-acceptance");
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let elevation_scenario =
         env::var("AQUA_DRM_WAYLAND_SCENARIO").as_deref() == Ok("elevation-acceptance");
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -4092,6 +4095,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     let installer_scenario = false;
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
     let typography_scenario = false;
+    #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
+    let component_scenario = false;
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
     let elevation_scenario = false;
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
@@ -4109,7 +4114,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     let fixture_clients_required = false;
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let managed_client_required =
-        fixture_clients_required || installer_scenario || typography_scenario;
+        fixture_clients_required || installer_scenario || typography_scenario || component_scenario;
     let runtime_dir = PathBuf::from("/run/aqua");
     let socket_path = runtime_dir.join("aqua-wayland-drm-0");
     let lock_path = socket_path.with_extension("lock");
@@ -4138,13 +4143,18 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
             eprintln!("cannot resolve Aqua compositor executable: {error}");
             std::process::exit(1);
         });
-        if installer_scenario || typography_scenario {
+        if installer_scenario || typography_scenario || component_scenario {
             let (client, label) = if installer_scenario {
                 (PathBuf::from("/usr/bin/aqua-installer"), "Installer")
-            } else {
+            } else if typography_scenario {
                 (
                     PathBuf::from("/usr/libexec/aqua-tests/aqua-typography-acceptance"),
                     "typography acceptance",
+                )
+            } else {
+                (
+                    PathBuf::from("/usr/libexec/aqua-tests/aqua-component-acceptance"),
+                    "component acceptance",
                 )
             };
             if !client.is_file() {
@@ -4164,8 +4174,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                 });
             if installer_scenario {
                 println!("installer_wayland_client_process_started=true");
-            } else {
+            } else if typography_scenario {
                 println!("typography_wayland_client_process_started=true");
+            } else {
+                println!("component_wayland_client_process_started=true");
             }
             (None, vec![child])
         } else {
@@ -4280,7 +4292,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     std::process::exit(1);
                 });
             let mut snapshots = smithay_session.borrow().client_surface_snapshots();
-            let surfaces_ready = if installer_scenario || typography_scenario {
+            let surfaces_ready = if installer_scenario || typography_scenario || component_scenario
+            {
                 snapshots.len() == 1
                     && snapshots[0].is_ready()
                     && snapshots[0].width == 1280
@@ -4298,7 +4311,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     }
                     snapshots = smithay_session.borrow().client_surface_snapshots();
                 }
-                if installer_scenario || typography_scenario {
+                if installer_scenario || typography_scenario || component_scenario {
                     snapshots[0].x = 0;
                     snapshots[0].y = 0;
                     snapshots[0].display_width = 1536;
@@ -4344,6 +4357,15 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         "typography_wayland_surface_checksum={:016x}",
                         snapshots[0].sample_checksum
                     );
+                } else if component_scenario {
+                    println!("component_wayland_surface_ready=true");
+                    println!("component_wayland_surface_size=1280x800");
+                    println!(
+                        "component_wayland_surface_checksum={:016x}",
+                        snapshots[0].sample_checksum
+                    );
+                    println!("component_wayland_catalog_count=22");
+                    println!("component_wayland_shared_primitive_count=20");
                 } else {
                     if elevation_scenario {
                         let focused = snapshots
@@ -4534,12 +4556,14 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         &device,
                         Viewport::new(width, height),
                     )?;
-                    if installer_scenario || typography_scenario {
+                    if installer_scenario || typography_scenario || component_scenario {
                         compositor.set_shell_chrome_visible(false);
                         if installer_scenario {
                             println!("installer_wayland_shell_chrome_visible=false");
-                        } else {
+                        } else if typography_scenario {
                             println!("typography_wayland_shell_chrome_visible=false");
+                        } else {
+                            println!("component_wayland_shell_chrome_visible=false");
                         }
                     } else {
                         compositor.set_launcher_state(&runtime_launcher_state.borrow(), 0)?;
@@ -4573,7 +4597,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         compositor.render_direct_at(&paint_plan, width, height, None, None)?;
                     println!(
                         "desktop_system_overview_visible={}",
-                        !(installer_scenario || typography_scenario)
+                        !(installer_scenario || typography_scenario || component_scenario)
                     );
                     let scanout_frame =
                         pack_rgba_frame(&gpu_frame.frame_rgba, width, height, width, height, 32)?;
@@ -4745,6 +4769,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     "installer-welcome"
                 } else if typography_scenario {
                     "typography-acceptance"
+                } else if component_scenario {
+                    "component-acceptance"
                 } else if elevation_scenario {
                     "elevation-acceptance"
                 } else if icon_scenario {
@@ -4758,6 +4784,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
             println!("external_fixture_clients_started={fixture_clients_required}");
             println!("installer_wayland_client_started={installer_scenario}");
             println!("typography_wayland_client_started={typography_scenario}");
+            println!("component_wayland_client_started={component_scenario}");
             println!("elevation_wayland_client_started={elevation_scenario}");
             println!("icon_wayland_scenario_started={icon_scenario}");
             println!("motion_wayland_scenario_started={motion_scenario}");
@@ -6871,6 +6898,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
             println!("installer_wayland_client_process_stopped=true");
         } else if typography_scenario {
             println!("typography_wayland_client_process_stopped=true");
+        } else if component_scenario {
+            println!("component_wayland_client_process_stopped=true");
         } else if elevation_scenario {
             println!("elevation_wayland_client_process_stopped=true");
         }
