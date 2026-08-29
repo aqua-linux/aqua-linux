@@ -5,7 +5,7 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 12 now has accepted typography, elevation, Aqua Core Icon integration, semantic state motion, and fourteen shared component primitives. The independent aqua-components crate owns renderer-neutral top-system-bar, window-frame, menu, metadata-row, section-group, standard-button, icon-button, search-field, switch, segmented-control, toolbar, list-row, grid-cell, and sidebar-navigation contracts. Applications cards and desktop icons now share exact renderer/input geometry, while Files correctly remains on its real list-row path. Deterministic theme/viewport fixtures are accepted, while packaged-QEMU component acceptance and 8 catalog entries stay open. Checkbox and slider remain planned until real installer-option and audio-volume models exist. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
+  "currentStage": "Milestone 12 now has accepted typography, elevation, Aqua Core Icon integration, semantic state motion, and fifteen shared component primitives. The independent aqua-components crate owns renderer-neutral top-system-bar, window-frame, menu, metadata-row, section-group, standard-button, icon-button, search-field, switch, segmented-control, toolbar, list-row, grid-cell, application-overview, and sidebar-navigation contracts. Applications now composes its panel, title, search field, grid, cards, and pointer routing through shared geometry. Deterministic theme/viewport fixtures are accepted, while packaged-QEMU component acceptance and 7 catalog entries stay open. Checkbox and slider remain planned until real installer-option and audio-volume models exist. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
   "updated": "2026-08-29",
   "overallPercent": 92,
   "readiness": {
@@ -124,14 +124,14 @@
     {
       "id": "m12",
       "name": "Visual Fidelity and Component System",
-      "percent": 94,
+      "percent": 95,
       "status": "in-progress",
       "updated": "2026-08-29",
-      "summary": "The shared aqua-text crate, tokenized elevation path, Aqua Core Icon pipeline, and semantic motion system have deterministic host fixtures plus packaged QEMU evidence. The independent aqua-components crate now owns renderer-neutral top-system-bar, window-frame, menu, metadata-row, section-group, standard-button, icon-button, search-field, switch, segmented-control, toolbar, list-row, grid-cell, and sidebar-navigation anatomy, stable state geometry, input activation, and accessibility semantics. Applications cards plus desktop Files, Settings, and Trash items share exact renderer/input geometry; card gaps reject activation, and Files remains on its real list-row path because no file grid mode exists. All fourteen primitives have deterministic four-theme acceptance at 800x600, 1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance and 8 of 22 catalog entries remain open. Checkbox and slider remain planned until real installer-option and audio-volume models exist."
+      "summary": "The shared aqua-text crate, tokenized elevation path, Aqua Core Icon pipeline, and semantic motion system have deterministic host fixtures plus packaged QEMU evidence. The independent aqua-components crate now owns renderer-neutral top-system-bar, window-frame, menu, metadata-row, section-group, standard-button, icon-button, search-field, switch, segmented-control, toolbar, list-row, grid-cell, application-overview, and sidebar-navigation anatomy, stable state geometry, input activation, and accessibility semantics. Applications composes its surface, title, shared search field, three-column grid, remainder handling, cards, and pointer routing through one overview contract; panel insets and grid gaps reject application activation. All fifteen primitives have deterministic four-theme acceptance at 800x600, 1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance and 7 of 22 catalog entries remain open. Checkbox and slider remain planned until real installer-option and audio-volume models exist."
     }
   ],
   "nextSteps": [
-    "Extract a shared application-overview contract from the real Applications panel, composing the accepted search-field and grid-cell primitives without inventing placeholder state.",
+    "Extract a shared global-search contract from the real split result list and quick-action panel without inventing placeholder state.",
     "Baseline the R2 presentation path and enforce production no-readback, frame scheduling, damage, latency, resource, and dropped-frame acceptance while keeping diagnostic readback isolated.",
     "Implement the R3-R6 Wayland compatibility, unprivileged session, system service, accessibility, internationalization, signed update, rollback, and security gates.",
     "Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation."
