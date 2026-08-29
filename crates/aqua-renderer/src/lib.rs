@@ -16,6 +16,9 @@ pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
 use std::sync::{Mutex, OnceLock};
 
+mod elevation;
+pub use elevation::*;
+
 pub const UI_FONT_SOURCE: &str = "embedded-ttf";
 static TEXT_SERVICE: OnceLock<Option<Mutex<TextService>>> = OnceLock::new();
 
@@ -4850,6 +4853,7 @@ pub struct ClientLayerPaintStep {
     pub client_id: &'static str,
     pub surface_id: &'static str,
     pub window_id: &'static str,
+    pub focused: bool,
     pub rect: Rect,
     pub opacity: u8,
     pub blend_mode: &'static str,
@@ -5603,6 +5607,7 @@ pub fn plan_client_layer_paint_steps(
                 client_id: source.client_id,
                 surface_id: source.surface_id,
                 window_id: source.window_id,
+                focused: source.focused,
                 rect: source.rect,
                 opacity: 255,
                 blend_mode: "source-over",

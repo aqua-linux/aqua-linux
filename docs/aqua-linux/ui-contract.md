@@ -114,6 +114,14 @@ QEMU at 1280x800 for all four themes, proving that the accepted Turkish and
 Arabic layout reaches the real Smithay/DRM display path. The wider and
 fractional-scale cases remain deterministic host-rendered evidence.
 
+The deterministic [`elevation-fixtures.txt`](elevation-fixtures.txt) matrix
+locks the control, panel, dialog, and active-window shadow levels across all
+four themes and the 1.0, 1.25, 1.5, and 2.0 scales. Shadow geometry is
+theme-invariant, opacity remains theme-specific, reusable masks are keyed by
+physical surface geometry, scale, theme, and elevation, and expanded damage is
+clipped to the output viewport. Packaged QEMU capture validation remains the
+final elevation acceptance step.
+
 ## Accessibility And Localization
 
 - Complete primary workflows with keyboard only.

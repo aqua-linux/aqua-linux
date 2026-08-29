@@ -24,7 +24,8 @@ use aqua_renderer::{
     plan_client_surface_sources, render_desktop_icons_rgba_with_theme, render_dock_rgba_with_theme,
     render_launcher_overlay_rgba_with_theme, render_notification_toast_rgba_with_theme,
     render_session_menu_overlay_rgba_with_theme, render_system_overview_rgba_with_theme,
-    render_top_bar_rgba_with_theme, ClientLayerPaintPlan, ClientSurfaceSource,
+    render_top_bar_rgba_with_theme, ClientLayerPaintPlan, ClientSurfaceSource, ElevationLevel,
+    ShadowMaskCache, ShadowMaskKey,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_scene::{static_shell_scene, MaterialKind, Rect};
@@ -577,6 +578,8 @@ struct LiveGpuCompositor {
     notification_state: aqua_shell::NotificationCenter,
     notification_texture_size: (u32, u32),
     client_texture_cache: Vec<ClientTextureCacheEntry>,
+    shadow_mask_cache: ShadowMaskCache,
+    client_shadow_texture_cache: Vec<ClientShadowTextureCacheEntry>,
     opaque_direct_bridge_ready: bool,
 }
 
@@ -586,6 +589,20 @@ struct ClientTextureCacheEntry {
     revision: u64,
     source_size: (u32, u32),
     texture: GlesTexture,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+#[derive(Clone)]
+struct ClientShadowTexture {
+    texture: GlesTexture,
+    size: (u32, u32),
+    surface_offset: (u32, u32),
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+struct ClientShadowTextureCacheEntry {
+    key: ShadowMaskKey,
+    shadow: ClientShadowTexture,
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
@@ -610,6 +627,7 @@ impl LiveGpuCompositor {
         self.dock_texture = None;
         self.notification_texture = None;
         self.client_texture_cache.clear();
+        self.client_shadow_texture_cache.clear();
         self.opaque_direct_bridge_ready = false;
         println!("desktop_shell_theme_changed={}", theme.id());
         true
@@ -1008,6 +1026,8 @@ impl LiveGpuCompositor {
             notification_state: aqua_shell::NotificationCenter::default(),
             notification_texture_size: (0, 0),
             client_texture_cache: Vec::new(),
+            shadow_mask_cache: ShadowMaskCache::default(),
+            client_shadow_texture_cache: Vec::new(),
             opaque_direct_bridge_ready: false,
         })
     }
@@ -1075,6 +1095,66 @@ impl LiveGpuCompositor {
         Ok((textures, source_bytes, cache_hits, uploads))
     }
 
+    fn client_shadow_textures(
+        &mut self,
+        client_plan: &ClientLayerPaintPlan,
+        render_size: (u32, u32),
+    ) -> Result<Vec<ClientShadowTexture>, String> {
+        let (render_width, render_height) = render_size;
+        let mut shadows = Vec::with_capacity(client_plan.steps.len());
+        for step in &client_plan.steps {
+            let surface_width = (step.rect.width * render_width / 1536).max(1);
+            let surface_height = (step.rect.height * render_height / 1024).max(1);
+            let corner_radius = (18 * render_width / 1536).max(1);
+            let elevation = if step.focused {
+                ElevationLevel::ActiveWindow
+            } else {
+                ElevationLevel::Dialog
+            };
+            let key = ShadowMaskKey::from_physical(
+                surface_width,
+                surface_height,
+                corner_radius,
+                aqua_text::OutputScale::One,
+                self.theme,
+                elevation,
+            );
+            if let Some(cached) = self
+                .client_shadow_texture_cache
+                .iter()
+                .find(|cached| cached.key == key)
+            {
+                shadows.push(cached.shadow.clone());
+                continue;
+            }
+            let mask = self.shadow_mask_cache.get_or_render(key);
+            let texture = self
+                .renderer
+                .import_memory(
+                    &mask.rgba,
+                    Fourcc::Abgr8888,
+                    (mask.width as i32, mask.height as i32).into(),
+                    false,
+                )
+                .map_err(|error| format!("cannot upload client shadow texture: {error}"))?;
+            let shadow = ClientShadowTexture {
+                texture,
+                size: (mask.width, mask.height),
+                surface_offset: (mask.surface_x, mask.surface_y),
+            };
+            if self.client_shadow_texture_cache.len() >= self.shadow_mask_cache.capacity() {
+                self.client_shadow_texture_cache.remove(0);
+            }
+            self.client_shadow_texture_cache
+                .push(ClientShadowTextureCacheEntry {
+                    key,
+                    shadow: shadow.clone(),
+                });
+            shadows.push(shadow);
+        }
+        Ok(shadows)
+    }
+
     fn render(
         &mut self,
         client_plan: &ClientLayerPaintPlan,
@@ -1082,6 +1162,7 @@ impl LiveGpuCompositor {
         self.ensure_target_size(320, 240)?;
         let (client_textures, client_texture_bytes, _, _) =
             self.client_textures(client_plan, None)?;
+        let client_shadows = self.client_shadow_textures(client_plan, self.target_size)?;
         let (frame_rgba, checksum) = render_gpu_scene(
             &mut self.renderer,
             &mut self.target,
@@ -1093,6 +1174,7 @@ impl LiveGpuCompositor {
             &self.scene,
             client_plan,
             &client_textures,
+            &client_shadows,
             self.launcher_texture.as_ref(),
             self.launcher_texture_size,
             self.top_bar_texture.as_ref(),
@@ -1123,6 +1205,7 @@ impl LiveGpuCompositor {
             &self.scene,
             client_plan,
             &client_textures,
+            &client_shadows,
             self.launcher_texture.as_ref(),
             self.launcher_texture_size,
             self.top_bar_texture.as_ref(),
@@ -1193,12 +1276,20 @@ impl LiveGpuCompositor {
         let upload_started = std::time::Instant::now();
         let (client_textures, client_texture_bytes, cache_hits, uploads) =
             self.client_textures(client_plan, revisions)?;
+        let client_shadows = self.client_shadow_textures(client_plan, self.target_size)?;
+        let shadow_stats = self.shadow_mask_cache.stats();
         println!(
             "gpu_client_texture_upload_ms={}",
             upload_started.elapsed().as_millis()
         );
         println!("gpu_client_texture_cache_hits={cache_hits}");
         println!("gpu_client_texture_uploads={uploads}");
+        println!("gpu_shadow_mask_cache_hits={}", shadow_stats.hits);
+        println!("gpu_shadow_mask_cache_misses={}", shadow_stats.misses);
+        println!(
+            "gpu_shadow_damage_rects={}",
+            client_shadow_damage_rects(client_plan, width, height).len()
+        );
         let (frame_rgba, checksum) = render_gpu_scene(
             &mut self.renderer,
             &mut self.target,
@@ -1210,6 +1301,7 @@ impl LiveGpuCompositor {
             &self.scene,
             client_plan,
             &client_textures,
+            &client_shadows,
             self.launcher_texture.as_ref(),
             self.launcher_texture_size,
             self.top_bar_texture.as_ref(),
@@ -1740,6 +1832,38 @@ fn opaque_layer_covers_reference_output(
         && source_declared_opaque
 }
 
+#[cfg(any(test, all(target_os = "linux", feature = "smithay-gpu")))]
+fn client_shadow_damage_rects(
+    client_plan: &aqua_renderer::ClientLayerPaintPlan,
+    render_width: u32,
+    render_height: u32,
+) -> Vec<aqua_scene::Rect> {
+    let viewport = aqua_scene::Viewport::new(render_width, render_height);
+    client_plan
+        .steps
+        .iter()
+        .map(|step| {
+            let surface = aqua_scene::Rect {
+                x: step.rect.x * render_width / 1536,
+                y: step.rect.y * render_height / 1024,
+                width: (step.rect.width * render_width / 1536).max(1),
+                height: (step.rect.height * render_height / 1024).max(1),
+            };
+            let elevation = if step.focused {
+                aqua_renderer::ElevationLevel::ActiveWindow
+            } else {
+                aqua_renderer::ElevationLevel::Dialog
+            };
+            aqua_renderer::elevation_damage_rect(
+                surface,
+                viewport,
+                aqua_text::OutputScale::One,
+                elevation,
+            )
+        })
+        .collect()
+}
+
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
 fn opaque_client_covers_output(
     client_plan: &aqua_renderer::ClientLayerPaintPlan,
@@ -1813,6 +1937,7 @@ fn render_gpu_scene(
     scene: &aqua_scene::ShellScene,
     client_plan: &aqua_renderer::ClientLayerPaintPlan,
     client_textures: &[GlesTexture],
+    client_shadows: &[ClientShadowTexture],
     launcher_texture: Option<&GlesTexture>,
     launcher_texture_size: (u32, u32),
     top_bar_texture: Option<&GlesTexture>,
@@ -1832,6 +1957,11 @@ fn render_gpu_scene(
     readback: bool,
 ) -> Result<Option<(Vec<u8>, u64)>, String> {
     let (render_width, render_height) = render_size;
+    if client_plan.steps.len() != client_textures.len()
+        || client_plan.steps.len() != client_shadows.len()
+    {
+        return Err("GPU client layers and shadows do not match paint steps".to_string());
+    }
     let opaque_client_cover = opaque_client_covers_output(client_plan, opaque_sources);
     println!("gpu_opaque_client_cover={opaque_client_cover}");
     let mut framebuffer = renderer
@@ -1942,7 +2072,7 @@ fn render_gpu_scene(
                 .map_err(|error| format!("cannot composite desktop icons: {error}"))?;
         }
     }
-    for (step, texture) in client_plan.steps.iter().zip(client_textures) {
+    for (index, (step, texture)) in client_plan.steps.iter().zip(client_textures).enumerate() {
         let rect = Rectangle::new(
             (
                 (step.rect.x * render_width / 1536) as i32,
@@ -1955,6 +2085,50 @@ fn render_gpu_scene(
             )
                 .into(),
         );
+        if !opaque_client_cover {
+            let shadow = &client_shadows[index];
+            let shadow_rect = Rectangle::new(
+                (
+                    rect.loc.x - shadow.surface_offset.0 as i32,
+                    rect.loc.y - shadow.surface_offset.1 as i32,
+                )
+                    .into(),
+                (shadow.size.0 as i32, shadow.size.1 as i32).into(),
+            );
+            let damage_x = (-shadow_rect.loc.x).max(0).min(shadow_rect.size.w);
+            let damage_y = (-shadow_rect.loc.y).max(0).min(shadow_rect.size.h);
+            let damage_right = (render_width as i32 - shadow_rect.loc.x)
+                .max(damage_x)
+                .min(shadow_rect.size.w);
+            let damage_bottom = (render_height as i32 - shadow_rect.loc.y)
+                .max(damage_y)
+                .min(shadow_rect.size.h);
+            let shadow_damage = Rectangle::new(
+                (damage_x, damage_y).into(),
+                (damage_right - damage_x, damage_bottom - damage_y).into(),
+            );
+            frame
+                .render_texture_from_to(
+                    &shadow.texture,
+                    Rectangle::new(
+                        (0.0, 0.0).into(),
+                        (shadow.size.0 as f64, shadow.size.1 as f64).into(),
+                    ),
+                    shadow_rect,
+                    &[shadow_damage],
+                    &[],
+                    Transform::Normal,
+                    1.0,
+                    None,
+                    &[],
+                )
+                .map_err(|error| {
+                    format!(
+                        "cannot composite GPU client shadow {}: {error}",
+                        step.surface_id
+                    )
+                })?;
+        }
         frame
             .render_texture_from_to(
                 texture,
@@ -9312,9 +9486,10 @@ fn smoke_loop() {
 #[cfg(test)]
 mod fbdev_tests {
     use super::{
-        bytes_per_pixel, checksum_frame_bytes, decode_png_rgba, drm_kms_confirmation_source,
-        drm_wayland_hold_seconds, fbdev_confirmation_source, opaque_layer_covers_reference_output,
-        pack_rgba_frame, parse_virtual_size, probe_drm_device, render_fbdev_frame, with_stride,
+        bytes_per_pixel, checksum_frame_bytes, client_shadow_damage_rects, decode_png_rgba,
+        drm_kms_confirmation_source, drm_wayland_hold_seconds, fbdev_confirmation_source,
+        opaque_layer_covers_reference_output, pack_rgba_frame, parse_virtual_size,
+        probe_drm_device, render_fbdev_frame, with_stride,
     };
     use std::fs;
     use std::path::PathBuf;
@@ -9474,5 +9649,21 @@ mod fbdev_tests {
             (128, 112, 1280, 800),
             true,
         ));
+    }
+
+    #[test]
+    fn client_shadow_damage_is_expanded_and_bounded() {
+        let viewport = aqua_scene::Viewport::new(1536, 1024);
+        let pipeline = aqua_compositor::probe_client_layer_pipeline(viewport).unwrap();
+        let damage = client_shadow_damage_rects(&pipeline.paint_plan, 1536, 1024);
+
+        assert_eq!(damage.len(), pipeline.paint_plan.steps.len());
+        assert!(damage.iter().all(|rect| rect.fits_in(viewport)));
+        assert!(damage
+            .iter()
+            .zip(&pipeline.paint_plan.steps)
+            .all(
+                |(damage, step)| damage.width > step.rect.width && damage.height > step.rect.height
+            ));
     }
 }
