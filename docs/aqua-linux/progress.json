@@ -5,9 +5,9 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 12 now has accepted typography and elevation plus a scale-native Aqua Core Icon foundation. The renderer admits only the 13 reviewed project-authored SVGs through a bounded static subset, rasterizes directly at every required physical size, applies theme and interaction state tokens, and reuses results through a 256-entry complete-key LRU. A committed 1,456-case matrix covers all roles, themes, logical sizes, and output scales. Packaged compositor icon integration remains before QEMU acceptance. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
+  "currentStage": "Milestone 12 now has accepted typography, elevation, and runtime Aqua Core Icon integration. The renderer admits only the 13 reviewed project-authored SVGs through a bounded static subset, rasterizes directly at every required physical size, applies theme and interaction state tokens, and reuses results through a 256-entry complete-key LRU. The live compositor consumes cached rasters in top bar, desktop, dock, and notification textures. A committed 1,456-case host matrix and four recovery-safe packaged QEMU theme captures cover the icon path. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
   "updated": "2026-08-29",
-  "overallPercent": 89,
+  "overallPercent": 90,
   "rules": [
     "Aqua Linux v1.0 is treated as 100%.",
     "Overall progress is the rounded arithmetic mean of the 13 phase percentages so the public value is reproducible.",
@@ -115,14 +115,13 @@
     {
       "id": "m12",
       "name": "Visual Fidelity and Component System",
-      "percent": 55,
+      "percent": 65,
       "status": "in-progress",
       "updated": "2026-08-29",
-      "summary": "The shared aqua-text crate and tokenized elevation path have deterministic host fixtures plus packaged QEMU evidence. Aqua Core Icon loading now validates the 13 reviewed project-authored SVGs against a bounded static subset before pure-Rust parsing, with text, system-font, memory-map, and raster-image features disabled. Required logical sizes are rasterized directly for every supported output scale; symbolic roles receive theme and interaction state colors. A 256-entry LRU keys source revision, role, theme, state, logical size, and scale. The committed 1,456-case matrix proves transparent output, small-size silhouette stability, cache reuse, and bounded eviction. Packaged compositor integration and QEMU capture remain open, followed by motion and the component catalog."
+      "summary": "The shared aqua-text crate and tokenized elevation path have deterministic host fixtures plus packaged QEMU evidence. Aqua Core Icon loading validates the 13 reviewed project-authored SVGs against a bounded static subset before pure-Rust parsing, with resource-bearing default features disabled. Required logical sizes are rasterized directly for every supported output scale; symbolic roles receive theme and interaction state colors. The live compositor shares one 256-entry complete-key LRU across top bar, desktop, dock, and notification texture generation. The committed 1,456-case host matrix proves transparent output, small-size silhouette stability, reuse, and bounded eviction. Four packaged QEMU theme captures prove seven live roles, ten physical raster keys, three cache hits after shell texture invalidation, zero eviction, and recovery return. Motion and the component catalog remain open."
     }
   ],
   "nextSteps": [
-    "Integrate cached Aqua Core Icon rasters into compositor shell surfaces and validate them through packaged QEMU captures.",
     "Implement semantic, interruptible, frame-driven state motion and reduced-motion behavior.",
     "Build the complete shared component catalog and deterministic visual-regression matrix.",
     "Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation."

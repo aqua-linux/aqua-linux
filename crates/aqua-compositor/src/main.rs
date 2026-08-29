@@ -13,6 +13,8 @@ use std::process::{Child, Command, Stdio};
 use std::rc::Rc;
 use std::{env, fs, thread, time::Duration};
 
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+use aqua_renderer::icons::IconRasterCache;
 use aqua_renderer::{
     export_composited_preview_rgba_with_client_layers,
     export_composited_preview_rgba_with_wallpaper_and_client_layers, select_renderer_backend,
@@ -21,11 +23,11 @@ use aqua_renderer::{
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_renderer::{
     export_runtime_desktop_rgba_with_launcher_and_theme, plan_client_layer_paint_steps,
-    plan_client_surface_sources, render_desktop_icons_rgba_with_theme, render_dock_rgba_with_theme,
-    render_launcher_overlay_rgba_with_theme, render_notification_toast_rgba_with_theme,
-    render_session_menu_overlay_rgba_with_theme, render_system_overview_rgba_with_theme,
-    render_top_bar_rgba_with_theme, ClientLayerPaintPlan, ClientSurfaceSource, ElevationLevel,
-    ShadowMaskCache, ShadowMaskKey,
+    plan_client_surface_sources, render_desktop_icons_rgba_with_cached_icons,
+    render_dock_rgba_with_cached_icons, render_launcher_overlay_rgba_with_theme,
+    render_notification_toast_rgba_with_cached_icons, render_session_menu_overlay_rgba_with_theme,
+    render_system_overview_rgba_with_theme, render_top_bar_rgba_with_cached_icons,
+    ClientLayerPaintPlan, ClientSurfaceSource, ElevationLevel, ShadowMaskCache, ShadowMaskKey,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_scene::{static_shell_scene, MaterialKind, Rect};
@@ -577,6 +579,7 @@ struct LiveGpuCompositor {
     notification_texture: Option<GlesTexture>,
     notification_state: aqua_shell::NotificationCenter,
     notification_texture_size: (u32, u32),
+    icon_raster_cache: IconRasterCache,
     client_texture_cache: Vec<ClientTextureCacheEntry>,
     shadow_mask_cache: ShadowMaskCache,
     client_shadow_texture_cache: Vec<ClientShadowTextureCacheEntry>,
@@ -637,8 +640,14 @@ impl LiveGpuCompositor {
         if self.top_bar_state.as_ref() == Some(state) {
             return Ok(());
         }
-        let overlay =
-            render_top_bar_rgba_with_theme(self.scene.viewport.width, 36, state, self.theme);
+        let overlay = render_top_bar_rgba_with_cached_icons(
+            self.scene.viewport.width,
+            36,
+            state,
+            self.theme,
+            &mut self.icon_raster_cache,
+        )
+        .map_err(|error| format!("cannot rasterize top bar icons: {error}"))?;
         self.top_bar_texture = Some(
             self.renderer
                 .import_memory(
@@ -660,6 +669,7 @@ impl LiveGpuCompositor {
                 .battery_percent
                 .map_or("none".to_string(), |percent| percent.to_string())
         );
+        self.log_icon_raster_surface("top-bar", 3);
         Ok(())
     }
 
@@ -728,12 +738,14 @@ impl LiveGpuCompositor {
         if self.desktop_icons_state.as_ref() == Some(state) {
             return Ok(());
         }
-        let overlay = render_desktop_icons_rgba_with_theme(
+        let overlay = render_desktop_icons_rgba_with_cached_icons(
             aqua_shell::DESKTOP_ICON_LAYER_WIDTH,
             aqua_shell::DESKTOP_ICON_LAYER_HEIGHT,
             state,
             self.theme,
-        );
+            &mut self.icon_raster_cache,
+        )
+        .map_err(|error| format!("cannot rasterize desktop icons: {error}"))?;
         self.desktop_icons_texture = Some(
             self.renderer
                 .import_memory(
@@ -759,6 +771,7 @@ impl LiveGpuCompositor {
                 .context_menu()
                 .map_or("none".to_string(), |index| index.to_string())
         );
+        self.log_icon_raster_surface("desktop", 3);
         Ok(())
     }
 
@@ -766,7 +779,14 @@ impl LiveGpuCompositor {
         if self.dock_state.as_ref() == Some(state) {
             return Ok(());
         }
-        let overlay = render_dock_rgba_with_theme(760, 72, state, self.theme);
+        let overlay = render_dock_rgba_with_cached_icons(
+            760,
+            72,
+            state,
+            self.theme,
+            &mut self.icon_raster_cache,
+        )
+        .map_err(|error| format!("cannot rasterize dock icons: {error}"))?;
         self.dock_texture = Some(
             self.renderer
                 .import_memory(
@@ -787,6 +807,7 @@ impl LiveGpuCompositor {
             "desktop_dock_running_indicators={}",
             overlay.running_item_count
         );
+        self.log_icon_raster_surface("dock", 3);
         Ok(())
     }
 
@@ -872,7 +893,20 @@ impl LiveGpuCompositor {
             self.notification_state = state.clone();
             return Ok(());
         }
-        let overlay = render_notification_toast_rgba_with_theme(420, 112, state, self.theme);
+        let surface = self
+            .scene
+            .surfaces
+            .iter()
+            .find(|surface| surface.kind == aqua_scene::SurfaceKind::NotificationToast)
+            .ok_or_else(|| "notification surface is missing from the shell scene".to_string())?;
+        let overlay = render_notification_toast_rgba_with_cached_icons(
+            surface.rect.width,
+            surface.rect.height,
+            state,
+            self.theme,
+            &mut self.icon_raster_cache,
+        )
+        .map_err(|error| format!("cannot rasterize notification icon: {error}"))?;
         self.notification_texture = Some(
             self.renderer
                 .import_memory(
@@ -894,7 +928,27 @@ impl LiveGpuCompositor {
             "desktop_notification_overlay_primitives={}",
             overlay.primitive_count
         );
+        self.log_icon_raster_surface("notification", 1);
         Ok(())
+    }
+
+    fn log_icon_raster_surface(&self, surface: &str, role_count: usize) {
+        let stats = self.icon_raster_cache.stats();
+        println!(
+            "desktop_icon_rasters_ready=true surface={surface} roles={role_count} theme={}",
+            self.theme.id()
+        );
+        println!(
+            "desktop_icon_raster_cache_entries={}",
+            self.icon_raster_cache.len()
+        );
+        println!("desktop_icon_raster_cache_hits={}", stats.hits);
+        println!("desktop_icon_raster_cache_misses={}", stats.misses);
+        println!("desktop_icon_raster_cache_evictions={}", stats.evictions);
+        println!(
+            "desktop_icon_raster_cache_parsed_sources={}",
+            stats.parsed_sources
+        );
     }
 
     fn new(device: &Path) -> Result<Self, String> {
@@ -903,6 +957,13 @@ impl LiveGpuCompositor {
     }
 
     fn new_on_render_device(render_device: &Path) -> Result<Self, String> {
+        Self::new_on_render_device_with_viewport(render_device, Viewport::new(800, 600))
+    }
+
+    fn new_on_render_device_with_viewport(
+        render_device: &Path,
+        viewport: Viewport,
+    ) -> Result<Self, String> {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -986,7 +1047,7 @@ impl LiveGpuCompositor {
             (320, 240).into(),
         )
         .map_err(|error| format!("cannot create offscreen texture: {error}"))?;
-        let mut scene = static_shell_scene(Viewport::new(800, 600));
+        let mut scene = static_shell_scene(viewport);
         scene.set_surface_visible(aqua_scene::SurfaceKind::Launcher, false);
         scene.set_surface_visible(aqua_scene::SurfaceKind::SystemOverview, true);
         scene.set_surface_visible(aqua_scene::SurfaceKind::DesktopIconColumn, true);
@@ -1025,6 +1086,7 @@ impl LiveGpuCompositor {
             notification_texture: None,
             notification_state: aqua_shell::NotificationCenter::default(),
             notification_texture_size: (0, 0),
+            icon_raster_cache: IconRasterCache::default(),
             client_texture_cache: Vec::new(),
             shadow_mask_cache: ShadowMaskCache::default(),
             client_shadow_texture_cache: Vec::new(),
@@ -3913,12 +3975,16 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let elevation_scenario =
         env::var("AQUA_DRM_WAYLAND_SCENARIO").as_deref() == Ok("elevation-acceptance");
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let icon_scenario = env::var("AQUA_DRM_WAYLAND_SCENARIO").as_deref() == Ok("icon-acceptance");
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
     let installer_scenario = false;
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
     let typography_scenario = false;
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
     let elevation_scenario = false;
+    #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
+    let icon_scenario = false;
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let external_client_required = diagnostic_scenario
         && env::var("AQUA_DRM_WAYLAND_EXTERNAL_CLIENT_REQUIRED").as_deref() == Ok("true");
@@ -4259,6 +4325,15 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let runtime_process_supervisor = RefCell::new(FirstPartyProcessSupervisor::default());
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    if icon_scenario {
+        smithay_session.borrow_mut().post_notification(
+            1,
+            "Aqua Desktop",
+            "Scale-native icons",
+            "Aqua Core Icon raster cache is active.",
+        );
+    }
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let runtime_launcher_state = RefCell::new(smithay_session.borrow().launcher_state_snapshot());
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let runtime_dock_state = RefCell::new(current_dock_state(
@@ -4338,7 +4413,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
                 {
                     let paint_plan = external_client_paint_plan(&external_surface_snapshot)?;
-                    let mut compositor = LiveGpuCompositor::new_on_render_device(&device)?;
+                    let mut compositor = LiveGpuCompositor::new_on_render_device_with_viewport(
+                        &device,
+                        Viewport::new(width, height),
+                    )?;
                     if installer_scenario || typography_scenario {
                         compositor.set_shell_chrome_visible(false);
                         if installer_scenario {
@@ -4352,6 +4430,23 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         compositor.set_desktop_icons_state(&runtime_desktop_icon_state.borrow())?;
                         compositor.set_dock_state(&runtime_dock_state.borrow())?;
                         compositor.set_system_overview_state(&runtime_system_overview.borrow())?;
+                        compositor.set_notification_state(&runtime_notification_state.borrow())?;
+                        if icon_scenario {
+                            compositor.dock_state = None;
+                            compositor.set_dock_state(&runtime_dock_state.borrow())?;
+                            let stats = compositor.icon_raster_cache.stats();
+                            println!(
+                                "icon_wayland_raster_cache_ready={}",
+                                compositor.icon_raster_cache.len() == 10
+                                    && stats.hits == 3
+                                    && stats.misses == 10
+                                    && stats.parsed_sources == 7
+                                    && stats.evictions == 0
+                            );
+                            println!("icon_wayland_raster_roles=7");
+                            println!("icon_wayland_raster_surfaces=4");
+                            println!("icon_wayland_theme={}", compositor.theme.id());
+                        }
                     }
                     let gpu_frame =
                         compositor.render_direct_at(&paint_plan, width, height, None, None)?;
@@ -4531,6 +4626,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     "typography-acceptance"
                 } else if elevation_scenario {
                     "elevation-acceptance"
+                } else if icon_scenario {
+                    "icon-acceptance"
                 } else {
                     "desktop-event-loop"
                 }
@@ -4539,6 +4636,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
             println!("installer_wayland_client_started={installer_scenario}");
             println!("typography_wayland_client_started={typography_scenario}");
             println!("elevation_wayland_client_started={elevation_scenario}");
+            println!("icon_wayland_scenario_started={icon_scenario}");
             println!(
                 "session_lifetime_policy={}",
                 if persistent_session {

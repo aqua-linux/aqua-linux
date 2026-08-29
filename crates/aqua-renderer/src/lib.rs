@@ -647,15 +647,43 @@ pub fn render_notification_toast_rgba_with_theme(
     center: &NotificationCenter,
     theme: AquaTheme,
 ) -> NotificationToastOverlay {
-    let mut overlay = render_notification_toast_rgba_base(width, height, center);
+    let mut overlay = render_notification_toast_rgba_base(width, height, center, true);
     apply_shell_palette(&mut overlay.rgba, theme);
     overlay
+}
+
+pub fn render_notification_toast_rgba_with_cached_icons(
+    width: u32,
+    height: u32,
+    center: &NotificationCenter,
+    theme: AquaTheme,
+    cache: &mut icons::IconRasterCache,
+) -> Result<NotificationToastOverlay, icons::IconError> {
+    let mut overlay = render_notification_toast_rgba_base(width, height, center, false);
+    apply_shell_palette(&mut overlay.rgba, theme);
+    if center.active().is_some() && width > 0 && height > 0 {
+        let high_resolution = width >= 360;
+        let padding = if high_resolution { 18 } else { 10 };
+        let logical_size = if high_resolution { 48 } else { 32 };
+        let key = icons::IconRasterKey::new(
+            icons::IconRole::Notification,
+            theme,
+            icons::IconState::Normal,
+            logical_size,
+            aqua_text::OutputScale::One,
+        )?;
+        let icon = cache.get_or_render(key)?;
+        icons::composite_icon(&mut overlay.rgba, width, height, padding, padding, &icon);
+        overlay.primitive_count += 1;
+    }
+    Ok(overlay)
 }
 
 fn render_notification_toast_rgba_base(
     width: u32,
     height: u32,
     center: &NotificationCenter,
+    draw_placeholder_icon: bool,
 ) -> NotificationToastOverlay {
     let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     let Some(notification) = center.active() else {
@@ -693,26 +721,28 @@ fn render_notification_toast_rgba_base(
         },
         [0x02, 0x20, 0x36, 0x78],
     );
-    fill_transparent_rect(
-        &mut rgba,
-        width,
-        height,
-        Rect {
-            x: padding,
-            y: padding,
-            width: icon_size,
-            height: icon_size,
-        },
-        [0x27, 0xc8, 0xec, 0xb8],
-    );
-    draw_bitmap_text(
-        &mut rgba,
-        (width, height),
-        (padding + icon_size / 4, padding + icon_size / 5),
-        "A",
-        [0xf4, 0xfd, 0xff, 0xff],
-        scale,
-    );
+    if draw_placeholder_icon {
+        fill_transparent_rect(
+            &mut rgba,
+            width,
+            height,
+            Rect {
+                x: padding,
+                y: padding,
+                width: icon_size,
+                height: icon_size,
+            },
+            [0x27, 0xc8, 0xec, 0xb8],
+        );
+        draw_bitmap_text(
+            &mut rgba,
+            (width, height),
+            (padding + icon_size / 4, padding + icon_size / 5),
+            "A",
+            [0xf4, 0xfd, 0xff, 0xff],
+            scale,
+        );
+    }
     let text_x = padding + icon_size + padding;
     draw_bitmap_text(
         &mut rgba,
@@ -809,12 +839,66 @@ pub fn render_top_bar_rgba_with_theme(
     state: &TopBarState,
     theme: AquaTheme,
 ) -> TopBarOverlay {
-    let mut overlay = render_top_bar_rgba_base(width, height, state);
+    let mut overlay = render_top_bar_rgba_base(width, height, state, true);
     apply_shell_palette(&mut overlay.rgba, theme);
     overlay
 }
 
-fn render_top_bar_rgba_base(width: u32, height: u32, state: &TopBarState) -> TopBarOverlay {
+pub fn render_top_bar_rgba_with_cached_icons(
+    width: u32,
+    height: u32,
+    state: &TopBarState,
+    theme: AquaTheme,
+    cache: &mut icons::IconRasterCache,
+) -> Result<TopBarOverlay, icons::IconError> {
+    let mut overlay = render_top_bar_rgba_base(width, height, state, false);
+    apply_shell_palette(&mut overlay.rgba, theme);
+    if width >= 480 && height >= 28 {
+        let start_x = width.saturating_sub(136);
+        let y = height.saturating_sub(20) / 2;
+        for (role, state, x) in [
+            (
+                icons::IconRole::Volume,
+                if state.audio_available {
+                    icons::IconState::Normal
+                } else {
+                    icons::IconState::Disabled
+                },
+                start_x,
+            ),
+            (
+                icons::IconRole::Wifi,
+                if state.network_connected {
+                    icons::IconState::Normal
+                } else {
+                    icons::IconState::Disabled
+                },
+                start_x + 39,
+            ),
+            (
+                icons::IconRole::Battery,
+                state
+                    .battery_percent
+                    .map_or(icons::IconState::Disabled, |_| icons::IconState::Normal),
+                start_x + 78,
+            ),
+        ] {
+            let key =
+                icons::IconRasterKey::new(role, theme, state, 20, aqua_text::OutputScale::One)?;
+            let icon = cache.get_or_render(key)?;
+            icons::composite_icon(&mut overlay.rgba, width, height, x, y, &icon);
+            overlay.primitive_count += 1;
+        }
+    }
+    Ok(overlay)
+}
+
+fn render_top_bar_rgba_base(
+    width: u32,
+    height: u32,
+    state: &TopBarState,
+    draw_placeholder_icons: bool,
+) -> TopBarOverlay {
     let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     if width < 480 || height < 28 {
         return TopBarOverlay {
@@ -873,7 +957,11 @@ fn render_top_bar_rgba_base(width: u32, height: u32, state: &TopBarState) -> Top
         1,
     );
     primitive_count += 1;
-    primitive_count += draw_top_bar_status_icons(&mut rgba, width, height, state);
+    primitive_count += if draw_placeholder_icons {
+        draw_top_bar_status_icons(&mut rgba, width, height, state)
+    } else {
+        draw_top_bar_power_icon(&mut rgba, width, height)
+    };
 
     TopBarOverlay {
         width,
@@ -1104,7 +1192,14 @@ fn draw_top_bar_status_icons(
         color,
     );
 
-    let power_x = start_x + 124;
+    draw_top_bar_power_icon(rgba, width, height);
+    21
+}
+
+fn draw_top_bar_power_icon(rgba: &mut [u8], width: u32, height: u32) -> usize {
+    let color = [0x16, 0x22, 0x32, 0xff];
+    let center_y = height / 2;
+    let power_x = width.saturating_sub(12);
     fill_transparent_circle(rgba, width, height, power_x, center_y, 8, color);
     fill_transparent_circle(
         rgba,
@@ -1124,7 +1219,7 @@ fn draw_top_bar_status_icons(
         2,
         color,
     );
-    21
+    3
 }
 
 pub fn render_dock_rgba(width: u32, height: u32, state: &DockState) -> DockOverlay {
@@ -1137,12 +1232,59 @@ pub fn render_dock_rgba_with_theme(
     state: &DockState,
     theme: AquaTheme,
 ) -> DockOverlay {
-    let mut overlay = render_dock_rgba_base(width, height, state);
+    let mut overlay = render_dock_rgba_base(width, height, state, true);
     apply_shell_palette(&mut overlay.rgba, theme);
     overlay
 }
 
-fn render_dock_rgba_base(width: u32, height: u32, state: &DockState) -> DockOverlay {
+pub fn render_dock_rgba_with_cached_icons(
+    width: u32,
+    height: u32,
+    state: &DockState,
+    theme: AquaTheme,
+    cache: &mut icons::IconRasterCache,
+) -> Result<DockOverlay, icons::IconError> {
+    let mut overlay = render_dock_rgba_base(width, height, state, false);
+    apply_shell_palette(&mut overlay.rgba, theme);
+    if width >= 640 && height >= 48 {
+        let item_width = 72_u32;
+        let content_width = item_width * DOCK_ITEM_COUNT as u32;
+        let start_x = width.saturating_sub(content_width) / 2;
+        let icon_y = height.saturating_sub(48) / 2;
+        for (index, item) in DockItem::ALL.iter().copied().enumerate() {
+            let role = match item {
+                DockItem::Files => icons::IconRole::Files,
+                DockItem::Settings => icons::IconRole::Settings,
+                DockItem::Trash => icons::IconRole::Trash,
+            };
+            let key = icons::IconRasterKey::new(
+                role,
+                theme,
+                icons::IconState::Normal,
+                48,
+                aqua_text::OutputScale::One,
+            )?;
+            let icon = cache.get_or_render(key)?;
+            icons::composite_icon(
+                &mut overlay.rgba,
+                width,
+                height,
+                start_x + index as u32 * item_width + 12,
+                icon_y,
+                &icon,
+            );
+            overlay.primitive_count += 1;
+        }
+    }
+    Ok(overlay)
+}
+
+fn render_dock_rgba_base(
+    width: u32,
+    height: u32,
+    state: &DockState,
+    draw_placeholder_icons: bool,
+) -> DockOverlay {
     let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     if width < 640 || height < 48 {
         return DockOverlay {
@@ -1246,7 +1388,9 @@ fn render_dock_rgba_base(width: u32, height: u32, state: &DockState) -> DockOver
     let icon_y = height.saturating_sub(56) / 2;
     for (index, item) in DockItem::ALL.iter().copied().enumerate() {
         let x = start_x + index as u32 * item_width + 8;
-        primitives += draw_desktop_icon(&mut rgba, width, height, x, icon_y, item.id());
+        if draw_placeholder_icons {
+            primitives += draw_desktop_icon(&mut rgba, width, height, x, icon_y, item.id());
+        }
         if state.item_running(item) {
             running_item_count += 1;
             fill_transparent_circle(
@@ -1329,15 +1473,57 @@ pub fn render_desktop_icons_rgba_with_theme(
     state: &DesktopIconState,
     theme: AquaTheme,
 ) -> DesktopIconsOverlay {
-    let mut overlay = render_desktop_icons_rgba_base(width, height, state);
+    let mut overlay = render_desktop_icons_rgba_base(width, height, state, true);
     apply_shell_palette(&mut overlay.rgba, theme);
     overlay
+}
+
+pub fn render_desktop_icons_rgba_with_cached_icons(
+    width: u32,
+    height: u32,
+    state: &DesktopIconState,
+    theme: AquaTheme,
+    cache: &mut icons::IconRasterCache,
+) -> Result<DesktopIconsOverlay, icons::IconError> {
+    let mut overlay = render_desktop_icons_rgba_base(width, height, state, false);
+    apply_shell_palette(&mut overlay.rgba, theme);
+    for (index, icon) in DESKTOP_ICONS.iter().enumerate() {
+        let role = match icon.id {
+            "files" => icons::IconRole::Files,
+            "settings" => icons::IconRole::Settings,
+            "trash" => icons::IconRole::Trash,
+            _ => continue,
+        };
+        let key = icons::IconRasterKey::new(
+            role,
+            theme,
+            if state.selected() == Some(index) {
+                icons::IconState::Selected
+            } else {
+                icons::IconState::Normal
+            },
+            64,
+            aqua_text::OutputScale::One,
+        )?;
+        let raster = cache.get_or_render(key)?;
+        icons::composite_icon(
+            &mut overlay.rgba,
+            width,
+            height,
+            20,
+            index as u32 * DESKTOP_ICON_ROW_HEIGHT + 8,
+            &raster,
+        );
+        overlay.primitive_count += 1;
+    }
+    Ok(overlay)
 }
 
 fn render_desktop_icons_rgba_base(
     width: u32,
     height: u32,
     state: &DesktopIconState,
+    draw_placeholder_icons: bool,
 ) -> DesktopIconsOverlay {
     let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     let mut primitives = 0;
@@ -1372,7 +1558,9 @@ fn render_desktop_icons_rgba_base(
             );
             primitives += 2;
         }
-        primitives += draw_desktop_icon(&mut rgba, width, height, 20, y + 8, icon.id);
+        if draw_placeholder_icons {
+            primitives += draw_desktop_icon(&mut rgba, width, height, 20, y + 8, icon.id);
+        }
         let label_x = match icon.id {
             "files" => 37,
             "settings" => 27,
@@ -8317,6 +8505,96 @@ mod tests {
         assert_eq!(overlay.rgba.len(), 1536 * 36 * 4);
         assert!(overlay.primitive_count >= 30);
         assert!(overlay.rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
+    }
+
+    #[test]
+    fn cached_aqua_core_icons_replace_shell_placeholders_and_reuse_rasters() {
+        let top_bar = TopBarState {
+            product_label: "Aqua Linux".to_string(),
+            clock_label: "Sat, 29 Aug 2026  10:30 UTC".to_string(),
+            network_connected: true,
+            battery_percent: Some(87),
+            audio_available: true,
+        };
+        let dock = DockState::default();
+        let desktop = DesktopIconState::default();
+        let mut notifications = NotificationCenter::default();
+        notifications.post(
+            1,
+            "Aqua Desktop",
+            "Scale-native icons",
+            "Aqua Core Icon cache is active.",
+            5_000,
+        );
+        let mut cache = icons::IconRasterCache::default();
+
+        let cached_top = render_top_bar_rgba_with_cached_icons(
+            1536,
+            36,
+            &top_bar,
+            AquaTheme::Nightmare,
+            &mut cache,
+        )
+        .unwrap();
+        let cached_desktop = render_desktop_icons_rgba_with_cached_icons(
+            aqua_shell::DESKTOP_ICON_LAYER_WIDTH,
+            aqua_shell::DESKTOP_ICON_LAYER_HEIGHT,
+            &desktop,
+            AquaTheme::Nightmare,
+            &mut cache,
+        )
+        .unwrap();
+        let cached_dock =
+            render_dock_rgba_with_cached_icons(760, 72, &dock, AquaTheme::Nightmare, &mut cache)
+                .unwrap();
+        let cached_notification = render_notification_toast_rgba_with_cached_icons(
+            420,
+            112,
+            &notifications,
+            AquaTheme::Nightmare,
+            &mut cache,
+        )
+        .unwrap();
+
+        assert_ne!(
+            cached_top.rgba,
+            render_top_bar_rgba_with_theme(1536, 36, &top_bar, AquaTheme::Nightmare).rgba
+        );
+        assert_ne!(
+            cached_desktop.rgba,
+            render_desktop_icons_rgba_with_theme(
+                aqua_shell::DESKTOP_ICON_LAYER_WIDTH,
+                aqua_shell::DESKTOP_ICON_LAYER_HEIGHT,
+                &desktop,
+                AquaTheme::Nightmare,
+            )
+            .rgba
+        );
+        assert_ne!(
+            cached_dock.rgba,
+            render_dock_rgba_with_theme(760, 72, &dock, AquaTheme::Nightmare).rgba
+        );
+        assert_ne!(
+            cached_notification.rgba,
+            render_notification_toast_rgba_with_theme(
+                420,
+                112,
+                &notifications,
+                AquaTheme::Nightmare,
+            )
+            .rgba
+        );
+        assert_eq!(cache.len(), 10);
+        assert_eq!(cache.stats().hits, 0);
+        assert_eq!(cache.stats().misses, 10);
+        assert_eq!(cache.stats().parsed_sources, 7);
+        assert_eq!(cache.stats().evictions, 0);
+
+        render_dock_rgba_with_cached_icons(760, 72, &dock, AquaTheme::Nightmare, &mut cache)
+            .unwrap();
+        assert_eq!(cache.len(), 10);
+        assert_eq!(cache.stats().hits, 3);
+        assert_eq!(cache.stats().misses, 10);
     }
 
     #[test]
