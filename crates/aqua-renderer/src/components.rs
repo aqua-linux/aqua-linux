@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-16";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-17";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -865,6 +865,62 @@ pub(crate) fn draw_notification(
     8
 }
 
+pub(crate) fn draw_confirmation_dialog(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    dialog: ConfirmationDialog<'_>,
+    theme: AquaTheme,
+    scale: OutputScale,
+) -> usize {
+    if !dialog.is_valid() {
+        return 0;
+    }
+    let palette = window_chrome_palette(theme);
+    let fill = match (dialog.severity, dialog.state) {
+        (_, ConfirmationState::Confirmed) => [0x2c, 0x8a, 0x59, 0xff],
+        (ConfirmationSeverity::Destructive, _) => [0xb9, 0x32, 0x3e, 0xff],
+        (ConfirmationSeverity::Standard, _) => palette.field,
+    };
+    fill_rounded_rect(buffer, width, height, dialog.rect, 8, fill, 225);
+    draw_rect_outline(buffer, width, height, dialog.rect, palette.border, 255);
+    let slots = dialog.slots();
+    draw_fitted_bitmap_text(
+        buffer,
+        (width, height),
+        slots.title,
+        dialog.title,
+        palette.text,
+        FittedTextOptions::new(TextRole::Control, scale, false),
+    );
+    let mut primitives = 3;
+    if !dialog.is_compact() {
+        draw_fitted_bitmap_text(
+            buffer,
+            (width, height),
+            slots.detail,
+            dialog.detail,
+            palette.secondary_text,
+            FittedTextOptions::new(TextRole::Body, scale, false),
+        );
+        fill_rounded_rect(
+            buffer,
+            width,
+            height,
+            slots.status,
+            8,
+            if dialog.state == ConfirmationState::Confirmed {
+                [0x62, 0xdd, 0x9a, 0xff]
+            } else {
+                palette.accent
+            },
+            255,
+        );
+        primitives += 2;
+    }
+    primitives
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComponentAcceptanceProbe {
     pub viewport: Viewport,
@@ -889,6 +945,7 @@ pub struct ComponentAcceptanceProbe {
     pub running_app_dock_ready: bool,
     pub workspace_switcher_ready: bool,
     pub notification_ready: bool,
+    pub confirmation_dialog_ready: bool,
     pub stable_geometry: bool,
     pub input_semantics: bool,
     pub accessibility_semantics: bool,
@@ -916,6 +973,7 @@ impl ComponentAcceptanceProbe {
             && self.running_app_dock_ready
             && self.workspace_switcher_ready
             && self.notification_ready
+            && self.confirmation_dialog_ready
             && self.stable_geometry
             && self.input_semantics
             && self.accessibility_semantics
@@ -1771,6 +1829,53 @@ pub fn render_component_acceptance_rgba(
         && notification_semantics.live == "polite"
         && fixture_notification.dismiss_accessibility().role == "button";
 
+    let fixture_confirmation = ConfirmationDialog::new(
+        Rect {
+            x: 20,
+            y: viewport.height.saturating_sub(196),
+            width: 360,
+            height: 88,
+        },
+        "Erase disk confirmation",
+        (
+            "Erase /dev/vdb?",
+            "Exact target-bound confirmation is still required.",
+        ),
+        ConfirmationPresentation::Modal,
+        ConfirmationSeverity::Destructive,
+        ConfirmationRequirement::ExactText,
+        ConfirmationState::Armed,
+    );
+    draw_confirmation_dialog(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        fixture_confirmation,
+        theme,
+        scale,
+    );
+    let confirmation_slots = fixture_confirmation.slots();
+    let confirmation_semantics = fixture_confirmation.accessibility();
+    let confirmation_dialog_ready = fixture_confirmation.is_valid()
+        && fixture_confirmation.rect.fits_in(viewport)
+        && confirmation_slots.title.fits_in(viewport)
+        && confirmation_slots.detail.fits_in(viewport)
+        && confirmation_slots.status.fits_in(viewport)
+        && fixture_confirmation.contains(fixture_confirmation.rect.x, fixture_confirmation.rect.y)
+        && !fixture_confirmation.contains(
+            fixture_confirmation.rect.right(),
+            fixture_confirmation.rect.y,
+        )
+        && fixture_confirmation.requires_external_validation()
+        && fixture_confirmation.keyboard_intent(ConfirmationKey::Escape)
+            == Some(ConfirmationIntent::Cancel)
+        && fixture_confirmation.keyboard_intent(ConfirmationKey::Activate(ActivationKey::Enter))
+            == Some(ConfirmationIntent::Confirm)
+        && confirmation_semantics.role == "alertdialog"
+        && confirmation_semantics.modal
+        && confirmation_semantics.destructive
+        && !confirmation_semantics.confirmed;
+
     let probe = ComponentAcceptanceProbe {
         viewport,
         theme,
@@ -1794,6 +1899,7 @@ pub fn render_component_acceptance_rgba(
         running_app_dock_ready,
         workspace_switcher_ready,
         notification_ready,
+        confirmation_dialog_ready,
         stable_geometry,
         input_semantics,
         accessibility_semantics,
@@ -1821,7 +1927,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} global_search_ready={} running_app_dock_ready={} workspace_switcher_ready={} notification_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,confirmation-dialog,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} global_search_ready={} running_app_dock_ready={} workspace_switcher_ready={} notification_ready={} confirmation_dialog_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -1846,6 +1952,7 @@ pub fn component_acceptance_report() -> String {
                 probe.running_app_dock_ready,
                 probe.workspace_switcher_ready,
                 probe.notification_ready,
+                probe.confirmation_dialog_ready,
                 probe.stable_geometry,
                 probe.input_semantics,
                 probe.accessibility_semantics,
@@ -1890,6 +1997,7 @@ mod tests {
                 SharedComponentKind::RunningAppDock,
                 SharedComponentKind::WorkspaceSwitcher,
                 SharedComponentKind::Notification,
+                SharedComponentKind::ConfirmationDialog,
             ]
         );
     }
@@ -1932,7 +2040,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,sidebar-navigation,toolbar")
+                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,confirmation-dialog,sidebar-navigation,toolbar")
                 .count(),
             12
         );

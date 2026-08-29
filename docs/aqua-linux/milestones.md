@@ -461,8 +461,9 @@ The implementation inventory and extraction order are maintained in
 [component-catalog.md](component-catalog.md). Top system bar, window frame,
 menu, metadata row, section group, standard button, icon button, search field,
 switch, segmented control, toolbar, list row, grid cell, application overview,
-global search, running-app dock, workspace switcher, notification, and sidebar
-navigation are host-proven across their applicable states, four themes, three required
+global search, running-app dock, workspace switcher, notification, confirmation
+dialog, and sidebar navigation are host-proven across their applicable states,
+four themes, three required
 viewports, and a fractional scale. Installer,
 Applications, Global Search, Terminal, Properties, Settings, and Files consume
 the applicable primitives; the Applications surface composes the shared search
@@ -475,6 +476,11 @@ group shares its target, thumbnail, active-indicator, and pointer geometry.
 Notification rendering and compositor dismissal now share the toast content,
 icon, close-control, pointer, keyboard, and live-region geometry while retaining
 the existing bounded queue, timeout, and motion model.
+Session, Empty Trash, and Installer real-mode confirmation presentation now
+share compact/detailed geometry, explicit repeat-activation versus exact-text
+requirements, intent-only keyboard semantics, and alert accessibility. Their
+existing action authorization, target identity, and execution gates remain
+model-owned.
 Packaged-QEMU component acceptance and the remaining catalog entries stay open.
 
 Done when desktop, Applications, Search, Terminal, Files, Settings, and the
