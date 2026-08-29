@@ -6,8 +6,8 @@ use aqua_installer::{
 };
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
-    desktop_context_menu, files_back_button, files_forward_button, files_toolbar, AquaTheme,
-    DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
+    desktop_context_menu, files_back_button, files_forward_button, files_toolbar, top_system_bar,
+    AquaTheme, DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
     FilesWindowModel, LauncherCategory, LauncherMode, LauncherState, NotificationCenter,
     SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView,
     TopBarState, DESKTOP_ICONS, DESKTOP_ICON_ROW_HEIGHT, DOCK_ITEM_COUNT,
@@ -857,10 +857,9 @@ pub fn render_top_bar_rgba_with_cached_icons(
 ) -> Result<TopBarOverlay, icons::IconError> {
     let mut overlay = render_top_bar_rgba_base(width, height, state, false);
     apply_shell_palette(&mut overlay.rgba, theme);
-    if width >= 480 && height >= 28 {
-        let start_x = width.saturating_sub(136);
-        let y = height.saturating_sub(20) / 2;
-        for (role, state, x) in [
+    let bar = top_system_bar(width, height);
+    if bar.is_valid() {
+        for (role, icon_state, status) in [
             (
                 icons::IconRole::Volume,
                 if state.audio_available {
@@ -868,7 +867,7 @@ pub fn render_top_bar_rgba_with_cached_icons(
                 } else {
                     icons::IconState::Disabled
                 },
-                start_x,
+                TopSystemStatus::Audio,
             ),
             (
                 icons::IconRole::Wifi,
@@ -877,20 +876,33 @@ pub fn render_top_bar_rgba_with_cached_icons(
                 } else {
                     icons::IconState::Disabled
                 },
-                start_x + 39,
+                TopSystemStatus::Network,
             ),
             (
                 icons::IconRole::Battery,
                 state
                     .battery_percent
                     .map_or(icons::IconState::Disabled, |_| icons::IconState::Normal),
-                start_x + 78,
+                TopSystemStatus::Battery,
             ),
         ] {
-            let key =
-                icons::IconRasterKey::new(role, theme, state, 20, aqua_text::OutputScale::One)?;
+            let slot = bar.status_rect(status);
+            let key = icons::IconRasterKey::new(
+                role,
+                theme,
+                icon_state,
+                20,
+                aqua_text::OutputScale::One,
+            )?;
             let icon = cache.get_or_render(key)?;
-            icons::composite_icon(&mut overlay.rgba, width, height, x, y, &icon);
+            icons::composite_icon(
+                &mut overlay.rgba,
+                width,
+                height,
+                slot.x + slot.width.saturating_sub(20) / 2,
+                slot.y + slot.height.saturating_sub(20) / 2,
+                &icon,
+            );
             overlay.primitive_count += 1;
         }
     }
@@ -904,7 +916,8 @@ fn render_top_bar_rgba_base(
     draw_placeholder_icons: bool,
 ) -> TopBarOverlay {
     let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
-    if width < 480 || height < 28 {
+    let bar = top_system_bar(width, height);
+    if !bar.is_valid() {
         return TopBarOverlay {
             width,
             height,
@@ -913,58 +926,45 @@ fn render_top_bar_rgba_base(
         };
     }
 
+    fill_transparent_rect(&mut rgba, width, height, bar.rect, [0xf8, 0xfb, 0xff, 0xf2]);
     fill_transparent_rect(
         &mut rgba,
         width,
         height,
-        Rect {
-            x: 0,
-            y: 0,
-            width,
-            height,
-        },
-        [0xf8, 0xfb, 0xff, 0xf2],
-    );
-    fill_transparent_rect(
-        &mut rgba,
-        width,
-        height,
-        Rect {
-            x: 0,
-            y: height - 1,
-            width,
-            height: 1,
-        },
+        bar.separator_rect(),
         [0xb7, 0xc8, 0xdc, 0xc0],
     );
 
-    let text_y = height.saturating_sub(14) / 2;
     let mut primitive_count = 2;
-    primitive_count += draw_top_bar_brand_mark(&mut rgba, width, height);
-    draw_bitmap_text(
+    primitive_count += draw_top_bar_brand_mark(&mut rgba, width, height, bar);
+    let brand = bar.brand_rect();
+    draw_fitted_bitmap_text(
         &mut rgba,
         (width, height),
-        (46, text_y),
+        Rect {
+            x: brand.x.saturating_add(34),
+            width: brand.width.saturating_sub(34),
+            ..brand
+        },
         &state.product_label,
         [0x16, 0x22, 0x32, 0xff],
-        1,
+        FittedTextOptions::new(TextRole::Control, OutputScale::One, false),
     );
     primitive_count += 1;
 
-    let clock_width = state.clock_label.chars().count() as u32 * 8;
-    draw_bitmap_text(
+    draw_fitted_bitmap_text(
         &mut rgba,
         (width, height),
-        (width.saturating_sub(clock_width) / 2, text_y),
+        bar.clock_rect(),
         &state.clock_label,
         [0x16, 0x22, 0x32, 0xff],
-        1,
+        FittedTextOptions::new(TextRole::Control, OutputScale::One, true),
     );
     primitive_count += 1;
     primitive_count += if draw_placeholder_icons {
-        draw_top_bar_status_icons(&mut rgba, width, height, state)
+        draw_top_bar_status_icons(&mut rgba, width, height, state, bar)
     } else {
-        draw_top_bar_power_icon(&mut rgba, width, height)
+        draw_top_bar_power_icon(&mut rgba, width, height, bar)
     };
 
     TopBarOverlay {
@@ -975,16 +975,25 @@ fn render_top_bar_rgba_base(
     }
 }
 
-fn draw_top_bar_brand_mark(rgba: &mut [u8], width: u32, height: u32) -> usize {
+fn draw_top_bar_brand_mark(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    bar: TopSystemBar<'_>,
+) -> usize {
     let color = [0x08, 0x69, 0xc8, 0xff];
-    let center_y = height / 2;
+    let brand = bar.brand_rect();
+    let center_y = brand.y + brand.height / 2;
+    let left = brand.x + 6;
+    let peak = brand.x + 15;
+    let right = brand.x + 24;
     for offset in 0..2 {
         draw_transparent_line(
             rgba,
             width,
             height,
-            (18 + offset, center_y + 9),
-            (27, center_y.saturating_sub(9) + offset),
+            (left + offset, center_y + 9),
+            (peak, center_y.saturating_sub(9) + offset),
             2,
             color,
         );
@@ -992,8 +1001,8 @@ fn draw_top_bar_brand_mark(rgba: &mut [u8], width: u32, height: u32) -> usize {
             rgba,
             width,
             height,
-            (27, center_y.saturating_sub(9) + offset),
-            (36 - offset, center_y + 9),
+            (peak, center_y.saturating_sub(9) + offset),
+            (right - offset, center_y + 9),
             2,
             color,
         );
@@ -1002,8 +1011,8 @@ fn draw_top_bar_brand_mark(rgba: &mut [u8], width: u32, height: u32) -> usize {
         rgba,
         width,
         height,
-        (18, center_y + 9),
-        (27, center_y + 4),
+        (left, center_y + 9),
+        (peak, center_y + 4),
         2,
         color,
     );
@@ -1011,8 +1020,8 @@ fn draw_top_bar_brand_mark(rgba: &mut [u8], width: u32, height: u32) -> usize {
         rgba,
         width,
         height,
-        (27, center_y + 4),
-        (36, center_y + 9),
+        (peak, center_y + 4),
+        (right, center_y + 9),
         2,
         color,
     );
@@ -1024,11 +1033,13 @@ fn draw_top_bar_status_icons(
     width: u32,
     height: u32,
     state: &TopBarState,
+    bar: TopSystemBar<'_>,
 ) -> usize {
     let color = [0x16, 0x22, 0x32, 0xff];
     let muted = [0x7f, 0x8c, 0x9d, 0xff];
-    let center_y = height / 2;
-    let start_x = width.saturating_sub(136);
+    let audio = bar.status_rect(TopSystemStatus::Audio);
+    let center_y = audio.y + audio.height / 2;
+    let start_x = audio.x;
     let audio_color = if state.audio_available { color } else { muted };
 
     fill_transparent_rect(
@@ -1101,7 +1112,7 @@ fn draw_top_bar_status_icons(
         );
     }
 
-    let network_x = start_x + 40;
+    let network_x = bar.status_rect(TopSystemStatus::Network).x;
     let network_color = if state.network_connected {
         color
     } else {
@@ -1143,7 +1154,7 @@ fn draw_top_bar_status_icons(
         network_color,
     );
 
-    let battery_x = start_x + 76;
+    let battery_x = bar.status_rect(TopSystemStatus::Battery).x;
     fill_transparent_rounded_rect(
         rgba,
         width,
@@ -1196,14 +1207,20 @@ fn draw_top_bar_status_icons(
         color,
     );
 
-    draw_top_bar_power_icon(rgba, width, height);
+    draw_top_bar_power_icon(rgba, width, height, bar);
     21
 }
 
-fn draw_top_bar_power_icon(rgba: &mut [u8], width: u32, height: u32) -> usize {
+fn draw_top_bar_power_icon(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    bar: TopSystemBar<'_>,
+) -> usize {
     let color = [0x16, 0x22, 0x32, 0xff];
-    let center_y = height / 2;
-    let power_x = width.saturating_sub(12);
+    let session = bar.session_rect();
+    let center_y = session.y + session.height / 2;
+    let power_x = session.right().saturating_sub(12);
     fill_transparent_circle(rgba, width, height, power_x, center_y, 8, color);
     fill_transparent_circle(
         rgba,
