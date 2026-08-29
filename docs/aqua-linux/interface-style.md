@@ -176,6 +176,8 @@ Every control requires idle, hover, pressed, keyboard-focus, selected, disabled,
 - Notification and confirmation dialog
 
 The compositor and first-party applications must consume the same tokens and geometry contracts instead of duplicating one-off drawing logic.
+Implementation status and per-component completion evidence are tracked in
+[component-catalog.md](component-catalog.md).
 
 Each shared component is complete only when its anatomy, content constraints,
 keyboard and pointer behavior, token dependencies, accessibility semantics,

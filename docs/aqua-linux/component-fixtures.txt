@@ -1,0 +1,13 @@
+fixture_revision=aqua-component-fixtures-1 catalog=22 shared=1
+component=standard-button viewport=800x600 scale=4/4 theme=LightWhite states=10 stable_geometry=true input_semantics=true accessibility_semantics=true ready=true checksum=7ad044123c38f2aa
+component=standard-button viewport=800x600 scale=4/4 theme=Softtouch states=10 stable_geometry=true input_semantics=true accessibility_semantics=true ready=true checksum=753e7913b5b3c6d4
+component=standard-button viewport=800x600 scale=4/4 theme=Deepside states=10 stable_geometry=true input_semantics=true accessibility_semantics=true ready=true checksum=fa9a5d73beba0966
+component=standard-button viewport=800x600 scale=4/4 theme=Nightmare states=10 stable_geometry=true input_semantics=true accessibility_semantics=true ready=true checksum=5c174fd1e07cd3ac
+component=standard-button viewport=1280x800 scale=4/4 theme=LightWhite states=10 stable_geometry=true input_semantics=true accessibility_semantics=true ready=true checksum=f624be258584ba2a
+component=standard-button viewport=1280x800 scale=4/4 theme=Softtouch states=10 stable_geometry=true input_semantics=true accessibility_semantics=true ready=true checksum=6a6c6ad70261f454
+component=standard-button viewport=1280x800 scale=4/4 theme=Deepside states=10 stable_geometry=true input_semantics=true accessibility_semantics=true ready=true checksum=7fc8d878722a3b66
+component=standard-button viewport=1280x800 scale=4/4 theme=Nightmare states=10 stable_geometry=true input_semantics=true accessibility_semantics=true ready=true checksum=1e138e86f24cc1ac
+component=standard-button viewport=1536x1024 scale=5/4 theme=LightWhite states=10 stable_geometry=true input_semantics=true accessibility_semantics=true ready=true checksum=59a9992260439cc0
+component=standard-button viewport=1536x1024 scale=5/4 theme=Softtouch states=10 stable_geometry=true input_semantics=true accessibility_semantics=true ready=true checksum=439bd3421628cfbd
+component=standard-button viewport=1536x1024 scale=5/4 theme=Deepside states=10 stable_geometry=true input_semantics=true accessibility_semantics=true ready=true checksum=eeaa1f0e5cb7b882
+component=standard-button viewport=1536x1024 scale=5/4 theme=Nightmare states=10 stable_geometry=true input_semantics=true accessibility_semantics=true ready=true checksum=c91aadfe0ee7ade0

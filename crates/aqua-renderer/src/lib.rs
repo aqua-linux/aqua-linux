@@ -16,8 +16,10 @@ pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
 use std::sync::{Mutex, OnceLock};
 
+pub mod components;
 mod elevation;
 pub mod icons;
+pub use components::*;
 pub use elevation::*;
 
 pub const UI_FONT_SOURCE: &str = "embedded-ttf";
@@ -3080,7 +3082,7 @@ pub fn render_installer_window_rgba_with_theme(
             palette,
         },
     );
-    primitives += draw_installer_footer(&mut buffer, width, height, &layout, ui, palette);
+    primitives += draw_installer_footer(&mut buffer, width, height, &layout, ui, theme);
     primitives += draw_installer_focus(&mut buffer, width, height, &layout, ui.focus(), palette);
     let checksum = checksum_bytes(&buffer);
     Ok((
@@ -4072,92 +4074,72 @@ fn draw_installer_footer(
     height: u32,
     layout: &InstallerWindowLayout,
     ui: &InstallerUiState,
-    palette: WindowChromePalette,
+    theme: AquaTheme,
 ) -> usize {
-    draw_installer_button(
+    let focus = ui.focus();
+    let state_for = |target| {
+        if focus == target {
+            ComponentState::KeyboardFocus
+        } else {
+            ComponentState::Idle
+        }
+    };
+    let mut primitives = draw_standard_button(
         buffer,
         width,
         height,
-        layout.language_control,
-        "Türkçe",
-        false,
-        palette,
+        StandardButton::new(
+            layout.language_control,
+            "Türkçe",
+            StandardButtonVariant::Secondary,
+        )
+        .with_state(state_for(InstallerFocusTarget::LanguageControl)),
+        theme,
+        OutputScale::One,
     );
-    let mut primitives = 2;
     if ui.cancel_visible() {
-        draw_installer_button(
+        primitives += draw_standard_button(
             buffer,
             width,
             height,
-            layout.cancel_button,
-            "Vazgeç",
-            false,
-            palette,
+            StandardButton::new(
+                layout.cancel_button,
+                "Vazgeç",
+                StandardButtonVariant::Secondary,
+            )
+            .with_state(state_for(InstallerFocusTarget::Cancel)),
+            theme,
+            OutputScale::One,
         );
-        primitives += 2;
     }
     if ui.back_visible() {
-        draw_installer_button(
+        primitives += draw_standard_button(
             buffer,
             width,
             height,
-            layout.back_button,
-            "Geri",
-            false,
-            palette,
+            StandardButton::new(layout.back_button, "Geri", StandardButtonVariant::Secondary)
+                .with_state(state_for(InstallerFocusTarget::Back)),
+            theme,
+            OutputScale::One,
         );
-        primitives += 2;
     }
     if let Some(label) = ui.forward_label() {
-        draw_installer_button(
+        let target = if focus == InstallerFocusTarget::Finish {
+            InstallerFocusTarget::Finish
+        } else {
+            InstallerFocusTarget::Forward
+        };
+        primitives += draw_standard_button(
             buffer,
             width,
             height,
-            layout.forward_button,
-            label,
-            true,
-            palette,
+            StandardButton::new(layout.forward_button, label, StandardButtonVariant::Primary)
+                .with_state(state_for(target)),
+            theme,
+            OutputScale::One,
         );
-        primitives += 2;
     }
     primitives
-}
-
-fn draw_installer_button(
-    buffer: &mut [u8],
-    width: u32,
-    height: u32,
-    rect: Rect,
-    label: &str,
-    primary: bool,
-    palette: WindowChromePalette,
-) {
-    fill_rounded_rect(
-        buffer,
-        width,
-        height,
-        rect,
-        8,
-        if primary {
-            palette.accent
-        } else {
-            palette.field
-        },
-        245,
-    );
-    draw_system_surface_primitives(buffer, width, height, rect);
-    draw_fitted_bitmap_text(
-        buffer,
-        (width, height),
-        inset_rect(rect, 8, 0),
-        label,
-        if primary {
-            [0xff, 0xff, 0xff, 0xff]
-        } else {
-            palette.text
-        },
-        FittedTextOptions::new(TextRole::Control, OutputScale::One, true),
-    );
 }
 
 fn draw_installer_focus(
@@ -4169,13 +4151,15 @@ fn draw_installer_focus(
     palette: WindowChromePalette,
 ) -> usize {
     let rect = match focus {
-        InstallerFocusTarget::StepContent => layout.content,
-        InstallerFocusTarget::LanguageControl => layout.language_control,
-        InstallerFocusTarget::Cancel => layout.cancel_button,
-        InstallerFocusTarget::Back => layout.back_button,
-        InstallerFocusTarget::Forward | InstallerFocusTarget::Finish => layout.forward_button,
-        InstallerFocusTarget::ProgressStatus => layout.progress_track,
+        InstallerFocusTarget::StepContent => Some(layout.content),
+        InstallerFocusTarget::ProgressStatus => Some(layout.progress_track),
+        InstallerFocusTarget::LanguageControl
+        | InstallerFocusTarget::Cancel
+        | InstallerFocusTarget::Back
+        | InstallerFocusTarget::Forward
+        | InstallerFocusTarget::Finish => None,
     };
+    let Some(rect) = rect else { return 0 };
     draw_rect_outline(
         buffer,
         width,

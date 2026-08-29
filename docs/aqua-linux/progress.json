@@ -5,7 +5,7 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 12 now has accepted typography, elevation, Aqua Core Icon integration, and semantic state motion. Launcher, session-menu, and notification transitions use shared duration and easing tokens, retarget from the rendered value, advance from compositor elapsed time, and settle immediately without spatial travel in reduced-motion mode. Deterministic host fixtures and two recovery-safe packaged QEMU sessions cover standard and reduced paths. The shared component catalog remains open. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
+  "currentStage": "Milestone 12 now has accepted typography, elevation, Aqua Core Icon integration, semantic state motion, and the first shared component extraction. The standard-button primitive owns stable geometry, ten applicable states, pointer and keyboard activation, accessibility semantics, and deterministic theme/viewport fixtures; the installer footer consumes it instead of an installer-only drawing helper. Packaged-QEMU component acceptance and the remaining catalog entries stay open. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
   "updated": "2026-08-29",
   "overallPercent": 91,
   "readiness": {
@@ -124,14 +124,14 @@
     {
       "id": "m12",
       "name": "Visual Fidelity and Component System",
-      "percent": 80,
+      "percent": 81,
       "status": "in-progress",
       "updated": "2026-08-29",
-      "summary": "The shared aqua-text crate, tokenized elevation path, Aqua Core Icon pipeline, and semantic motion system have deterministic host fixtures plus packaged QEMU evidence. The live compositor shares one 256-entry complete-key icon LRU across four shell textures. Launcher, session-menu, and notification transitions use published duration and cubic-Bezier tokens, retarget without jumps, advance only from compositor time, and request bounded 16 ms dispatches while active. Reduced-motion settings settle spatial transitions immediately with zero offset. Host fixtures cover cadence independence, start, midpoint, completion, interruption, reversal, and reduced behavior; two packaged QEMU sessions prove standard scheduling, reduced zero-travel behavior, settled endpoints, and recovery return. The complete component catalog remains open."
+      "summary": "The shared aqua-text crate, tokenized elevation path, Aqua Core Icon pipeline, and semantic motion system have deterministic host fixtures plus packaged QEMU evidence. The live compositor shares one 256-entry complete-key icon LRU across four shell textures. Launcher, session-menu, and notification transitions use published duration and cubic-Bezier tokens with bounded scheduling and reduced-motion behavior. The component catalog now inventories 22 required primitives. Its standard button owns stable geometry, ten applicable states, pointer and keyboard activation, accessibility semantics, and deterministic four-theme acceptance at 800x600, 1280x800, and fractional-scale 1536x1024; the installer footer consumes it. Packaged-QEMU component acceptance and 21 catalog entries remain open."
     }
   ],
   "nextSteps": [
-    "Build the complete shared component catalog and deterministic visual-regression matrix.",
+    "Extract shared list-row and sidebar-navigation primitives for Files, Settings, Search, and installer consumers, then extend the deterministic component matrix.",
     "Baseline the R2 presentation path and enforce production no-readback, frame scheduling, damage, latency, resource, and dropped-frame acceptance while keeping diagnostic readback isolated.",
     "Implement the R3-R6 Wayland compatibility, unprivileged session, system service, accessibility, internationalization, signed update, rollback, and security gates.",
     "Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation."

@@ -457,6 +457,13 @@ reduced-motion tests pass without jumps, stuck input, or unbounded timers.
 - Add deterministic fixtures for all themes, supported scales, compact and
   desktop viewports, localization expansion, and applicable states.
 
+The implementation inventory and extraction order are maintained in
+[component-catalog.md](component-catalog.md). The shared standard-button
+primitive is host-proven across its ten applicable states, four themes, three
+required viewports, and a fractional scale; the installer footer consumes it.
+Its packaged-QEMU component acceptance and the remaining catalog entries stay
+open.
+
 Done when desktop, Applications, Search, Terminal, Files, Settings, and the
 installer consume the shared catalog; visual regression evidence covers the
 component matrix; and no screen claims completion from an idle-state mockup or
