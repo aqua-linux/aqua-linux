@@ -459,7 +459,7 @@ reduced-motion tests pass without jumps, stuck input, or unbounded timers.
 
 The implementation inventory and extraction order are maintained in
 [component-catalog.md](component-catalog.md). Standard button, icon button,
-search field, switch, segmented control, list row, and sidebar navigation are
+search field, switch, segmented control, toolbar, list row, and sidebar navigation are
 host-proven across their applicable states, four themes, three required
 viewports, and a fractional scale. Installer, Applications, Global Search,
 Settings, and Files consume them; shared geometry drives both renderer and

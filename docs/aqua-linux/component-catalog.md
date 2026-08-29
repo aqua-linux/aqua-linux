@@ -15,7 +15,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Top system bar | Planned | Shell top-level status and session controls |
 | Window frame and title bar | Planned | Compositor and first-party window chrome |
 | Sidebar navigation | Shared host-proven primitive | Files and Settings share render/input geometry; installer uses its row composition |
-| Toolbar | Planned | Files and first-party applications |
+| Toolbar | Shared host-proven primitive | Files navigation and location controls |
 | Segmented control | Shared host-proven primitive | Settings theme selection |
 | Search field | Shared host-proven primitive | Applications and Global Search share render/input geometry |
 | Standard button | Shared host-proven primitive | Installer footer; packaged-QEMU component acceptance remains open |
@@ -176,8 +176,35 @@ both renderer and pointer routing; inter-segment gaps reject input. Their
 four-theme, three-viewport deterministic matrix is recorded in
 `component-fixtures.txt`.
 
+## Toolbar Contract
+
+### Anatomy And Geometry
+
+- A toolbar owns one stable surface rectangle, accessible name, horizontal and
+  vertical content insets, item gap, and bottom separator.
+- Leading-item rectangles are derived from the toolbar content bounds. Child
+  controls retain their own input and accessibility contracts while sharing
+  toolbar placement.
+- Insets and item dimensions are saturating and bounded; invalid or empty
+  toolbar labels fail closed.
+- The toolbar container uses half-open bounds and exposes no implicit action
+  for its padding or unused surface.
+
+### Semantics And Consumption
+
+- The semantic role is `toolbar`; child icon buttons keep independent button
+  names, states, and activation gates.
+- Files now derives its toolbar surface and back/forward placement from the
+  shared geometry in both shell input routing and renderer drawing.
+- Location display remains a read-only Files child control and does not turn
+  toolbar padding into an input target.
+
+The deterministic matrix covers the toolbar in four themes at 800x600,
+1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance
+remains open.
+
 ## Next Extraction Order
 
-1. Checkbox and slider with real installer and audio consumers.
-2. Window frame, toolbar, menu, and section structures.
+1. Window frame and title bar, menu, and section structures.
+2. Checkbox after a real installer option exists; slider after a bounded audio-volume model exists.
 3. Shell-level panels, dock, workspaces, notification, and confirmation dialog.
