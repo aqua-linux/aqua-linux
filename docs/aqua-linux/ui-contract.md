@@ -105,6 +105,13 @@ QEMU captures at 800x600, 1280x800, and 1536x1024. At least one fractional-scale
 fixture is required for typography and iconography. A static mockup, token-only
 definition, or single idle-state screenshot is not completion evidence.
 
+The deterministic typography layout report in
+[`typography-layout-fixtures.txt`](typography-layout-fixtures.txt) verifies long
+localized-label containment, untruncated critical actions, fallback coverage,
+region separation, and RGBA checksums for the required viewports and all four
+themes. It is host-rendered acceptance evidence and does not replace packaged
+QEMU captures.
+
 ## Accessibility And Localization
 
 - Complete primary workflows with keyboard only.

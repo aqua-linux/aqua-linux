@@ -2,7 +2,7 @@
 
 > Generated from `docs/aqua-linux/progress.json`. Update the changed phase date, then run `scripts/write-progress-report.sh`.
 
-**Overall progress: 85%**
+**Overall progress: 86%**
 
 | Field | Value |
 | --- | --- |
@@ -14,7 +14,7 @@
 
 ## Current Stage
 
-Milestone 12 typography now includes deterministic Noto Sans to Noto Sans Arabic fallback, stable fallback baselines, explicit missing-glyph diagnostics, and a committed 16-case fixture report across the four supported scales. Packaged QEMU typography captures and long-label acceptance remain open. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.
+Milestone 12 typography now includes deterministic Noto Sans to Noto Sans Arabic fallback, stable fallback baselines, explicit missing-glyph diagnostics, and committed metric and rendered-layout fixture reports. The rendered acceptance matrix covers three viewports, fractional scaling, all four themes, critical-action fit, and long Turkish and Arabic labels. Packaged QEMU typography captures remain open. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.
 
 ## Phases
 
@@ -22,7 +22,7 @@ Phases are ordered by their most recent update.
 
 | Updated | Phase | Status | Progress | Summary |
 | --- | --- | --- | ---: | --- |
-| 2026-08-29 | M12: Visual Fidelity and Component System | In Progress | 10% | The shared aqua-text crate owns Rustybuzz shaping, Unicode bidi visual runs, grapheme-safe wrapping and ellipsis, Turkish case behavior, six named text roles, four supported output scales, and a bounded scale-native glyph cache. A packaged Noto Sans Arabic face now provides deterministic grapheme-aware fallback without changing role baselines, and a committed 16-case report locks font selection and metrics. Packaged QEMU typography evidence, long-label acceptance, elevation, icons, motion, and the component catalog remain open. |
+| 2026-08-29 | M12: Visual Fidelity and Component System | In Progress | 15% | The shared aqua-text crate owns Rustybuzz shaping, Unicode bidi visual runs, grapheme-safe wrapping and ellipsis, Turkish case behavior, six named text roles, four supported output scales, and a bounded scale-native glyph cache. A packaged Noto Sans Arabic face provides deterministic grapheme-aware fallback without changing role baselines, while committed metric and rendered-layout reports lock font behavior. The 12-case rendered matrix covers three viewports, fractional scaling, all four themes, contained long Turkish and Arabic labels, untruncated critical actions, region separation, and deterministic RGBA output. Packaged QEMU typography evidence, elevation, icons, motion, and the component catalog remain open. |
 | 2026-08-28 | M2: Asset and Visual System Intake | Complete | 100% | Public contracts capture the permanent desktop, application, search, first-party app, installer, completion, and four-theme direction derived from private Git-ignored boards. Approved transparent brand exports and the reproducible pale-wave wallpaper are used by the runtime. Thirteen project-authored Aqua Core Icons permanently cover core application, desktop, notification, and status roles with explicit MIT licensing; no temporary icon package remains. |
 | 2026-08-28 | M11: Polish and Public Readiness | Complete | 100% | The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, permanent Aqua Core Icons, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, four live-refreshed themes, and three real workspaces. Current QEMU captures carry a provenance manifest, the public hardware matrix prevents physical support overclaims, and the default-image gate enforces recovery-safe startup. Structured issue forms, private security routing, canonical labels, a pull request safety checklist, and CI-enforced contributor contracts now define public intake and triage. |
 | 2026-08-22 | M4: Scene and Surface Renderer | Complete | 100% | The Smithay GLES2 renderer composes the packaged wallpaper, shared surfaces, optional two-pass blur, and live wl_shm textures at the native output size. Physical DRM retains XRGB8888 GBM front/back dma-buf scanout. QEMU keeps GLES readback for the desktop, but a full-output client that explicitly supplies a complete Wayland opaque region may use the dumb-buffer bridge after one GPU validation frame. Packaged installer acceptance measured 30 bridged frames at a 61 ms median total while preserving distinct 1280x800 captures. |
@@ -46,7 +46,7 @@ Phases are ordered by their most recent update.
 
 ## Next Developments
 
-1. Add packaged QEMU typography captures and long localized-label overlap acceptance.
+1. Add packaged QEMU typography captures for the accepted localized-label layouts.
 2. Implement tokenized elevation levels with bounded damage and reusable shadow masks.
 3. Implement reviewed SVG loading and scale-native Aqua Core Icon rasterization and caching.
 4. Implement semantic, interruptible, frame-driven state motion and reduced-motion behavior.
