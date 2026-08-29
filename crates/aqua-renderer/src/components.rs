@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-3";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-4";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -246,6 +246,124 @@ pub(crate) fn draw_search_field(
     }
 }
 
+pub(crate) fn draw_switch_control(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    control: SwitchControl<'_>,
+    theme: AquaTheme,
+) -> usize {
+    let palette = window_chrome_palette(theme);
+    let track = match control.state {
+        ComponentState::Disabled | ComponentState::Loading => palette.row_alternate,
+        ComponentState::Error => [0xc9, 0x3c, 0x47, 0xff],
+        ComponentState::Success => [0x2c, 0x8a, 0x59, 0xff],
+        ComponentState::Attention => [0xd1, 0x8b, 0x24, 0xff],
+        ComponentState::Hover | ComponentState::Pressed if control.checked => palette.accent_soft,
+        _ if control.checked => palette.accent,
+        ComponentState::Hover | ComponentState::Pressed => palette.hover,
+        _ => palette.border,
+    };
+    fill_rounded_rect(
+        buffer,
+        width,
+        height,
+        control.rect,
+        control.rect.height / 2,
+        track,
+        235,
+    );
+    draw_rect_outline(buffer, width, height, control.rect, palette.border, 230);
+    fill_rounded_rect(
+        buffer,
+        width,
+        height,
+        control.thumb_rect(),
+        control.thumb_rect().height / 2,
+        palette.field,
+        255,
+    );
+    if control.state == ComponentState::KeyboardFocus {
+        draw_rect_outline(
+            buffer,
+            width,
+            height,
+            control.focus_rect(),
+            palette.accent,
+            220,
+        );
+        4
+    } else {
+        3
+    }
+}
+
+pub(crate) fn draw_segmented_control(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    control: SegmentedControl<'_>,
+    labels: &[&str],
+    theme: AquaTheme,
+    scale: OutputScale,
+) -> usize {
+    let palette = window_chrome_palette(theme);
+    let mut primitives = 0;
+    for (index, label) in labels.iter().take(control.segment_count).enumerate() {
+        let rect = control.segment_rect(index);
+        let selected = index == control.selected_index;
+        let fill = match control.state {
+            ComponentState::Disabled | ComponentState::Loading => palette.row_alternate,
+            ComponentState::Error => [0xc9, 0x3c, 0x47, 0xff],
+            ComponentState::Success => [0x2c, 0x8a, 0x59, 0xff],
+            ComponentState::Attention => [0xd1, 0x8b, 0x24, 0xff],
+            ComponentState::Hover | ComponentState::Pressed if selected => palette.accent_soft,
+            _ if selected => palette.accent_soft,
+            ComponentState::Hover | ComponentState::Pressed => palette.hover,
+            _ => palette.field,
+        };
+        fill_rounded_rect(buffer, width, height, rect, 5, fill, 245);
+        draw_rect_outline(
+            buffer,
+            width,
+            height,
+            rect,
+            if selected {
+                palette.accent
+            } else {
+                palette.border
+            },
+            255,
+        );
+        draw_fitted_bitmap_text(
+            buffer,
+            (width, height),
+            Rect {
+                x: rect.x.saturating_add(5),
+                y: rect.y,
+                width: rect.width.saturating_sub(10),
+                height: rect.height,
+            },
+            label,
+            palette.text,
+            FittedTextOptions::new(TextRole::Control, scale, true),
+        );
+        primitives += 3;
+    }
+    if control.state == ComponentState::KeyboardFocus {
+        draw_rect_outline(
+            buffer,
+            width,
+            height,
+            control.focus_rect(),
+            palette.accent,
+            220,
+        );
+        primitives += 1;
+    }
+    primitives
+}
+
 pub(crate) fn draw_standard_button(
     buffer: &mut [u8],
     width: u32,
@@ -381,6 +499,8 @@ pub struct ComponentAcceptanceProbe {
     pub icon_button_state_count: usize,
     pub list_row_state_count: usize,
     pub search_field_state_count: usize,
+    pub segmented_control_state_count: usize,
+    pub switch_state_count: usize,
     pub sidebar_row_count: usize,
     pub stable_geometry: bool,
     pub input_semantics: bool,
@@ -394,6 +514,8 @@ impl ComponentAcceptanceProbe {
             && self.icon_button_state_count == ComponentState::ICON_BUTTON_STATES.len()
             && self.list_row_state_count == ComponentState::LIST_ROW_STATES.len()
             && self.search_field_state_count == ComponentState::SEARCH_FIELD_STATES.len()
+            && self.segmented_control_state_count == ComponentState::SEGMENTED_CONTROL_STATES.len()
+            && self.switch_state_count == ComponentState::SWITCH_STATES.len()
             && self.sidebar_row_count == ComponentState::LIST_ROW_STATES.len()
             && self.stable_geometry
             && self.input_semantics
@@ -581,6 +703,79 @@ pub fn render_component_acceptance_rgba(
             && semantics.disabled == (state == ComponentState::Disabled)
             && semantics.busy == (state == ComponentState::Loading)
             && semantics.selected == (state == ComponentState::Selected);
+
+        if let Some(control_state) = ComponentState::SWITCH_STATES.get(index).copied() {
+            let switch = SwitchControl::new(
+                Rect {
+                    x: rect.right().saturating_sub(58),
+                    y: rect.y.saturating_add(5),
+                    width: 52,
+                    height: 28,
+                },
+                control_state.id(),
+                index % 2 == 0,
+            )
+            .with_state(control_state);
+            draw_switch_control(&mut buffer, viewport.width, viewport.height, switch, theme);
+            stable_geometry &= switch.thumb_rect().fits_in(viewport)
+                && switch.thumb_rect().x >= switch.rect.x
+                && switch.thumb_rect().right() <= switch.rect.right();
+            input_semantics &=
+                switch.pointer_toggles(switch.rect.x, switch.rect.y) == switch.can_toggle();
+            input_semantics &= switch.keyboard_toggles(ActivationKey::Space) == switch.can_toggle();
+            let semantics = switch.accessibility();
+            accessibility_semantics &= semantics.role == "switch"
+                && !semantics.name.is_empty()
+                && semantics.checked == (index % 2 == 0)
+                && semantics.disabled == (control_state == ComponentState::Disabled)
+                && semantics.busy == (control_state == ComponentState::Loading);
+        }
+
+        if let Some(control_state) = ComponentState::SEGMENTED_CONTROL_STATES.get(index).copied() {
+            let segmented = SegmentedControl::new(
+                Rect {
+                    x: rect.x.saturating_add(130),
+                    y: rect.y.saturating_add(5),
+                    width: 100,
+                    height: 28,
+                },
+                control_state.id(),
+                2,
+                index % 2,
+            )
+            .with_gap(2)
+            .with_state(control_state);
+            draw_segmented_control(
+                &mut buffer,
+                viewport.width,
+                viewport.height,
+                segmented,
+                &["A", "B"],
+                theme,
+                scale,
+            );
+            stable_geometry &= segmented.segment_rect(0).fits_in(viewport)
+                && segmented.segment_rect(1).right() == segmented.rect.right();
+            input_semantics &= segmented.hit_test(segmented.rect.x, segmented.rect.y)
+                == if segmented.state.can_activate() {
+                    Some(0)
+                } else {
+                    None
+                };
+            input_semantics &= segmented.keyboard_target(SegmentNavigationKey::Next)
+                == if segmented.state.can_activate() {
+                    Some((segmented.selected_index + 1) % segmented.segment_count)
+                } else {
+                    None
+                };
+            let semantics = segmented.accessibility();
+            accessibility_semantics &= semantics.role == "radiogroup"
+                && !semantics.name.is_empty()
+                && semantics.selected_index == index % 2
+                && semantics.segment_count == 2
+                && semantics.disabled == (control_state == ComponentState::Disabled)
+                && semantics.busy == (control_state == ComponentState::Loading);
+        }
     }
 
     let probe = ComponentAcceptanceProbe {
@@ -591,6 +786,8 @@ pub fn render_component_acceptance_rgba(
         icon_button_state_count: ComponentState::ICON_BUTTON_STATES.len(),
         list_row_state_count: ComponentState::LIST_ROW_STATES.len(),
         search_field_state_count: ComponentState::SEARCH_FIELD_STATES.len(),
+        segmented_control_state_count: ComponentState::SEGMENTED_CONTROL_STATES.len(),
+        switch_state_count: ComponentState::SWITCH_STATES.len(),
         sidebar_row_count: ComponentState::LIST_ROW_STATES.len(),
         stable_geometry,
         input_semantics,
@@ -619,7 +816,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=standard-button,icon-button,search-field,list-row,sidebar-navigation viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} list_row_states={} sidebar_rows={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} sidebar_rows={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -628,6 +825,8 @@ pub fn component_acceptance_report() -> String {
                 probe.button_state_count,
                 probe.icon_button_state_count,
                 probe.search_field_state_count,
+                probe.switch_state_count,
+                probe.segmented_control_state_count,
                 probe.list_row_state_count,
                 probe.sidebar_row_count,
                 probe.stable_geometry,
@@ -656,9 +855,11 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 SharedComponentKind::SidebarNavigation,
+                SharedComponentKind::SegmentedControl,
                 SharedComponentKind::SearchField,
                 SharedComponentKind::StandardButton,
                 SharedComponentKind::IconButton,
+                SharedComponentKind::Switch,
                 SharedComponentKind::ListRow,
             ]
         );
@@ -702,7 +903,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=standard-button,icon-button,search-field,list-row,sidebar-navigation")
+                .matches("components=standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation")
                 .count(),
             12
         );

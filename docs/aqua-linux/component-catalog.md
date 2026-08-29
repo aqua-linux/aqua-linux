@@ -16,12 +16,12 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Window frame and title bar | Planned | Compositor and first-party window chrome |
 | Sidebar navigation | Shared host-proven primitive | Files and Settings share render/input geometry; installer uses its row composition |
 | Toolbar | Planned | Files and first-party applications |
-| Segmented control | Planned | Settings and bounded mode selection |
+| Segmented control | Shared host-proven primitive | Settings theme selection |
 | Search field | Shared host-proven primitive | Applications and Global Search share render/input geometry |
 | Standard button | Shared host-proven primitive | Installer footer; packaged-QEMU component acceptance remains open |
 | Icon button | Shared host-proven primitive | Files back/forward navigation; broader toolbar adoption remains open |
 | Checkbox | Planned | Settings and installer options |
-| Switch | Planned | Settings toggles |
+| Switch | Shared host-proven primitive | Settings motion, desktop-icon, and key-repeat toggles |
 | Slider | Planned | Audio and future bounded value controls |
 | Menu | Planned | Session, context, and overflow actions |
 | List row | Shared host-proven primitive | Files and Settings navigation plus installer steps |
@@ -144,8 +144,40 @@ field. Files back and forward actions now render and hit-test the same shared
 icon-button rectangles, including disabled navigation gates. Their four-theme,
 three-viewport deterministic matrix is recorded in `component-fixtures.txt`.
 
+## Switch And Segmented Control Contract
+
+### Anatomy And Geometry
+
+- A switch owns one stable track rectangle and a bounded thumb whose position
+  reflects the checked value without changing the outer hit target.
+- A segmented control owns its group rectangle, segment count, selected index,
+  inter-segment gap, and deterministic per-index rectangles. Any remainder is
+  retained by the final segment so the group ends at its declared right edge.
+- Pointer input uses only rendered half-open rectangles. Label rows,
+  inter-segment gaps, and surrounding padding do not activate a value.
+- Focus rings expand outside the component without moving the track, thumb, or
+  segments.
+
+### Input, Semantics, And States
+
+- Switches toggle with pointer input, Enter, or Space and expose the `switch`
+  role, accessible name, checked, disabled, and busy values.
+- Segmented controls expose the `radiogroup` role, group name, selected index,
+  segment count, disabled, and busy values. Previous, next, home, and end
+  navigation is bounded and wraps only for previous/next.
+- Both primitives cover idle, hover, keyboard focus, pressed, disabled,
+  loading, error, success, and non-repeating attention states. Selection is
+  represented by checked/selected-index semantics instead of a duplicate
+  generic selected state.
+
+Settings now uses one switch geometry for reduced motion, desktop icons, and
+key repeat. Its four-theme selector uses one segmented-control geometry for
+both renderer and pointer routing; inter-segment gaps reject input. Their
+four-theme, three-viewport deterministic matrix is recorded in
+`component-fixtures.txt`.
+
 ## Next Extraction Order
 
-1. Switch, checkbox, slider, and segmented control.
+1. Checkbox and slider with real installer and audio consumers.
 2. Window frame, toolbar, menu, and section structures.
 3. Shell-level panels, dock, workspaces, notification, and confirmation dialog.

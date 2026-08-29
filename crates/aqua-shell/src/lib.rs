@@ -1,5 +1,6 @@
 use aqua_components::{
-    ComponentState, IconButton, IconButtonGlyph, SearchField, SidebarNavigation,
+    ComponentState, IconButton, IconButtonGlyph, SearchField, SegmentedControl, SidebarNavigation,
+    SwitchControl,
 };
 use aqua_scene::Rect;
 use std::collections::VecDeque;
@@ -1200,6 +1201,51 @@ impl Default for SettingsWindowModel {
 }
 
 impl SettingsWindowModel {
+    pub fn active_switch(&self) -> Option<SwitchControl<'static>> {
+        let (label, checked) = match self.selected_category {
+            0 => ("Reduced motion", self.reduced_motion),
+            1 => ("Show desktop icons", self.desktop_icons),
+            2 => ("Key repeat", self.key_repeat),
+            _ => return None,
+        };
+        Some(
+            SwitchControl::new(
+                Rect {
+                    x: 474,
+                    y: 132,
+                    width: 82,
+                    height: 36,
+                },
+                label,
+                checked,
+            )
+            .with_state(if self.keyboard_focus {
+                ComponentState::KeyboardFocus
+            } else {
+                ComponentState::Idle
+            }),
+        )
+    }
+
+    pub fn theme_segmented_control(&self) -> SegmentedControl<'static> {
+        let selected_index = AquaTheme::ALL
+            .iter()
+            .position(|theme| *theme == self.theme)
+            .unwrap_or(0);
+        SegmentedControl::new(
+            Rect {
+                x: 218,
+                y: 214,
+                width: 346,
+                height: 48,
+            },
+            "Desktop theme",
+            AquaTheme::ALL.len(),
+            selected_index,
+        )
+        .with_gap(6)
+    }
+
     pub fn refresh_network_status(&mut self, class_net: &Path) -> io::Result<()> {
         self.network_interfaces = read_network_interfaces(class_net)?;
         self.network_status_available = true;
@@ -1336,28 +1382,39 @@ impl SettingsWindowModel {
     }
 
     pub fn handle_pointer(&mut self, x: u32, y: u32) -> SettingsUpdate {
+        self.keyboard_focus = false;
         if let Some(category) = SETTINGS_SIDEBAR_NAVIGATION.hit_test(x, y, self.categories.len()) {
             self.selected_category = category;
             return SettingsUpdate::CategorySelected(category);
         }
-        if self.selected_category == 0 && (430..570).contains(&x) && (128..178).contains(&y) {
-            self.reduced_motion = !self.reduced_motion;
-            return SettingsUpdate::ReducedMotionChanged(self.reduced_motion);
+        if let Some(control) = self.active_switch() {
+            if control.pointer_toggles(x, y) {
+                return match self.selected_category {
+                    0 => {
+                        self.reduced_motion = !self.reduced_motion;
+                        SettingsUpdate::ReducedMotionChanged(self.reduced_motion)
+                    }
+                    1 => {
+                        self.desktop_icons = !self.desktop_icons;
+                        SettingsUpdate::DesktopIconsChanged(self.desktop_icons)
+                    }
+                    2 => {
+                        self.key_repeat = !self.key_repeat;
+                        SettingsUpdate::KeyRepeatChanged(self.key_repeat)
+                    }
+                    _ => SettingsUpdate::None,
+                };
+            }
         }
-        if self.selected_category == 0 && (218..570).contains(&x) && (214..262).contains(&y) {
-            let index = ((x - 218) / 88) as usize;
-            if let Some(theme) = AquaTheme::ALL.get(index).copied() {
+        if self.selected_category == 0 {
+            if let Some(theme) = self
+                .theme_segmented_control()
+                .hit_test(x, y)
+                .and_then(|index| AquaTheme::ALL.get(index).copied())
+            {
                 self.theme = theme;
                 return SettingsUpdate::ThemeChanged(theme);
             }
-        }
-        if self.selected_category == 1 && (430..570).contains(&x) && (128..178).contains(&y) {
-            self.desktop_icons = !self.desktop_icons;
-            return SettingsUpdate::DesktopIconsChanged(self.desktop_icons);
-        }
-        if self.selected_category == 2 && (430..570).contains(&x) && (128..178).contains(&y) {
-            self.key_repeat = !self.key_repeat;
-            return SettingsUpdate::KeyRepeatChanged(self.key_repeat);
         }
         SettingsUpdate::None
     }
@@ -3394,6 +3451,7 @@ mod tests {
             SettingsUpdate::ReducedMotionChanged(true)
         );
         assert!(model.reduced_motion);
+        assert_eq!(model.handle_pointer(440, 150), SettingsUpdate::None);
         assert_eq!(
             model.handle_key(SettingsKey::Activate),
             SettingsUpdate::ReducedMotionChanged(false)
@@ -3492,6 +3550,7 @@ mod tests {
     #[test]
     fn settings_theme_selection_is_bounded_and_persistent() {
         let mut model = SettingsWindowModel::default();
+        assert_eq!(model.handle_pointer(301, 230), SettingsUpdate::None);
         assert_eq!(
             model.handle_pointer(410, 230),
             SettingsUpdate::ThemeChanged(AquaTheme::Deepside)

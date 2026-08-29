@@ -4291,79 +4291,22 @@ pub fn render_settings_window_rgba(
             palette.secondary_text,
             1,
         );
-        let toggle = Rect {
-            x: 474,
-            y: 132,
-            width: 82,
-            height: 36,
-        };
-        fill_rect(
+        primitives += draw_switch_control(
             &mut buffer,
             width,
             height,
-            toggle,
-            if model.reduced_motion {
-                palette.accent
-            } else {
-                palette.border
-            },
-            230,
+            model.active_switch().expect("appearance switch"),
+            model.theme,
         );
-        draw_rect_outline(&mut buffer, width, height, toggle, palette.border, 255);
-        primitives += 2;
-        let knob_x = if model.reduced_motion { 528 } else { 480 };
-        fill_rect(
+        primitives += draw_segmented_control(
             &mut buffer,
             width,
             height,
-            Rect {
-                x: knob_x,
-                y: 138,
-                width: 24,
-                height: 24,
-            },
-            palette.field,
-            255,
+            model.theme_segmented_control(),
+            &["LightWhite", "Softtouch", "Deepside", "Nightmare"],
+            model.theme,
+            OutputScale::One,
         );
-        primitives += 1;
-        for (index, theme) in AquaTheme::ALL.into_iter().enumerate() {
-            let theme_palette = window_chrome_palette(theme);
-            let swatch = Rect {
-                x: 218 + index as u32 * 88,
-                y: 214,
-                width: 82,
-                height: 48,
-            };
-            fill_rect(
-                &mut buffer,
-                width,
-                height,
-                swatch,
-                theme_palette.surface,
-                255,
-            );
-            draw_rect_outline(
-                &mut buffer,
-                width,
-                height,
-                swatch,
-                if theme == model.theme {
-                    palette.accent
-                } else {
-                    theme_palette.border
-                },
-                255,
-            );
-            draw_bitmap_text(
-                &mut buffer,
-                (width, height),
-                (swatch.x + 5, swatch.y + 19),
-                theme.id(),
-                theme_palette.text,
-                1,
-            );
-            primitives += 3;
-        }
     } else if model.selected_category == 1 {
         draw_bitmap_text(
             &mut buffer,
@@ -4381,41 +4324,13 @@ pub fn render_settings_window_rgba(
             palette.secondary_text,
             1,
         );
-        let toggle = Rect {
-            x: 474,
-            y: 132,
-            width: 82,
-            height: 36,
-        };
-        fill_rect(
+        primitives += draw_switch_control(
             &mut buffer,
             width,
             height,
-            toggle,
-            if model.desktop_icons {
-                palette.accent
-            } else {
-                palette.border
-            },
-            230,
+            model.active_switch().expect("desktop switch"),
+            model.theme,
         );
-        draw_rect_outline(&mut buffer, width, height, toggle, palette.border, 255);
-        primitives += 2;
-        let knob_x = if model.desktop_icons { 528 } else { 480 };
-        fill_rect(
-            &mut buffer,
-            width,
-            height,
-            Rect {
-                x: knob_x,
-                y: 138,
-                width: 24,
-                height: 24,
-            },
-            palette.field,
-            255,
-        );
-        primitives += 1;
     } else if model.selected_category == 2 {
         draw_bitmap_text(
             &mut buffer,
@@ -4433,41 +4348,13 @@ pub fn render_settings_window_rgba(
             palette.secondary_text,
             1,
         );
-        let toggle = Rect {
-            x: 474,
-            y: 132,
-            width: 82,
-            height: 36,
-        };
-        fill_rect(
+        primitives += draw_switch_control(
             &mut buffer,
             width,
             height,
-            toggle,
-            if model.key_repeat {
-                palette.accent
-            } else {
-                palette.border
-            },
-            230,
+            model.active_switch().expect("input switch"),
+            model.theme,
         );
-        draw_rect_outline(&mut buffer, width, height, toggle, palette.border, 255);
-        primitives += 2;
-        let knob_x = if model.key_repeat { 528 } else { 480 };
-        fill_rect(
-            &mut buffer,
-            width,
-            height,
-            Rect {
-                x: knob_x,
-                y: 138,
-                width: 24,
-                height: 24,
-            },
-            palette.field,
-            255,
-        );
-        primitives += 1;
     } else if model.selected_category == 3 {
         draw_bitmap_text(
             &mut buffer,
