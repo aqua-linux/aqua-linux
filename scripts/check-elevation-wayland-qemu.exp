@@ -1,0 +1,80 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp $env(CPUS) \
+    -m $env(MEMORY) \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1} \
+    -serial stdio \
+    -monitor unix:$env(MONITOR_SOCKET),server=on,wait=off \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh} {}
+    timeout { puts stderr "Timed out waiting for recovery-ready"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery-ready"; exit 1 }
+}
+expect {
+    -exact {aqua-linux login: } {}
+    timeout { puts stderr "Timed out waiting for serial login"; exit 1 }
+    eof { puts stderr "QEMU exited before serial login"; exit 1 }
+}
+send -- "root\r"
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Timed out waiting for recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery shell"; exit 1 }
+}
+
+foreach {theme slug} {
+    LightWhite lightwhite
+    Softtouch softtouch
+    Deepside deepside
+    Nightmare nightmare
+} {
+    send -- "AQUA_THEME=$theme AQUA_DRM_WAYLAND_SESSION_HOLD_SECONDS=2 AQUA_DRM_WAYLAND_SESSION_HEADLESS_TEST_CONFIRMED=true AQUA_DRM_WAYLAND_SESSION_TEST_MODE=headless-qemu AQUA_DRM_WAYLAND_SCENARIO=elevation-acceptance /usr/bin/aqua-compositor run-drm-wayland-session /dev/dri/card0\r"
+    expect {
+        -exact {elevation_wayland_surface_ready=true} {}
+        timeout { puts stderr "Timed out waiting for $theme elevation surfaces"; exit 1 }
+        eof { puts stderr "QEMU exited before $theme elevation surfaces"; exit 1 }
+    }
+    expect {
+        -exact {gpu_shadow_damage_rects=2} {}
+        timeout { puts stderr "Timed out waiting for $theme elevation damage"; exit 1 }
+        eof { puts stderr "QEMU exited before $theme elevation damage"; exit 1 }
+    }
+    expect {
+        -exact {[AQUA-COMPOSITOR] stage=drm-wayland-session status=active} {}
+        timeout { puts stderr "Timed out waiting for elevation scanout"; exit 1 }
+        eof { puts stderr "QEMU exited before elevation scanout"; exit 1 }
+    }
+    after 350
+    set ppm $env(SCREENSHOT_${slug})
+    set png $env(SCREENSHOT_${slug}_PNG)
+    if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $ppm $png} capture_error]} {
+        puts stderr "QEMU $theme elevation screendump failed: $capture_error"
+        exit 1
+    }
+    expect {
+        -exact {[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok} {}
+        timeout { puts stderr "Timed out waiting for elevation session cleanup"; exit 1 }
+        eof { puts stderr "QEMU exited before elevation session cleanup"; exit 1 }
+    }
+    expect {
+        -exact {# } {}
+        timeout { puts stderr "Timed out waiting for recovery shell after elevation capture"; exit 1 }
+        eof { puts stderr "QEMU exited before recovery shell returned"; exit 1 }
+    }
+}
+
+send -- "poweroff -f\r"
+expect eof

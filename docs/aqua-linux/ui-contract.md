@@ -119,8 +119,10 @@ locks the control, panel, dialog, and active-window shadow levels across all
 four themes and the 1.0, 1.25, 1.5, and 2.0 scales. Shadow geometry is
 theme-invariant, opacity remains theme-specific, reusable masks are keyed by
 physical surface geometry, scale, theme, and elevation, and expanded damage is
-clipped to the output viewport. Packaged QEMU capture validation remains the
-final elevation acceptance step.
+clipped to the output viewport. The matching packaged QEMU acceptance scenario
+maps one focused and one inactive client window through the real Smithay GLES
+and DRM path, captures all four themes at 1280x800, and proves bounded cleanup
+and recovery return after every capture.
 
 ## Accessibility And Localization
 

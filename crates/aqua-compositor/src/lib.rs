@@ -7050,7 +7050,8 @@ impl SmithayDrmSession {
                 damage_rect_count: state.damage_rect_count,
                 pending_frame_callback_count: state.pending_frame_callbacks.len(),
                 frame_callbacks_sent: state.frame_callbacks_sent,
-                keyboard_focus_assigned: state.keyboard_focus_assigned,
+                keyboard_focus_assigned: state.keyboard_focus_assigned
+                    && state.mapped_surface.as_ref() == Some(&surface.surface),
                 pointer_focus_assigned: state.pointer_focus_assigned,
                 mapped_surface_count: state.mapped_surfaces.len(),
                 surface_focus_change_count: state.surface_focus_change_count,

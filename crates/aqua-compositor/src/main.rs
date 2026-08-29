@@ -3910,18 +3910,27 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let typography_scenario =
         env::var("AQUA_DRM_WAYLAND_SCENARIO").as_deref() == Ok("typography-acceptance");
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let elevation_scenario =
+        env::var("AQUA_DRM_WAYLAND_SCENARIO").as_deref() == Ok("elevation-acceptance");
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
     let installer_scenario = false;
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
     let typography_scenario = false;
+    #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
+    let elevation_scenario = false;
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let external_client_required = diagnostic_scenario
         && env::var("AQUA_DRM_WAYLAND_EXTERNAL_CLIENT_REQUIRED").as_deref() == Ok("true");
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
     let external_client_required = false;
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let fixture_clients_required = external_client_required || elevation_scenario;
+    #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
+    let fixture_clients_required = false;
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let managed_client_required =
-        external_client_required || installer_scenario || typography_scenario;
+        fixture_clients_required || installer_scenario || typography_scenario;
     let runtime_dir = PathBuf::from("/run/aqua");
     let socket_path = runtime_dir.join("aqua-wayland-drm-0");
     let lock_path = socket_path.with_extension("lock");
@@ -4039,7 +4048,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
             std::process::exit(1);
         }),
     );
-    let expected_client_count = if external_client_required { 2 } else { 1 };
+    let expected_client_count = if fixture_clients_required { 2 } else { 1 };
     let mut server_streams = Vec::with_capacity(expected_client_count);
     for _ in 0..500 {
         match listener.accept() {
@@ -4103,6 +4112,13 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     && snapshots[0].sample_checksum != snapshots[1].sample_checksum
             };
             if surfaces_ready {
+                if elevation_scenario {
+                    if !smithay_session.borrow_mut().present_client_surface(1) {
+                        eprintln!("elevation acceptance surface could not receive focus");
+                        std::process::exit(1);
+                    }
+                    snapshots = smithay_session.borrow().client_surface_snapshots();
+                }
                 if installer_scenario || typography_scenario {
                     snapshots[0].x = 0;
                     snapshots[0].y = 0;
@@ -4150,6 +4166,19 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         snapshots[0].sample_checksum
                     );
                 } else {
+                    if elevation_scenario {
+                        let focused = snapshots
+                            .iter()
+                            .filter(|snapshot| snapshot.keyboard_focus_assigned)
+                            .count();
+                        println!("elevation_wayland_surface_ready=true");
+                        println!("elevation_wayland_surface_count={}", snapshots.len());
+                        println!("elevation_wayland_focused_surface_count={focused}");
+                        println!(
+                            "elevation_wayland_inactive_surface_count={}",
+                            snapshots.len().saturating_sub(focused)
+                        );
+                    }
                     if !smithay_session
                         .borrow_mut()
                         .raise_surface_with_buffer_size(384, 256)
@@ -4500,13 +4529,16 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     "installer-welcome"
                 } else if typography_scenario {
                     "typography-acceptance"
+                } else if elevation_scenario {
+                    "elevation-acceptance"
                 } else {
                     "desktop-event-loop"
                 }
             );
-            println!("external_fixture_clients_started={external_client_required}");
+            println!("external_fixture_clients_started={fixture_clients_required}");
             println!("installer_wayland_client_started={installer_scenario}");
             println!("typography_wayland_client_started={typography_scenario}");
+            println!("elevation_wayland_client_started={elevation_scenario}");
             println!(
                 "session_lifetime_policy={}",
                 if persistent_session {
@@ -6513,6 +6545,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
             println!("installer_wayland_client_process_stopped=true");
         } else if typography_scenario {
             println!("typography_wayland_client_process_stopped=true");
+        } else if elevation_scenario {
+            println!("elevation_wayland_client_process_stopped=true");
         }
     }
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]

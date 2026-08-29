@@ -5,9 +5,9 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 12 now has shared typography and tokenized elevation foundations. Four elevation levels produce reusable rounded shadow masks keyed by geometry, scale, theme, and level; the live Smithay GLES path places focused and inactive window shadows with viewport-bounded damage. A committed 16-case matrix covers every theme and supported scale, and the Linux musl cross-build validates the target-only integration. Packaged QEMU elevation capture remains before runtime acceptance. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
+  "currentStage": "Milestone 12 now has accepted typography and tokenized elevation foundations. Four elevation levels produce reusable rounded shadow masks keyed by geometry, scale, theme, and level; the live Smithay GLES path places focused and inactive window shadows with viewport-bounded damage. A committed 16-case matrix covers every theme and supported scale, while one recovery-safe packaged QEMU boot captures a focused and inactive window in all four themes and returns to recovery after every bounded session. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
   "updated": "2026-08-29",
-  "overallPercent": 87,
+  "overallPercent": 88,
   "rules": [
     "Aqua Linux v1.0 is treated as 100%.",
     "Overall progress is the rounded arithmetic mean of the 13 phase percentages so the public value is reproducible.",
@@ -115,14 +115,13 @@
     {
       "id": "m12",
       "name": "Visual Fidelity and Component System",
-      "percent": 35,
+      "percent": 40,
       "status": "in-progress",
       "updated": "2026-08-29",
-      "summary": "The shared aqua-text crate owns shaped Unicode layout, deterministic fallback, six roles, four output scales, and bounded glyph caching, with committed renderer fixtures and packaged QEMU evidence. Tokenized elevation now defines control, panel, dialog, and active-window shadows; reusable rounded masks are keyed by physical geometry, scale, theme, and level, while themes alter opacity without changing geometry. The Smithay GLES path uploads and reuses those masks beneath focused and inactive client surfaces and computes viewport-clipped damage. A committed 16-case matrix covers every theme and scale, and the target-only path passes the Linux musl cross-build. Packaged QEMU elevation captures remain open, followed by icons, motion, and the component catalog."
+      "summary": "The shared aqua-text crate owns shaped Unicode layout, deterministic fallback, six roles, four output scales, and bounded glyph caching, with committed renderer fixtures and packaged QEMU evidence. Tokenized elevation defines control, panel, dialog, and active-window shadows; reusable rounded masks are keyed by physical geometry, scale, theme, and level, while themes alter opacity without changing geometry. The Smithay GLES path uploads and reuses those masks beneath focused and inactive client surfaces and computes viewport-clipped damage. A committed 16-case matrix covers every theme and scale. A dedicated packaged QEMU scenario maps exactly one focused and one inactive fixture window, captures all four themes, verifies two masks and bounded damage regions, cleans up, and returns to recovery after every session. Icons, motion, and the component catalog remain open."
     }
   ],
   "nextSteps": [
-    "Capture and validate tokenized client-window elevation through the packaged Smithay/DRM QEMU path.",
     "Implement reviewed SVG loading and scale-native Aqua Core Icon rasterization and caching.",
     "Implement semantic, interruptible, frame-driven state motion and reduced-motion behavior.",
     "Build the complete shared component catalog and deterministic visual-regression matrix.",
