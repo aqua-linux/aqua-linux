@@ -17,6 +17,7 @@ use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole,
 use std::sync::{Mutex, OnceLock};
 
 mod elevation;
+pub mod icons;
 pub use elevation::*;
 
 pub const UI_FONT_SOURCE: &str = "embedded-ttf";

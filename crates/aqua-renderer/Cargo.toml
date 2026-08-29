@@ -11,6 +11,7 @@ aqua-scene = { path = "../aqua-scene" }
 aqua-shell = { path = "../aqua-shell" }
 aqua-text = { path = "../aqua-text" }
 png = "0.18.1"
+resvg = { version = "0.45.1", default-features = false }
 
 [lib]
 path = "src/lib.rs"

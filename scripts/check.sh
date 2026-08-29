@@ -26,6 +26,7 @@ cargo test --workspace
 scripts/check-typography-fixtures.sh
 scripts/check-typography-layout-fixtures.sh
 scripts/check-elevation-fixtures.sh
+scripts/check-icon-fixtures.sh
 scripts/check-graphical-session-supervisor.sh
 scripts/check-default-recovery-safety.sh
 scripts/check-graphical-session-stop.sh
@@ -1043,7 +1044,7 @@ assert phases["m9"]["percent"] == 100
 assert phases["m9"]["status"] == "complete"
 assert phases["m11"]["percent"] == 100
 assert phases["m11"]["status"] == "complete"
-assert phases["m12"]["percent"] == 40
+assert phases["m12"]["percent"] == 55
 assert phases["m12"]["status"] == "in-progress"
 PY
 test -f crates/aqua-installer/Cargo.toml
@@ -1536,6 +1537,8 @@ test -x scripts/check-typography-wayland-qemu.sh
 test -x scripts/check-typography-wayland-qemu.exp
 test -x scripts/check-elevation-wayland-qemu.sh
 test -x scripts/check-elevation-wayland-qemu.exp
+test -x scripts/check-icon-fixtures.sh
+test -f docs/aqua-linux/icon-fixtures.txt
 test -f docs/aqua-linux/typography-fixtures.txt
 test -f docs/aqua-linux/typography-layout-fixtures.txt
 grep -Fq '"crates/aqua-text"' Cargo.toml
@@ -1555,6 +1558,9 @@ grep -Fq 'elevation-acceptance' crates/aqua-compositor/src/main.rs
 grep -Fq 'aqua-typography-acceptance' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'typography_qemu = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'elevation_qemu = ' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'icon_rasterization = ' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'resvg = { version = "0.45.1", default-features = false }' crates/aqua-renderer/Cargo.toml
+grep -Fq 'pub struct IconRasterCache' crates/aqua-renderer/src/icons.rs
 grep -Fq 'aqua-text = { path = "../aqua-text" }' crates/aqua-renderer/Cargo.toml
 grep -Fq 'export-visible-preview-html' docs/aqua-linux/compositor.md
 grep -Fq 'smoke-nested-preview-loop' docs/aqua-linux/compositor.md

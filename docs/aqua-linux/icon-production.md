@@ -245,3 +245,9 @@ features, transparent rendering, 16/20/24/32/48/64/128 pixel output, all four
 themes, and silhouette stability. Passing SVGs are then added to the runtime
 manifest and packaged image; merely listing a filename here does not make it a
 runtime asset.
+
+The existing 13-icon core set now passes the renderer's bounded static-SVG
+loader and the committed scale-native fixture matrix. This acceptance does not
+approve any undelivered filename from Delivery 1 through Delivery 5. New files
+must still complete the same source, license, silhouette, theme, state, size,
+and output-scale review before entering the runtime manifest.

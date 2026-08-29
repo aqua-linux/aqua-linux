@@ -36,6 +36,7 @@ release obligations are authoritative in its generated `legal-info` output.
 | `png` | 0.18.1 | MIT OR Apache-2.0 |
 | `polling` | 3.11.0 | Apache-2.0 OR MIT |
 | `portable-pty` | 0.9.0 | MIT |
+| `resvg` | 0.45.1 | Apache-2.0 OR MIT |
 | `rustybuzz` | 0.20.1 | MIT |
 | `sha2` | 0.10.9 | MIT OR Apache-2.0 |
 | `smithay` | 0.7.0 | MIT |
@@ -49,9 +50,13 @@ Linux-only Smithay support also uses `input`, `libc`, `tempfile`,
 permissive license expressions are recorded in `Cargo.lock`.
 
 The full transitive Rust graph was inspected through `cargo metadata` on
-2026-08-27. Every package reported a license expression. Observed expressions
+2026-08-29. Every package reported a license expression. Observed expressions
 use MIT, Apache-2.0, BSD-2-Clause, 0BSD, Zlib, Unicode-3.0, and Unlicense
 combinations. This summary does not replace upstream license texts.
+The scale-native icon path disables resvg's default text, system-font,
+memory-map, and raster-image features. Its reviewed SVG subset uses the
+pure-Rust usvg, tiny-skia, and XML/path parsing graph; that graph adds
+BSD-3-Clause to the observed permissive expressions.
 
 ## Buildroot Images
 
