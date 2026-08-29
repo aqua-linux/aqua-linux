@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-15";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-16";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -791,6 +791,80 @@ pub(crate) fn draw_workspace_switcher(
     primitives + 1
 }
 
+pub(crate) fn draw_notification(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    notification: NotificationToast<'_>,
+    theme: AquaTheme,
+    scale: OutputScale,
+) -> usize {
+    if !notification.is_valid() {
+        return 0;
+    }
+    let palette = window_chrome_palette(theme);
+    let slots = notification.slots();
+    fill_rounded_rect(
+        buffer,
+        width,
+        height,
+        notification.rect,
+        10,
+        palette.surface,
+        244,
+    );
+    draw_rect_outline(
+        buffer,
+        width,
+        height,
+        notification.rect,
+        palette.border,
+        220,
+    );
+    fill_rounded_rect(
+        buffer,
+        width,
+        height,
+        slots.icon,
+        8,
+        palette.accent_soft,
+        235,
+    );
+    draw_fitted_bitmap_text(
+        buffer,
+        (width, height),
+        slots.title,
+        notification.title,
+        palette.text,
+        FittedTextOptions::new(TextRole::Control, scale, false),
+    );
+    draw_fitted_bitmap_text(
+        buffer,
+        (width, height),
+        slots.body,
+        notification.body,
+        palette.secondary_text,
+        FittedTextOptions::new(TextRole::Body, scale, false),
+    );
+    draw_fitted_bitmap_text(
+        buffer,
+        (width, height),
+        slots.source,
+        notification.source,
+        palette.accent,
+        FittedTextOptions::new(TextRole::Caption, scale, false),
+    );
+    draw_component_glyph(
+        buffer,
+        width,
+        height,
+        slots.dismiss_icon,
+        IconButtonGlyph::Close,
+        palette.text,
+    );
+    8
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComponentAcceptanceProbe {
     pub viewport: Viewport,
@@ -814,6 +888,7 @@ pub struct ComponentAcceptanceProbe {
     pub global_search_ready: bool,
     pub running_app_dock_ready: bool,
     pub workspace_switcher_ready: bool,
+    pub notification_ready: bool,
     pub stable_geometry: bool,
     pub input_semantics: bool,
     pub accessibility_semantics: bool,
@@ -840,6 +915,7 @@ impl ComponentAcceptanceProbe {
             && self.global_search_ready
             && self.running_app_dock_ready
             && self.workspace_switcher_ready
+            && self.notification_ready
             && self.stable_geometry
             && self.input_semantics
             && self.accessibility_semantics
@@ -1651,6 +1727,50 @@ pub fn render_component_acceptance_rgba(
             .item_accessibility(1, "Workspace 2")
             .is_some_and(|item| item.role == "tab" && item.selected);
 
+    let fixture_notification = NotificationToast::new(
+        Rect {
+            x: viewport.width.saturating_sub(380),
+            y: viewport.height.saturating_sub(196),
+            width: 360,
+            height: 88,
+        },
+        "Aqua System",
+        "Update ready",
+        "Restart when convenient.",
+    );
+    draw_notification(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        fixture_notification,
+        theme,
+        scale,
+    );
+    let notification_slots = fixture_notification.slots();
+    let notification_semantics = fixture_notification.accessibility();
+    let notification_ready = fixture_notification.is_valid()
+        && fixture_notification.rect.fits_in(viewport)
+        && notification_slots.icon.fits_in(viewport)
+        && notification_slots.title.fits_in(viewport)
+        && notification_slots.body.fits_in(viewport)
+        && notification_slots.source.fits_in(viewport)
+        && notification_slots.dismiss.fits_in(viewport)
+        && !fixture_notification.dismiss_hit(
+            notification_slots.dismiss.x.saturating_sub(1),
+            notification_slots.dismiss.y,
+        )
+        && fixture_notification
+            .dismiss_hit(notification_slots.dismiss.x, notification_slots.dismiss.y)
+        && !fixture_notification.dismiss_hit(
+            notification_slots.dismiss.right(),
+            notification_slots.dismiss.y,
+        )
+        && fixture_notification.keyboard_dismisses(NotificationKey::Escape)
+        && fixture_notification.keyboard_dismisses(NotificationKey::Activate(ActivationKey::Space))
+        && notification_semantics.role == "status"
+        && notification_semantics.live == "polite"
+        && fixture_notification.dismiss_accessibility().role == "button";
+
     let probe = ComponentAcceptanceProbe {
         viewport,
         theme,
@@ -1673,6 +1793,7 @@ pub fn render_component_acceptance_rgba(
         global_search_ready,
         running_app_dock_ready,
         workspace_switcher_ready,
+        notification_ready,
         stable_geometry,
         input_semantics,
         accessibility_semantics,
@@ -1700,7 +1821,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} global_search_ready={} running_app_dock_ready={} workspace_switcher_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} global_search_ready={} running_app_dock_ready={} workspace_switcher_ready={} notification_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -1724,6 +1845,7 @@ pub fn component_acceptance_report() -> String {
                 probe.global_search_ready,
                 probe.running_app_dock_ready,
                 probe.workspace_switcher_ready,
+                probe.notification_ready,
                 probe.stable_geometry,
                 probe.input_semantics,
                 probe.accessibility_semantics,
@@ -1767,6 +1889,7 @@ mod tests {
                 SharedComponentKind::GlobalSearch,
                 SharedComponentKind::RunningAppDock,
                 SharedComponentKind::WorkspaceSwitcher,
+                SharedComponentKind::Notification,
             ]
         );
     }
@@ -1809,7 +1932,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,sidebar-navigation,toolbar")
+                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,sidebar-navigation,toolbar")
                 .count(),
             12
         );
