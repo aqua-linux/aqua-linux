@@ -84,7 +84,8 @@ impl SharedComponentKind {
     pub const fn is_shared_primitive(self) -> bool {
         matches!(
             self,
-            Self::WindowFrame
+            Self::TopSystemBar
+                | Self::WindowFrame
                 | Self::Menu
                 | Self::MetadataRow
                 | Self::SectionGroup
@@ -195,6 +196,198 @@ pub struct ComponentAccessibility<'a> {
     pub disabled: bool,
     pub busy: bool,
     pub selected: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TopSystemStatus {
+    Audio,
+    Network,
+    Battery,
+}
+
+impl TopSystemStatus {
+    pub const ALL: [Self; 3] = [Self::Audio, Self::Network, Self::Battery];
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Audio => "Audio",
+            Self::Network => "Network",
+            Self::Battery => "Battery",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TopSystemBarAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TopSystemStatusAccessibility {
+    pub role: &'static str,
+    pub name: &'static str,
+    pub available: bool,
+    pub percent: Option<u8>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TopSystemBar<'a> {
+    pub rect: Rect,
+    pub name: &'a str,
+}
+
+impl<'a> TopSystemBar<'a> {
+    const BRAND_WIDTH: u32 = 112;
+    const STATUS_ITEM_WIDTH: u32 = 20;
+    const STATUS_GAP: u32 = 19;
+    const SESSION_WIDTH: u32 = 28;
+    const SESSION_GAP: u32 = 10;
+    const CLOCK_MAX_WIDTH: u32 = 280;
+
+    pub const fn new(rect: Rect, name: &'a str) -> Self {
+        Self { rect, name }
+    }
+
+    pub const fn brand_rect(self) -> Rect {
+        Rect {
+            x: self.rect.x.saturating_add(12),
+            y: self.rect.y,
+            width: min_u32(Self::BRAND_WIDTH, self.rect.width.saturating_sub(12)),
+            height: self.rect.height,
+        }
+    }
+
+    pub const fn session_rect(self) -> Rect {
+        Rect {
+            x: self.rect.right().saturating_sub(Self::SESSION_WIDTH),
+            y: self.rect.y,
+            width: min_u32(Self::SESSION_WIDTH, self.rect.width),
+            height: self.rect.height,
+        }
+    }
+
+    pub const fn status_group_rect(self) -> Rect {
+        let width = Self::STATUS_ITEM_WIDTH
+            .saturating_mul(TopSystemStatus::ALL.len() as u32)
+            .saturating_add(
+                Self::STATUS_GAP
+                    .saturating_mul(TopSystemStatus::ALL.len().saturating_sub(1) as u32),
+            );
+        Rect {
+            x: self
+                .session_rect()
+                .x
+                .saturating_sub(Self::SESSION_GAP.saturating_add(width)),
+            y: self.rect.y,
+            width,
+            height: self.rect.height,
+        }
+    }
+
+    pub const fn status_rect(self, status: TopSystemStatus) -> Rect {
+        let index = match status {
+            TopSystemStatus::Audio => 0,
+            TopSystemStatus::Network => 1,
+            TopSystemStatus::Battery => 2,
+        };
+        let group = self.status_group_rect();
+        Rect {
+            x: group
+                .x
+                .saturating_add(index * Self::STATUS_ITEM_WIDTH.saturating_add(Self::STATUS_GAP)),
+            y: group.y,
+            width: Self::STATUS_ITEM_WIDTH,
+            height: group.height,
+        }
+    }
+
+    pub const fn clock_rect(self) -> Rect {
+        let left = self.brand_rect().right().saturating_add(8);
+        let right = self.status_group_rect().x.saturating_sub(8);
+        let available = right.saturating_sub(left);
+        let width = min_u32(Self::CLOCK_MAX_WIDTH, available);
+        let centered = self
+            .rect
+            .x
+            .saturating_add(self.rect.width.saturating_sub(width) / 2);
+        let max_x = right.saturating_sub(width);
+        Rect {
+            x: max_u32(left, min_u32(centered, max_x)),
+            y: self.rect.y,
+            width,
+            height: self.rect.height,
+        }
+    }
+
+    pub const fn separator_rect(self) -> Rect {
+        Rect {
+            x: self.rect.x,
+            y: self.rect.bottom().saturating_sub(1),
+            width: self.rect.width,
+            height: 1,
+        }
+    }
+
+    pub const fn session_hit(self, x: u32, y: u32) -> bool {
+        self.is_valid() && rect_contains(self.session_rect(), x, y)
+    }
+
+    pub const fn status_at(self, x: u32, y: u32) -> Option<TopSystemStatus> {
+        if !self.is_valid() {
+            return None;
+        }
+        let mut index = 0;
+        while index < TopSystemStatus::ALL.len() {
+            let status = TopSystemStatus::ALL[index];
+            if rect_contains(self.status_rect(status), x, y) {
+                return Some(status);
+            }
+            index += 1;
+        }
+        None
+    }
+
+    pub const fn is_valid(self) -> bool {
+        !self.name.is_empty()
+            && self.rect.width >= 480
+            && self.rect.height >= 28
+            && self.brand_rect().right() <= self.clock_rect().x
+            && self.clock_rect().right() <= self.status_group_rect().x
+            && self.status_group_rect().right() <= self.session_rect().x
+            && self.session_rect().right() == self.rect.right()
+    }
+
+    pub const fn accessibility(self) -> TopSystemBarAccessibility<'a> {
+        TopSystemBarAccessibility {
+            role: "banner",
+            name: self.name,
+        }
+    }
+
+    pub const fn session_accessibility(self) -> ComponentAccessibility<'static> {
+        ComponentAccessibility {
+            role: "button",
+            name: "Session controls",
+            disabled: false,
+            busy: false,
+            selected: false,
+        }
+    }
+
+    pub const fn status_accessibility(
+        self,
+        status: TopSystemStatus,
+        available: bool,
+        percent: Option<u8>,
+    ) -> TopSystemStatusAccessibility {
+        TopSystemStatusAccessibility {
+            role: "status",
+            name: status.name(),
+            available,
+            percent,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1559,12 +1752,20 @@ const fn min_u32(left: u32, right: u32) -> u32 {
     }
 }
 
+const fn max_u32(left: u32, right: u32) -> u32 {
+    if left > right {
+        left
+    } else {
+        right
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_twelve_shared_primitives() {
+    fn catalog_tracks_the_thirteen_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -1572,6 +1773,7 @@ mod tests {
                 .filter(|component| component.is_shared_primitive())
                 .collect::<Vec<_>>(),
             vec![
+                SharedComponentKind::TopSystemBar,
                 SharedComponentKind::WindowFrame,
                 SharedComponentKind::SidebarNavigation,
                 SharedComponentKind::Toolbar,
@@ -1664,6 +1866,7 @@ mod tests {
             height: 40,
         };
         let button = StandardButton::new(rect, "", StandardButtonVariant::Primary);
+        let top_bar = TopSystemBar::new(rect, "");
         let row = ListRow::new(rect, "", ListRowRole::Option);
         let icon = IconButton::new(rect, "", IconButtonGlyph::Back);
         let search = SearchField::new(rect, "", "", "Search");
@@ -1675,6 +1878,7 @@ mod tests {
         let metadata = MetadataRow::new(rect, "", "Value");
         let section = SectionGroup::new(rect, "", 1);
         assert!(!button.can_activate());
+        assert!(!top_bar.is_valid());
         assert!(!row.can_activate());
         assert!(!icon.can_activate());
         assert!(!search.accepts_input());
@@ -1896,5 +2100,33 @@ mod tests {
         assert_eq!(semantics.value, "/home/aqua");
         assert!(semantics.read_only);
         assert!(semantics.emphasized);
+    }
+
+    #[test]
+    fn top_system_bar_unifies_brand_clock_status_and_session_geometry() {
+        let bar = TopSystemBar::new(
+            Rect {
+                x: 0,
+                y: 0,
+                width: 1536,
+                height: 36,
+            },
+            "Aqua system bar",
+        );
+        assert!(bar.is_valid());
+        assert_eq!(bar.status_rect(TopSystemStatus::Audio).x, 1400);
+        assert_eq!(bar.status_rect(TopSystemStatus::Network).x, 1439);
+        assert_eq!(bar.status_rect(TopSystemStatus::Battery).x, 1478);
+        assert_eq!(bar.session_rect().x, 1508);
+        assert_eq!(bar.separator_rect().y, 35);
+        assert_eq!(bar.status_at(1439, 18), Some(TopSystemStatus::Network));
+        assert_eq!(bar.status_at(1430, 18), None);
+        assert!(bar.session_hit(1535, 18));
+        assert!(!bar.session_hit(1507, 18));
+        assert_eq!(bar.accessibility().role, "banner");
+        assert_eq!(bar.session_accessibility().role, "button");
+        let battery = bar.status_accessibility(TopSystemStatus::Battery, true, Some(87));
+        assert_eq!(battery.name, "Battery");
+        assert_eq!(battery.percent, Some(87));
     }
 }

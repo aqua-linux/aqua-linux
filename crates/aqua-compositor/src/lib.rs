@@ -43,11 +43,11 @@ pub use aqua_renderer::{
 };
 pub use aqua_scene::{static_shell_scene, Rect, ShellScene, SurfaceKind, Viewport, SCENE_STATUS};
 pub use aqua_shell::{
-    dock_pointer_target, properties_launch_request, BottomShellTarget, DesktopContextAction,
-    DesktopIconState, DesktopPointerButton, DockItem, DockState, LaunchRequest, LauncherCategory,
-    LauncherEvent, LauncherPointerTarget, LauncherState, NotificationCenter, SessionAction,
-    SessionMenuEvent, SessionMenuState, TrashModel, NOTIFICATION_DEFAULT_TIMEOUT_MS,
-    WORKSPACE_COUNT,
+    dock_pointer_target, properties_launch_request, top_system_bar, BottomShellTarget,
+    DesktopContextAction, DesktopIconState, DesktopPointerButton, DockItem, DockState,
+    LaunchRequest, LauncherCategory, LauncherEvent, LauncherPointerTarget, LauncherState,
+    NotificationCenter, SessionAction, SessionMenuEvent, SessionMenuState, TrashModel,
+    NOTIFICATION_DEFAULT_TIMEOUT_MS, WORKSPACE_COUNT,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_text::OutputScale;
@@ -60,6 +60,14 @@ pub enum FirstPartyWindowAction {
     Move,
     Resize,
     None,
+}
+
+pub fn top_system_bar_session_hit(viewport: Viewport, pointer_x: u32, pointer_y: u32) -> bool {
+    static_shell_scene(viewport)
+        .surface_rect(SurfaceKind::TopPanel)
+        .is_some_and(|rect| {
+            top_system_bar(rect.width, rect.height).session_hit(pointer_x, pointer_y)
+        })
 }
 
 pub fn first_party_window_action(
@@ -6811,6 +6819,18 @@ impl SmithayDrmSession {
         if button == 0x110 && pressed {
             let output_width = self.session.wayland_state.output_width;
             let output_height = self.session.wayland_state.output_height;
+            if top_system_bar_session_hit(
+                Viewport::new(output_width, output_height),
+                pointer_x as u32,
+                pointer_y as u32,
+            ) {
+                self.session
+                    .wayland_state
+                    .apply_session_menu_event(SessionMenuEvent::Toggle);
+                self.session.wayland_state.pointer_button_count += 1;
+                println!("desktop_top_system_bar_session_activated=true");
+                return true;
+            }
             let dock_target = static_shell_scene(Viewport::new(800, 600))
                 .surface_rect(SurfaceKind::Dock)
                 .and_then(|canonical| {
@@ -9298,6 +9318,15 @@ mod tests {
         assert!(status_lines().contains(&"component=aqua-compositor"));
         assert!(status_lines().contains(&"foundation=smithay"));
         assert!(status_lines().contains(&"event_loop=calloop"));
+    }
+
+    #[test]
+    fn shared_top_system_bar_routes_only_the_session_control() {
+        let viewport = Viewport::new(1536, 1024);
+        assert!(top_system_bar_session_hit(viewport, 1535, 18));
+        assert!(top_system_bar_session_hit(viewport, 1508, 18));
+        assert!(!top_system_bar_session_hit(viewport, 1507, 18));
+        assert!(!top_system_bar_session_hit(viewport, 1535, 36));
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]

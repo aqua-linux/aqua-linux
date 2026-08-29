@@ -12,7 +12,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 
 | Component | Status | Current consumer or next boundary |
 | --- | --- | --- |
-| Top system bar | Planned | Shell top-level status and session controls |
+| Top system bar | Shared host-proven primitive | Shell brand, clock, status slots, and pointer-enabled Session controls share render/input geometry; packaged-QEMU acceptance remains open |
 | Window frame and title bar | Shared host-proven primitive | Terminal, Files, Settings, and Properties renderer/input geometry; packaged-QEMU acceptance remains open |
 | Sidebar navigation | Shared host-proven primitive | Files and Settings share render/input geometry; installer uses its row composition |
 | Toolbar | Shared host-proven primitive | Files navigation and location controls |
@@ -37,6 +37,34 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 
 “Planned” means that runtime behavior may exist, but its current one-off path
 has not yet passed the shared-component completion contract.
+
+## Top System Bar Contract
+
+### Anatomy And Geometry
+
+- The top system bar owns one full-width surface, bottom separator, bounded
+  brand slot, centered clock slot, Audio/Network/Battery status slots, and a
+  trailing Session controls target.
+- Clock width adapts to the space between brand and status groups while fitted
+  text prevents either side from being displaced. Status and session slots
+  retain stable geometry as live values change.
+- The current compact contract requires at least 480x28. Invalid dimensions or
+  an empty accessible name fail closed.
+
+### Input And Accessibility
+
+- Only the trailing Session controls rectangle is actionable. Its pointer hit
+  opens or closes the existing bounded Session menu; status slots and their
+  inter-item gaps do not activate it.
+- The container exposes the `banner` role, each live status exposes a named
+  `status` role with availability and optional battery percentage, and Session
+  controls retain an independent `button` role.
+- The renderer, cached Aqua Core status icons, and compositor pointer routing
+  all consume the same shared rectangles.
+
+The deterministic matrix covers compact bounds, slot separation, live-status
+semantics, session hit rejection, and four themes at 800x600, 1280x800, and
+fractional-scale 1536x1024. Packaged-QEMU component acceptance remains open.
 
 ## Standard Button Contract
 
@@ -326,6 +354,6 @@ acceptance remains open.
 
 ## Next Extraction Order
 
-1. Top system bar, using the real clock, status, and session-control boundaries.
+1. Grid cell, using the real Applications grid and Files item boundaries.
 2. Checkbox after a real installer option exists; slider after a bounded audio-volume model exists.
 3. Shell-level panels, dock, workspaces, notification, and confirmation dialog.

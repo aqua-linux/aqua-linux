@@ -1,6 +1,6 @@
 use aqua_components::{
     ComponentState, IconButton, IconButtonGlyph, Menu, MetadataRow, SearchField, SectionGroup,
-    SegmentedControl, SidebarNavigation, SwitchControl, Toolbar,
+    SegmentedControl, SidebarNavigation, SwitchControl, Toolbar, TopSystemBar,
 };
 use aqua_scene::Rect;
 use std::collections::VecDeque;
@@ -1529,6 +1529,18 @@ pub struct TopBarState {
     pub network_connected: bool,
     pub battery_percent: Option<u8>,
     pub audio_available: bool,
+}
+
+pub fn top_system_bar(width: u32, height: u32) -> TopSystemBar<'static> {
+    TopSystemBar::new(
+        Rect {
+            x: 0,
+            y: 0,
+            width,
+            height,
+        },
+        "Aqua system bar",
+    )
 }
 
 impl TopBarState {
@@ -3371,6 +3383,13 @@ mod tests {
         assert!(state.network_connected);
         assert_eq!(state.battery_percent, Some(87));
         assert!(state.audio_available);
+        let bar = top_system_bar(1536, 36);
+        assert!(bar.is_valid());
+        assert_eq!(
+            bar.status_rect(aqua_components::TopSystemStatus::Audio).x,
+            1400
+        );
+        assert!(bar.session_hit(1535, 18));
 
         fs::remove_dir_all(root).expect("remove top bar fixture");
     }

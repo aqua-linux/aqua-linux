@@ -458,10 +458,11 @@ reduced-motion tests pass without jumps, stuck input, or unbounded timers.
   desktop viewports, localization expansion, and applicable states.
 
 The implementation inventory and extraction order are maintained in
-[component-catalog.md](component-catalog.md). Window frame, menu, metadata row,
-section group, standard button, icon button, search field, switch, segmented
-control, toolbar, list row, and sidebar navigation are host-proven across their
-applicable states, four themes, three required viewports, and a fractional scale. Installer,
+[component-catalog.md](component-catalog.md). Top system bar, window frame,
+menu, metadata row, section group, standard button, icon button, search field,
+switch, segmented control, toolbar, list row, and sidebar navigation are
+host-proven across their applicable states, four themes, three required
+viewports, and a fractional scale. Installer,
 Applications, Global Search, Terminal, Properties, Settings, and Files consume
 the applicable primitives; shared geometry drives both renderer and input
 routing. Packaged-QEMU component acceptance and the remaining catalog entries

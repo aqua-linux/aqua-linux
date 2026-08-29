@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-9";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-10";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -614,6 +614,7 @@ pub struct ComponentAcceptanceProbe {
     pub menu_ready: bool,
     pub section_group_ready: bool,
     pub metadata_row_ready: bool,
+    pub top_system_bar_ready: bool,
     pub stable_geometry: bool,
     pub input_semantics: bool,
     pub accessibility_semantics: bool,
@@ -634,6 +635,7 @@ impl ComponentAcceptanceProbe {
             && self.menu_ready
             && self.section_group_ready
             && self.metadata_row_ready
+            && self.top_system_bar_ready
             && self.stable_geometry
             && self.input_semantics
             && self.accessibility_semantics
@@ -693,6 +695,49 @@ pub fn render_component_acceptance_rgba(
         && frame_semantics.role == "window"
         && !frame_semantics.name.is_empty()
         && frame_semantics.focused;
+
+    let fixture_top_bar = TopSystemBar::new(
+        Rect {
+            x: 8,
+            y: 8,
+            width: viewport.width.saturating_sub(16),
+            height: 40,
+        },
+        "Fixture system bar",
+    );
+    fill_rect(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        fixture_top_bar.rect,
+        palette.toolbar,
+        255,
+    );
+    fill_rect(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        fixture_top_bar.separator_rect(),
+        palette.border,
+        255,
+    );
+    let audio = fixture_top_bar.status_rect(TopSystemStatus::Audio);
+    let session = fixture_top_bar.session_rect();
+    let bar_semantics = fixture_top_bar.accessibility();
+    let audio_semantics = fixture_top_bar.status_accessibility(TopSystemStatus::Audio, true, None);
+    let top_system_bar_ready = fixture_top_bar.is_valid()
+        && fixture_top_bar.brand_rect().fits_in(viewport)
+        && fixture_top_bar.clock_rect().fits_in(viewport)
+        && fixture_top_bar.status_group_rect().fits_in(viewport)
+        && session.fits_in(viewport)
+        && fixture_top_bar.status_at(audio.x, audio.y) == Some(TopSystemStatus::Audio)
+        && fixture_top_bar.session_hit(session.x, session.y)
+        && !fixture_top_bar.session_hit(session.x.saturating_sub(1), session.y)
+        && bar_semantics.role == "banner"
+        && !bar_semantics.name.is_empty()
+        && fixture_top_bar.session_accessibility().role == "button"
+        && audio_semantics.role == "status"
+        && audio_semantics.available;
 
     let button_width = scale.apply(168.0).round() as u32;
     let button_height = scale.apply(40.0).round() as u32;
@@ -1137,6 +1182,7 @@ pub fn render_component_acceptance_rgba(
         menu_ready,
         section_group_ready,
         metadata_row_ready,
+        top_system_bar_ready,
         stable_geometry,
         input_semantics,
         accessibility_semantics,
@@ -1164,7 +1210,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -1182,6 +1228,7 @@ pub fn component_acceptance_report() -> String {
                 probe.menu_ready,
                 probe.section_group_ready,
                 probe.metadata_row_ready,
+                probe.top_system_bar_ready,
                 probe.stable_geometry,
                 probe.input_semantics,
                 probe.accessibility_semantics,
@@ -1207,6 +1254,7 @@ mod tests {
                 .filter(|component| component.is_shared_primitive())
                 .collect::<Vec<_>>(),
             vec![
+                SharedComponentKind::TopSystemBar,
                 SharedComponentKind::WindowFrame,
                 SharedComponentKind::SidebarNavigation,
                 SharedComponentKind::Toolbar,
@@ -1261,7 +1309,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar")
+                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar")
                 .count(),
             12
         );
