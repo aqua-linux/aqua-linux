@@ -48,6 +48,8 @@ Expected first exports:
 - Preserve wallpaper aspect ratio; scale with a centered cover crop and never stretch.
 - Generate runtime-size variants only from committed source assets.
 - Keep Aqua Core Icons in the permanent `/usr/share/aqua/icons/aqua/` namespace.
+- Load only reviewed Aqua Core SVGs through the bounded static subset; rasterize
+  directly at the target output scale and never enlarge a cached bitmap.
 - Do not claim boot splash support until a boot splash process or kernel/userspace splash path exists.
 - Do not claim real blur/refraction until the compositor or renderer implements it.
 - Keep private design and brand-source boards under the Git-ignored `docs/aqua-linux/local-references/` tree. Do not install or publish complete boards, and do not crop runtime icons from interface references. Only the approved transparent brand exports belong in the public/runtime asset set.

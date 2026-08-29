@@ -124,6 +124,14 @@ maps one focused and one inactive client window through the real Smithay GLES
 and DRM path, captures all four themes at 1280x800, and proves bounded cleanup
 and recovery return after every capture.
 
+The deterministic [`icon-fixtures.txt`](icon-fixtures.txt) report covers all 13
+reviewed Aqua Core Icons across the seven required logical sizes, four themes,
+and four supported output scales. Sources pass the bounded static-SVG subset,
+each physical dimension is rasterized directly from vector geometry, symbolic
+roles receive theme/state colors, and a 256-entry LRU proves complete cache
+keys, reuse, and bounded eviction. Packaged compositor integration and QEMU
+capture remain the final iconography acceptance step.
+
 ## Accessibility And Localization
 
 - Complete primary workflows with keyboard only.

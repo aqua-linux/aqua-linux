@@ -21,6 +21,9 @@ is outside this audit.
   Open Font License 1.1 text.
 - The shared text service uses the permissively licensed Rustybuzz,
   unicode-bidi, and unicode-segmentation crates for shaping and layout.
+- Reviewed Aqua Core SVGs use resvg 0.45.1 without its default text,
+  system-font, memory-map, or raster-image features. The pure-Rust parsing and
+  raster graph is MIT, Apache-2.0, or BSD-3-Clause licensed.
 - The Weston simple-shm compatibility fixture is MIT licensed and is isolated
   from the Aqua desktop product stack.
 - No private keys or environment-secret files were found in the OS source tree.
