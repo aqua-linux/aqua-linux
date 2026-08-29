@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-7";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-8";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -384,6 +384,55 @@ pub(crate) fn draw_toolbar(
     2
 }
 
+pub(crate) fn draw_section_group(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    section: SectionGroup<'_>,
+    theme: AquaTheme,
+) -> usize {
+    if !section.is_valid() {
+        return 0;
+    }
+    let palette = window_chrome_palette(theme);
+    fill_rounded_rect(buffer, width, height, section.rect, 8, palette.field, 255);
+    draw_rect_outline(buffer, width, height, section.rect, palette.border, 255);
+    let mut primitives = 2;
+    if section.header_height > 0 {
+        fill_rect(
+            buffer,
+            width,
+            height,
+            Rect {
+                x: section.rect.x,
+                y: section.header_rect().bottom().saturating_sub(1),
+                width: section.rect.width,
+                height: 1,
+            },
+            palette.border,
+            255,
+        );
+        primitives += 1;
+    }
+    if section.focused {
+        draw_rect_outline(
+            buffer,
+            width,
+            height,
+            Rect {
+                x: section.rect.x.saturating_sub(2),
+                y: section.rect.y.saturating_sub(2),
+                width: section.rect.width.saturating_add(4),
+                height: section.rect.height.saturating_add(4),
+            },
+            palette.accent,
+            220,
+        );
+        primitives += 1;
+    }
+    primitives
+}
+
 pub(crate) fn draw_standard_button(
     buffer: &mut [u8],
     width: u32,
@@ -525,6 +574,7 @@ pub struct ComponentAcceptanceProbe {
     pub toolbar_ready: bool,
     pub window_frame_ready: bool,
     pub menu_ready: bool,
+    pub section_group_ready: bool,
     pub stable_geometry: bool,
     pub input_semantics: bool,
     pub accessibility_semantics: bool,
@@ -543,6 +593,7 @@ impl ComponentAcceptanceProbe {
             && self.toolbar_ready
             && self.window_frame_ready
             && self.menu_ready
+            && self.section_group_ready
             && self.stable_geometry
             && self.input_semantics
             && self.accessibility_semantics
@@ -862,6 +913,66 @@ pub fn render_component_acceptance_rgba(
         }
     }
 
+    let fixture_section = SectionGroup::new(
+        Rect {
+            x: viewport.width.saturating_sub(428),
+            y: viewport.height.saturating_sub(184),
+            width: 188,
+            height: 152,
+        },
+        "Fixture section",
+        2,
+    )
+    .with_structure(30, 28, 12, 8, 24, 4)
+    .with_focus(true);
+    draw_section_group(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        fixture_section,
+        theme,
+    );
+    draw_fitted_bitmap_text(
+        &mut buffer,
+        (viewport.width, viewport.height),
+        fixture_section.heading_rect(),
+        "Section",
+        palette.text,
+        FittedTextOptions::new(TextRole::Title, scale, true),
+    );
+    for index in 0..fixture_section.row_count {
+        let row = fixture_section.row_rect(index);
+        fill_rect(
+            &mut buffer,
+            viewport.width,
+            viewport.height,
+            row,
+            if index == 0 {
+                palette.row_alternate
+            } else {
+                palette.surface
+            },
+            255,
+        );
+    }
+    let section_semantics = fixture_section.accessibility();
+    let section_group_ready = fixture_section.is_valid()
+        && fixture_section.header_rect().fits_in(viewport)
+        && fixture_section.content_rect().fits_in(viewport)
+        && fixture_section.footer_rect().fits_in(viewport)
+        && fixture_section.row_at(fixture_section.row_rect(0).x, fixture_section.row_rect(0).y)
+            == Some(0)
+        && fixture_section
+            .row_at(
+                fixture_section.row_rect(0).x,
+                fixture_section.row_rect(0).bottom(),
+            )
+            .is_none()
+        && fixture_section.trailing_rect(1, 48, 18).fits_in(viewport)
+        && section_semantics.role == "group"
+        && !section_semantics.name.is_empty()
+        && section_semantics.focused;
+
     let fixture_menu = Menu::new(
         Rect {
             x: viewport.width.saturating_sub(220),
@@ -952,6 +1063,7 @@ pub fn render_component_acceptance_rgba(
         toolbar_ready,
         window_frame_ready,
         menu_ready,
+        section_group_ready,
         stable_geometry,
         input_semantics,
         accessibility_semantics,
@@ -979,7 +1091,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=window-frame,menu,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=window-frame,menu,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -995,6 +1107,7 @@ pub fn component_acceptance_report() -> String {
                 probe.toolbar_ready,
                 probe.window_frame_ready,
                 probe.menu_ready,
+                probe.section_group_ready,
                 probe.stable_geometry,
                 probe.input_semantics,
                 probe.accessibility_semantics,
@@ -1030,6 +1143,7 @@ mod tests {
                 SharedComponentKind::Switch,
                 SharedComponentKind::Menu,
                 SharedComponentKind::ListRow,
+                SharedComponentKind::SectionGroup,
             ]
         );
     }
@@ -1072,7 +1186,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=window-frame,menu,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar")
+                .matches("components=window-frame,menu,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar")
                 .count(),
             12
         );

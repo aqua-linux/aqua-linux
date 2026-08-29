@@ -86,6 +86,7 @@ impl SharedComponentKind {
             self,
             Self::WindowFrame
                 | Self::Menu
+                | Self::SectionGroup
                 | Self::Toolbar
                 | Self::SegmentedControl
                 | Self::SearchField
@@ -1040,6 +1041,217 @@ impl<'a> Menu<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SectionGroupAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub focused: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SectionGroup<'a> {
+    pub rect: Rect,
+    pub name: &'a str,
+    pub row_count: usize,
+    pub header_height: u32,
+    pub footer_height: u32,
+    pub inset_x: u32,
+    pub inset_y: u32,
+    pub row_height: u32,
+    pub row_gap: u32,
+    pub focused: bool,
+}
+
+impl<'a> SectionGroup<'a> {
+    pub const fn new(rect: Rect, name: &'a str, row_count: usize) -> Self {
+        Self {
+            rect,
+            name,
+            row_count,
+            header_height: 0,
+            footer_height: 0,
+            inset_x: 16,
+            inset_y: 12,
+            row_height: 32,
+            row_gap: 4,
+            focused: false,
+        }
+    }
+
+    pub const fn with_structure(
+        mut self,
+        header_height: u32,
+        footer_height: u32,
+        inset_x: u32,
+        inset_y: u32,
+        row_height: u32,
+        row_gap: u32,
+    ) -> Self {
+        self.header_height = header_height;
+        self.footer_height = footer_height;
+        self.inset_x = inset_x;
+        self.inset_y = inset_y;
+        self.row_height = row_height;
+        self.row_gap = row_gap;
+        self
+    }
+
+    pub const fn with_focus(mut self, focused: bool) -> Self {
+        self.focused = focused;
+        self
+    }
+
+    pub const fn header_rect(self) -> Rect {
+        Rect {
+            x: self.rect.x,
+            y: self.rect.y,
+            width: self.rect.width,
+            height: min_u32(self.header_height, self.rect.height),
+        }
+    }
+
+    pub const fn heading_rect(self) -> Rect {
+        let header = self.header_rect();
+        Rect {
+            x: header.x.saturating_add(self.inset_x),
+            y: header.y,
+            width: header.width.saturating_sub(self.inset_x.saturating_mul(2)),
+            height: header.height,
+        }
+    }
+
+    pub const fn footer_rect(self) -> Rect {
+        Rect {
+            x: self.rect.x.saturating_add(self.inset_x),
+            y: self.rect.bottom().saturating_sub(self.footer_height),
+            width: self
+                .rect
+                .width
+                .saturating_sub(self.inset_x.saturating_mul(2)),
+            height: min_u32(self.footer_height, self.rect.height),
+        }
+    }
+
+    pub const fn content_rect(self) -> Rect {
+        let reserved = self
+            .header_height
+            .saturating_add(self.footer_height)
+            .saturating_add(self.inset_y.saturating_mul(2));
+        Rect {
+            x: self.rect.x.saturating_add(self.inset_x),
+            y: self
+                .rect
+                .y
+                .saturating_add(self.header_height)
+                .saturating_add(self.inset_y),
+            width: self
+                .rect
+                .width
+                .saturating_sub(self.inset_x.saturating_mul(2)),
+            height: self.rect.height.saturating_sub(reserved),
+        }
+    }
+
+    pub const fn row_rect(self, index: usize) -> Rect {
+        let content = self.content_rect();
+        if index >= self.row_count {
+            return Rect {
+                x: content.x,
+                y: content.y,
+                width: 0,
+                height: 0,
+            };
+        }
+        Rect {
+            x: content.x,
+            y: content.y.saturating_add(
+                (index as u32).saturating_mul(self.row_height.saturating_add(self.row_gap)),
+            ),
+            width: content.width,
+            height: self.row_height,
+        }
+    }
+
+    pub const fn row_at(self, x: u32, y: u32) -> Option<usize> {
+        if !self.is_valid() {
+            return None;
+        }
+        let mut index = 0;
+        while index < self.row_count {
+            if rect_contains(self.row_rect(index), x, y) {
+                return Some(index);
+            }
+            index += 1;
+        }
+        None
+    }
+
+    pub const fn trailing_rect(self, index: usize, width: u32, height: u32) -> Rect {
+        let row = self.row_rect(index);
+        if row.width < width || row.height < height {
+            return Rect {
+                x: row.x,
+                y: row.y,
+                width: 0,
+                height: 0,
+            };
+        }
+        Rect {
+            x: row.right().saturating_sub(width),
+            y: row.y.saturating_add(row.height.saturating_sub(height) / 2),
+            width,
+            height,
+        }
+    }
+
+    pub const fn footer_trailing_rect(self, width: u32, height: u32) -> Rect {
+        let footer = self.footer_rect();
+        if footer.width < width || footer.height < height {
+            return Rect {
+                x: footer.x,
+                y: footer.y,
+                width: 0,
+                height: 0,
+            };
+        }
+        Rect {
+            x: footer.right().saturating_sub(width),
+            y: footer
+                .y
+                .saturating_add(footer.height.saturating_sub(height) / 2),
+            width,
+            height,
+        }
+    }
+
+    pub const fn is_valid(self) -> bool {
+        if self.name.is_empty()
+            || self.row_count == 0
+            || self.row_count > 32
+            || self.rect.width == 0
+            || self.rect.height == 0
+            || self.row_height == 0
+            || self.inset_x.saturating_mul(2) >= self.rect.width
+        {
+            return false;
+        }
+        let reserved = self
+            .header_height
+            .saturating_add(self.footer_height)
+            .saturating_add(self.inset_y.saturating_mul(2));
+        reserved < self.rect.height
+            && self.row_rect(self.row_count - 1).bottom() <= self.content_rect().bottom()
+    }
+
+    pub const fn accessibility(self) -> SectionGroupAccessibility<'a> {
+        SectionGroupAccessibility {
+            role: "group",
+            name: self.name,
+            focused: self.focused,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListRowRole {
     Option,
     Navigation,
@@ -1255,7 +1467,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_ten_shared_primitives() {
+    fn catalog_tracks_the_eleven_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -1273,6 +1485,7 @@ mod tests {
                 SharedComponentKind::Switch,
                 SharedComponentKind::Menu,
                 SharedComponentKind::ListRow,
+                SharedComponentKind::SectionGroup,
             ]
         );
     }
@@ -1361,6 +1574,7 @@ mod tests {
         let toolbar = Toolbar::new(rect, "");
         let navigation = SidebarNavigation::new(rect, "", rect, 40);
         let menu = Menu::new(rect, "", 2, 0, 0, 20, 0);
+        let section = SectionGroup::new(rect, "", 1);
         assert!(!button.can_activate());
         assert!(!row.can_activate());
         assert!(!icon.can_activate());
@@ -1370,6 +1584,7 @@ mod tests {
         assert!(!toolbar.is_valid());
         assert!(!navigation.is_valid());
         assert!(!menu.is_valid());
+        assert!(!section.is_valid());
         assert_eq!(navigation.hit_test(11, 21, 1), None);
     }
 
@@ -1528,5 +1743,31 @@ mod tests {
             .expect("bounded item semantics should exist");
         assert_eq!(item.role, "menuitem");
         assert!(!item.selected);
+    }
+
+    #[test]
+    fn section_group_bounds_header_content_footer_rows_and_trailing_controls() {
+        let section = SectionGroup::new(
+            Rect {
+                x: 24,
+                y: 184,
+                width: 432,
+                height: 92,
+            },
+            "File details",
+            2,
+        )
+        .with_structure(0, 34, 16, 8, 18, 4)
+        .with_focus(true);
+        assert!(section.is_valid());
+        assert_eq!(section.content_rect().y, 192);
+        assert_eq!(section.row_rect(1).y, 214);
+        assert_eq!(section.footer_rect().y, 242);
+        assert_eq!(section.trailing_rect(1, 138, 18).x, 302);
+        assert_eq!(section.footer_trailing_rect(138, 30).x, 302);
+        assert_eq!(section.row_at(40, 198), Some(0));
+        assert_eq!(section.row_at(40, 212), None);
+        assert_eq!(section.accessibility().role, "group");
+        assert!(section.accessibility().focused);
     }
 }
