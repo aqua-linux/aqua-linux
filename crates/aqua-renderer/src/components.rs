@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-8";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-9";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -433,6 +433,44 @@ pub(crate) fn draw_section_group(
     primitives
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct MetadataRowStyle {
+    pub label_color: [u8; 4],
+    pub value_color: [u8; 4],
+    pub role: TextRole,
+    pub scale: OutputScale,
+}
+
+pub(crate) fn draw_metadata_row(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    row: MetadataRow<'_>,
+    style: MetadataRowStyle,
+) -> usize {
+    if !row.is_valid() {
+        return 0;
+    }
+    let slots = row.slots();
+    draw_fitted_bitmap_text(
+        buffer,
+        (width, height),
+        slots.label,
+        row.label,
+        style.label_color,
+        FittedTextOptions::new(style.role, style.scale, false),
+    );
+    draw_fitted_bitmap_text(
+        buffer,
+        (width, height),
+        slots.value,
+        row.value,
+        style.value_color,
+        FittedTextOptions::new(style.role, style.scale, false),
+    );
+    2
+}
+
 pub(crate) fn draw_standard_button(
     buffer: &mut [u8],
     width: u32,
@@ -575,6 +613,7 @@ pub struct ComponentAcceptanceProbe {
     pub window_frame_ready: bool,
     pub menu_ready: bool,
     pub section_group_ready: bool,
+    pub metadata_row_ready: bool,
     pub stable_geometry: bool,
     pub input_semantics: bool,
     pub accessibility_semantics: bool,
@@ -594,6 +633,7 @@ impl ComponentAcceptanceProbe {
             && self.window_frame_ready
             && self.menu_ready
             && self.section_group_ready
+            && self.metadata_row_ready
             && self.stable_geometry
             && self.input_semantics
             && self.accessibility_semantics
@@ -940,7 +980,9 @@ pub fn render_component_acceptance_rgba(
         palette.text,
         FittedTextOptions::new(TextRole::Title, scale, true),
     );
-    for index in 0..fixture_section.row_count {
+    let fixture_values = ["Aqua", "Ready"];
+    let mut metadata_row_ready = true;
+    for (index, value) in fixture_values.into_iter().enumerate() {
         let row = fixture_section.row_rect(index);
         fill_rect(
             &mut buffer,
@@ -954,6 +996,36 @@ pub fn render_component_acceptance_rgba(
             },
             255,
         );
+        let metadata = MetadataRow::new(row, if index == 0 { "System" } else { "State" }, value)
+            .with_columns(60, 8)
+            .with_emphasis(index == 1);
+        draw_metadata_row(
+            &mut buffer,
+            viewport.width,
+            viewport.height,
+            metadata,
+            MetadataRowStyle {
+                label_color: palette.secondary_text,
+                value_color: if metadata.emphasized {
+                    palette.accent
+                } else {
+                    palette.text
+                },
+                role: TextRole::Control,
+                scale,
+            },
+        );
+        let slots = metadata.slots();
+        let semantics = metadata.accessibility();
+        metadata_row_ready &= metadata.is_valid()
+            && slots.label.fits_in(viewport)
+            && slots.value.fits_in(viewport)
+            && slots.label.right() < slots.value.x
+            && !metadata.accepts_input()
+            && semantics.role == "definition"
+            && !semantics.name.is_empty()
+            && !semantics.value.is_empty()
+            && semantics.read_only;
     }
     let section_semantics = fixture_section.accessibility();
     let section_group_ready = fixture_section.is_valid()
@@ -1064,6 +1136,7 @@ pub fn render_component_acceptance_rgba(
         window_frame_ready,
         menu_ready,
         section_group_ready,
+        metadata_row_ready,
         stable_geometry,
         input_semantics,
         accessibility_semantics,
@@ -1091,7 +1164,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=window-frame,menu,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -1108,6 +1181,7 @@ pub fn component_acceptance_report() -> String {
                 probe.window_frame_ready,
                 probe.menu_ready,
                 probe.section_group_ready,
+                probe.metadata_row_ready,
                 probe.stable_geometry,
                 probe.input_semantics,
                 probe.accessibility_semantics,
@@ -1143,6 +1217,7 @@ mod tests {
                 SharedComponentKind::Switch,
                 SharedComponentKind::Menu,
                 SharedComponentKind::ListRow,
+                SharedComponentKind::MetadataRow,
                 SharedComponentKind::SectionGroup,
             ]
         );
@@ -1186,7 +1261,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=window-frame,menu,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar")
+                .matches("components=window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar")
                 .count(),
             12
         );

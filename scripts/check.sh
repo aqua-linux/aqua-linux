@@ -1046,7 +1046,7 @@ assert phases["m9"]["percent"] == 100
 assert phases["m9"]["status"] == "complete"
 assert phases["m11"]["percent"] == 100
 assert phases["m11"]["status"] == "complete"
-assert phases["m12"]["percent"] == 91
+assert phases["m12"]["percent"] == 92
 assert phases["m12"]["status"] == "in-progress"
 PY
 test -f crates/aqua-installer/Cargo.toml
@@ -1559,11 +1559,12 @@ grep -Fq 'pub fn typography_fixture_report' crates/aqua-text/src/lib.rs
 grep -Fq 'noto-sans-arabic-regular-2.009' docs/aqua-linux/typography-fixtures.txt
 grep -Fq 'pub fn typography_layout_acceptance_report' crates/aqua-renderer/src/lib.rs
 grep -Fq 'aqua-typography-layout-fixtures-1' docs/aqua-linux/typography-layout-fixtures.txt
-grep -Fq 'aqua-component-fixtures-8' docs/aqua-linux/component-fixtures.txt
+grep -Fq 'aqua-component-fixtures-9' docs/aqua-linux/component-fixtures.txt
 test -f docs/aqua-linux/component-catalog.md
 grep -Fq 'Window frame and title bar | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Menu | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Section group | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Metadata row | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Standard button | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Icon button | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Search field | Shared host-proven primitive' docs/aqua-linux/component-catalog.md
@@ -1577,6 +1578,7 @@ grep -Fq 'pub enum SharedComponentKind' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct WindowFrame' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct Menu' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct SectionGroup' crates/aqua-components/src/lib.rs
+grep -Fq 'pub struct MetadataRow' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct IconButton' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct SearchField' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct SwitchControl' crates/aqua-components/src/lib.rs
@@ -1596,6 +1598,8 @@ grep -Fq 'desktop_context_menu(index).map' crates/aqua-renderer/src/lib.rs
 grep -Fq 'desktop_context_menu(icon_index)?' crates/aqua-shell/src/lib.rs
 grep -Fq 'details_section_group(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.section_group()' crates/aqua-renderer/src/lib.rs
+grep -Fq 'details_metadata_row(width, height' crates/aqua-renderer/src/lib.rs
+grep -Fq 'MetadataRow::new(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'menu.menu_layout(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'files_back_button().with_state(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.active_switch()' crates/aqua-renderer/src/lib.rs
