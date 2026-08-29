@@ -129,8 +129,10 @@ reviewed Aqua Core Icons across the seven required logical sizes, four themes,
 and four supported output scales. Sources pass the bounded static-SVG subset,
 each physical dimension is rasterized directly from vector geometry, symbolic
 roles receive theme/state colors, and a 256-entry LRU proves complete cache
-keys, reuse, and bounded eviction. Packaged compositor integration and QEMU
-capture remain the final iconography acceptance step.
+keys, reuse, and bounded eviction. The live compositor consumes those rasters
+in its top bar, desktop, dock, and notification textures. Packaged QEMU captures
+cover all four themes and verify cache reuse, bounded retention, and recovery
+return after every session.
 
 ## Accessibility And Localization
 

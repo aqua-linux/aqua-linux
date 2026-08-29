@@ -2,7 +2,7 @@
 
 > Generated from `docs/aqua-linux/progress.json`. Update the changed phase date, then run `scripts/write-progress-report.sh`.
 
-**Overall progress: 89%**
+**Overall progress: 90%**
 
 | Field | Value |
 | --- | --- |
@@ -14,7 +14,7 @@
 
 ## Current Stage
 
-Milestone 12 now has accepted typography and elevation plus a scale-native Aqua Core Icon foundation. The renderer admits only the 13 reviewed project-authored SVGs through a bounded static subset, rasterizes directly at every required physical size, applies theme and interaction state tokens, and reuses results through a 256-entry complete-key LRU. A committed 1,456-case matrix covers all roles, themes, logical sizes, and output scales. Packaged compositor icon integration remains before QEMU acceptance. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.
+Milestone 12 now has accepted typography, elevation, and runtime Aqua Core Icon integration. The renderer admits only the 13 reviewed project-authored SVGs through a bounded static subset, rasterizes directly at every required physical size, applies theme and interaction state tokens, and reuses results through a 256-entry complete-key LRU. The live compositor consumes cached rasters in top bar, desktop, dock, and notification textures. A committed 1,456-case host matrix and four recovery-safe packaged QEMU theme captures cover the icon path. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.
 
 ## Phases
 
@@ -22,7 +22,7 @@ Phases are ordered by their most recent update.
 
 | Updated | Phase | Status | Progress | Summary |
 | --- | --- | --- | ---: | --- |
-| 2026-08-29 | M12: Visual Fidelity and Component System | In Progress | 55% | The shared aqua-text crate and tokenized elevation path have deterministic host fixtures plus packaged QEMU evidence. Aqua Core Icon loading now validates the 13 reviewed project-authored SVGs against a bounded static subset before pure-Rust parsing, with text, system-font, memory-map, and raster-image features disabled. Required logical sizes are rasterized directly for every supported output scale; symbolic roles receive theme and interaction state colors. A 256-entry LRU keys source revision, role, theme, state, logical size, and scale. The committed 1,456-case matrix proves transparent output, small-size silhouette stability, cache reuse, and bounded eviction. Packaged compositor integration and QEMU capture remain open, followed by motion and the component catalog. |
+| 2026-08-29 | M12: Visual Fidelity and Component System | In Progress | 65% | The shared aqua-text crate and tokenized elevation path have deterministic host fixtures plus packaged QEMU evidence. Aqua Core Icon loading validates the 13 reviewed project-authored SVGs against a bounded static subset before pure-Rust parsing, with resource-bearing default features disabled. Required logical sizes are rasterized directly for every supported output scale; symbolic roles receive theme and interaction state colors. The live compositor shares one 256-entry complete-key LRU across top bar, desktop, dock, and notification texture generation. The committed 1,456-case host matrix proves transparent output, small-size silhouette stability, reuse, and bounded eviction. Four packaged QEMU theme captures prove seven live roles, ten physical raster keys, three cache hits after shell texture invalidation, zero eviction, and recovery return. Motion and the component catalog remain open. |
 | 2026-08-28 | M2: Asset and Visual System Intake | Complete | 100% | Public contracts capture the permanent desktop, application, search, first-party app, installer, completion, and four-theme direction derived from private Git-ignored boards. Approved transparent brand exports and the reproducible pale-wave wallpaper are used by the runtime. Thirteen project-authored Aqua Core Icons permanently cover core application, desktop, notification, and status roles with explicit MIT licensing; no temporary icon package remains. |
 | 2026-08-28 | M11: Polish and Public Readiness | Complete | 100% | The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, permanent Aqua Core Icons, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, four live-refreshed themes, and three real workspaces. Current QEMU captures carry a provenance manifest, the public hardware matrix prevents physical support overclaims, and the default-image gate enforces recovery-safe startup. Structured issue forms, private security routing, canonical labels, a pull request safety checklist, and CI-enforced contributor contracts now define public intake and triage. |
 | 2026-08-22 | M4: Scene and Surface Renderer | Complete | 100% | The Smithay GLES2 renderer composes the packaged wallpaper, shared surfaces, optional two-pass blur, and live wl_shm textures at the native output size. Physical DRM retains XRGB8888 GBM front/back dma-buf scanout. QEMU keeps GLES readback for the desktop, but a full-output client that explicitly supplies a complete Wayland opaque region may use the dumb-buffer bridge after one GPU validation frame. Packaged installer acceptance measured 30 bridged frames at a 61 ms median total while preserving distinct 1280x800 captures. |
@@ -46,7 +46,6 @@ Phases are ordered by their most recent update.
 
 ## Next Developments
 
-1. Integrate cached Aqua Core Icon rasters into compositor shell surfaces and validate them through packaged QEMU captures.
-2. Implement semantic, interruptible, frame-driven state motion and reduced-motion behavior.
-3. Build the complete shared component catalog and deterministic visual-regression matrix.
-4. Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation.
+1. Implement semantic, interruptible, frame-driven state motion and reduced-motion behavior.
+2. Build the complete shared component catalog and deterministic visual-regression matrix.
+3. Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation.

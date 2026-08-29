@@ -1044,7 +1044,7 @@ assert phases["m9"]["percent"] == 100
 assert phases["m9"]["status"] == "complete"
 assert phases["m11"]["percent"] == 100
 assert phases["m11"]["status"] == "complete"
-assert phases["m12"]["percent"] == 55
+assert phases["m12"]["percent"] == 65
 assert phases["m12"]["status"] == "in-progress"
 PY
 test -f crates/aqua-installer/Cargo.toml
@@ -1538,6 +1538,8 @@ test -x scripts/check-typography-wayland-qemu.exp
 test -x scripts/check-elevation-wayland-qemu.sh
 test -x scripts/check-elevation-wayland-qemu.exp
 test -x scripts/check-icon-fixtures.sh
+test -x scripts/check-icon-wayland-qemu.sh
+test -x scripts/check-icon-wayland-qemu.exp
 test -f docs/aqua-linux/icon-fixtures.txt
 test -f docs/aqua-linux/typography-fixtures.txt
 test -f docs/aqua-linux/typography-layout-fixtures.txt
@@ -1554,10 +1556,15 @@ grep -Fq 'typography_wayland_surface_ready=true' scripts/check-typography-waylan
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=elevation-acceptance' scripts/check-elevation-wayland-qemu.exp
 grep -Fq 'elevation_wayland_focused_surface_count=1' scripts/check-elevation-wayland-qemu.sh
 grep -Fq 'gpu_shadow_damage_rects=2' scripts/check-elevation-wayland-qemu.sh
+grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=icon-acceptance' scripts/check-icon-wayland-qemu.exp
+grep -Fq 'icon_wayland_raster_cache_ready=true' scripts/check-icon-wayland-qemu.sh
+grep -Fq 'desktop_icon_raster_cache_hits=3' scripts/check-icon-wayland-qemu.sh
+grep -Fq 'icon-acceptance' crates/aqua-compositor/src/main.rs
 grep -Fq 'elevation-acceptance' crates/aqua-compositor/src/main.rs
 grep -Fq 'aqua-typography-acceptance' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'typography_qemu = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'elevation_qemu = ' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'icon_qemu = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'icon_rasterization = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'resvg = { version = "0.45.1", default-features = false }' crates/aqua-renderer/Cargo.toml
 grep -Fq 'pub struct IconRasterCache' crates/aqua-renderer/src/icons.rs
