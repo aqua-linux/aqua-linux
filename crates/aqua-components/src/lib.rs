@@ -96,6 +96,7 @@ impl SharedComponentKind {
                 | Self::IconButton
                 | Self::Checkbox
                 | Self::Switch
+                | Self::Slider
                 | Self::ListRow
                 | Self::GridCell
                 | Self::ApplicationOverview
@@ -163,6 +164,7 @@ impl ComponentState {
         Self::Attention,
     ];
     pub const CHECKBOX_STATES: [Self; 9] = Self::SWITCH_STATES;
+    pub const SLIDER_STATES: [Self; 9] = Self::SWITCH_STATES;
     pub const SEGMENTED_CONTROL_STATES: [Self; 9] = Self::SWITCH_STATES;
 
     pub const fn id(self) -> &'static str {
@@ -732,6 +734,172 @@ impl<'a> Checkbox<'a> {
             role: "checkbox",
             name: self.label,
             checked: self.checked,
+            disabled: matches!(self.state, ComponentState::Disabled),
+            busy: matches!(self.state, ComponentState::Loading),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SliderKey {
+    Decrease,
+    Increase,
+    Home,
+    End,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SliderSlots {
+    pub track: Rect,
+    pub fill: Rect,
+    pub thumb: Rect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SliderAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub value: u16,
+    pub minimum: u16,
+    pub maximum: u16,
+    pub disabled: bool,
+    pub busy: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Slider<'a> {
+    pub rect: Rect,
+    pub label: &'a str,
+    pub value: u16,
+    pub minimum: u16,
+    pub maximum: u16,
+    pub step: u16,
+    pub state: ComponentState,
+}
+
+impl<'a> Slider<'a> {
+    pub const fn new(
+        rect: Rect,
+        label: &'a str,
+        value: u16,
+        minimum: u16,
+        maximum: u16,
+        step: u16,
+    ) -> Self {
+        Self {
+            rect,
+            label,
+            value,
+            minimum,
+            maximum,
+            step,
+            state: ComponentState::Idle,
+        }
+    }
+
+    pub const fn with_state(mut self, state: ComponentState) -> Self {
+        self.state = state;
+        self
+    }
+
+    pub const fn is_valid(self) -> bool {
+        !self.label.is_empty()
+            && self.rect.width >= 64
+            && self.rect.height >= 28
+            && self.minimum < self.maximum
+            && self.value >= self.minimum
+            && self.value <= self.maximum
+            && self.step > 0
+            && self.step <= self.maximum - self.minimum
+    }
+
+    pub const fn can_adjust(self) -> bool {
+        self.is_valid() && self.state.can_activate()
+    }
+
+    pub const fn slots(self) -> SliderSlots {
+        let thumb_size = 18;
+        let horizontal_inset = thumb_size / 2;
+        let track = Rect {
+            x: self.rect.x.saturating_add(horizontal_inset),
+            y: self
+                .rect
+                .y
+                .saturating_add(self.rect.height / 2)
+                .saturating_sub(2),
+            width: self.rect.width.saturating_sub(horizontal_inset * 2),
+            height: 4,
+        };
+        let range = self.maximum.saturating_sub(self.minimum);
+        let offset = self.value.saturating_sub(self.minimum);
+        let travel = track.width.saturating_sub(1);
+        let thumb_center = if range == 0 {
+            track.x
+        } else {
+            track
+                .x
+                .saturating_add(((travel as u64 * offset as u64) / range as u64) as u32)
+        };
+        SliderSlots {
+            track,
+            fill: Rect {
+                x: track.x,
+                y: track.y,
+                width: thumb_center.saturating_sub(track.x).saturating_add(1),
+                height: track.height,
+            },
+            thumb: Rect {
+                x: thumb_center.saturating_sub(thumb_size / 2),
+                y: self
+                    .rect
+                    .y
+                    .saturating_add(self.rect.height.saturating_sub(thumb_size) / 2),
+                width: thumb_size,
+                height: thumb_size,
+            },
+        }
+    }
+
+    pub const fn focus_rect(self) -> Rect {
+        expanded_rect(self.rect, 2)
+    }
+
+    pub fn value_for_pointer(self, x: u32, y: u32) -> Option<u16> {
+        if !self.can_adjust() || !rect_contains(self.rect, x, y) {
+            return None;
+        }
+        let track = self.slots().track;
+        let travel = track.width.saturating_sub(1);
+        let position = x.saturating_sub(track.x).min(travel);
+        let range = self.maximum - self.minimum;
+        let raw_offset = if travel == 0 {
+            0
+        } else {
+            ((position as u64 * range as u64 + u64::from(travel / 2)) / travel as u64) as u16
+        };
+        let stepped = ((raw_offset.saturating_add(self.step / 2)) / self.step) * self.step;
+        Some(self.minimum.saturating_add(stepped).min(self.maximum))
+    }
+
+    pub fn keyboard_value(self, key: SliderKey) -> Option<u16> {
+        if !self.can_adjust() {
+            return None;
+        }
+        Some(match key {
+            SliderKey::Decrease => self.value.saturating_sub(self.step).max(self.minimum),
+            SliderKey::Increase => self.value.saturating_add(self.step).min(self.maximum),
+            SliderKey::Home => self.minimum,
+            SliderKey::End => self.maximum,
+        })
+    }
+
+    pub const fn accessibility(self) -> SliderAccessibility<'a> {
+        SliderAccessibility {
+            role: "slider",
+            name: self.label,
+            value: self.value,
+            minimum: self.minimum,
+            maximum: self.maximum,
             disabled: matches!(self.state, ComponentState::Disabled),
             busy: matches!(self.state, ComponentState::Loading),
         }
@@ -3223,7 +3391,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_twenty_one_shared_primitives() {
+    fn catalog_tracks_all_twenty_two_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -3241,6 +3409,7 @@ mod tests {
                 SharedComponentKind::IconButton,
                 SharedComponentKind::Checkbox,
                 SharedComponentKind::Switch,
+                SharedComponentKind::Slider,
                 SharedComponentKind::Menu,
                 SharedComponentKind::ListRow,
                 SharedComponentKind::GridCell,
@@ -3315,17 +3484,20 @@ mod tests {
             let cell = GridCell::new(rect, "Item", GridCellLayout::IconLeading).with_state(state);
             let switch = SwitchControl::new(rect, "Setting", false).with_state(state);
             let checkbox = Checkbox::new(rect, "Acknowledge", false).with_state(state);
+            let slider = Slider::new(rect, "Volume", 50, 0, 100, 5).with_state(state);
             let segmented = SegmentedControl::new(rect, "Theme", 3, 0).with_state(state);
             assert!(!button.pointer_hit(11, 21));
             assert!(!row.pointer_hit(11, 21));
             assert!(!cell.pointer_hit(11, 21));
             assert!(!switch.pointer_toggles(11, 21));
             assert!(!checkbox.pointer_toggles(11, 21));
+            assert_eq!(slider.value_for_pointer(11, 21), None);
             assert_eq!(segmented.hit_test(11, 21), None);
             assert!(!button.keyboard_activates(ActivationKey::Enter));
             assert!(!row.keyboard_activates(ActivationKey::Space));
             assert!(!cell.keyboard_activates(ActivationKey::Space));
             assert!(!checkbox.keyboard_toggles(ActivationKey::Space));
+            assert_eq!(slider.keyboard_value(SliderKey::Increase), None);
         }
     }
 
@@ -3360,6 +3532,54 @@ mod tests {
     }
 
     #[test]
+    fn slider_owns_bounded_geometry_input_and_value_semantics() {
+        let slider = Slider::new(
+            Rect {
+                x: 20,
+                y: 40,
+                width: 240,
+                height: 32,
+            },
+            "Output volume",
+            60,
+            0,
+            100,
+            5,
+        )
+        .with_state(ComponentState::KeyboardFocus);
+        let slots = slider.slots();
+        assert!(slider.is_valid());
+        assert_eq!(slots.track.height, 4);
+        assert_eq!(slots.thumb.width, 18);
+        assert!(slots.track.x >= slider.rect.x && slots.track.right() <= slider.rect.right());
+        assert!(slots.fill.x >= slots.track.x && slots.fill.right() <= slots.track.right());
+        assert!(slots.thumb.x >= slider.rect.x && slots.thumb.right() <= slider.rect.right());
+        assert_eq!(
+            slider.value_for_pointer(slider.rect.x, slider.rect.y),
+            Some(0)
+        );
+        assert_eq!(
+            slider.value_for_pointer(slider.rect.right() - 1, slider.rect.y),
+            Some(100)
+        );
+        assert_eq!(
+            slider.value_for_pointer(slider.rect.right(), slider.rect.y),
+            None
+        );
+        assert_eq!(slider.keyboard_value(SliderKey::Decrease), Some(55));
+        assert_eq!(slider.keyboard_value(SliderKey::Increase), Some(65));
+        assert_eq!(slider.keyboard_value(SliderKey::Home), Some(0));
+        assert_eq!(slider.keyboard_value(SliderKey::End), Some(100));
+        let semantics = slider.accessibility();
+        assert_eq!(semantics.role, "slider");
+        assert_eq!(semantics.name, slider.label);
+        assert_eq!(semantics.value, 60);
+        assert_eq!((semantics.minimum, semantics.maximum), (0, 100));
+        assert!(!semantics.disabled);
+        assert!(!semantics.busy);
+    }
+
+    #[test]
     fn empty_accessible_names_fail_closed() {
         let rect = Rect {
             x: 10,
@@ -3375,6 +3595,7 @@ mod tests {
         let search = SearchField::new(rect, "", "", "Search");
         let switch = SwitchControl::new(rect, "", false);
         let checkbox = Checkbox::new(rect, "", false);
+        let slider = Slider::new(rect, "", 50, 0, 100, 5);
         let segmented = SegmentedControl::new(rect, "", 3, 0);
         let toolbar = Toolbar::new(rect, "");
         let navigation = SidebarNavigation::new(rect, "", rect, 40);
@@ -3411,6 +3632,7 @@ mod tests {
         assert!(!search.accepts_input());
         assert!(!switch.can_toggle());
         assert!(!checkbox.can_toggle());
+        assert!(!slider.can_adjust());
         assert!(!segmented.is_valid());
         assert!(!toolbar.is_valid());
         assert!(!navigation.is_valid());

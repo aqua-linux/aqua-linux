@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-18";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-19";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -394,6 +394,70 @@ pub(crate) fn draw_checkbox(
         primitives += 1;
     }
     primitives
+}
+
+pub(crate) fn draw_slider(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    slider: Slider<'_>,
+    theme: AquaTheme,
+) -> usize {
+    let palette = window_chrome_palette(theme);
+    let slots = slider.slots();
+    let fill = match slider.state {
+        ComponentState::Disabled | ComponentState::Loading => palette.secondary_text,
+        ComponentState::Error => [0xc9, 0x3c, 0x47, 0xff],
+        ComponentState::Success => [0x2c, 0x8a, 0x59, 0xff],
+        ComponentState::Attention => [0xd1, 0x8b, 0x24, 0xff],
+        ComponentState::Hover | ComponentState::Pressed => palette.accent_soft,
+        _ => palette.accent,
+    };
+    fill_rounded_rect(
+        buffer,
+        width,
+        height,
+        slots.track,
+        slots.track.height / 2,
+        palette.border,
+        230,
+    );
+    fill_rounded_rect(
+        buffer,
+        width,
+        height,
+        slots.fill,
+        slots.fill.height / 2,
+        fill,
+        255,
+    );
+    fill_rounded_rect(
+        buffer,
+        width,
+        height,
+        slots.thumb,
+        slots.thumb.height / 2,
+        if matches!(slider.state, ComponentState::Disabled) {
+            palette.row_alternate
+        } else {
+            palette.field
+        },
+        255,
+    );
+    draw_rect_outline(buffer, width, height, slots.thumb, fill, 240);
+    if slider.state == ComponentState::KeyboardFocus {
+        draw_rect_outline(
+            buffer,
+            width,
+            height,
+            slider.focus_rect(),
+            palette.accent,
+            220,
+        );
+        5
+    } else {
+        4
+    }
 }
 
 pub(crate) fn draw_segmented_control(
@@ -1032,6 +1096,7 @@ pub struct ComponentAcceptanceProbe {
     pub segmented_control_state_count: usize,
     pub switch_state_count: usize,
     pub checkbox_state_count: usize,
+    pub slider_state_count: usize,
     pub sidebar_row_count: usize,
     pub toolbar_ready: bool,
     pub window_frame_ready: bool,
@@ -1061,6 +1126,7 @@ impl ComponentAcceptanceProbe {
             && self.segmented_control_state_count == ComponentState::SEGMENTED_CONTROL_STATES.len()
             && self.switch_state_count == ComponentState::SWITCH_STATES.len()
             && self.checkbox_state_count == ComponentState::CHECKBOX_STATES.len()
+            && self.slider_state_count == ComponentState::SLIDER_STATES.len()
             && self.sidebar_row_count == ComponentState::LIST_ROW_STATES.len()
             && self.toolbar_ready
             && self.window_frame_ready
@@ -1442,7 +1508,7 @@ pub fn render_component_acceptance_rgba(
                 Rect {
                     x: rect.x.saturating_add(4),
                     y: rect.y.saturating_add(5),
-                    width: 122,
+                    width: 100,
                     height: 28,
                 },
                 control_state.id(),
@@ -1474,12 +1540,51 @@ pub fn render_component_acceptance_rgba(
                 && semantics.busy == (control_state == ComponentState::Loading);
         }
 
+        if let Some(control_state) = ComponentState::SLIDER_STATES.get(index).copied() {
+            let value = (index as u16 * 15).min(100);
+            let slider = Slider::new(
+                Rect {
+                    x: rect.x.saturating_add(190),
+                    y: rect.y.saturating_add(5),
+                    width: rect.width.saturating_sub(256),
+                    height: 28,
+                },
+                control_state.id(),
+                value,
+                0,
+                100,
+                5,
+            )
+            .with_state(control_state);
+            draw_slider(&mut buffer, viewport.width, viewport.height, slider, theme);
+            let slots = slider.slots();
+            stable_geometry &= slider.is_valid()
+                && slots.track.fits_in(viewport)
+                && slots.fill.fits_in(viewport)
+                && slots.thumb.fits_in(viewport)
+                && slots.fill.right() <= slots.track.right();
+            input_semantics &= slider.value_for_pointer(slider.rect.x, slider.rect.y)
+                == slider.can_adjust().then_some(0);
+            input_semantics &= slider.keyboard_value(SliderKey::Increase)
+                == slider
+                    .can_adjust()
+                    .then_some(value.saturating_add(5).min(100));
+            let semantics = slider.accessibility();
+            accessibility_semantics &= semantics.role == "slider"
+                && !semantics.name.is_empty()
+                && semantics.value == value
+                && semantics.minimum == 0
+                && semantics.maximum == 100
+                && semantics.disabled == (control_state == ComponentState::Disabled)
+                && semantics.busy == (control_state == ComponentState::Loading);
+        }
+
         if let Some(control_state) = ComponentState::SEGMENTED_CONTROL_STATES.get(index).copied() {
             let segmented = SegmentedControl::new(
                 Rect {
-                    x: rect.x.saturating_add(130),
+                    x: rect.x.saturating_add(108),
                     y: rect.y.saturating_add(5),
-                    width: 100,
+                    width: 70,
                     height: 28,
                 },
                 control_state.id(),
@@ -2025,6 +2130,7 @@ pub fn render_component_acceptance_rgba(
         segmented_control_state_count: ComponentState::SEGMENTED_CONTROL_STATES.len(),
         switch_state_count: ComponentState::SWITCH_STATES.len(),
         checkbox_state_count: ComponentState::CHECKBOX_STATES.len(),
+        slider_state_count: ComponentState::SLIDER_STATES.len(),
         sidebar_row_count: ComponentState::LIST_ROW_STATES.len(),
         toolbar_ready,
         window_frame_ready,
@@ -2065,7 +2171,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,checkbox,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,confirmation-dialog,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} checkbox_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} global_search_ready={} running_app_dock_ready={} workspace_switcher_ready={} notification_ready={} confirmation_dialog_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,checkbox,switch,slider,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,confirmation-dialog,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} checkbox_states={} switch_states={} slider_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} global_search_ready={} running_app_dock_ready={} workspace_switcher_ready={} notification_ready={} confirmation_dialog_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -2076,6 +2182,7 @@ pub fn component_acceptance_report() -> String {
                 probe.search_field_state_count,
                 probe.checkbox_state_count,
                 probe.switch_state_count,
+                probe.slider_state_count,
                 probe.segmented_control_state_count,
                 probe.list_row_state_count,
                 probe.grid_cell_state_count,
@@ -2127,6 +2234,7 @@ mod tests {
                 SharedComponentKind::IconButton,
                 SharedComponentKind::Checkbox,
                 SharedComponentKind::Switch,
+                SharedComponentKind::Slider,
                 SharedComponentKind::Menu,
                 SharedComponentKind::ListRow,
                 SharedComponentKind::GridCell,
@@ -2180,7 +2288,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,checkbox,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,confirmation-dialog,sidebar-navigation,toolbar")
+                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,checkbox,switch,slider,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,confirmation-dialog,sidebar-navigation,toolbar")
                 .count(),
             12
         );

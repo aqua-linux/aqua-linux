@@ -160,9 +160,9 @@ aqua-component-acceptance packaged=true
 path=/usr/libexec/aqua-tests/aqua-component-acceptance
 app_id=aqua.component-acceptance
 surface=wl_shm-xdg-toplevel
-fixture_revision=aqua-component-fixtures-18
+fixture_revision=aqua-component-fixtures-19
 catalog=22
-shared=21
+shared=22
 autostart=false
 EOF
 else
@@ -171,9 +171,9 @@ aqua-component-acceptance packaged=false
 path=/usr/libexec/aqua-tests/aqua-component-acceptance
 app_id=aqua.component-acceptance
 surface=wl_shm-xdg-toplevel
-fixture_revision=aqua-component-fixtures-18
+fixture_revision=aqua-component-fixtures-19
 catalog=22
-shared=21
+shared=22
 autostart=false
 build_hint=scripts/build-compositor-linux-docker.sh
 EOF

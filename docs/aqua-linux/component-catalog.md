@@ -22,7 +22,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Icon button | Shared packaged-QEMU-proven primitive | Files back/forward navigation; broader toolbar adoption remains open |
 | Checkbox | Shared packaged-QEMU-proven primitive | Installer Summary target-bound destructive acknowledgement |
 | Switch | Shared packaged-QEMU-proven primitive | Settings motion, desktop-icon, and key-repeat toggles |
-| Slider | Planned | Audio and future bounded value controls |
+| Slider | Shared packaged-QEMU-proven primitive | Settings Audio output-volume preference |
 | Menu | Shared packaged-QEMU-proven primitive | Desktop icon context actions and Session action layout |
 | List row | Shared packaged-QEMU-proven primitive | Files and Settings navigation plus installer steps |
 | Grid cell | Shared packaged-QEMU-proven primitive | Applications cards and desktop icon cells share render/input geometry; Files remains a list because no grid mode exists yet |
@@ -172,7 +172,7 @@ field. Files back and forward actions now render and hit-test the same shared
 icon-button rectangles, including disabled navigation gates. Their four-theme,
 three-viewport deterministic matrix is recorded in `component-fixtures.txt`.
 
-## Switch And Segmented Control Contract
+## Switch, Segmented Control, And Slider Contract
 
 ### Anatomy And Geometry
 
@@ -181,6 +181,9 @@ three-viewport deterministic matrix is recorded in `component-fixtures.txt`.
 - A segmented control owns its group rectangle, segment count, selected index,
   inter-segment gap, and deterministic per-index rectangles. Any remainder is
   retained by the final segment so the group ends at its declared right edge.
+- A slider owns one stable track, fill, and thumb. Its minimum, maximum, step,
+  and current value must form a valid bounded range; value changes never alter
+  the outer hit target.
 - Pointer input uses only rendered half-open rectangles. Label rows,
   inter-segment gaps, and surrounding padding do not activate a value.
 - Focus rings expand outside the component without moving the track, thumb, or
@@ -193,14 +196,23 @@ three-viewport deterministic matrix is recorded in `component-fixtures.txt`.
 - Segmented controls expose the `radiogroup` role, group name, selected index,
   segment count, disabled, and busy values. Previous, next, home, and end
   navigation is bounded and wraps only for previous/next.
-- Both primitives cover idle, hover, keyboard focus, pressed, disabled,
+- Sliders expose the `slider` role, accessible name, current value, minimum,
+  maximum, disabled, and busy values. Pointer input maps the half-open track to
+  a stepped bounded value; decrease/increase, home, and end keyboard actions
+  clamp to the same range.
+- All three primitives cover idle, hover, keyboard focus, pressed, disabled,
   loading, error, success, and non-repeating attention states. Selection is
   represented by checked/selected-index semantics instead of a duplicate
   generic selected state.
 
 Settings now uses one switch geometry for reduced motion, desktop icons, and
 key repeat. Its four-theme selector uses one segmented-control geometry for
-both renderer and pointer routing; inter-segment gaps reject input. Their
+both renderer and pointer routing; inter-segment gaps reject input. The Audio
+category uses the slider for a persistent 0–100 output-volume preference and a
+shared switch for mute. Availability is derived from a real, non-symlink
+`/dev/snd` directory, so unavailable controls fail closed. This is a UI and
+control-plane model only: no playback backend, routing, mixer application, or
+physical-hardware support is claimed. Their
 four-theme, three-viewport deterministic matrix is recorded in
 `component-fixtures.txt`.
 
@@ -613,17 +625,21 @@ fractional scale.
 once and launches the packaged `aqua.component-acceptance` `wl_shm`
 `xdg-toplevel` through the real Smithay, GLES, and DRM path for LightWhite,
 Softtouch, Deepside, and Nightmare. The acceptance client renders the complete
-21-primitive shared matrix at 1280x800 from fixture revision
-`aqua-component-fixtures-18`; serial gates verify the 22-entry catalog and
-21 shared primitives, while HMP screendumps must be nonblank, theme-distinct,
+22-primitive shared matrix at 1280x800 from fixture revision
+`aqua-component-fixtures-19`; serial gates verify the 22-entry catalog and
+22 shared primitives, while HMP screendumps must be nonblank, theme-distinct,
 and exactly 1280x800.
 
 Every bounded run keeps shell chrome disabled for an unobstructed full-output
 surface, stops the managed client, restores the compositor/CRTC state, and
 returns to the recovery shell. The generated log and screenshots remain local
-build evidence and are not repository artifacts. Slider is not claimed by this
-run because a real bounded audio-volume model does not yet exist.
+build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-1. Slider remains deferred until a real bounded audio-volume model exists.
+All catalog entries now satisfy the shared primitive contract. New extractions
+must start from a real first-party consumer and repeat the same geometry, input,
+accessibility, deterministic-fixture, and packaged-QEMU evidence path. The
+actual audio service/backend remains a separate R4 decision and acceptance
+item; the Settings preference must not be treated as playback or hardware
+evidence.

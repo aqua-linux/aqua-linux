@@ -2564,6 +2564,9 @@ pub struct SettingsWindowProbe {
     pub reduced_motion: bool,
     pub desktop_icons: bool,
     pub key_repeat: bool,
+    pub audio_available: bool,
+    pub audio_volume_percent: u8,
+    pub audio_muted: bool,
     pub network_interface_count: usize,
     pub network_status_available: bool,
     pub primitive_count: usize,
@@ -4242,6 +4245,9 @@ pub fn render_settings_window_rgba(
                 reduced_motion: model.reduced_motion,
                 desktop_icons: model.desktop_icons,
                 key_repeat: model.key_repeat,
+                audio_available: model.audio.available(),
+                audio_volume_percent: model.audio.volume_percent(),
+                audio_muted: model.audio.muted(),
                 network_interface_count: model.network_interfaces.len(),
                 network_status_available: model.network_status_available,
                 primitive_count: 0,
@@ -4444,6 +4450,52 @@ pub fn render_settings_window_rgba(
             1,
         );
         primitives += 4;
+    } else if model.selected_category == 4 {
+        draw_bitmap_text(
+            &mut buffer,
+            (width, height),
+            (first_row.x, first_row.y + 16),
+            "OUTPUT VOLUME",
+            palette.text,
+            1,
+        );
+        let status = if model.audio.available() {
+            format!("{}%", model.audio.volume_percent())
+        } else {
+            "UNAVAILABLE".to_string()
+        };
+        draw_bitmap_text(
+            &mut buffer,
+            (width, height),
+            (first_row.x, first_row.y + 38),
+            &status,
+            palette.secondary_text,
+            1,
+        );
+        primitives += draw_slider(
+            &mut buffer,
+            width,
+            height,
+            model.audio_slider(),
+            model.theme,
+        );
+        let mute_row = section.row_rect(1);
+        draw_bitmap_text(
+            &mut buffer,
+            (width, height),
+            (mute_row.x, mute_row.y + 28),
+            "MUTE OUTPUT",
+            palette.text,
+            1,
+        );
+        primitives += draw_switch_control(
+            &mut buffer,
+            width,
+            height,
+            model.active_switch().expect("audio mute switch"),
+            model.theme,
+        );
+        primitives += 3;
     } else {
         draw_bitmap_text(
             &mut buffer,
@@ -4465,6 +4517,9 @@ pub fn render_settings_window_rgba(
             reduced_motion: model.reduced_motion,
             desktop_icons: model.desktop_icons,
             key_repeat: model.key_repeat,
+            audio_available: model.audio.available(),
+            audio_volume_percent: model.audio.volume_percent(),
+            audio_muted: model.audio.muted(),
             network_interface_count: model.network_interfaces.len(),
             network_status_available: model.network_status_available,
             primitive_count: primitives,
@@ -8124,6 +8179,32 @@ mod tests {
             255,
         );
         assert_eq!(destination, [0xe8, 0xf2, 0xfc, 0xff]);
+    }
+
+    #[test]
+    fn settings_audio_category_renders_real_bounded_slider_state() {
+        let root = std::env::temp_dir().join(format!("aqua-renderer-audio-{}", std::process::id()));
+        let sound_root = root.join("dev/snd");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&sound_root).expect("audio renderer fixture");
+        let mut model = SettingsWindowModel {
+            selected_category: 4,
+            ..SettingsWindowModel::default()
+        };
+        model
+            .refresh_audio_status(&sound_root)
+            .expect("audio device directory should be accepted");
+        assert!(model.audio.set_volume_percent(85));
+        let (pixels, probe) = render_settings_window_rgba(600, 400, &model);
+        assert!(probe.rendered);
+        assert_eq!(probe.category_count, 6);
+        assert_eq!(probe.selected_category, 4);
+        assert!(probe.audio_available);
+        assert_eq!(probe.audio_volume_percent, 85);
+        assert!(!probe.audio_muted);
+        assert_ne!(probe.checksum, 0);
+        assert_eq!(pixels.len(), 600 * 400 * 4);
+        std::fs::remove_dir_all(root).expect("remove audio renderer fixture");
     }
 
     #[test]

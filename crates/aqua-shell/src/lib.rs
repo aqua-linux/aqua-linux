@@ -2,8 +2,9 @@ use aqua_components::{
     ApplicationOverview, ComponentState, ConfirmationDialog, ConfirmationPresentation,
     ConfirmationRequirement, ConfirmationSeverity, ConfirmationState, GlobalSearch, GridCell,
     GridCellLayout, IconButton, IconButtonGlyph, ListRow, ListRowRole, Menu, MetadataRow,
-    RunningAppDock, SearchField, SectionGroup, SegmentedControl, SidebarNavigation, StandardButton,
-    StandardButtonVariant, SwitchControl, Toolbar, TopSystemBar, WorkspaceSwitcher,
+    RunningAppDock, SearchField, SectionGroup, SegmentedControl, SidebarNavigation, Slider,
+    SliderKey, StandardButton, StandardButtonVariant, SwitchControl, Toolbar, TopSystemBar,
+    WorkspaceSwitcher,
 };
 use aqua_scene::Rect;
 use std::collections::VecDeque;
@@ -1293,14 +1294,71 @@ fn parse_meminfo_kib(contents: &str, key: &str) -> io::Result<u64> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AudioVolumeModel {
+    available: bool,
+    volume_percent: u8,
+    muted: bool,
+}
+
+impl Default for AudioVolumeModel {
+    fn default() -> Self {
+        Self {
+            available: false,
+            volume_percent: 70,
+            muted: false,
+        }
+    }
+}
+
+impl AudioVolumeModel {
+    pub const fn available(&self) -> bool {
+        self.available
+    }
+
+    pub const fn volume_percent(&self) -> u8 {
+        self.volume_percent
+    }
+
+    pub const fn muted(&self) -> bool {
+        self.muted
+    }
+
+    pub fn refresh_availability(&mut self, sound_device_root: &Path) -> io::Result<()> {
+        self.available = match fs::symlink_metadata(sound_device_root) {
+            Ok(metadata) => metadata.is_dir() && !metadata.file_type().is_symlink(),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+            Err(error) => return Err(error),
+        };
+        Ok(())
+    }
+
+    pub fn set_volume_percent(&mut self, volume_percent: u8) -> bool {
+        if volume_percent > 100 || self.volume_percent == volume_percent {
+            return false;
+        }
+        self.volume_percent = volume_percent;
+        true
+    }
+
+    pub fn set_muted(&mut self, muted: bool) -> bool {
+        if self.muted == muted {
+            return false;
+        }
+        self.muted = muted;
+        true
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SettingsWindowModel {
     pub title: &'static str,
-    pub categories: [&'static str; 5],
+    pub categories: [&'static str; 6],
     pub selected_category: usize,
     pub hovered_category: Option<usize>,
     pub reduced_motion: bool,
     pub desktop_icons: bool,
     pub key_repeat: bool,
+    pub audio: AudioVolumeModel,
     pub network_interfaces: Vec<NetworkInterfaceStatus>,
     pub network_status_available: bool,
     pub keyboard_focus: bool,
@@ -1311,12 +1369,20 @@ impl Default for SettingsWindowModel {
     fn default() -> Self {
         Self {
             title: "System Settings",
-            categories: ["Appearance", "Desktop", "Input", "Network", "About"],
+            categories: [
+                "Appearance",
+                "Desktop",
+                "Input",
+                "Network",
+                "Audio",
+                "About",
+            ],
             selected_category: 0,
             hovered_category: None,
             reduced_motion: false,
             desktop_icons: true,
             key_repeat: true,
+            audio: AudioVolumeModel::default(),
             network_interfaces: Vec::new(),
             network_status_available: false,
             keyboard_focus: false,
@@ -1330,6 +1396,7 @@ impl SettingsWindowModel {
         let (row_count, row_height, row_gap) = match self.selected_category {
             0 => (2, 48, 40),
             3 => (4, 24, 10),
+            4 => (2, 48, 20),
             _ => (1, 48, 0),
         };
         SectionGroup::new(
@@ -1347,19 +1414,22 @@ impl SettingsWindowModel {
     }
 
     pub fn active_switch(&self) -> Option<SwitchControl<'static>> {
-        let (label, checked) = match self.selected_category {
-            0 => ("Reduced motion", self.reduced_motion),
-            1 => ("Show desktop icons", self.desktop_icons),
-            2 => ("Key repeat", self.key_repeat),
+        let (label, checked, row_index) = match self.selected_category {
+            0 => ("Reduced motion", self.reduced_motion, 0),
+            1 => ("Show desktop icons", self.desktop_icons, 0),
+            2 => ("Key repeat", self.key_repeat, 0),
+            4 => ("Mute output", self.audio.muted(), 1),
             _ => return None,
         };
         Some(
             SwitchControl::new(
-                self.section_group().trailing_rect(0, 82, 36),
+                self.section_group().trailing_rect(row_index, 82, 36),
                 label,
                 checked,
             )
-            .with_state(if self.keyboard_focus {
+            .with_state(if !self.audio.available() && self.selected_category == 4 {
+                ComponentState::Disabled
+            } else if self.keyboard_focus {
                 ComponentState::KeyboardFocus
             } else {
                 ComponentState::Idle
@@ -1381,10 +1451,38 @@ impl SettingsWindowModel {
         .with_gap(6)
     }
 
+    pub fn audio_slider(&self) -> Slider<'static> {
+        let row = self.section_group().row_rect(0);
+        Slider::new(
+            Rect {
+                x: row.x + 120,
+                y: row.y + 8,
+                width: row.width.saturating_sub(136),
+                height: 32,
+            },
+            "Output volume",
+            u16::from(self.audio.volume_percent()),
+            0,
+            100,
+            5,
+        )
+        .with_state(if !self.audio.available() {
+            ComponentState::Disabled
+        } else if self.keyboard_focus {
+            ComponentState::KeyboardFocus
+        } else {
+            ComponentState::Idle
+        })
+    }
+
     pub fn refresh_network_status(&mut self, class_net: &Path) -> io::Result<()> {
         self.network_interfaces = read_network_interfaces(class_net)?;
         self.network_status_available = true;
         Ok(())
+    }
+
+    pub fn refresh_audio_status(&mut self, sound_device_root: &Path) -> io::Result<()> {
+        self.audio.refresh_availability(sound_device_root)
     }
     pub fn load_or_default(path: &Path) -> Result<Self, SettingsConfigError> {
         match fs::symlink_metadata(path) {
@@ -1406,6 +1504,8 @@ impl SettingsWindowModel {
         let mut reduced_motion = None;
         let mut desktop_icons = None;
         let mut key_repeat = None;
+        let mut audio_volume = None;
+        let mut audio_muted = None;
         let mut theme = None;
         for line in contents.lines() {
             let (key, value) = line
@@ -1446,6 +1546,22 @@ impl SettingsWindowModel {
                         return Err(SettingsConfigError::InvalidFormat);
                     }
                 }
+                "audio_volume" if audio_volume.is_none() => {
+                    let value = value
+                        .parse::<u8>()
+                        .map_err(|_| SettingsConfigError::InvalidFormat)?;
+                    if value > 100 {
+                        return Err(SettingsConfigError::InvalidFormat);
+                    }
+                    audio_volume = Some(value);
+                }
+                "audio_muted" if audio_muted.is_none() => {
+                    audio_muted = Some(match value {
+                        "true" => true,
+                        "false" => false,
+                        _ => return Err(SettingsConfigError::InvalidFormat),
+                    });
+                }
                 _ => return Err(SettingsConfigError::InvalidFormat),
             }
         }
@@ -1453,10 +1569,16 @@ impl SettingsWindowModel {
             return Err(SettingsConfigError::UnsupportedVersion);
         }
         let reduced_motion = reduced_motion.ok_or(SettingsConfigError::InvalidFormat)?;
+        let audio = AudioVolumeModel {
+            volume_percent: audio_volume.unwrap_or(70),
+            muted: audio_muted.unwrap_or(false),
+            ..AudioVolumeModel::default()
+        };
         Ok(Self {
             reduced_motion,
             desktop_icons: desktop_icons.unwrap_or(true),
             key_repeat: key_repeat.unwrap_or(true),
+            audio,
             theme: theme.unwrap_or_default(),
             ..Self::default()
         })
@@ -1508,11 +1630,13 @@ impl SettingsWindowModel {
 
     pub fn to_config(&self) -> String {
         format!(
-            "version={SETTINGS_CONFIG_VERSION}\nreduced_motion={}\ndesktop_icons={}\nkey_repeat={}\ntheme={}\n",
+            "version={SETTINGS_CONFIG_VERSION}\nreduced_motion={}\ndesktop_icons={}\nkey_repeat={}\ntheme={}\naudio_volume={}\naudio_muted={}\n",
             self.reduced_motion,
             self.desktop_icons,
             self.key_repeat,
-            self.theme.id()
+            self.theme.id(),
+            self.audio.volume_percent(),
+            self.audio.muted()
         )
     }
 
@@ -1537,8 +1661,21 @@ impl SettingsWindowModel {
                         self.key_repeat = !self.key_repeat;
                         SettingsUpdate::KeyRepeatChanged(self.key_repeat)
                     }
+                    4 => {
+                        let muted = !self.audio.muted();
+                        self.audio.set_muted(muted);
+                        SettingsUpdate::AudioMutedChanged(muted)
+                    }
                     _ => SettingsUpdate::None,
                 };
+            }
+        }
+        if self.selected_category == 4 {
+            if let Some(value) = self.audio_slider().value_for_pointer(x, y) {
+                let value = value as u8;
+                if self.audio.set_volume_percent(value) {
+                    return SettingsUpdate::AudioVolumeChanged(value);
+                }
             }
         }
         if self.selected_category == 0 {
@@ -1591,7 +1728,31 @@ impl SettingsWindowModel {
                 self.key_repeat = !self.key_repeat;
                 SettingsUpdate::KeyRepeatChanged(self.key_repeat)
             }
+            SettingsKey::Decrease if self.selected_category == 4 => {
+                self.adjust_audio_volume(SliderKey::Decrease)
+            }
+            SettingsKey::Increase if self.selected_category == 4 => {
+                self.adjust_audio_volume(SliderKey::Increase)
+            }
+            SettingsKey::Activate if self.selected_category == 4 && self.audio.available() => {
+                let muted = !self.audio.muted();
+                self.audio.set_muted(muted);
+                SettingsUpdate::AudioMutedChanged(muted)
+            }
             SettingsKey::Activate => SettingsUpdate::None,
+            SettingsKey::Decrease | SettingsKey::Increase => SettingsUpdate::None,
+        }
+    }
+
+    fn adjust_audio_volume(&mut self, key: SliderKey) -> SettingsUpdate {
+        let Some(value) = self.audio_slider().keyboard_value(key) else {
+            return SettingsUpdate::None;
+        };
+        let value = value as u8;
+        if self.audio.set_volume_percent(value) {
+            SettingsUpdate::AudioVolumeChanged(value)
+        } else {
+            SettingsUpdate::None
         }
     }
 }
@@ -1774,6 +1935,8 @@ pub enum SettingsKey {
     Up,
     Down,
     Activate,
+    Decrease,
+    Increase,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1784,6 +1947,8 @@ pub enum SettingsUpdate {
     DesktopIconsChanged(bool),
     KeyRepeatChanged(bool),
     ThemeChanged(AquaTheme),
+    AudioVolumeChanged(u8),
+    AudioMutedChanged(bool),
 }
 
 impl SettingsUpdate {
@@ -3822,6 +3987,22 @@ mod tests {
             model.handle_pointer(40, 300),
             SettingsUpdate::CategorySelected(4)
         );
+        model.audio.available = true;
+        let slider = model.audio_slider();
+        assert_eq!(
+            model.handle_pointer(slider.rect.right() - 1, slider.rect.y),
+            SettingsUpdate::AudioVolumeChanged(100)
+        );
+        assert_eq!(model.audio.volume_percent(), 100);
+        assert_eq!(
+            model.handle_key(SettingsKey::Decrease),
+            SettingsUpdate::AudioVolumeChanged(95)
+        );
+        assert_eq!(
+            model.handle_key(SettingsKey::Activate),
+            SettingsUpdate::AudioMutedChanged(true)
+        );
+        assert!(model.audio.muted());
         assert!(model.handle_hover(40, 100));
         assert_eq!(model.hovered_category, Some(0));
         assert_eq!(model.handle_pointer(40, 138), SettingsUpdate::None);
@@ -3853,13 +4034,15 @@ mod tests {
         model.persist(&path).expect("settings should persist");
         assert_eq!(
             fs::read_to_string(&path).expect("persisted config"),
-            "version=1\nreduced_motion=true\ndesktop_icons=true\nkey_repeat=true\ntheme=LightWhite\n"
+            "version=1\nreduced_motion=true\ndesktop_icons=true\nkey_repeat=true\ntheme=LightWhite\naudio_volume=70\naudio_muted=false\n"
         );
         let reloaded = SettingsWindowModel::load_or_default(&path).expect("settings should reload");
         assert!(reloaded.reduced_motion);
         assert!(reloaded.desktop_icons);
         assert!(reloaded.key_repeat);
         assert_eq!(reloaded.theme, AquaTheme::LightWhite);
+        assert_eq!(reloaded.audio.volume_percent(), 70);
+        assert!(!reloaded.audio.muted());
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -3883,6 +4066,8 @@ mod tests {
         assert!(legacy.desktop_icons);
         assert!(legacy.key_repeat);
         assert_eq!(legacy.theme, AquaTheme::LightWhite);
+        assert_eq!(legacy.audio.volume_percent(), 70);
+        assert!(!legacy.audio.muted());
         fs::remove_dir_all(root).expect("remove settings fixture");
     }
 
@@ -3906,6 +4091,41 @@ mod tests {
             SettingsWindowModel::from_config("version=1\nreduced_motion=false\ntheme=Unknown\n"),
             Err(SettingsConfigError::InvalidFormat)
         ));
+    }
+
+    #[test]
+    fn audio_volume_model_is_bounded_persistent_and_device_aware() {
+        let root = std::env::temp_dir().join(format!(
+            "aqua-audio-status-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock")
+                .as_nanos()
+        ));
+        let sound_root = root.join("dev/snd");
+        let mut model = SettingsWindowModel::default();
+        model
+            .refresh_audio_status(&sound_root)
+            .expect("missing audio root should be unavailable");
+        assert!(!model.audio.available());
+        fs::create_dir_all(&sound_root).expect("audio fixture");
+        model
+            .refresh_audio_status(&sound_root)
+            .expect("real directory should be available");
+        assert!(model.audio.available());
+        assert!(model.audio.set_volume_percent(85));
+        assert!(!model.audio.set_volume_percent(101));
+        assert!(model.audio.set_muted(true));
+        let restored = SettingsWindowModel::from_config(&model.to_config())
+            .expect("bounded audio preference should reload");
+        assert_eq!(restored.audio.volume_percent(), 85);
+        assert!(restored.audio.muted());
+        assert!(matches!(
+            SettingsWindowModel::from_config("version=1\nreduced_motion=false\naudio_volume=101\n"),
+            Err(SettingsConfigError::InvalidFormat)
+        ));
+        fs::remove_dir_all(root).expect("remove audio fixture");
     }
 
     #[cfg(unix)]

@@ -1046,8 +1046,8 @@ assert phases["m9"]["percent"] == 100
 assert phases["m9"]["status"] == "complete"
 assert phases["m11"]["percent"] == 100
 assert phases["m11"]["status"] == "complete"
-assert phases["m12"]["percent"] == 99
-assert phases["m12"]["status"] == "in-progress"
+assert phases["m12"]["percent"] == 100
+assert phases["m12"]["status"] == "complete"
 PY
 test -f crates/aqua-installer/Cargo.toml
 test -f crates/aqua-installer/src/lib.rs
@@ -1574,7 +1574,7 @@ grep -Fq 'pub fn typography_fixture_report' crates/aqua-text/src/lib.rs
 grep -Fq 'noto-sans-arabic-regular-2.009' docs/aqua-linux/typography-fixtures.txt
 grep -Fq 'pub fn typography_layout_acceptance_report' crates/aqua-renderer/src/lib.rs
 grep -Fq 'aqua-typography-layout-fixtures-1' docs/aqua-linux/typography-layout-fixtures.txt
-grep -Fq 'aqua-component-fixtures-18' docs/aqua-linux/component-fixtures.txt
+grep -Fq 'aqua-component-fixtures-19' docs/aqua-linux/component-fixtures.txt
 test -f docs/aqua-linux/component-catalog.md
 grep -Fq 'Window frame and title bar | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Top system bar | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
@@ -1614,6 +1614,7 @@ grep -Fq 'pub struct ConfirmationDialog' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct Checkbox' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct SwitchControl' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct SegmentedControl' crates/aqua-components/src/lib.rs
+grep -Fq 'pub struct Slider' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct Toolbar' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct SidebarNavigation' crates/aqua-components/src/lib.rs
 grep -Fq 'aqua-components = { path = "../aqua-components" }' crates/aqua-shell/Cargo.toml
@@ -1638,11 +1639,14 @@ grep -Fq 'menu.menu_layout(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'files_back_button().with_state(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.active_switch()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.theme_segmented_control()' crates/aqua-renderer/src/lib.rs
+grep -Fq 'model.audio_slider()' crates/aqua-renderer/src/lib.rs
+grep -Fq 'pub struct AudioVolumeModel' crates/aqua-shell/src/lib.rs
+grep -Fq 'aqua_settings_audio_backend_applied=false' crates/aqua-compositor/src/lib.rs
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=typography-acceptance' scripts/check-typography-wayland-qemu.exp
 grep -Fq 'typography_wayland_surface_ready=true' scripts/check-typography-wayland-qemu.sh
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=component-acceptance' scripts/check-component-wayland-qemu.exp
-grep -Fq 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-18' scripts/check-component-wayland-qemu.sh
-grep -Fq 'component_wayland_shared_primitive_count=21' scripts/check-component-wayland-qemu.sh
+grep -Fq 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-19' scripts/check-component-wayland-qemu.sh
+grep -Fq 'component_wayland_shared_primitive_count=22' scripts/check-component-wayland-qemu.sh
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=elevation-acceptance' scripts/check-elevation-wayland-qemu.exp
 grep -Fq 'elevation_wayland_focused_surface_count=1' scripts/check-elevation-wayland-qemu.sh
 grep -Fq 'gpu_shadow_damage_rects=2' scripts/check-elevation-wayland-qemu.sh
