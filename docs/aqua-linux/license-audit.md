@@ -27,6 +27,14 @@ is outside this audit.
 - The Weston simple-shm compatibility fixture is MIT licensed and is isolated
   from the Aqua desktop product stack.
 - No private keys or environment-secret files were found in the OS source tree.
+- The OS baseline is pinned to Buildroot 2025.02.17 LTS by SHA-256. Its audio
+  package metadata records PipeWire 1.2.8 (MIT/LGPL-2.1+/GPL-2.0 components),
+  WirePlumber 0.5.5 (MIT), alsa-lib 1.2.13 (LGPL-2.1+/GPL-2.0+ components),
+  eudev 3.2.14 (GPL-2.0+/LGPL-2.1+ components), Lua 5.4.8 (MIT), and GLib
+  2.82.5 (LGPL-2.1+). The generated current-image manifest contains eudev for
+  general device management; PipeWire, WirePlumber, alsa-lib, Lua, and GLib are
+  not selected. Enabling them requires a refreshed generated legal-info review
+  and the ADR 0004 runtime gates.
 
 ## Unresolved Publication Gate
 
@@ -58,6 +66,12 @@ make -C build/buildroot-output legal-info
 Release automation must archive the generated license texts, package manifest,
 and corresponding-source material required by the selected Buildroot packages.
 No binary image should be published until that output has been reviewed.
+
+The Buildroot 2025.02.17 validation build generated `legal-info` successfully
+on 2026-08-29 and verified the available license-file hashes for its selected
+packages. Buildroot also warned that its own source code had not been saved.
+The generated output is local build evidence, not a cleared release bundle;
+source archiving and final owner review therefore remain publication gates.
 
 ## Reproduce The Rust Audit
 

@@ -13,12 +13,16 @@ init, the graphical prototype still runs without a completed unprivileged user
 session, and the current defconfig deliberately excludes ALSA userspace,
 PipeWire, and WirePlumber.
 
-The pinned Buildroot 2024.02.12 tree contains PipeWire 0.3.81 and WirePlumber
-0.4.8 packages. Package availability is not sufficient evidence for a desktop
-audio architecture, and that Buildroot series is no longer the supported LTS
-shown by the upstream release page as of this decision. Enabling those packages
-now would couple Aqua to an obsolete integration baseline before session
-ownership, service supervision, client permissions, and failure behavior exist.
+At the time of this decision, the pinned Buildroot 2024.02.12 tree contained
+PipeWire 0.3.81 and WirePlumber 0.4.8 and was no longer an upstream-supported
+LTS. Aqua has since moved to Buildroot 2025.02.17 LTS. That exact tree provides
+PipeWire 1.2.8, WirePlumber 0.5.5, alsa-lib 1.2.13, eudev 3.2.14, Lua 5.4.8,
+and GLib 2.82.5 metadata. PipeWire, WirePlumber, alsa-lib, Lua, and GLib remain
+unselected; eudev is already present as Aqua's general device manager but has
+no audio-session permission or routing policy. Package availability is not
+sufficient evidence for a desktop audio architecture; session ownership,
+service supervision, client permissions, and failure behavior must exist
+before the media stack is enabled.
 
 PipeWire supplies the media graph and enforces permissions assigned to clients,
 while a session manager decides how devices, nodes, routes, links, and client
@@ -67,9 +71,12 @@ Aqua Linux will use this audio stack:
 Audio packages remain disabled in `aqua_x86_64_defconfig` until all of these
 conditions are met:
 
-- Aqua moves to a supported Buildroot LTS baseline and audits the compatible
-  PipeWire, WirePlumber, ALSA, Lua, GLib, eudev, and optional D-Bus versions and
-  licenses from that exact source tree.
+- The supported Buildroot LTS baseline remains pinned and the compatible
+  PipeWire, WirePlumber, ALSA, Lua, GLib, eudev, and optional D-Bus metadata is
+  recorded from that exact source tree. Enabling the packages requires a fresh
+  `legal-info` audit of the selected dependency closure. Buildroot 2025.02.17
+  satisfies the baseline portion of this prerequisite; the remaining gates
+  below still block packaging.
 - The graphical session runs as an unprivileged persistent user with a
   user-owned runtime directory and a documented sound-device access policy.
 - The session supervisor can start, observe, restart with a finite budget, and
@@ -119,8 +126,8 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
 
 - The existing Settings audio model remains honest and reports that no backend
   has applied its preference until the adapter is implemented and acknowledged.
-- The next implementation item is the supported Buildroot LTS and unprivileged
-  session prerequisite, not an ad-hoc root boot service.
+- The next implementation item is the unprivileged persistent session and its
+  bounded service supervisor, not an ad-hoc root boot service.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

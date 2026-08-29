@@ -4,7 +4,7 @@ set -eu
 ROOT_DIR="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 IMAGE_NAME="${AQUA_COMPOSITOR_BUILDER_IMAGE:-rust:trixie}"
 TARGET_TRIPLE="${AQUA_COMPOSITOR_TARGET:-x86_64-unknown-linux-musl}"
-VOLUME_NAME="${VOLUME_NAME:-aqua-linux-buildroot-work}"
+VOLUME_NAME="${VOLUME_NAME:-aqua-linux-buildroot-2025-02-work}"
 BUILDROOT_OUTPUT="/aqua-buildroot/build/buildroot-output"
 if [ -z "${AQUA_COMPOSITOR_BUILDER_PLATFORM:-}" ]; then
     case "$(docker info --format '{{.Architecture}}')" in

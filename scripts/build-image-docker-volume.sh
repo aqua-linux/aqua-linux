@@ -3,7 +3,7 @@ set -eu
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 IMAGE_NAME="${IMAGE_NAME:-aqua-linux-buildroot:dev}"
-VOLUME_NAME="${VOLUME_NAME:-aqua-linux-buildroot-work}"
+VOLUME_NAME="${VOLUME_NAME:-aqua-linux-buildroot-2025-02-work}"
 
 cd "${ROOT_DIR}"
 

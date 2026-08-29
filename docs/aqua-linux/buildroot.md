@@ -12,7 +12,9 @@ The first development target is QEMU x86_64. The default image boots to a BusyBo
 scripts/build-image.sh
 ```
 
-The script pins Buildroot to `2024.02.12` by default and places output in:
+The script pins the supported Buildroot `2025.02.17` LTS release and SHA-256
+`13618704563ad0b928a4564aaa73e2db97e12e8df0ed5ae874744a83964a023a` by
+default, then places output in:
 
 `build/buildroot-output/images/`
 
@@ -27,6 +29,14 @@ For Docker Desktop on macOS, the volume-backed path is usually more stable becau
 ```sh
 scripts/build-image-docker-volume.sh
 ```
+
+The volume-backed workflow defaults to
+`aqua-linux-buildroot-2025-02-work`, so output from the earlier series cannot
+be mistaken for the LTS build. The build verifies cached and newly downloaded
+archives. It also validates critical extracted-source files; an incomplete
+source or output tree is preserved with an `.invalid.<timestamp>` suffix before
+a verified archive is extracted through a temporary directory and installed
+atomically.
 
 Expected artifacts:
 
@@ -138,11 +148,13 @@ Boot also runs non-graphical compositor contract probes for runtime assets, stat
 
 [ADR 0004](adr-0004-audio-service-stack.md) selects ALSA/eudev below per-user
 PipeWire and WirePlumber, with Aqua consuming authoritative service state
-through a bounded adapter. The current Buildroot 2024.02.12 defconfig keeps all
-of those audio userspace packages disabled. Aqua must first move to a supported
-Buildroot LTS, establish the unprivileged user session and its owned runtime
-directory, and prove ordered supervision and device permissions. No root-owned
-media daemon or globally writable `/dev/snd` fallback is permitted.
+through a bounded adapter. The Buildroot 2025.02.17 LTS defconfig keeps
+PipeWire, WirePlumber, alsa-lib, Lua, and GLib unselected. eudev is already
+packaged for general device discovery, but no audio-session permission or
+routing policy exists. Aqua must still establish the unprivileged user session
+and its owned runtime directory, then prove ordered supervision and device
+permissions. No root-owned media daemon or globally writable `/dev/snd`
+fallback is permitted.
 
 `/usr/bin/aqua-session-check` is the recovery-safe aggregate checker for the same contract. Boot writes its output to `/run/aqua-session-check.log`, and users can run it manually from the recovery shell.
 
