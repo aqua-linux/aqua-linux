@@ -1,12 +1,11 @@
 [package]
-name = "aqua-shell"
+name = "aqua-components"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-aqua-components = { path = "../aqua-components" }
 aqua-scene = { path = "../aqua-scene" }
 
 [lib]

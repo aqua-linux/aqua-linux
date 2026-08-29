@@ -30,6 +30,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "aqua-components"
+version = "0.1.0"
+dependencies = [
+ "aqua-scene",
+]
+
+[[package]]
 name = "aqua-compositor"
 version = "0.1.0"
 dependencies = [
@@ -75,6 +82,7 @@ dependencies = [
 name = "aqua-renderer"
 version = "0.1.0"
 dependencies = [
+ "aqua-components",
  "aqua-installer",
  "aqua-scene",
  "aqua-shell",
@@ -90,6 +98,10 @@ version = "0.1.0"
 [[package]]
 name = "aqua-shell"
 version = "0.1.0"
+dependencies = [
+ "aqua-components",
+ "aqua-scene",
+]
 
 [[package]]
 name = "aqua-text"

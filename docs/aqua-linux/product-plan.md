@@ -246,6 +246,8 @@ The installer state and safety contract is documented in [installer.md](installe
 The text, icon, and component names above describe owned logical modules. They
 may initially live inside existing crates and should be split into independent
 crates only when reuse or compile-time ownership makes that boundary useful.
+`aqua-components` is now an independent crate because shell input routing and
+renderer drawing consume the same component geometry and state contracts.
 
 The existing `espresso-*` crate names can stay temporarily while the prototype is still moving, but new architecture should use Aqua naming unless there is a compatibility reason not to.
 

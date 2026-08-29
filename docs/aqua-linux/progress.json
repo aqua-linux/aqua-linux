@@ -5,7 +5,7 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 12 now has accepted typography, elevation, Aqua Core Icon integration, semantic state motion, and the first shared component extraction. The standard-button primitive owns stable geometry, ten applicable states, pointer and keyboard activation, accessibility semantics, and deterministic theme/viewport fixtures; the installer footer consumes it instead of an installer-only drawing helper. Packaged-QEMU component acceptance and the remaining catalog entries stay open. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
+  "currentStage": "Milestone 12 now has accepted typography, elevation, Aqua Core Icon integration, semantic state motion, and three shared component primitives. The independent aqua-components crate owns renderer-neutral standard-button, list-row, and sidebar-navigation anatomy, state, input, and accessibility contracts. Settings and Files consume one sidebar geometry for both shell hit testing and renderer drawing; installer steps consume the same list-row composition. Deterministic theme/viewport fixtures are accepted, while packaged-QEMU component acceptance and 19 catalog entries stay open. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
   "updated": "2026-08-29",
   "overallPercent": 91,
   "readiness": {
@@ -124,14 +124,14 @@
     {
       "id": "m12",
       "name": "Visual Fidelity and Component System",
-      "percent": 81,
+      "percent": 83,
       "status": "in-progress",
       "updated": "2026-08-29",
-      "summary": "The shared aqua-text crate, tokenized elevation path, Aqua Core Icon pipeline, and semantic motion system have deterministic host fixtures plus packaged QEMU evidence. The live compositor shares one 256-entry complete-key icon LRU across four shell textures. Launcher, session-menu, and notification transitions use published duration and cubic-Bezier tokens with bounded scheduling and reduced-motion behavior. The component catalog now inventories 22 required primitives. Its standard button owns stable geometry, ten applicable states, pointer and keyboard activation, accessibility semantics, and deterministic four-theme acceptance at 800x600, 1280x800, and fractional-scale 1536x1024; the installer footer consumes it. Packaged-QEMU component acceptance and 21 catalog entries remain open."
+      "summary": "The shared aqua-text crate, tokenized elevation path, Aqua Core Icon pipeline, and semantic motion system have deterministic host fixtures plus packaged QEMU evidence. The independent aqua-components crate now owns renderer-neutral standard-button, list-row, and sidebar-navigation anatomy, stable state geometry, pointer and keyboard activation, and accessibility semantics. Settings and Files use shared sidebar geometry for shell hit testing and renderer drawing; the installer uses shared buttons and step rows. All three primitives have deterministic four-theme acceptance at 800x600, 1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance and 19 of 22 catalog entries remain open."
     }
   ],
   "nextSteps": [
-    "Extract shared list-row and sidebar-navigation primitives for Files, Settings, Search, and installer consumers, then extend the deterministic component matrix.",
+    "Extract shared search-field and icon-button primitives, migrate their shell and first-party consumers, and extend the deterministic component matrix.",
     "Baseline the R2 presentation path and enforce production no-readback, frame scheduling, damage, latency, resource, and dropped-frame acceptance while keeping diagnostic readback isolated.",
     "Implement the R3-R6 Wayland compatibility, unprivileged session, system service, accessibility, internationalization, signed update, rollback, and security gates.",
     "Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation."
