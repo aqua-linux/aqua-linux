@@ -5201,12 +5201,6 @@ impl XdgSmokeClientState {
         if let Err(error) = settings_model.refresh_network_status(&network_root) {
             eprintln!("aqua_settings_network_status_available=false error={error}");
         }
-        let audio_root = std::env::var_os("AQUA_AUDIO_DEV_SND")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("/dev/snd"));
-        if let Err(error) = settings_model.refresh_audio_status(&audio_root) {
-            eprintln!("aqua_settings_audio_available=false error={error}");
-        }
         Ok(Self {
             buffer_width: 600,
             buffer_height: 400,
@@ -7690,7 +7684,14 @@ pub fn run_aqua_settings_client(
             model.audio.volume_percent()
         );
         println!("aqua_settings_loaded_audio_muted={}", model.audio.muted());
-        println!("aqua_settings_audio_backend_applied=false");
+        println!(
+            "aqua_settings_audio_service_health={}",
+            model.audio.service_health().id()
+        );
+        println!(
+            "aqua_settings_audio_backend_applied={}",
+            model.audio.backend_applied()
+        );
     }
     println!(
         "aqua_settings_network_status_available={}",

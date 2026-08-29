@@ -170,9 +170,12 @@ PipeWire, WirePlumber, alsa-lib, Lua, and GLib unselected. eudev is already
 packaged for general device discovery. Aqua now has a locked unprivileged
 graphical-session identity, a private user-owned runtime directory, and
 explicit `video`, `audio`, and `input` group membership. Audio packaging must
-still add ordered per-user media-service supervision and authoritative adapter
-evidence. No root-owned media daemon or globally writable `/dev/snd` fallback
-is permitted.
+still add the supported PipeWire/WirePlumber API transport, exact dependency
+and legal-info evidence, and real QEMU media evidence. The ordered per-user
+supervisor and fail-closed `aqua-service-adapters` state/intent boundary are now
+present, but neither makes `/dev/snd` alone sufficient to enable Settings. No
+root-owned media daemon, command-output parser, or globally writable `/dev/snd`
+fallback is permitted.
 
 `/usr/bin/aqua-session-check` is the recovery-safe aggregate checker for the same contract. Boot writes its output to `/run/aqua-session-check.log`, and users can run it manually from the recovery shell.
 

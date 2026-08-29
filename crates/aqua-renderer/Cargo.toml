@@ -9,6 +9,7 @@ rust-version.workspace = true
 aqua-components = { path = "../aqua-components" }
 aqua-installer = { path = "../aqua-installer" }
 aqua-scene = { path = "../aqua-scene" }
+aqua-service-adapters = { path = "../aqua-service-adapters" }
 aqua-shell = { path = "../aqua-shell" }
 aqua-text = { path = "../aqua-text" }
 png = "0.18.1"

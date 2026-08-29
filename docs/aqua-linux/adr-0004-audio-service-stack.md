@@ -88,6 +88,12 @@ conditions are met:
   until the adapter and packaged runtime evidence gates also pass.
 - The audio adapter contract and its fail-closed unavailable/degraded behavior
   pass deterministic tests before Settings can report `backend_applied=true`.
+  This prerequisite is satisfied by the renderer-independent
+  `aqua-service-adapters` crate: it validates bounded typed devices and routes,
+  rejects stale or conflicting generations, preserves desired volume and mute
+  across service loss, and requires authoritative reconciliation before an
+  intent is reported as applied. The production PipeWire/WirePlumber API
+  transport and packaged runtime evidence remain separate gates.
 
 ## Acceptance Gates
 
@@ -129,13 +135,15 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
 
 ## Consequences
 
-- The existing Settings audio model remains honest and reports that no backend
-  has applied its preference until the adapter is implemented and acknowledged.
+- Settings consumes the adapter's fail-closed state. A bare `/dev/snd`
+  directory cannot enable controls, and saved preferences remain unapplied
+  until a ready service snapshot with a valid output route acknowledges them.
 - Aqua now has a bounded per-user media-service supervisor with ordered
   PipeWire/WirePlumber startup, reverse-order shutdown, finite readiness,
   restart, and degraded-state handling. Its packaged default remains disabled.
-- The next audio implementation item is the authoritative, fail-closed
-  `aqua-service-adapters` audio boundary before media packages are enabled.
+- The next audio implementation item is the supported PipeWire/WirePlumber API
+  transport and exact Buildroot dependency/legal-info rehearsal; command-output
+  parsing remains prohibited.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

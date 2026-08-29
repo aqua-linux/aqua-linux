@@ -100,6 +100,7 @@ grep -Fq '[AQUA-TEST] stage=desktop-properties-qemu status=ok target=files surfa
 grep -Fq '[AQUA-TEST] stage=desktop-properties-refresh-qemu status=ok input=f5 action=refresh-contents generation=1 repaint=true clients=2' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-properties-close-qemu status=ok close=alt-f4 exit=clean stale_surface=removed restart=never clients=1' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-runtime-settings-qemu status=ok app=settings surface=aqua.settings clients=2 launcher_closed=true' "${SERIAL_LOG}"
+grep -Fq '[AQUA-TEST] stage=audio-adapter-qemu status=ok health=unavailable controls=false backend_applied=false packages=absent' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-live-theme-qemu status=ok from=LightWhite to=Deepside shell=true apps=files,settings restart=false frame_delta=true' "${SERIAL_LOG}"
 test -s "${THEME_LIGHT_SCREENSHOT_PNG}"
 test -s "${THEME_DEEP_SCREENSHOT_PNG}"

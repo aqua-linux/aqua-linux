@@ -379,6 +379,22 @@ expect {
     eof { puts stderr "QEMU exited after runtime Settings verification"; exit 1 }
 }
 
+run_shell_check {ok=1; grep -Fq 'aqua_settings_audio_available=false' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_settings_audio_service_health=unavailable' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_settings_audio_backend_applied=false' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the packaged audio adapter safe default"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=audio-adapter-qemu status=ok health=unavailable controls=false backend_applied=false packages=absent'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=audio-adapter-qemu status=ok health=unavailable controls=false backend_applied=false packages=absent} {}
+    timeout { puts stderr "Packaged Settings did not preserve the audio adapter safe default"; exit 1 }
+    eof { puts stderr "QEMU exited before audio adapter verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Audio adapter verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after audio adapter verification"; exit 1 }
+}
+
 after 500
 if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(THEME_LIGHT_SCREENSHOT) $env(THEME_LIGHT_SCREENSHOT_PNG)} capture_error]} {
     puts stderr "QEMU LightWhite theme screendump failed: $capture_error"
