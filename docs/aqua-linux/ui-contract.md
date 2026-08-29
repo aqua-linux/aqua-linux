@@ -109,8 +109,10 @@ The deterministic typography layout report in
 [`typography-layout-fixtures.txt`](typography-layout-fixtures.txt) verifies long
 localized-label containment, untruncated critical actions, fallback coverage,
 region separation, and RGBA checksums for the required viewports and all four
-themes. It is host-rendered acceptance evidence and does not replace packaged
-QEMU captures.
+themes. The matching acceptance-only packaged Wayland client is captured in
+QEMU at 1280x800 for all four themes, proving that the accepted Turkish and
+Arabic layout reaches the real Smithay/DRM display path. The wider and
+fractional-scale cases remain deterministic host-rendered evidence.
 
 ## Accessibility And Localization
 

@@ -1,0 +1,80 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp $env(CPUS) \
+    -m $env(MEMORY) \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1} \
+    -serial stdio \
+    -monitor unix:$env(MONITOR_SOCKET),server=on,wait=off \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh} {}
+    timeout { puts stderr "Timed out waiting for recovery-ready"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery-ready"; exit 1 }
+}
+expect {
+    -exact {aqua-linux login: } {}
+    timeout { puts stderr "Timed out waiting for serial login"; exit 1 }
+    eof { puts stderr "QEMU exited before serial login"; exit 1 }
+}
+send -- "root\r"
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Timed out waiting for recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery shell"; exit 1 }
+}
+
+foreach {theme slug} {
+    LightWhite lightwhite
+    Softtouch softtouch
+    Deepside deepside
+    Nightmare nightmare
+} {
+    send -- "AQUA_THEME=$theme AQUA_DRM_WAYLAND_SESSION_HOLD_SECONDS=2 AQUA_DRM_WAYLAND_SESSION_HEADLESS_TEST_CONFIRMED=true AQUA_DRM_WAYLAND_SESSION_TEST_MODE=headless-qemu AQUA_DRM_WAYLAND_SCENARIO=typography-acceptance /usr/bin/aqua-compositor run-drm-wayland-session /dev/dri/card0\r"
+    expect {
+        -exact "aqua_typography_acceptance_theme=$theme" {}
+        timeout { puts stderr "Timed out waiting for $theme typography client"; exit 1 }
+        eof { puts stderr "QEMU exited before $theme typography client"; exit 1 }
+    }
+    expect {
+        -exact {typography_wayland_surface_ready=true} {}
+        timeout { puts stderr "Timed out waiting for typography Wayland surface"; exit 1 }
+        eof { puts stderr "QEMU exited before typography Wayland surface"; exit 1 }
+    }
+    expect {
+        -exact {[AQUA-COMPOSITOR] stage=drm-wayland-session status=active} {}
+        timeout { puts stderr "Timed out waiting for typography scanout"; exit 1 }
+        eof { puts stderr "QEMU exited before typography scanout"; exit 1 }
+    }
+    after 350
+    set ppm $env(SCREENSHOT_${slug})
+    set png $env(SCREENSHOT_${slug}_PNG)
+    if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $ppm $png} capture_error]} {
+        puts stderr "QEMU $theme typography screendump failed: $capture_error"
+        exit 1
+    }
+    expect {
+        -exact {[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok} {}
+        timeout { puts stderr "Timed out waiting for typography session cleanup"; exit 1 }
+        eof { puts stderr "QEMU exited before typography session cleanup"; exit 1 }
+    }
+    expect {
+        -exact {# } {}
+        timeout { puts stderr "Timed out waiting for recovery shell after typography capture"; exit 1 }
+        eof { puts stderr "QEMU exited before recovery shell returned"; exit 1 }
+    }
+}
+
+send -- "poweroff -f\r"
+expect eof

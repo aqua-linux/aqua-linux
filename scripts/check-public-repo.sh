@@ -21,11 +21,10 @@ grep -Fq '/build/' .gitignore
 grep -Fq '*.qcow2' .gitignore
 grep -Fq '*.img' .gitignore
 
-if find . \
-    -path './website' -prune -o \
-    -path './target' -prune -o \
-    -path './build' -prune -o \
-    -name '.DS_Store' -print | grep -q .; then
+if {
+    git ls-files
+    git ls-files --others --exclude-standard
+} | grep -Eq '(^|/)\.DS_Store$'; then
     echo "Unignored .DS_Store file found" >&2
     exit 1
 fi

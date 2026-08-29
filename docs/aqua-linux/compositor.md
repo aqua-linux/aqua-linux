@@ -525,8 +525,12 @@ Not implemented yet:
   bounds, keeps critical installer actions untruncated, contains a long Turkish
   accessibility label, exercises Arabic fallback without missing glyphs, and
   locks all 12 RGBA checksums in `typography-layout-fixtures.txt`. These are
-  host-rendered fixtures, not VM-display evidence; packaged QEMU typography
-  captures remain follow-up work.
+  host-rendered fixtures. The packaged `aqua.typography-acceptance` wl_shm
+  client presents the accepted 1280x800 Turkish and Arabic layout through the
+  real Smithay/DRM path without shell chrome. A single recovery-safe QEMU boot
+  captures LightWhite, Softtouch, Deepside, and Nightmare as four distinct
+  nonblank PNGs; each bounded session closes its client, restores the CRTC,
+  releases scanout resources, and returns to the recovery shell.
 - The graphical QEMU acceptance run captures LightWhite and Deepside frames with Files and Settings open. It requires the Shell broadcast and both client redraw markers, unchanged application PIDs, an increased compositor repaint sequence, and a visible pixel delta before accepting the live switch.
 - Resize updates the kernel PTY dimensions and VT parser grid together. The packaged `aqua-terminal --probe-pty` path executes a shell command and validates resize without requiring a display.
 - Aqua `rcS` mounts `devpts`, exposes `/dev/ptmx`, and emits `stage=devpts-ready`; this is OS runtime infrastructure rather than a host-only test dependency.
