@@ -249,6 +249,7 @@ session_check_probe.status=$(status_from_file "${CONTRACT_DIR}/session-check.txt
 manual_launch_plan.status=$(status_from_file "${CONTRACT_DIR}/manual-launch-plan.txt")
 guarded_run.status=$(status_from_file "${CONTRACT_DIR}/guarded-run.txt")
 graphical_session_supervisor.status=$(status_from_file "${CONTRACT_DIR}/graphical-session-supervisor.txt")
+media_service_supervisor.status=$(status_from_file "${CONTRACT_DIR}/media-service-supervisor.txt")
 graphical_session_boot.status=$(status_from_file "${CONTRACT_DIR}/graphical-session-boot.txt")
 handoff_gate.status=$(status_from_file "${CONTRACT_DIR}/handoff-gate.txt")
 output_plan_probe.status=$(status_from_file "${CONTRACT_DIR}/output-plan-probe.txt")
@@ -345,7 +346,7 @@ graphics_drm_dumb_buffer=$(contract_file_contains "${FBDEV_QEMU_LOG}" "[AQUA-COM
 graphics_drm_dumb_buffer_mode=$(contract_file_contains "${FBDEV_QEMU_LOG}" "selected_mode=1280x800")
 graphics_drm_dumb_buffer_pitch=$(contract_file_contains "${FBDEV_QEMU_LOG}" "buffer_pitch=5120")
 graphics_drm_dumb_buffer_bytes=$(contract_file_contains "${FBDEV_QEMU_LOG}" "buffer_bytes=4096000")
-graphics_drm_dumb_buffer_checksum=$(contract_file_contains "${FBDEV_QEMU_LOG}" "buffer_checksum=1767f1f782a5cdb8")
+graphics_drm_dumb_buffer_checksum=$(contract_file_contains "${FBDEV_QEMU_LOG}" "buffer_checksum=c85dbfbfc17843af")
 graphics_drm_dumb_buffer_mapped=$(contract_file_contains "${FBDEV_QEMU_LOG}" "dumb_buffer_mapped=true")
 graphics_drm_dumb_buffer_destroyed=$(contract_file_contains "${FBDEV_QEMU_LOG}" "dumb_buffer_destroyed=true")
 graphics_drm_dumb_buffer_no_framebuffer=$(contract_file_contains "${FBDEV_QEMU_LOG}" "framebuffer_created=false")
@@ -434,14 +435,14 @@ graphics_drm_session_loop_ppm_checksum=$(capture_checksum_status "${SESSION_LOOP
 graphics_drm_session_loop_png_checksum=$(capture_checksum_status "${SESSION_LOOP_QEMU_PNG}" "png_sha256" "${SESSION_LOOP_QEMU_CAPTURE}")
 graphics_drm_wayland_session=$(contract_file_contains "${FBDEV_QEMU_LOG}" "[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok")
 graphics_drm_wayland_session_active=$(contract_file_contains "${FBDEV_QEMU_LOG}" "[AQUA-COMPOSITOR] stage=drm-wayland-session status=active")
-graphics_drm_wayland_gpu_composition=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_composition_backend=smithay-gles2-gbm")
+graphics_drm_wayland_gpu_composition=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_composition_backend=smithay-gles2-readback-dumb-buffer")
 graphics_drm_wayland_gpu_render_node=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_render_device=/dev/dri/card0")
 graphics_drm_wayland_gpu_same_kms_node=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_render_node_separate=false")
-graphics_drm_wayland_direct_scanout=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_direct_dmabuf_scanout=true")
-graphics_drm_wayland_no_cpu_scanout_copy=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_scanout_cpu_copy=false")
+graphics_drm_wayland_virtio_scanout_compat=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_direct_dmabuf_scanout=false")
+graphics_drm_wayland_cpu_scanout_copy=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_scanout_cpu_copy=true")
 graphics_drm_wayland_gbm_cleanup=$(contract_file_contains "${FBDEV_QEMU_LOG}" "gbm_scanout_buffers_released=true")
-graphics_drm_wayland_no_frame_readback=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_frame_readback=false")
-graphics_drm_wayland_input_checksum=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_checksum_source=surface-inputs")
+graphics_drm_wayland_frame_readback=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_frame_readback=true")
+graphics_drm_wayland_frame_checksum=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_checksum_source=frame-readback")
 graphics_drm_wayland_gpu_live_source=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_client_texture_source=live-smithay-wl-shm-snapshot")
 graphics_drm_wayland_gpu_live_count=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_client_texture_count=2")
 graphics_drm_wayland_gpu_live_bytes=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_client_texture_bytes=643216")
@@ -481,7 +482,7 @@ graphics_drm_wayland_input_keyboard=$(contract_file_contains "${FBDEV_QEMU_LOG}"
 graphics_drm_wayland_input_selective_forward=$(contract_file_contains "${FBDEV_QEMU_LOG}" "external_client_keyboard_event_received=true")
 graphics_drm_wayland_input_pointer_hit_test=$(contract_file_contains "${FBDEV_QEMU_LOG}" "external_client_pointer_event_received=true")
 graphics_drm_wayland_input_pointer_motion=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_input_pointer_motion_events=11")
-graphics_drm_wayland_input_pointer_button=$(contract_file_numeric_at_least "${FBDEV_QEMU_LOG}" "drm_wayland_input_pointer_button_events=" 19)
+graphics_drm_wayland_input_pointer_button=$(contract_file_numeric_at_least "${FBDEV_QEMU_LOG}" "drm_wayland_input_pointer_button_events=" 18)
 graphics_drm_wayland_input_launcher=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_input_launcher_visible=true")
 graphics_drm_wayland_launcher_overlay=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_launcher_overlay_rendered=true")
 graphics_drm_wayland_launcher_pointer=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_launcher_launch_request_app=files")
@@ -607,6 +608,10 @@ graphical_session_supervisor=$(contract_file_contains "${CONTRACT_DIR}/graphical
 graphical_session_supervisor_bounded=$(contract_file_contains "${CONTRACT_DIR}/graphical-session-supervisor.txt" "policy=bounded-restart-with-recovery-fallback")
 graphical_session_supervisor_recovery=$(contract_file_contains "${CONTRACT_DIR}/graphical-session-supervisor.txt" "recovery_fallback=armed")
 graphical_session_supervisor_safe_default=$(contract_file_contains "${CONTRACT_DIR}/graphical-session-supervisor.txt" "session_started=false")
+media_service_supervisor=$(contract_file_contains "${CONTRACT_DIR}/media-service-supervisor.txt" "[AQUA-MEDIA] stage=media-service-supervisor status=ok")
+media_service_supervisor_safe_default=$(contract_file_contains "${CONTRACT_DIR}/media-service-supervisor.txt" "enabled=false")
+media_service_supervisor_ordered_start=$(contract_file_contains "${CONTRACT_DIR}/media-service-supervisor.txt" "ordered_start=pipewire,wireplumber")
+media_service_supervisor_ordered_stop=$(contract_file_contains "${CONTRACT_DIR}/media-service-supervisor.txt" "ordered_stop=wireplumber,pipewire")
 graphical_session_boot=$(contract_file_contains "${CONTRACT_DIR}/graphical-session-boot.txt" "[AQUA-BOOT] stage=graphical-session-activation status=disabled")
 graphical_session_boot_kernel_gate=$(contract_file_contains "${CONTRACT_DIR}/graphical-session-boot.txt" "reason=kernel-flag-absent")
 graphical_session_boot_safe_default=$(contract_file_contains "${CONTRACT_DIR}/graphical-session-boot.txt" "boot_graphics=false")
@@ -931,7 +936,7 @@ graphics_fbdev_present_no_boot_graphics=$(contract_file_contains "${CONTRACT_DIR
 graphics_fbdev_present_no_autostart=$(contract_file_contains "${CONTRACT_DIR}/graphics-fbdev-present.txt" "autostart=false")
 graphics_fbdev_present_recovery_safe=$(contract_file_contains "${CONTRACT_DIR}/graphics-fbdev-present.txt" "safe_return_to_recovery=ok")
 graphics_fbdev_headless_qemu_write=$(contract_file_contains "${FBDEV_QEMU_LOG}" "[AQUA-TEST] stage=fbdev-present-qemu status=ok framebuffer_write=true visible_observation=false safe_return_to_recovery=ok")
-graphics_fbdev_headless_qemu_checksum=$(contract_file_contains "${FBDEV_QEMU_LOG}" "frame_checksum=1767f1f782a5cdb8")
+graphics_fbdev_headless_qemu_checksum=$(contract_file_contains "${FBDEV_QEMU_LOG}" "frame_checksum=c85dbfbfc17843af")
 graphics_fbdev_headless_qemu_wallpaper=$(contract_file_contains "${FBDEV_QEMU_LOG}" "wallpaper_source=runtime-asset")
 graphics_fbdev_headless_qemu_mode=$(contract_file_contains "${FBDEV_QEMU_LOG}" "target_size=1280x800")
 graphics_fbdev_headless_qemu_recovery_safe=$(contract_file_contains "${FBDEV_QEMU_LOG}" "safe_return_to_recovery=ok")
@@ -1377,6 +1382,9 @@ cat > "${MANIFEST_JSON}" <<EOF
     "graphical_session_supervisor": {
       "status": "$(status_from_file "${CONTRACT_DIR}/graphical-session-supervisor.txt")"
     },
+    "media_service_supervisor": {
+      "status": "$(status_from_file "${CONTRACT_DIR}/media-service-supervisor.txt")"
+    },
     "graphical_session_boot": {
       "status": "$(status_from_file "${CONTRACT_DIR}/graphical-session-boot.txt")"
     },
@@ -1585,7 +1593,7 @@ cat > "${MANIFEST_JSON}" <<EOF
     "graphics_drm_dumb_buffer_mode": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "selected_mode=1280x800")",
     "graphics_drm_dumb_buffer_pitch": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "buffer_pitch=5120")",
     "graphics_drm_dumb_buffer_bytes": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "buffer_bytes=4096000")",
-    "graphics_drm_dumb_buffer_checksum": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "buffer_checksum=1767f1f782a5cdb8")",
+    "graphics_drm_dumb_buffer_checksum": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "buffer_checksum=c85dbfbfc17843af")",
     "graphics_drm_dumb_buffer_mapped": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "dumb_buffer_mapped=true")",
     "graphics_drm_dumb_buffer_destroyed": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "dumb_buffer_destroyed=true")",
     "graphics_drm_dumb_buffer_no_framebuffer": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "framebuffer_created=false")",
@@ -1674,14 +1682,14 @@ cat > "${MANIFEST_JSON}" <<EOF
     "graphics_drm_session_loop_png_checksum": "$(capture_checksum_status "${SESSION_LOOP_QEMU_PNG}" "png_sha256" "${SESSION_LOOP_QEMU_CAPTURE}")",
     "graphics_drm_wayland_session": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok")",
     "graphics_drm_wayland_session_active": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "[AQUA-COMPOSITOR] stage=drm-wayland-session status=active")",
-    "graphics_drm_wayland_gpu_composition": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_composition_backend=smithay-gles2-gbm")",
+    "graphics_drm_wayland_gpu_composition": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_composition_backend=smithay-gles2-readback-dumb-buffer")",
     "graphics_drm_wayland_gpu_render_node": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_render_device=/dev/dri/card0")",
     "graphics_drm_wayland_gpu_same_kms_node": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_render_node_separate=false")",
-    "graphics_drm_wayland_direct_scanout": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_direct_dmabuf_scanout=true")",
-    "graphics_drm_wayland_no_cpu_scanout_copy": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_scanout_cpu_copy=false")",
+    "graphics_drm_wayland_virtio_scanout_compat": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_direct_dmabuf_scanout=false")",
+    "graphics_drm_wayland_cpu_scanout_copy": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_scanout_cpu_copy=true")",
     "graphics_drm_wayland_gbm_cleanup": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gbm_scanout_buffers_released=true")",
-    "graphics_drm_wayland_no_frame_readback": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_frame_readback=false")",
-    "graphics_drm_wayland_input_checksum": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_checksum_source=surface-inputs")",
+    "graphics_drm_wayland_frame_readback": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_frame_readback=true")",
+    "graphics_drm_wayland_frame_checksum": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_checksum_source=frame-readback")",
     "graphics_drm_wayland_gpu_live_source": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_client_texture_source=live-smithay-wl-shm-snapshot")",
     "graphics_drm_wayland_gpu_live_count": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_client_texture_count=2")",
     "graphics_drm_wayland_gpu_live_bytes": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_gpu_client_texture_bytes=643216")",
@@ -1721,7 +1729,7 @@ cat > "${MANIFEST_JSON}" <<EOF
     "graphics_drm_wayland_input_selective_forward": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "external_client_keyboard_event_received=true")",
     "graphics_drm_wayland_input_pointer_hit_test": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "external_client_pointer_event_received=true")",
     "graphics_drm_wayland_input_pointer_motion": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_input_pointer_motion_events=11")",
-    "graphics_drm_wayland_input_pointer_button": "$(contract_file_numeric_at_least "${FBDEV_QEMU_LOG}" "drm_wayland_input_pointer_button_events=" 19)",
+    "graphics_drm_wayland_input_pointer_button": "$(contract_file_numeric_at_least "${FBDEV_QEMU_LOG}" "drm_wayland_input_pointer_button_events=" 18)",
     "graphics_drm_wayland_input_launcher": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_input_launcher_visible=true")",
     "graphics_drm_wayland_launcher_overlay": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_launcher_overlay_rendered=true")",
     "graphics_drm_wayland_launcher_pointer": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_launcher_launch_request_app=files")",
@@ -1843,6 +1851,10 @@ cat > "${MANIFEST_JSON}" <<EOF
     "graphical_session_supervisor_bounded": "$(contract_file_contains "${CONTRACT_DIR}/graphical-session-supervisor.txt" "policy=bounded-restart-with-recovery-fallback")",
     "graphical_session_supervisor_recovery": "$(contract_file_contains "${CONTRACT_DIR}/graphical-session-supervisor.txt" "recovery_fallback=armed")",
     "graphical_session_supervisor_safe_default": "$(contract_file_contains "${CONTRACT_DIR}/graphical-session-supervisor.txt" "session_started=false")",
+    "media_service_supervisor": "$(contract_file_contains "${CONTRACT_DIR}/media-service-supervisor.txt" "[AQUA-MEDIA] stage=media-service-supervisor status=ok")",
+    "media_service_supervisor_safe_default": "$(contract_file_contains "${CONTRACT_DIR}/media-service-supervisor.txt" "enabled=false")",
+    "media_service_supervisor_ordered_start": "$(contract_file_contains "${CONTRACT_DIR}/media-service-supervisor.txt" "ordered_start=pipewire,wireplumber")",
+    "media_service_supervisor_ordered_stop": "$(contract_file_contains "${CONTRACT_DIR}/media-service-supervisor.txt" "ordered_stop=wireplumber,pipewire")",
     "graphical_session_boot": "$(contract_file_contains "${CONTRACT_DIR}/graphical-session-boot.txt" "[AQUA-BOOT] stage=graphical-session-activation status=disabled")",
     "graphical_session_boot_kernel_gate": "$(contract_file_contains "${CONTRACT_DIR}/graphical-session-boot.txt" "reason=kernel-flag-absent")",
     "graphical_session_boot_safe_default": "$(contract_file_contains "${CONTRACT_DIR}/graphical-session-boot.txt" "boot_graphics=false")",
@@ -2167,7 +2179,7 @@ cat > "${MANIFEST_JSON}" <<EOF
     "graphics_fbdev_present_no_autostart": "$(contract_file_contains "${CONTRACT_DIR}/graphics-fbdev-present.txt" "autostart=false")",
     "graphics_fbdev_present_recovery_safe": "$(contract_file_contains "${CONTRACT_DIR}/graphics-fbdev-present.txt" "safe_return_to_recovery=ok")",
     "graphics_fbdev_headless_qemu_write": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "[AQUA-TEST] stage=fbdev-present-qemu status=ok framebuffer_write=true visible_observation=false safe_return_to_recovery=ok")",
-    "graphics_fbdev_headless_qemu_checksum": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "frame_checksum=1767f1f782a5cdb8")",
+    "graphics_fbdev_headless_qemu_checksum": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "frame_checksum=c85dbfbfc17843af")",
     "graphics_fbdev_headless_qemu_wallpaper": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "wallpaper_source=runtime-asset")",
     "graphics_fbdev_headless_qemu_mode": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "target_size=1280x800")",
     "graphics_fbdev_headless_qemu_recovery_safe": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "safe_return_to_recovery=ok")",
@@ -2335,11 +2347,11 @@ cat > "${MANIFEST_JSON}" <<EOF
     "renderer_gpu_context_created": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gpu_context_created=true")",
     "renderer_gpu_frame_rendered": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gpu_frame_rendered=true")",
     "renderer_gpu_frame_synchronized": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gpu_frame_synchronized=true")",
-    "renderer_gpu_scene_surfaces": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gpu_scene_surface_count=7")",
-    "renderer_gpu_scene_surface_layers": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gpu_scene_surface_layer_count=5")",
+    "renderer_gpu_scene_surfaces": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gpu_scene_surface_count=5")",
+    "renderer_gpu_scene_surface_layers": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gpu_scene_surface_layer_count=3")",
     "renderer_gpu_scene_shader": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gpu_scene_shader=aqua-surface-compositor-v1")",
     "renderer_gpu_surface_shader_compiled": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gpu_surface_shader_compiled=true")",
-    "renderer_gpu_surface_shader_panels": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gpu_surface_shader_panels=5")",
+    "renderer_gpu_surface_shader_panels": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gpu_surface_shader_panels=3")",
     "renderer_gpu_surface_refraction": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gpu_surface_refraction_strength=0.0025")",
     "renderer_gpu_surface_tint": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gpu_surface_tint_strength=0.18")",
     "renderer_gpu_surface_highlight": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "gpu_surface_highlight_strength=0.16")",

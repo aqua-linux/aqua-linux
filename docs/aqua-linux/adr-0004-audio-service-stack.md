@@ -9,9 +9,8 @@ remain blocked by the prerequisites and evidence gates below.
 
 Settings owns a persistent, bounded output-volume preference and mute state,
 but no service currently applies either value. The Buildroot image uses BusyBox
-init, the graphical prototype still runs without a completed unprivileged user
-session, and the current defconfig deliberately excludes ALSA userspace,
-PipeWire, and WirePlumber.
+init and now runs its graphical path as the locked `aqua` user. The current
+defconfig deliberately excludes ALSA userspace, PipeWire, and WirePlumber.
 
 At the time of this decision, the pinned Buildroot 2024.02.12 tree contained
 PipeWire 0.3.81 and WirePlumber 0.4.8 and was no longer an upstream-supported
@@ -84,6 +83,9 @@ conditions are met:
   root.
 - The session supervisor can start, observe, restart with a finite budget, and
   stop per-user services without falling back to a root-owned media daemon.
+  This prerequisite is satisfied by the packaged Aqua media-service supervisor
+  and deterministic fixture lifecycle. PipeWire and WirePlumber remain disabled
+  until the adapter and packaged runtime evidence gates also pass.
 - The audio adapter contract and its fail-closed unavailable/degraded behavior
   pass deterministic tests before Settings can report `backend_applied=true`.
 
@@ -129,9 +131,11 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
 
 - The existing Settings audio model remains honest and reports that no backend
   has applied its preference until the adapter is implemented and acknowledged.
-- The next implementation item is the bounded per-user media-service
-  supervisor and ordered PipeWire/WirePlumber lifecycle, not an ad-hoc root
-  boot service.
+- Aqua now has a bounded per-user media-service supervisor with ordered
+  PipeWire/WirePlumber startup, reverse-order shutdown, finite readiness,
+  restart, and degraded-state handling. Its packaged default remains disabled.
+- The next audio implementation item is the authoritative, fail-closed
+  `aqua-service-adapters` audio boundary before media packages are enabled.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

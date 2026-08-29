@@ -16,6 +16,12 @@ RESTART_DELAY="${AQUA_GRAPHICS_RESTART_DELAY_SECONDS:-2}"
 STABLE_SECONDS="${AQUA_GRAPHICS_STABLE_SECONDS:-30}"
 ENABLED="${AQUA_GRAPHICS_SESSION_ENABLED:-false}"
 DRY_RUN="${AQUA_GRAPHICS_SUPERVISOR_DRY_RUN:-false}"
+MEDIA_SUPERVISOR_BIN="${AQUA_MEDIA_SUPERVISOR_BIN:-/usr/bin/aqua-media-service-supervisor}"
+MEDIA_STOP_BIN="${AQUA_MEDIA_STOP_BIN:-/usr/bin/aqua-media-service-stop}"
+MEDIA_STATE_FILE="${AQUA_MEDIA_SUPERVISOR_STATE_FILE:-${CONTROL_DIR}/media-service-supervisor.state}"
+MEDIA_LOG_FILE="${AQUA_MEDIA_SUPERVISOR_LOG_FILE:-${CONTROL_DIR}/media-service-supervisor.log}"
+MEDIA_START_TIMEOUT="${AQUA_MEDIA_START_TIMEOUT_SECONDS:-12}"
+media_supervisor_started=false
 
 cleanup_pid() {
     if [ -f "${PID_FILE}" ] && [ "$(cat "${PID_FILE}" 2>/dev/null || true)" = "$$" ]; then
@@ -23,7 +29,20 @@ cleanup_pid() {
     fi
 }
 
-trap cleanup_pid EXIT
+stop_media_supervisor() {
+    if [ "${media_supervisor_started}" = true ] && [ -x "${MEDIA_STOP_BIN}" ]; then
+        AQUA_SESSION_CONTROL_DIR="${CONTROL_DIR}" \
+        AQUA_SESSION_RUNTIME_DIR="${SESSION_RUNTIME_DIR}" \
+        "${MEDIA_STOP_BIN}" >> "${MEDIA_LOG_FILE}" 2>&1 || true
+    fi
+}
+
+cleanup() {
+    stop_media_supervisor
+    cleanup_pid
+}
+
+trap cleanup EXIT
 
 mark() {
     echo "[AQUA-SESSION] stage=graphical-session-supervisor status=$1 $2"
@@ -47,7 +66,7 @@ write_state() {
     } > "${tmp}" && mv "${tmp}" "${STATE_FILE}"
 }
 
-case "${MAX_RESTARTS}:${RESTART_DELAY}:${STABLE_SECONDS}" in
+case "${MAX_RESTARTS}:${RESTART_DELAY}:${STABLE_SECONDS}:${MEDIA_START_TIMEOUT}" in
     *[!0-9:]*|:*|*::*|*:)
         mark error "reason=invalid-policy"
         exit 2
@@ -75,6 +94,7 @@ if [ "${DRY_RUN}" = true ]; then
     echo "boot_graphics=false"
     echo "autostart=false"
     echo "recovery_fallback=armed"
+    echo "media_supervision=ordered-per-user-planned"
     mark ok "mode=dry-run session_started=false"
     exit 0
 fi
@@ -103,6 +123,40 @@ if [ "$(id -u)" -eq 0 ] || [ "${XDG_RUNTIME_DIR:-}" != "${SESSION_RUNTIME_DIR}" 
     write_state blocked 0 0 0
     mark blocked "reason=unprivileged-session-contract uid=$(id -u) runtime_dir=${XDG_RUNTIME_DIR:-missing}"
     exit 1
+fi
+
+if [ -x "${MEDIA_SUPERVISOR_BIN}" ] && [ -x "${MEDIA_STOP_BIN}" ]; then
+    AQUA_SESSION_CONTROL_DIR="${CONTROL_DIR}" \
+    AQUA_SESSION_RUNTIME_DIR="${SESSION_RUNTIME_DIR}" \
+    XDG_RUNTIME_DIR="${SESSION_RUNTIME_DIR}" \
+    "${MEDIA_SUPERVISOR_BIN}" >> "${MEDIA_LOG_FILE}" 2>&1 &
+    media_supervisor_started=true
+    media_waited=0
+    media_state=""
+    while [ "${media_waited}" -lt "${MEDIA_START_TIMEOUT}" ]; do
+        media_state="$(sed -n 's/^state=//p' "${MEDIA_STATE_FILE}" 2>/dev/null | tail -n 1)"
+        case "${media_state}" in
+            running|disabled|degraded|blocked) break ;;
+        esac
+        sleep 1
+        media_waited=$((media_waited + 1))
+    done
+    case "${media_state}" in
+        running)
+            mark media-ready "state=running ordered_start=pipewire,wireplumber"
+            ;;
+        disabled)
+            mark media-disabled "state=disabled reason=packages-not-enabled"
+            ;;
+        degraded|blocked)
+            mark media-degraded "state=${media_state} graphics_continues=true"
+            ;;
+        *)
+            mark media-degraded "state=timeout graphics_continues=true waited_seconds=${media_waited}"
+            ;;
+    esac
+else
+    mark media-degraded "state=unavailable graphics_continues=true"
 fi
 
 attempts=0

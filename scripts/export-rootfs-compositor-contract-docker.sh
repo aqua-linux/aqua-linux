@@ -67,6 +67,12 @@ docker run --rm \
         AQUA_GRAPHICS_SUPERVISOR_STATE_FILE="${tmp_dir}/run/aqua-supervisor/graphical-session-supervisor.state" \
         AQUA_GRAPHICS_SUPERVISOR_DRY_RUN=true \
         "${tmp_dir}/rootfs/usr/bin/aqua-graphical-session-supervisor" > "${CONTRACT_DIR}/graphical-session-supervisor.txt"
+        AQUA_MEDIA_SERVICES_CONFIG="${tmp_dir}/rootfs/etc/aqua/media-services.conf" \
+        AQUA_SESSION_CONTROL_DIR="${tmp_dir}/run/aqua-media" \
+        AQUA_SESSION_RUNTIME_DIR="${tmp_dir}/run/user/1000" \
+        AQUA_MEDIA_SUPERVISOR_STATE_FILE="${tmp_dir}/run/aqua-media/media-service-supervisor.state" \
+        AQUA_MEDIA_SUPERVISOR_DRY_RUN=true \
+        "${tmp_dir}/rootfs/usr/bin/aqua-media-service-supervisor" > "${CONTRACT_DIR}/media-service-supervisor.txt"
         printf "%s\n" "console=ttyS0" > "${tmp_dir}/cmdline-default"
         AQUA_CMDLINE_PATH="${tmp_dir}/cmdline-default" \
         AQUA_GRAPHICS_BOOT_PROFILE="${tmp_dir}/rootfs/etc/aqua/compositor-session-graphics.conf" \

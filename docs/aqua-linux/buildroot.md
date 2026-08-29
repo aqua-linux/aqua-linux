@@ -130,6 +130,16 @@ supervisor state and recovery evidence. The root boot process enters graphics
 only through `aqua-session-user-launch`, which drops to the `aqua` identity;
 the root recovery TTY remains independent.
 
+The graphical supervisor also owns `/usr/bin/aqua-media-service-supervisor`
+inside that unprivileged session. Its checked-in policy at
+`/etc/aqua/media-services.conf` is disabled by default because PipeWire and
+WirePlumber are not packaged yet. When explicitly enabled, it requires the
+private session runtime, starts PipeWire before WirePlumber, waits a finite
+time for the PipeWire socket, restarts the complete pair within a bounded
+budget, stops WirePlumber before PipeWire, and records disabled, running,
+restarting, stopped, or degraded state under `/run/aqua`. Media failure does
+not block the compositor or remove the independent recovery TTY.
+
 The image also writes the derived session environment to:
 
 `/etc/aqua/session.env`

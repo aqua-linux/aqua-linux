@@ -60,7 +60,10 @@ need_entry "./usr/share/doc/aqua/wayland-compat-client.txt"
 need_entry "./usr/bin/aqua-session-check"
 need_entry "./usr/bin/aqua-session-runtime-prepare"
 need_entry "./usr/bin/aqua-session-user-launch"
+need_entry "./usr/bin/aqua-media-service-supervisor"
+need_entry "./usr/bin/aqua-media-service-stop"
 need_entry "./etc/aqua/compositor-session.conf"
+need_entry "./etc/aqua/media-services.conf"
 need_entry "./etc/aqua/session.env"
 
 tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '"fill"'
@@ -86,10 +89,18 @@ tar -xOf "${ROOTFS_TAR}" ./etc/aqua/session.env | grep -Fq 'export XDG_RUNTIME_D
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/session.env | grep -Fq 'export AQUA_ASSET_ROOT=/usr/share/aqua'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/session.env | grep -Fq 'export AQUA_COMPOSITOR_AUTOSTART=false'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/session.env | grep -Fq 'export AQUA_BOOT_GRAPHICS=false'
+tar -xOf "${ROOTFS_TAR}" ./etc/aqua/media-services.conf | grep -Fq 'enabled=false'
+tar -xOf "${ROOTFS_TAR}" ./etc/aqua/media-services.conf | grep -Fq 'pipewire_binary=/usr/bin/pipewire'
+tar -xOf "${ROOTFS_TAR}" ./etc/aqua/media-services.conf | grep -Fq 'wireplumber_binary=/usr/bin/wireplumber'
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq 'weston_compositor_packaged=false'
 
 if tar -tf "${ROOTFS_TAR}" | grep -Eq '^\./usr/(bin/weston($|-)|lib/libweston|libexec/weston-|share/libweston|share/wayland-sessions/weston\.desktop)'; then
     echo "Weston compositor runtime leaked into the Aqua rootfs." >&2
+    exit 1
+fi
+
+if tar -tf "${ROOTFS_TAR}" | grep -Eq '^\./usr/(bin/(pipewire|wireplumber|wpctl)$|lib/(pipewire-|wireplumber-))'; then
+    echo "Disabled media packages leaked into the Aqua rootfs." >&2
     exit 1
 fi
 
