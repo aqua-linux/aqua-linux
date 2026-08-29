@@ -96,6 +96,7 @@ impl SharedComponentKind {
                 | Self::IconButton
                 | Self::Switch
                 | Self::ListRow
+                | Self::GridCell
                 | Self::SidebarNavigation
         )
     }
@@ -132,6 +133,7 @@ impl ComponentState {
     pub const STANDARD_BUTTON_STATES: [Self; 10] = Self::INTERACTIVE_STATES;
     pub const ICON_BUTTON_STATES: [Self; 10] = Self::INTERACTIVE_STATES;
     pub const LIST_ROW_STATES: [Self; 10] = Self::INTERACTIVE_STATES;
+    pub const GRID_CELL_STATES: [Self; 10] = Self::INTERACTIVE_STATES;
     pub const SEARCH_FIELD_STATES: [Self; 8] = [
         Self::Idle,
         Self::Hover,
@@ -1652,6 +1654,186 @@ impl<'a> ListRow<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GridCellLayout {
+    IconLeading,
+    IconAbove,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GridCellSlots {
+    pub icon: Rect,
+    pub primary: Rect,
+    pub secondary: Rect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GridCell<'a> {
+    pub rect: Rect,
+    pub label: &'a str,
+    pub state: ComponentState,
+    pub layout: GridCellLayout,
+    pub icon_size: u32,
+    pub inset: u32,
+    pub gap: u32,
+    pub secondary_height: u32,
+    pub idle_surface: bool,
+}
+
+impl<'a> GridCell<'a> {
+    pub const fn new(rect: Rect, label: &'a str, layout: GridCellLayout) -> Self {
+        Self {
+            rect,
+            label,
+            state: ComponentState::Idle,
+            layout,
+            icon_size: 40,
+            inset: 8,
+            gap: 6,
+            secondary_height: 20,
+            idle_surface: true,
+        }
+    }
+
+    pub const fn with_state(mut self, state: ComponentState) -> Self {
+        self.state = state;
+        self
+    }
+
+    pub const fn with_spacing(
+        mut self,
+        icon_size: u32,
+        inset: u32,
+        gap: u32,
+        secondary_height: u32,
+    ) -> Self {
+        self.icon_size = icon_size;
+        self.inset = inset;
+        self.gap = gap;
+        self.secondary_height = secondary_height;
+        self
+    }
+
+    pub const fn with_idle_surface(mut self, visible: bool) -> Self {
+        self.idle_surface = visible;
+        self
+    }
+
+    pub const fn slots(self) -> GridCellSlots {
+        let inner_width = self.rect.width.saturating_sub(self.inset.saturating_mul(2));
+        let inner_height = self
+            .rect
+            .height
+            .saturating_sub(self.inset.saturating_mul(2));
+        let icon_size = min_u32(self.icon_size, min_u32(inner_width, inner_height));
+        match self.layout {
+            GridCellLayout::IconLeading => {
+                let primary_x = self
+                    .rect
+                    .x
+                    .saturating_add(self.inset)
+                    .saturating_add(icon_size)
+                    .saturating_add(self.gap);
+                let secondary_height = min_u32(self.secondary_height, inner_height);
+                GridCellSlots {
+                    icon: Rect {
+                        x: self.rect.x.saturating_add(self.inset),
+                        y: self.rect.y.saturating_add(self.inset),
+                        width: icon_size,
+                        height: icon_size,
+                    },
+                    primary: Rect {
+                        x: primary_x,
+                        y: self.rect.y.saturating_add(self.inset),
+                        width: self
+                            .rect
+                            .right()
+                            .saturating_sub(self.inset)
+                            .saturating_sub(primary_x),
+                        height: icon_size,
+                    },
+                    secondary: Rect {
+                        x: self.rect.x.saturating_add(self.inset),
+                        y: self
+                            .rect
+                            .bottom()
+                            .saturating_sub(self.inset.saturating_add(secondary_height)),
+                        width: inner_width,
+                        height: secondary_height,
+                    },
+                }
+            }
+            GridCellLayout::IconAbove => {
+                let icon_x = self
+                    .rect
+                    .x
+                    .saturating_add(self.rect.width.saturating_sub(icon_size) / 2);
+                let primary_y = self
+                    .rect
+                    .y
+                    .saturating_add(self.inset)
+                    .saturating_add(icon_size)
+                    .saturating_add(self.gap);
+                GridCellSlots {
+                    icon: Rect {
+                        x: icon_x,
+                        y: self.rect.y.saturating_add(self.inset),
+                        width: icon_size,
+                        height: icon_size,
+                    },
+                    primary: Rect {
+                        x: self.rect.x.saturating_add(self.inset),
+                        y: primary_y,
+                        width: inner_width,
+                        height: self
+                            .rect
+                            .bottom()
+                            .saturating_sub(self.inset)
+                            .saturating_sub(primary_y),
+                    },
+                    secondary: Rect {
+                        x: self.rect.x,
+                        y: self.rect.bottom(),
+                        width: 0,
+                        height: 0,
+                    },
+                }
+            }
+        }
+    }
+
+    pub const fn is_valid(self) -> bool {
+        let slots = self.slots();
+        !self.label.is_empty()
+            && self.rect.width > self.inset.saturating_mul(2)
+            && self.rect.height > self.inset.saturating_mul(2)
+            && self.icon_size > 0
+            && slots.icon.width > 0
+            && slots.primary.width > 0
+            && slots.primary.height > 0
+    }
+
+    pub const fn focus_rect(self) -> Rect {
+        expanded_rect(self.rect, 2)
+    }
+
+    pub const fn can_activate(self) -> bool {
+        self.is_valid() && self.state.can_activate()
+    }
+
+    pub const fn pointer_hit(self, x: u32, y: u32) -> bool {
+        self.can_activate() && rect_contains(self.rect, x, y)
+    }
+
+    pub const fn keyboard_activates(self, key: ActivationKey) -> bool {
+        self.can_activate() && matches!(key, ActivationKey::Enter | ActivationKey::Space)
+    }
+
+    pub const fn accessibility(self) -> ComponentAccessibility<'a> {
+        accessibility("gridcell", self.label, self.state)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SidebarNavigation<'a> {
     pub rect: Rect,
     pub label: &'a str,
@@ -1765,7 +1947,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_thirteen_shared_primitives() {
+    fn catalog_tracks_the_fourteen_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -1784,6 +1966,7 @@ mod tests {
                 SharedComponentKind::Switch,
                 SharedComponentKind::Menu,
                 SharedComponentKind::ListRow,
+                SharedComponentKind::GridCell,
                 SharedComponentKind::MetadataRow,
                 SharedComponentKind::SectionGroup,
             ]
@@ -1846,14 +2029,17 @@ mod tests {
             let button = StandardButton::new(rect, "Action", StandardButtonVariant::Primary)
                 .with_state(state);
             let row = ListRow::new(rect, "Item", ListRowRole::Option).with_state(state);
+            let cell = GridCell::new(rect, "Item", GridCellLayout::IconLeading).with_state(state);
             let switch = SwitchControl::new(rect, "Setting", false).with_state(state);
             let segmented = SegmentedControl::new(rect, "Theme", 3, 0).with_state(state);
             assert!(!button.pointer_hit(11, 21));
             assert!(!row.pointer_hit(11, 21));
+            assert!(!cell.pointer_hit(11, 21));
             assert!(!switch.pointer_toggles(11, 21));
             assert_eq!(segmented.hit_test(11, 21), None);
             assert!(!button.keyboard_activates(ActivationKey::Enter));
             assert!(!row.keyboard_activates(ActivationKey::Space));
+            assert!(!cell.keyboard_activates(ActivationKey::Space));
         }
     }
 
@@ -1868,6 +2054,7 @@ mod tests {
         let button = StandardButton::new(rect, "", StandardButtonVariant::Primary);
         let top_bar = TopSystemBar::new(rect, "");
         let row = ListRow::new(rect, "", ListRowRole::Option);
+        let cell = GridCell::new(rect, "", GridCellLayout::IconLeading);
         let icon = IconButton::new(rect, "", IconButtonGlyph::Back);
         let search = SearchField::new(rect, "", "", "Search");
         let switch = SwitchControl::new(rect, "", false);
@@ -1880,6 +2067,7 @@ mod tests {
         assert!(!button.can_activate());
         assert!(!top_bar.is_valid());
         assert!(!row.can_activate());
+        assert!(!cell.can_activate());
         assert!(!icon.can_activate());
         assert!(!search.accepts_input());
         assert!(!switch.can_toggle());
@@ -1890,6 +2078,47 @@ mod tests {
         assert!(!metadata.is_valid());
         assert!(!section.is_valid());
         assert_eq!(navigation.hit_test(11, 21, 1), None);
+    }
+
+    #[test]
+    fn grid_cell_layouts_share_stable_activation_and_semantics() {
+        let leading = GridCell::new(
+            Rect {
+                x: 24,
+                y: 184,
+                width: 180,
+                height: 100,
+            },
+            "Files",
+            GridCellLayout::IconLeading,
+        )
+        .with_spacing(40, 14, 6, 22)
+        .with_state(ComponentState::Selected);
+        let leading_slots = leading.slots();
+        assert_eq!(leading_slots.icon.x, 38);
+        assert_eq!(leading_slots.primary.x, 84);
+        assert!(leading_slots.secondary.bottom() < leading.rect.bottom());
+        assert!(leading.pointer_hit(24, 184));
+        assert!(leading.keyboard_activates(ActivationKey::Enter));
+        assert_eq!(leading.accessibility().role, "gridcell");
+        assert!(leading.accessibility().selected);
+
+        let above = GridCell::new(
+            Rect {
+                x: 24,
+                y: 60,
+                width: 104,
+                height: 104,
+            },
+            "Settings",
+            GridCellLayout::IconAbove,
+        )
+        .with_spacing(64, 8, 5, 0);
+        let above_slots = above.slots();
+        assert_eq!(above_slots.icon.x, 44);
+        assert_eq!(above_slots.primary.y, 137);
+        assert_eq!(above_slots.secondary.width, 0);
+        assert!(above.is_valid());
     }
 
     #[test]

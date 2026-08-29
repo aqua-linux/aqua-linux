@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-10";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-11";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -597,6 +597,49 @@ pub(crate) fn draw_list_row(
     primitives
 }
 
+pub(crate) fn draw_grid_cell(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    cell: GridCell<'_>,
+    theme: AquaTheme,
+) -> usize {
+    if !cell.is_valid() {
+        return 0;
+    }
+    let palette = window_chrome_palette(theme);
+    let (fill, opacity) = match cell.state {
+        ComponentState::Idle if !cell.idle_surface => (palette.field, 0),
+        ComponentState::Idle => (palette.field, 225),
+        ComponentState::Hover => (palette.hover, 245),
+        ComponentState::KeyboardFocus => (palette.field, 225),
+        ComponentState::Pressed => (palette.accent_soft, 235),
+        ComponentState::Selected => (palette.accent_soft, 255),
+        ComponentState::Disabled => (palette.row_alternate, 180),
+        ComponentState::Loading => (palette.row_alternate, 210),
+        ComponentState::Error => ([0xc9, 0x3c, 0x47, 0xff], 245),
+        ComponentState::Success => ([0x2c, 0x8a, 0x59, 0xff], 245),
+        ComponentState::Attention => ([0xd1, 0x8b, 0x24, 0xff], 245),
+    };
+    let mut primitives = 0;
+    if opacity > 0 {
+        fill_rounded_rect(buffer, width, height, cell.rect, 8, fill, opacity);
+        primitives += 1;
+    }
+    if cell.state == ComponentState::KeyboardFocus {
+        draw_rect_outline(
+            buffer,
+            width,
+            height,
+            cell.focus_rect(),
+            palette.accent,
+            220,
+        );
+        primitives += 1;
+    }
+    primitives
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComponentAcceptanceProbe {
     pub viewport: Viewport,
@@ -605,6 +648,7 @@ pub struct ComponentAcceptanceProbe {
     pub button_state_count: usize,
     pub icon_button_state_count: usize,
     pub list_row_state_count: usize,
+    pub grid_cell_state_count: usize,
     pub search_field_state_count: usize,
     pub segmented_control_state_count: usize,
     pub switch_state_count: usize,
@@ -626,6 +670,7 @@ impl ComponentAcceptanceProbe {
         self.button_state_count == ComponentState::STANDARD_BUTTON_STATES.len()
             && self.icon_button_state_count == ComponentState::ICON_BUTTON_STATES.len()
             && self.list_row_state_count == ComponentState::LIST_ROW_STATES.len()
+            && self.grid_cell_state_count == ComponentState::GRID_CELL_STATES.len()
             && self.search_field_state_count == ComponentState::SEARCH_FIELD_STATES.len()
             && self.segmented_control_state_count == ComponentState::SEGMENTED_CONTROL_STATES.len()
             && self.switch_state_count == ComponentState::SWITCH_STATES.len()
@@ -873,6 +918,54 @@ pub fn render_component_acceptance_rgba(
         input_semantics &= button.keyboard_activates(ActivationKey::Enter) == button.can_activate();
         let semantics = button.accessibility();
         accessibility_semantics &= semantics.role == "button"
+            && !semantics.name.is_empty()
+            && semantics.disabled == (state == ComponentState::Disabled)
+            && semantics.busy == (state == ComponentState::Loading)
+            && semantics.selected == (state == ComponentState::Selected);
+    }
+
+    for (index, state) in ComponentState::GRID_CELL_STATES.into_iter().enumerate() {
+        let rect = Rect {
+            x: viewport.width / 2 + 8 + (index as u32 % 5) * 70,
+            y: 332 + (index as u32 / 5) * 64,
+            width: 62,
+            height: 56,
+        };
+        let layout = if index < 5 {
+            GridCellLayout::IconLeading
+        } else {
+            GridCellLayout::IconAbove
+        };
+        let cell = GridCell::new(rect, state.id(), layout)
+            .with_spacing(16, 5, 3, 12)
+            .with_state(state);
+        draw_grid_cell(&mut buffer, viewport.width, viewport.height, cell, theme);
+        let slots = cell.slots();
+        fill_rounded_rect(
+            &mut buffer,
+            viewport.width,
+            viewport.height,
+            slots.icon,
+            4,
+            palette.accent,
+            230,
+        );
+        draw_fitted_bitmap_text(
+            &mut buffer,
+            (viewport.width, viewport.height),
+            slots.primary,
+            cell.label,
+            palette.text,
+            FittedTextOptions::new(TextRole::Control, scale, false),
+        );
+        stable_geometry &= cell.is_valid()
+            && slots.icon.fits_in(viewport)
+            && slots.primary.fits_in(viewport)
+            && slots.secondary.fits_in(viewport);
+        input_semantics &= cell.pointer_hit(rect.x, rect.y) == cell.can_activate();
+        input_semantics &= cell.keyboard_activates(ActivationKey::Enter) == cell.can_activate();
+        let semantics = cell.accessibility();
+        accessibility_semantics &= semantics.role == "gridcell"
             && !semantics.name.is_empty()
             && semantics.disabled == (state == ComponentState::Disabled)
             && semantics.busy == (state == ComponentState::Loading)
@@ -1173,6 +1266,7 @@ pub fn render_component_acceptance_rgba(
         button_state_count: ComponentState::STANDARD_BUTTON_STATES.len(),
         icon_button_state_count: ComponentState::ICON_BUTTON_STATES.len(),
         list_row_state_count: ComponentState::LIST_ROW_STATES.len(),
+        grid_cell_state_count: ComponentState::GRID_CELL_STATES.len(),
         search_field_state_count: ComponentState::SEARCH_FIELD_STATES.len(),
         segmented_control_state_count: ComponentState::SEGMENTED_CONTROL_STATES.len(),
         switch_state_count: ComponentState::SWITCH_STATES.len(),
@@ -1210,7 +1304,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -1222,6 +1316,7 @@ pub fn component_acceptance_report() -> String {
                 probe.switch_state_count,
                 probe.segmented_control_state_count,
                 probe.list_row_state_count,
+                probe.grid_cell_state_count,
                 probe.sidebar_row_count,
                 probe.toolbar_ready,
                 probe.window_frame_ready,
@@ -1265,6 +1360,7 @@ mod tests {
                 SharedComponentKind::Switch,
                 SharedComponentKind::Menu,
                 SharedComponentKind::ListRow,
+                SharedComponentKind::GridCell,
                 SharedComponentKind::MetadataRow,
                 SharedComponentKind::SectionGroup,
             ]
@@ -1309,7 +1405,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,sidebar-navigation,toolbar")
+                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,sidebar-navigation,toolbar")
                 .count(),
             12
         );

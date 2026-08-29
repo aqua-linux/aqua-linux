@@ -1,6 +1,7 @@
 use aqua_components::{
-    ComponentState, IconButton, IconButtonGlyph, Menu, MetadataRow, SearchField, SectionGroup,
-    SegmentedControl, SidebarNavigation, SwitchControl, Toolbar, TopSystemBar,
+    ComponentState, GridCell, GridCellLayout, IconButton, IconButtonGlyph, Menu, MetadataRow,
+    SearchField, SectionGroup, SegmentedControl, SidebarNavigation, SwitchControl, Toolbar,
+    TopSystemBar,
 };
 use aqua_scene::Rect;
 use std::collections::VecDeque;
@@ -642,6 +643,32 @@ pub const DESKTOP_ICONS: [DesktopIcon; 3] = [
     },
 ];
 
+pub const fn desktop_grid_cell(
+    index: usize,
+    label: &str,
+    selected: bool,
+    origin_x: u32,
+    origin_y: u32,
+) -> GridCell<'_> {
+    GridCell::new(
+        Rect {
+            x: origin_x,
+            y: origin_y.saturating_add((index as u32).saturating_mul(DESKTOP_ICON_ROW_HEIGHT)),
+            width: DESKTOP_ICON_WIDTH,
+            height: DESKTOP_ICON_ROW_HEIGHT,
+        },
+        label,
+        GridCellLayout::IconAbove,
+    )
+    .with_spacing(64, 8, 5, 0)
+    .with_idle_surface(false)
+    .with_state(if selected {
+        ComponentState::Selected
+    } else {
+        ComponentState::Idle
+    })
+}
+
 pub fn properties_launch_request(icon_id: &'static str) -> Option<LaunchRequest> {
     DESKTOP_ICONS
         .iter()
@@ -842,12 +869,11 @@ impl DesktopIconState {
     }
 
     pub fn pointer_target(x: u32, y: u32) -> Option<usize> {
-        if !(DESKTOP_ICON_X..DESKTOP_ICON_X + DESKTOP_ICON_WIDTH).contains(&x) || y < DESKTOP_ICON_Y
-        {
-            return None;
-        }
-        let index = ((y - DESKTOP_ICON_Y) / DESKTOP_ICON_ROW_HEIGHT) as usize;
-        (index < DESKTOP_ICONS.len()).then_some(index)
+        DESKTOP_ICONS.iter().enumerate().find_map(|(index, icon)| {
+            desktop_grid_cell(index, icon.label, false, DESKTOP_ICON_X, DESKTOP_ICON_Y)
+                .pointer_hit(x, y)
+                .then_some(index)
+        })
     }
 
     pub fn pointer_press(
@@ -2617,6 +2643,46 @@ impl LauncherState {
             .collect()
     }
 
+    pub fn application_grid_cell(
+        &self,
+        index: usize,
+        viewport_width: u32,
+        viewport_height: u32,
+    ) -> Option<GridCell<'static>> {
+        if self.mode != LauncherMode::Applications {
+            return None;
+        }
+        let app = *self.visible_apps().get(index)?;
+        let panel = self.panel_bounds(viewport_width, viewport_height);
+        let gap = 12;
+        let card_width = panel.width.saturating_sub(48 + gap * 2) / 3;
+        let column = index as u32 % 3;
+        let row = index as u32 / 3;
+        let content_y = self
+            .search_field(viewport_width, viewport_height)
+            .rect
+            .bottom()
+            .saturating_add(18);
+        Some(
+            GridCell::new(
+                Rect {
+                    x: panel.x + 24 + column * (card_width + gap),
+                    y: content_y + row * 112,
+                    width: card_width,
+                    height: 100,
+                },
+                app.name,
+                GridCellLayout::IconLeading,
+            )
+            .with_spacing(40, 14, 6, 22)
+            .with_state(if index == self.selected_index {
+                ComponentState::Selected
+            } else {
+                ComponentState::Idle
+            }),
+        )
+    }
+
     pub fn move_selection(&mut self, offset: isize) {
         let count = self.visible_apps().len();
         if count == 0 {
@@ -2665,12 +2731,11 @@ impl LauncherState {
         let content_y = panel.y + 96;
         match self.mode {
             LauncherMode::Applications => {
-                if y >= content_y {
-                    let column_width = (panel.width.saturating_sub(48) / 3).max(1);
-                    let column = ((x.saturating_sub(panel.x + 24)) / column_width).min(2);
-                    let row = (y - content_y) / 112;
-                    let index = (row * 3 + column) as usize;
-                    if index < self.visible_apps().len().min(6) {
+                for index in 0..self.visible_apps().len().min(6) {
+                    if self
+                        .application_grid_cell(index, viewport_width, viewport_height)
+                        .is_some_and(|cell| cell.pointer_hit(x, y))
+                    {
                         return Some(LauncherPointerTarget::Application(index));
                     }
                 }
@@ -3835,8 +3900,12 @@ mod tests {
             Some(LauncherPointerTarget::SearchField)
         );
         assert_eq!(
-            launcher.pointer_target(130, 180),
+            launcher.pointer_target(130, 190),
             Some(LauncherPointerTarget::Application(0))
+        );
+        assert_eq!(
+            launcher.pointer_target(300, 190),
+            Some(LauncherPointerTarget::Panel)
         );
         launcher.open_search();
         launcher.set_query("settings");
