@@ -99,6 +99,7 @@ impl SharedComponentKind {
                 | Self::GridCell
                 | Self::ApplicationOverview
                 | Self::GlobalSearch
+                | Self::RunningAppDock
                 | Self::SidebarNavigation
         )
     }
@@ -2291,6 +2292,172 @@ impl<'a> GlobalSearch<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RunningAppDockAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub item_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RunningAppDockItemAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub running: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RunningAppDock<'a> {
+    pub rect: Rect,
+    pub name: &'a str,
+    pub item_count: usize,
+    pub item_width: u32,
+    pub icon_size: u32,
+    pub raster_icon_size: u32,
+    pub indicator_size: u32,
+    pub indicator_bottom_inset: u32,
+}
+
+impl<'a> RunningAppDock<'a> {
+    pub const fn new(rect: Rect, name: &'a str, item_count: usize) -> Self {
+        Self {
+            rect,
+            name,
+            item_count,
+            item_width: 72,
+            icon_size: 64,
+            raster_icon_size: 48,
+            indicator_size: 6,
+            indicator_bottom_inset: 1,
+        }
+    }
+
+    pub const fn item_rect(self, index: usize) -> Rect {
+        if index >= self.item_count {
+            return Rect {
+                x: self.rect.x,
+                y: self.rect.y,
+                width: 0,
+                height: 0,
+            };
+        }
+        Rect {
+            x: self
+                .rect
+                .x
+                .saturating_add((index as u32).saturating_mul(self.item_width)),
+            y: self.rect.y,
+            width: self.item_width,
+            height: self.rect.height,
+        }
+    }
+
+    pub const fn icon_rect(self, index: usize) -> Rect {
+        let item = self.item_rect(index);
+        if item.width == 0 {
+            return item;
+        }
+        let size = min_u32(self.icon_size, min_u32(item.width, item.height));
+        Rect {
+            x: item.x.saturating_add(item.width.saturating_sub(size) / 2),
+            y: item.y.saturating_add(item.height.saturating_sub(size) / 2),
+            width: size,
+            height: size,
+        }
+    }
+
+    pub const fn indicator_rect(self, index: usize) -> Rect {
+        let item = self.item_rect(index);
+        if item.width == 0 {
+            return item;
+        }
+        Rect {
+            x: item
+                .x
+                .saturating_add(item.width.saturating_sub(self.indicator_size) / 2),
+            y: item
+                .bottom()
+                .saturating_sub(self.indicator_bottom_inset)
+                .saturating_sub(self.indicator_size),
+            width: self.indicator_size,
+            height: self.indicator_size,
+        }
+    }
+
+    pub const fn raster_icon_rect(self, index: usize) -> Rect {
+        let icon = self.icon_rect(index);
+        if icon.width == 0 {
+            return icon;
+        }
+        let size = min_u32(self.raster_icon_size, min_u32(icon.width, icon.height));
+        Rect {
+            x: icon.x.saturating_add(icon.width.saturating_sub(size) / 2),
+            y: icon.y.saturating_add(icon.height.saturating_sub(size) / 2),
+            width: size,
+            height: size,
+        }
+    }
+
+    pub const fn item_at(self, x: u32, y: u32) -> Option<usize> {
+        if !self.is_valid() || !rect_contains(self.rect, x, y) {
+            return None;
+        }
+        let index = ((x - self.rect.x) / self.item_width) as usize;
+        if index < self.item_count {
+            Some(index)
+        } else {
+            None
+        }
+    }
+
+    pub const fn is_valid(self) -> bool {
+        if self.name.is_empty()
+            || self.item_count == 0
+            || self.item_count > 16
+            || self.item_width < 48
+            || self.rect.height < 48
+            || self.icon_size == 0
+            || self.icon_size > self.item_width
+            || self.icon_size > self.rect.height
+            || self.raster_icon_size == 0
+            || self.raster_icon_size > self.icon_size
+            || self.indicator_size == 0
+            || self.indicator_size > self.item_width
+            || self
+                .indicator_size
+                .saturating_add(self.indicator_bottom_inset)
+                > self.rect.height
+        {
+            return false;
+        }
+        self.rect.width == self.item_width.saturating_mul(self.item_count as u32)
+    }
+
+    pub const fn accessibility(self) -> RunningAppDockAccessibility<'a> {
+        RunningAppDockAccessibility {
+            role: "toolbar",
+            name: self.name,
+            item_count: self.item_count,
+        }
+    }
+
+    pub const fn item_accessibility(
+        self,
+        index: usize,
+        name: &'a str,
+        running: bool,
+    ) -> Option<RunningAppDockItemAccessibility<'a>> {
+        if !self.is_valid() || index >= self.item_count || name.is_empty() {
+            return None;
+        }
+        Some(RunningAppDockItemAccessibility {
+            role: "button",
+            name,
+            running,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SidebarNavigation<'a> {
     pub rect: Rect,
     pub label: &'a str,
@@ -2404,7 +2571,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_sixteen_shared_primitives() {
+    fn catalog_tracks_the_seventeen_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -2428,6 +2595,7 @@ mod tests {
                 SharedComponentKind::SectionGroup,
                 SharedComponentKind::ApplicationOverview,
                 SharedComponentKind::GlobalSearch,
+                SharedComponentKind::RunningAppDock,
             ]
         );
     }
@@ -2533,6 +2701,7 @@ mod tests {
             1,
             1,
         );
+        let running_dock = RunningAppDock::new(rect, "", 1);
         assert!(!button.can_activate());
         assert!(!top_bar.is_valid());
         assert!(!row.can_activate());
@@ -2548,6 +2717,7 @@ mod tests {
         assert!(!section.is_valid());
         assert!(!overview.is_valid());
         assert!(!global_search.is_valid());
+        assert!(!running_dock.is_valid());
         assert_eq!(navigation.hit_test(11, 21, 1), None);
     }
 
@@ -2679,6 +2849,69 @@ mod tests {
         assert_eq!(semantics.role, "search");
         assert_eq!(semantics.result_count, 6);
         assert_eq!(semantics.quick_action_count, 3);
+    }
+
+    #[test]
+    fn running_app_dock_centers_content_and_exposes_running_semantics() {
+        let dock = RunningAppDock::new(
+            Rect {
+                x: 272,
+                y: 0,
+                width: 216,
+                height: 72,
+            },
+            "Running applications",
+            3,
+        );
+        assert!(dock.is_valid());
+        assert_eq!(
+            dock.item_rect(0),
+            Rect {
+                x: 272,
+                y: 0,
+                width: 72,
+                height: 72,
+            }
+        );
+        assert_eq!(
+            dock.icon_rect(0),
+            Rect {
+                x: 276,
+                y: 4,
+                width: 64,
+                height: 64,
+            }
+        );
+        assert_eq!(
+            dock.indicator_rect(0),
+            Rect {
+                x: 305,
+                y: 65,
+                width: 6,
+                height: 6,
+            }
+        );
+        assert_eq!(
+            dock.raster_icon_rect(0),
+            Rect {
+                x: 284,
+                y: 12,
+                width: 48,
+                height: 48,
+            }
+        );
+        assert_eq!(dock.item_at(272, 0), Some(0));
+        assert_eq!(dock.item_at(343, 71), Some(0));
+        assert_eq!(dock.item_at(344, 20), Some(1));
+        assert_eq!(dock.item_at(488, 20), None);
+        assert_eq!(dock.item_rect(3).width, 0);
+        let semantics = dock.accessibility();
+        assert_eq!(semantics.role, "toolbar");
+        assert_eq!(semantics.item_count, 3);
+        let item = dock.item_accessibility(1, "Settings", true).unwrap();
+        assert_eq!(item.role, "button");
+        assert!(item.running);
+        assert!(dock.item_accessibility(3, "Missing", false).is_none());
     }
 
     #[test]

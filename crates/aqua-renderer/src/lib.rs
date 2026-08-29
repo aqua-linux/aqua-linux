@@ -7,11 +7,12 @@ use aqua_installer::{
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     desktop_context_menu, desktop_grid_cell, files_back_button, files_forward_button,
-    files_toolbar, top_system_bar, AquaTheme, DesktopIconState, DesktopPropertiesModel, DockItem,
-    DockState, FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
-    NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
-    TerminalView, TopBarState, DESKTOP_ICONS, DOCK_ITEM_COUNT, FILES_PREVIEW_VISIBLE_LINES,
-    FILES_SIDEBAR_NAVIGATION, FILES_VISIBLE_ROWS, SETTINGS_SIDEBAR_NAVIGATION, WORKSPACE_COUNT,
+    files_toolbar, running_app_dock, top_system_bar, AquaTheme, DesktopIconState,
+    DesktopPropertiesModel, DockItem, DockState, FilesEntryKind, FilesWindowModel,
+    LauncherCategory, LauncherMode, LauncherState, NotificationCenter, SessionAction,
+    SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView, TopBarState,
+    DESKTOP_ICONS, FILES_PREVIEW_VISIBLE_LINES, FILES_SIDEBAR_NAVIGATION, FILES_VISIBLE_ROWS,
+    SETTINGS_SIDEBAR_NAVIGATION, WORKSPACE_COUNT,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -1266,11 +1267,8 @@ pub fn render_dock_rgba_with_cached_icons(
 ) -> Result<DockOverlay, icons::IconError> {
     let mut overlay = render_dock_rgba_base(width, height, state, false);
     apply_shell_palette(&mut overlay.rgba, theme);
-    if width >= 640 && height >= 48 {
-        let item_width = 72_u32;
-        let content_width = item_width * DOCK_ITEM_COUNT as u32;
-        let start_x = width.saturating_sub(content_width) / 2;
-        let icon_y = height.saturating_sub(48) / 2;
+    let running_dock = running_app_dock(width, height);
+    if width >= 640 && height >= 48 && running_dock.is_valid() {
         for (index, item) in DockItem::ALL.iter().copied().enumerate() {
             let role = match item {
                 DockItem::Files => icons::IconRole::Files,
@@ -1285,12 +1283,13 @@ pub fn render_dock_rgba_with_cached_icons(
                 aqua_text::OutputScale::One,
             )?;
             let icon = cache.get_or_render(key)?;
+            let icon_rect = running_dock.raster_icon_rect(index);
             icons::composite_icon(
                 &mut overlay.rgba,
                 width,
                 height,
-                start_x + index as u32 * item_width + 12,
-                icon_y,
+                icon_rect.x,
+                icon_rect.y,
                 &icon,
             );
             overlay.primitive_count += 1;
@@ -1321,9 +1320,7 @@ fn render_dock_rgba_base(
     let selected = [0xd8, 0xea, 0xff, 0xff];
     let ink = [0x15, 0x26, 0x39, 0xff];
     let left_width = 132;
-    let item_width = 72_u32;
-    let content_width = item_width * DOCK_ITEM_COUNT as u32;
-    let start_x = width.saturating_sub(content_width) / 2;
+    let running_dock = running_app_dock(width, height);
     let workspace_width = 60_u32;
     let workspace_group_width = workspace_width * WORKSPACE_COUNT as u32;
     let workspace_start = width.saturating_sub(workspace_group_width);
@@ -1338,10 +1335,10 @@ fn render_dock_rgba_base(
             height,
         },
         Rect {
-            x: start_x,
-            y: 0,
-            width: content_width,
-            height,
+            x: running_dock.rect.x,
+            y: running_dock.rect.y,
+            width: running_dock.rect.width,
+            height: running_dock.rect.height,
         },
         Rect {
             x: workspace_start,
@@ -1405,21 +1402,28 @@ fn render_dock_rgba_base(
     draw_transparent_line(&mut rgba, width, height, (104, 41), (115, 52), 3, ink);
     primitives += 3;
 
-    let icon_y = height.saturating_sub(56) / 2;
     for (index, item) in DockItem::ALL.iter().copied().enumerate() {
-        let x = start_x + index as u32 * item_width + 8;
+        let icon_rect = running_dock.icon_rect(index);
         if draw_placeholder_icons {
-            primitives += draw_desktop_icon(&mut rgba, width, height, x, icon_y, item.id());
+            primitives += draw_desktop_icon(
+                &mut rgba,
+                width,
+                height,
+                icon_rect.x,
+                icon_rect.y,
+                item.id(),
+            );
         }
         if state.item_running(item) {
             running_item_count += 1;
+            let indicator = running_dock.indicator_rect(index);
             fill_transparent_circle(
                 &mut rgba,
                 width,
                 height,
-                x + 28,
-                height.saturating_sub(4),
-                3,
+                indicator.x + indicator.width / 2,
+                indicator.y + indicator.height / 2,
+                indicator.width / 2,
                 [0x0b, 0x76, 0xe5, 0xff],
             );
             primitives += 1;
