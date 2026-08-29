@@ -76,8 +76,9 @@ AQUA_SETTINGS_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-
 AQUA_PROPERTIES_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-properties"
 AQUA_TERMINAL_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-terminal"
 AQUA_INSTALLER_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-installer"
+AQUA_TYPOGRAPHY_ACCEPTANCE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-typography-acceptance"
 AQUA_INSTALLER_PROBE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-installer-probe"
-mkdir -p "${TARGET_DIR}/usr/bin" "${TARGET_DIR}/usr/share/doc/aqua"
+mkdir -p "${TARGET_DIR}/usr/bin" "${TARGET_DIR}/usr/libexec/aqua-tests" "${TARGET_DIR}/usr/share/doc/aqua"
 if [ -f "${AQUA_COMPOSITOR_BINARY}" ]; then
     cp "${AQUA_COMPOSITOR_BINARY}" "${TARGET_DIR}/usr/bin/aqua-compositor"
     chmod +x "${TARGET_DIR}/usr/bin/aqua-compositor"
@@ -121,6 +122,30 @@ initial_step=welcome
 live_input=false
 autostart=false
 execution_allowed=false
+build_hint=scripts/build-compositor-linux-docker.sh
+EOF
+fi
+
+if [ -f "${AQUA_TYPOGRAPHY_ACCEPTANCE_BINARY}" ]; then
+    cp "${AQUA_TYPOGRAPHY_ACCEPTANCE_BINARY}" \
+        "${TARGET_DIR}/usr/libexec/aqua-tests/aqua-typography-acceptance"
+    chmod +x "${TARGET_DIR}/usr/libexec/aqua-tests/aqua-typography-acceptance"
+    cat > "${TARGET_DIR}/usr/share/doc/aqua/typography-acceptance-binary.txt" <<'EOF'
+aqua-typography-acceptance packaged=true
+path=/usr/libexec/aqua-tests/aqua-typography-acceptance
+app_id=aqua.typography-acceptance
+surface=wl_shm-xdg-toplevel
+locales=tr-TR,ar
+autostart=false
+EOF
+else
+    cat > "${TARGET_DIR}/usr/share/doc/aqua/typography-acceptance-binary.txt" <<'EOF'
+aqua-typography-acceptance packaged=false
+path=/usr/libexec/aqua-tests/aqua-typography-acceptance
+app_id=aqua.typography-acceptance
+surface=wl_shm-xdg-toplevel
+locales=tr-TR,ar
+autostart=false
 build_hint=scripts/build-compositor-linux-docker.sh
 EOF
 fi

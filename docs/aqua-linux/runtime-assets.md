@@ -15,6 +15,11 @@ The current Buildroot image installs runtime assets under:
   tokens/
 ```
 
+The image also packages the acceptance-only
+`/usr/libexec/aqua-tests/aqua-typography-acceptance` Wayland client. It is
+never autostarted; the dedicated QEMU check launches it explicitly from the
+recovery shell to validate the installed fonts and renderer path.
+
 Expected first exports:
 
 | Source | Runtime destination | Notes |

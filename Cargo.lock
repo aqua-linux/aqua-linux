@@ -37,6 +37,7 @@ dependencies = [
  "aqua-renderer",
  "aqua-scene",
  "aqua-shell",
+ "aqua-text",
  "calloop",
  "drm",
  "input",

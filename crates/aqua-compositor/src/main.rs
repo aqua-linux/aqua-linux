@@ -3733,15 +3733,21 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let installer_scenario =
         env::var("AQUA_DRM_WAYLAND_SCENARIO").as_deref() == Ok("installer-welcome");
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let typography_scenario =
+        env::var("AQUA_DRM_WAYLAND_SCENARIO").as_deref() == Ok("typography-acceptance");
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
     let installer_scenario = false;
+    #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
+    let typography_scenario = false;
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let external_client_required = diagnostic_scenario
         && env::var("AQUA_DRM_WAYLAND_EXTERNAL_CLIENT_REQUIRED").as_deref() == Ok("true");
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
     let external_client_required = false;
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
-    let managed_client_required = external_client_required || installer_scenario;
+    let managed_client_required =
+        external_client_required || installer_scenario || typography_scenario;
     let runtime_dir = PathBuf::from("/run/aqua");
     let socket_path = runtime_dir.join("aqua-wayland-drm-0");
     let lock_path = socket_path.with_extension("lock");
@@ -3770,16 +3776,20 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
             eprintln!("cannot resolve Aqua compositor executable: {error}");
             std::process::exit(1);
         });
-        if installer_scenario {
-            let installer = PathBuf::from("/usr/bin/aqua-installer");
-            if !installer.is_file() {
-                eprintln!(
-                    "missing Aqua Installer Wayland client: {}",
-                    installer.display()
-                );
+        if installer_scenario || typography_scenario {
+            let (client, label) = if installer_scenario {
+                (PathBuf::from("/usr/bin/aqua-installer"), "Installer")
+            } else {
+                (
+                    PathBuf::from("/usr/libexec/aqua-tests/aqua-typography-acceptance"),
+                    "typography acceptance",
+                )
+            };
+            if !client.is_file() {
+                eprintln!("missing Aqua {label} Wayland client: {}", client.display());
                 std::process::exit(1);
             }
-            let child = Command::new(&installer)
+            let child = Command::new(&client)
                 .env("XDG_RUNTIME_DIR", &runtime_dir)
                 .env("WAYLAND_DISPLAY", "aqua-wayland-drm-0")
                 .stdin(Stdio::null())
@@ -3787,10 +3797,14 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                 .stderr(Stdio::inherit())
                 .spawn()
                 .unwrap_or_else(|error| {
-                    eprintln!("cannot start Aqua Installer Wayland client: {error}");
+                    eprintln!("cannot start Aqua {label} Wayland client: {error}");
                     std::process::exit(1);
                 });
-            println!("installer_wayland_client_process_started=true");
+            if installer_scenario {
+                println!("installer_wayland_client_process_started=true");
+            } else {
+                println!("typography_wayland_client_process_started=true");
+            }
             (None, vec![child])
         } else {
             let compatibility_client = PathBuf::from("/usr/libexec/aqua-tests/weston-simple-shm");
@@ -3904,7 +3918,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     std::process::exit(1);
                 });
             let mut snapshots = smithay_session.borrow().client_surface_snapshots();
-            let surfaces_ready = if installer_scenario {
+            let surfaces_ready = if installer_scenario || typography_scenario {
                 snapshots.len() == 1
                     && snapshots[0].is_ready()
                     && snapshots[0].width == 1280
@@ -3915,7 +3929,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     && snapshots[0].sample_checksum != snapshots[1].sample_checksum
             };
             if surfaces_ready {
-                if installer_scenario {
+                if installer_scenario || typography_scenario {
                     snapshots[0].x = 0;
                     snapshots[0].y = 0;
                     snapshots[0].display_width = 1536;
@@ -3954,6 +3968,13 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         snapshots[0].sample_checksum
                     );
                     println!("installer_wayland_surface_execution_allowed=false");
+                } else if typography_scenario {
+                    println!("typography_wayland_surface_ready=true");
+                    println!("typography_wayland_surface_size=1280x800");
+                    println!(
+                        "typography_wayland_surface_checksum={:016x}",
+                        snapshots[0].sample_checksum
+                    );
                 } else {
                     if !smithay_session
                         .borrow_mut()
@@ -4115,9 +4136,13 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                 {
                     let paint_plan = external_client_paint_plan(&external_surface_snapshot)?;
                     let mut compositor = LiveGpuCompositor::new_on_render_device(&device)?;
-                    if installer_scenario {
+                    if installer_scenario || typography_scenario {
                         compositor.set_shell_chrome_visible(false);
-                        println!("installer_wayland_shell_chrome_visible=false");
+                        if installer_scenario {
+                            println!("installer_wayland_shell_chrome_visible=false");
+                        } else {
+                            println!("typography_wayland_shell_chrome_visible=false");
+                        }
                     } else {
                         compositor.set_launcher_state(&runtime_launcher_state.borrow())?;
                         compositor.set_top_bar_state(&runtime_top_bar.borrow())?;
@@ -4127,7 +4152,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     }
                     let gpu_frame =
                         compositor.render_direct_at(&paint_plan, width, height, None, None)?;
-                    println!("desktop_system_overview_visible={}", !installer_scenario);
+                    println!(
+                        "desktop_system_overview_visible={}",
+                        !(installer_scenario || typography_scenario)
+                    );
                     let scanout_frame =
                         pack_rgba_frame(&gpu_frame.frame_rgba, width, height, width, height, 32)?;
                     let checksum = gpu_frame.checksum;
@@ -4296,12 +4324,15 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     "qemu-integration"
                 } else if installer_scenario {
                     "installer-welcome"
+                } else if typography_scenario {
+                    "typography-acceptance"
                 } else {
                     "desktop-event-loop"
                 }
             );
             println!("external_fixture_clients_started={external_client_required}");
             println!("installer_wayland_client_started={installer_scenario}");
+            println!("typography_wayland_client_started={typography_scenario}");
             println!(
                 "session_lifetime_policy={}",
                 if persistent_session {
@@ -6306,6 +6337,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
         println!("external_wayland_client_process_stopped=true");
         if installer_scenario {
             println!("installer_wayland_client_process_stopped=true");
+        } else if typography_scenario {
+            println!("typography_wayland_client_process_stopped=true");
         }
     }
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]

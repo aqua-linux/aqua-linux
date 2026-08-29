@@ -53,6 +53,11 @@ docker run --rm \
             cp /src/target/x86_64-unknown-linux-musl/release/aqua-installer \
                 /work/target/x86_64-unknown-linux-musl/release/aqua-installer
         fi
+        if [ -f /src/target/x86_64-unknown-linux-musl/release/aqua-typography-acceptance ]; then
+            mkdir -p /work/target/x86_64-unknown-linux-musl/release
+            cp /src/target/x86_64-unknown-linux-musl/release/aqua-typography-acceptance \
+                /work/target/x86_64-unknown-linux-musl/release/aqua-typography-acceptance
+        fi
         if [ -f /src/target/x86_64-unknown-linux-musl/release/aqua-installer-probe ]; then
             mkdir -p /work/target/x86_64-unknown-linux-musl/release
             cp /src/target/x86_64-unknown-linux-musl/release/aqua-installer-probe \

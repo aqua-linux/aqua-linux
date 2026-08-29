@@ -11,6 +11,7 @@ aqua-installer = { path = "../aqua-installer" }
 aqua-renderer = { path = "../aqua-renderer" }
 aqua-scene = { path = "../aqua-scene" }
 aqua-shell = { path = "../aqua-shell" }
+aqua-text = { path = "../aqua-text" }
 calloop = "0.14.4"
 png = "0.18.1"
 portable-pty = "0.9.0"
@@ -62,4 +63,9 @@ required-features = ["smithay-smoke"]
 [[bin]]
 name = "aqua-installer"
 path = "src/bin/aqua-installer.rs"
+required-features = ["smithay-smoke"]
+
+[[bin]]
+name = "aqua-typography-acceptance"
+path = "src/bin/aqua-typography-acceptance.rs"
 required-features = ["smithay-smoke"]

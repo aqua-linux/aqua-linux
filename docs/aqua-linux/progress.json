@@ -5,7 +5,7 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 12 typography now includes deterministic Noto Sans to Noto Sans Arabic fallback, stable fallback baselines, explicit missing-glyph diagnostics, and committed metric and rendered-layout fixture reports. The rendered acceptance matrix covers three viewports, fractional scaling, all four themes, critical-action fit, and long Turkish and Arabic labels. Packaged QEMU typography captures remain open. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
+  "currentStage": "Milestone 12 typography now includes deterministic Noto Sans to Noto Sans Arabic fallback, stable fallback baselines, explicit missing-glyph diagnostics, committed metric and rendered-layout fixture reports, and packaged QEMU evidence. One recovery-safe QEMU boot presents the accepted Turkish and Arabic layout through the real Smithay/DRM path in all four themes, captures four distinct 1280x800 PNGs, and returns to recovery after every bounded session. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
   "updated": "2026-08-29",
   "overallPercent": 86,
   "rules": [
@@ -115,14 +115,13 @@
     {
       "id": "m12",
       "name": "Visual Fidelity and Component System",
-      "percent": 15,
+      "percent": 20,
       "status": "in-progress",
       "updated": "2026-08-29",
-      "summary": "The shared aqua-text crate owns Rustybuzz shaping, Unicode bidi visual runs, grapheme-safe wrapping and ellipsis, Turkish case behavior, six named text roles, four supported output scales, and a bounded scale-native glyph cache. A packaged Noto Sans Arabic face provides deterministic grapheme-aware fallback without changing role baselines, while committed metric and rendered-layout reports lock font behavior. The 12-case rendered matrix covers three viewports, fractional scaling, all four themes, contained long Turkish and Arabic labels, untruncated critical actions, region separation, and deterministic RGBA output. Packaged QEMU typography evidence, elevation, icons, motion, and the component catalog remain open."
+      "summary": "The shared aqua-text crate owns Rustybuzz shaping, Unicode bidi visual runs, grapheme-safe wrapping and ellipsis, Turkish case behavior, six named text roles, four supported output scales, and a bounded scale-native glyph cache. A packaged Noto Sans Arabic face provides deterministic grapheme-aware fallback without changing role baselines, while committed metric and rendered-layout reports lock font behavior. The 12-case rendered matrix covers three viewports, fractional scaling, all four themes, contained long Turkish and Arabic labels, untruncated critical actions, region separation, and deterministic RGBA output. An acceptance-only packaged wl_shm client now presents the 1280x800 localized layout through the real Smithay/DRM QEMU path; one recovery-safe boot captures all four themes as distinct nonblank PNGs and proves cleanup after every bounded session. Elevation, icons, motion, and the component catalog remain open."
     }
   ],
   "nextSteps": [
-    "Add packaged QEMU typography captures for the accepted localized-label layouts.",
     "Implement tokenized elevation levels with bounded damage and reusable shadow masks.",
     "Implement reviewed SVG loading and scale-native Aqua Core Icon rasterization and caching.",
     "Implement semantic, interruptible, frame-driven state motion and reduced-motion behavior.",
