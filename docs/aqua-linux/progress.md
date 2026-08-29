@@ -6,7 +6,7 @@
 
 | Field | Value |
 | --- | --- |
-| Updated | 2026-08-28 |
+| Updated | 2026-08-29 |
 | OS base | Buildroot |
 | Graphics target | custom Wayland compositor |
 | Development target | QEMU x86_64 |
@@ -14,7 +14,7 @@
 
 ## Current Stage
 
-Milestone 12 now defines the previously implicit visual-fidelity work: advanced text shaping, tokenized elevation and shadows, scale-native Aqua Core Icon processing, interruptible state motion, and a complete shared component catalog. These contracts are documented but have no runtime completion credit yet. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.
+Milestone 12 implementation has started with the shared aqua-text service. Runtime text now flows through Rustybuzz shaping, Unicode bidi runs, grapheme-safe layout, Turkish case handling, named roles, supported output scales, and a bounded scale-native glyph cache. Deterministic multi-font fallback and packaged QEMU typography captures remain open. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.
 
 ## Phases
 
@@ -22,8 +22,8 @@ Phases are ordered by their most recent update.
 
 | Updated | Phase | Status | Progress | Summary |
 | --- | --- | --- | ---: | --- |
+| 2026-08-29 | M12: Visual Fidelity and Component System | In Progress | 5% | The shared aqua-text crate now owns Rustybuzz shaping, Unicode bidi visual runs, grapheme-safe wrapping and ellipsis, Turkish case behavior, six named text roles, four supported output scales, and a bounded scale-native glyph cache. The software renderer uses shaped glyph IDs instead of rasterizing independent characters. Deterministic multi-font fallback, complete fixture coverage, packaged QEMU evidence, elevation, icons, motion, and the component catalog remain open. |
 | 2026-08-28 | M2: Asset and Visual System Intake | Complete | 100% | Public contracts capture the permanent desktop, application, search, first-party app, installer, completion, and four-theme direction derived from private Git-ignored boards. Approved transparent brand exports and the reproducible pale-wave wallpaper are used by the runtime. Thirteen project-authored Aqua Core Icons permanently cover core application, desktop, notification, and status roles with explicit MIT licensing; no temporary icon package remains. |
-| 2026-08-28 | M12: Visual Fidelity and Component System | Not Started | 0% | The production contracts now cover Unicode shaping and fallback, scale-native text and Aqua Core Icon rasterization, tokenized elevation and bounded shadows, interruptible frame-driven motion with reduced-motion behavior, and a complete shared component state matrix. Runtime implementation and acceptance evidence have not started, so documentation alone receives no completion credit. |
 | 2026-08-28 | M11: Polish and Public Readiness | Complete | 100% | The v1 desktop and installer contracts are documented. The runtime has a compact top bar, reproducible pale-wave wallpaper, permanent Aqua Core Icons, separate Applications and Global Search surfaces, three bottom shell groups, shared first-party window chrome, four live-refreshed themes, and three real workspaces. Current QEMU captures carry a provenance manifest, the public hardware matrix prevents physical support overclaims, and the default-image gate enforces recovery-safe startup. Structured issue forms, private security routing, canonical labels, a pull request safety checklist, and CI-enforced contributor contracts now define public intake and triage. |
 | 2026-08-22 | M4: Scene and Surface Renderer | Complete | 100% | The Smithay GLES2 renderer composes the packaged wallpaper, shared surfaces, optional two-pass blur, and live wl_shm textures at the native output size. Physical DRM retains XRGB8888 GBM front/back dma-buf scanout. QEMU keeps GLES readback for the desktop, but a full-output client that explicitly supplies a complete Wayland opaque region may use the dumb-buffer bridge after one GPU validation frame. Packaged installer acceptance measured 30 bridged frames at a 61 ms median total while preserving distinct 1280x800 captures. |
 | 2026-08-21 | M9: Graphical Installer MVP | Complete | 100% | The packaged installer executes and boots the complete separately gated installation, proves failure cleanup, and emits QEMU-validated transaction progress. Seven deterministic Rust-rendered setup screens feed a packaged aqua.installer wl_shm xdg-toplevel client; QEMU proves full-output composition and navigation from Welcome through Completed. An explicit presentation-only rehearsal consumes the canonical non-executing 20-step graph, renders progress at 40%, 65%, and 95%, reaches Completed at 100%, emits seven distinct screendumps, and proves transaction_executed=false. Real virtio pointer input activates the Welcome footer and selects a Language row through renderer-shared geometry before keyboard navigation resumes. Full-output input origin now matches presentation origin, blocked disks and hidden controls reject hits, and disk/profile application retains explicit activation. |
@@ -46,7 +46,7 @@ Phases are ordered by their most recent update.
 
 ## Next Developments
 
-1. Implement the shared Unicode shaping, fallback, layout, and scale-native glyph cache contract.
+1. Add deterministic multi-font fallback and stable typography fixtures to the shared aqua-text service.
 2. Implement tokenized elevation levels with bounded damage and reusable shadow masks.
 3. Implement reviewed SVG loading and scale-native Aqua Core Icon rasterization and caching.
 4. Implement semantic, interruptible, frame-driven state motion and reduced-motion behavior.

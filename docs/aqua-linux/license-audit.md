@@ -1,6 +1,6 @@
 # Aqua Linux License Audit
 
-Audit date: 2026-08-28
+Audit date: 2026-08-29
 
 Scope: the OS repository, Rust workspace, Buildroot external tree, committed
 fonts/icons, and design assets. The separately maintained `website/` repository
@@ -18,6 +18,8 @@ is outside this audit.
   SVG, path data, recolor, trace, or derivative is included; the owner-facing
   Aqua production inventory defines functional roles and filenames only.
 - Noto Sans includes its SIL Open Font License 1.1 text.
+- The shared text service uses the permissively licensed Rustybuzz,
+  unicode-bidi, and unicode-segmentation crates for shaping and layout.
 - The Weston simple-shm compatibility fixture is MIT licensed and is isolated
   from the Aqua desktop product stack.
 - No private keys or environment-secret files were found in the OS source tree.

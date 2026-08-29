@@ -6,6 +6,7 @@ members = [
     "crates/aqua-renderer",
     "crates/aqua-scene",
     "crates/aqua-shell",
+    "crates/aqua-text",
 ]
 resolver = "2"
 

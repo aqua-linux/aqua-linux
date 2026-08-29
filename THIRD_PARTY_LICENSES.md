@@ -35,8 +35,11 @@ release obligations are authoritative in its generated `legal-info` output.
 | `png` | 0.18.1 | MIT OR Apache-2.0 |
 | `polling` | 3.11.0 | Apache-2.0 OR MIT |
 | `portable-pty` | 0.9.0 | MIT |
+| `rustybuzz` | 0.20.1 | MIT |
 | `sha2` | 0.10.9 | MIT OR Apache-2.0 |
 | `smithay` | 0.7.0 | MIT |
+| `unicode-bidi` | 0.3.18 | MIT OR Apache-2.0 |
+| `unicode-segmentation` | 1.13.3 | MIT OR Apache-2.0 |
 | `vt100` | 0.16.2 | MIT |
 | `wayland-server` | 0.31.14 | MIT |
 

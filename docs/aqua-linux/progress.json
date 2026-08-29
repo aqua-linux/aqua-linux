@@ -5,8 +5,8 @@
   "graphicsTarget": "custom Wayland compositor",
   "devTarget": "QEMU x86_64",
   "hardwareTarget": "MSI Sword 17 later",
-  "currentStage": "Milestone 12 now defines the previously implicit visual-fidelity work: advanced text shaping, tokenized elevation and shadows, scale-native Aqua Core Icon processing, interruptible state motion, and a complete shared component catalog. These contracts are documented but have no runtime completion credit yet. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
-  "updated": "2026-08-28",
+  "currentStage": "Milestone 12 implementation has started with the shared aqua-text service. Runtime text now flows through Rustybuzz shaping, Unicode bidi runs, grapheme-safe layout, Turkish case handling, named roles, supported output scales, and a bounded scale-native glyph cache. Deterministic multi-font fallback and packaged QEMU typography captures remain open. Physical MSI Sword 17 validation remains unauthorized until read-only evidence is reviewed.",
+  "updated": "2026-08-29",
   "overallPercent": 85,
   "rules": [
     "Aqua Linux v1.0 is treated as 100%.",
@@ -115,14 +115,14 @@
     {
       "id": "m12",
       "name": "Visual Fidelity and Component System",
-      "percent": 0,
-      "status": "not-started",
-      "updated": "2026-08-28",
-      "summary": "The production contracts now cover Unicode shaping and fallback, scale-native text and Aqua Core Icon rasterization, tokenized elevation and bounded shadows, interruptible frame-driven motion with reduced-motion behavior, and a complete shared component state matrix. Runtime implementation and acceptance evidence have not started, so documentation alone receives no completion credit."
+      "percent": 5,
+      "status": "in-progress",
+      "updated": "2026-08-29",
+      "summary": "The shared aqua-text crate now owns Rustybuzz shaping, Unicode bidi visual runs, grapheme-safe wrapping and ellipsis, Turkish case behavior, six named text roles, four supported output scales, and a bounded scale-native glyph cache. The software renderer uses shaped glyph IDs instead of rasterizing independent characters. Deterministic multi-font fallback, complete fixture coverage, packaged QEMU evidence, elevation, icons, motion, and the component catalog remain open."
     }
   ],
   "nextSteps": [
-    "Implement the shared Unicode shaping, fallback, layout, and scale-native glyph cache contract.",
+    "Add deterministic multi-font fallback and stable typography fixtures to the shared aqua-text service.",
     "Implement tokenized elevation levels with bounded damage and reusable shadow masks.",
     "Implement reviewed SVG loading and scale-native Aqua Core Icon rasterization and caching.",
     "Implement semantic, interruptible, frame-driven state motion and reduced-motion behavior.",

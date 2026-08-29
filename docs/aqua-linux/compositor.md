@@ -509,6 +509,14 @@ Not implemented yet:
 - `aqua-terminal` is packaged as a first-party `aqua.terminal` xdg-toplevel and uses the existing strict launch preflight, duplicate rejection/raise behavior, process supervision, and stale-surface cleanup.
 - `portable-pty` owns a real `/bin/sh` pseudo-terminal while `vt100` provides terminal escape parsing and a bounded 1,000-line scrollback buffer.
 - The renderer provides shared window-chrome geometry, title-bar primitives, and bounded window and shell palettes. Files, Settings, Terminal, Properties, and all Installer setup screens load the persisted LightWhite, Softtouch, Deepside, or Nightmare palette when launched. The compositor loads the same selection at session startup for the top bar, Applications, Search, three-group bottom shell, desktop icons and context menu, system overview, session menu, and notifications. Both CPU fallback and GPU texture paths consume the palette, and themed textures replace the old generic system-surface shading. LightWhite remains the fallback for legacy or invalid settings. Terminal content keeps a dark readable monospace scrim under every frame palette, while Installer preserves semantic success, warning, and destructive colors. The running desktop and first-party clients poll the atomically persisted selection at a bounded 100 ms interval; a real change invalidates Shell texture caches and redraws open Files, Settings, Terminal, Properties, and Installer Wayland buffers without restarting their processes. Identical selections do not redraw. Client redraws remain frame-coalesced so input bursts do not create one expensive QEMU GPU repaint per key.
+- The shared `aqua-text` service shapes renderer text with Rustybuzz before
+  rasterization. It resolves Unicode bidi runs, preserves grapheme boundaries
+  for wrapping and ellipsis, defines caption, body, control, title, display,
+  and monospace roles, and rasterizes glyph IDs into a bounded cache keyed by
+  role and the supported 1.0, 1.25, 1.5, or 2.0 output scale. The embedded Noto
+  Sans face remains the only packaged face in this first implementation;
+  deterministic multi-font fallback and QEMU typography acceptance remain
+  explicit follow-up work.
 - The graphical QEMU acceptance run captures LightWhite and Deepside frames with Files and Settings open. It requires the Shell broadcast and both client redraw markers, unchanged application PIDs, an increased compositor repaint sequence, and a visible pixel delta before accepting the live switch.
 - Resize updates the kernel PTY dimensions and VT parser grid together. The packaged `aqua-terminal --probe-pty` path executes a shell command and validates resize without requiring a display.
 - Aqua `rcS` mounts `devpts`, exposes `/dev/ptmx`, and emits `stage=devpts-ready`; this is OS runtime infrastructure rather than a host-only test dependency.
