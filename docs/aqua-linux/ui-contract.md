@@ -16,6 +16,21 @@ local-only and excluded from Git.
 - Runtime labels, clock, system status, files, and results use real localized data.
 - Every screen uses the shared Aqua layout, surface, typography, and interaction tokens.
 
+## Framework Direction
+
+[ADR 0003](adr-0003-aqua-ui-framework.md) establishes an Aqua-owned UI design
+system and internal framework as the long-term home for typography, themes,
+icons, elevation, motion, components, layout, focus, input, accessibility,
+invalidation, and rendering adapters.
+
+The framework is consolidated from proven first-party behavior after core
+desktop functionality supplies real consumers. Until then, new shared work
+extends `aqua-text`, `aqua-components`, `aqua-renderer`, `aqua-shell`, and the
+application models without freezing a speculative public API. Rendering,
+hit-testing, focus indication, and accessibility bounds must consume the same
+component geometry; privileged authorization remains in the owning domain
+model.
+
 ## Top Bar
 
 - Left: Aqua mark and `Aqua Linux` session identity.

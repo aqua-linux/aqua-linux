@@ -41,6 +41,9 @@ The final visual targets are recorded as implementation rules in
 Git-ignored local reference library and are not public repository assets.
 
 All new UI implementation must follow [ui-contract.md](ui-contract.md) and [interface-style.md](interface-style.md).
+The post-functional-closure consolidation of these rules into Aqua's internal
+UI design system and framework is fixed by
+[ADR 0003](adr-0003-aqua-ui-framework.md).
 
 ### Active Delivery Style
 
