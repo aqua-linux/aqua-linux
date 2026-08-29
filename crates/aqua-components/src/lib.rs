@@ -84,9 +84,11 @@ impl SharedComponentKind {
     pub const fn is_shared_primitive(self) -> bool {
         matches!(
             self,
-            Self::SearchField
+            Self::SegmentedControl
+                | Self::SearchField
                 | Self::StandardButton
                 | Self::IconButton
+                | Self::Switch
                 | Self::ListRow
                 | Self::SidebarNavigation
         )
@@ -134,6 +136,18 @@ impl ComponentState {
         Self::Success,
         Self::Attention,
     ];
+    pub const SWITCH_STATES: [Self; 9] = [
+        Self::Idle,
+        Self::Hover,
+        Self::KeyboardFocus,
+        Self::Pressed,
+        Self::Disabled,
+        Self::Loading,
+        Self::Error,
+        Self::Success,
+        Self::Attention,
+    ];
+    pub const SEGMENTED_CONTROL_STATES: [Self; 9] = Self::SWITCH_STATES;
 
     pub const fn id(self) -> &'static str {
         match self {
@@ -415,6 +429,224 @@ impl<'a> SearchField<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SwitchAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub checked: bool,
+    pub disabled: bool,
+    pub busy: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SwitchControl<'a> {
+    pub rect: Rect,
+    pub label: &'a str,
+    pub checked: bool,
+    pub state: ComponentState,
+}
+
+impl<'a> SwitchControl<'a> {
+    pub const fn new(rect: Rect, label: &'a str, checked: bool) -> Self {
+        Self {
+            rect,
+            label,
+            checked,
+            state: ComponentState::Idle,
+        }
+    }
+
+    pub const fn with_state(mut self, state: ComponentState) -> Self {
+        self.state = state;
+        self
+    }
+
+    pub const fn thumb_rect(self) -> Rect {
+        let inset = 6;
+        let size = self.rect.height.saturating_sub(inset * 2);
+        let x = if self.checked {
+            self.rect.right().saturating_sub(inset + size)
+        } else {
+            self.rect.x.saturating_add(inset)
+        };
+        Rect {
+            x,
+            y: self.rect.y.saturating_add(inset),
+            width: size,
+            height: size,
+        }
+    }
+
+    pub const fn focus_rect(self) -> Rect {
+        expanded_rect(self.rect, 2)
+    }
+
+    pub const fn is_valid(self) -> bool {
+        !self.label.is_empty() && self.rect.width >= 44 && self.rect.height >= 28
+    }
+
+    pub const fn can_toggle(self) -> bool {
+        self.is_valid() && self.state.can_activate()
+    }
+
+    pub const fn pointer_toggles(self, x: u32, y: u32) -> bool {
+        self.can_toggle() && rect_contains(self.rect, x, y)
+    }
+
+    pub const fn keyboard_toggles(self, key: ActivationKey) -> bool {
+        self.can_toggle() && matches!(key, ActivationKey::Enter | ActivationKey::Space)
+    }
+
+    pub const fn accessibility(self) -> SwitchAccessibility<'a> {
+        SwitchAccessibility {
+            role: "switch",
+            name: self.label,
+            checked: self.checked,
+            disabled: matches!(self.state, ComponentState::Disabled),
+            busy: matches!(self.state, ComponentState::Loading),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SegmentNavigationKey {
+    Previous,
+    Next,
+    Home,
+    End,
+    Other,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SegmentedControlAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub selected_index: usize,
+    pub segment_count: usize,
+    pub disabled: bool,
+    pub busy: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SegmentedControl<'a> {
+    pub rect: Rect,
+    pub label: &'a str,
+    pub segment_count: usize,
+    pub selected_index: usize,
+    pub segment_gap: u32,
+    pub state: ComponentState,
+}
+
+impl<'a> SegmentedControl<'a> {
+    pub const fn new(
+        rect: Rect,
+        label: &'a str,
+        segment_count: usize,
+        selected_index: usize,
+    ) -> Self {
+        Self {
+            rect,
+            label,
+            segment_count,
+            selected_index,
+            segment_gap: 0,
+            state: ComponentState::Idle,
+        }
+    }
+
+    pub const fn with_gap(mut self, segment_gap: u32) -> Self {
+        self.segment_gap = segment_gap;
+        self
+    }
+
+    pub const fn with_state(mut self, state: ComponentState) -> Self {
+        self.state = state;
+        self
+    }
+
+    pub const fn is_valid(self) -> bool {
+        if self.label.is_empty()
+            || self.segment_count < 2
+            || self.segment_count > 64
+            || self.selected_index >= self.segment_count
+            || self.rect.height < 28
+        {
+            return false;
+        }
+        let total_gap = self
+            .segment_gap
+            .saturating_mul(self.segment_count.saturating_sub(1) as u32);
+        self.rect.width.saturating_sub(total_gap) >= (self.segment_count as u32).saturating_mul(32)
+    }
+
+    pub const fn segment_rect(self, index: usize) -> Rect {
+        if index >= self.segment_count || self.segment_count == 0 {
+            return Rect {
+                x: self.rect.right(),
+                y: self.rect.y,
+                width: 0,
+                height: self.rect.height,
+            };
+        }
+        let gaps = self
+            .segment_gap
+            .saturating_mul(self.segment_count.saturating_sub(1) as u32);
+        let content_width = self.rect.width.saturating_sub(gaps);
+        let base_width = content_width / self.segment_count as u32;
+        let consumed = (index as u32).saturating_mul(base_width + self.segment_gap);
+        let width = if index + 1 == self.segment_count {
+            content_width.saturating_sub(base_width.saturating_mul(index as u32))
+        } else {
+            base_width
+        };
+        Rect {
+            x: self.rect.x.saturating_add(consumed),
+            y: self.rect.y,
+            width,
+            height: self.rect.height,
+        }
+    }
+
+    pub fn hit_test(self, x: u32, y: u32) -> Option<usize> {
+        if !self.is_valid() || !self.state.can_activate() {
+            return None;
+        }
+        (0..self.segment_count).find(|index| rect_contains(self.segment_rect(*index), x, y))
+    }
+
+    pub const fn keyboard_target(self, key: SegmentNavigationKey) -> Option<usize> {
+        if !self.is_valid() || !self.state.can_activate() {
+            return None;
+        }
+        match key {
+            SegmentNavigationKey::Previous => Some(if self.selected_index == 0 {
+                self.segment_count - 1
+            } else {
+                self.selected_index - 1
+            }),
+            SegmentNavigationKey::Next => Some((self.selected_index + 1) % self.segment_count),
+            SegmentNavigationKey::Home => Some(0),
+            SegmentNavigationKey::End => Some(self.segment_count - 1),
+            SegmentNavigationKey::Other => None,
+        }
+    }
+
+    pub const fn focus_rect(self) -> Rect {
+        expanded_rect(self.segment_rect(self.selected_index), 2)
+    }
+
+    pub const fn accessibility(self) -> SegmentedControlAccessibility<'a> {
+        SegmentedControlAccessibility {
+            role: "radiogroup",
+            name: self.label,
+            selected_index: self.selected_index,
+            segment_count: self.segment_count,
+            disabled: matches!(self.state, ComponentState::Disabled),
+            busy: matches!(self.state, ComponentState::Loading),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListRowRole {
     Option,
     Navigation,
@@ -630,7 +862,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_five_shared_primitives() {
+    fn catalog_tracks_the_seven_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -639,9 +871,11 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 SharedComponentKind::SidebarNavigation,
+                SharedComponentKind::SegmentedControl,
                 SharedComponentKind::SearchField,
                 SharedComponentKind::StandardButton,
                 SharedComponentKind::IconButton,
+                SharedComponentKind::Switch,
                 SharedComponentKind::ListRow,
             ]
         );
@@ -703,8 +937,12 @@ mod tests {
             let button = StandardButton::new(rect, "Action", StandardButtonVariant::Primary)
                 .with_state(state);
             let row = ListRow::new(rect, "Item", ListRowRole::Option).with_state(state);
+            let switch = SwitchControl::new(rect, "Setting", false).with_state(state);
+            let segmented = SegmentedControl::new(rect, "Theme", 3, 0).with_state(state);
             assert!(!button.pointer_hit(11, 21));
             assert!(!row.pointer_hit(11, 21));
+            assert!(!switch.pointer_toggles(11, 21));
+            assert_eq!(segmented.hit_test(11, 21), None);
             assert!(!button.keyboard_activates(ActivationKey::Enter));
             assert!(!row.keyboard_activates(ActivationKey::Space));
         }
@@ -722,11 +960,15 @@ mod tests {
         let row = ListRow::new(rect, "", ListRowRole::Option);
         let icon = IconButton::new(rect, "", IconButtonGlyph::Back);
         let search = SearchField::new(rect, "", "", "Search");
+        let switch = SwitchControl::new(rect, "", false);
+        let segmented = SegmentedControl::new(rect, "", 3, 0);
         let navigation = SidebarNavigation::new(rect, "", rect, 40);
         assert!(!button.can_activate());
         assert!(!row.can_activate());
         assert!(!icon.can_activate());
         assert!(!search.accepts_input());
+        assert!(!switch.can_toggle());
+        assert!(!segmented.is_valid());
         assert!(!navigation.is_valid());
         assert_eq!(navigation.hit_test(11, 21, 1), None);
     }
@@ -764,5 +1006,47 @@ mod tests {
         assert!(slots.text.right() <= slots.trailing.x);
         assert_eq!(search.accessibility().role, "searchbox");
         assert_eq!(search.accessibility().value, "settings");
+    }
+
+    #[test]
+    fn switch_and_segmented_control_geometry_matches_input() {
+        let switch = SwitchControl::new(
+            Rect {
+                x: 474,
+                y: 132,
+                width: 82,
+                height: 36,
+            },
+            "Reduced motion",
+            true,
+        );
+        assert!(switch.thumb_rect().right() < switch.rect.right());
+        assert!(switch.pointer_toggles(474, 132));
+        assert!(!switch.pointer_toggles(473, 132));
+        assert_eq!(switch.accessibility().role, "switch");
+        assert!(switch.accessibility().checked);
+
+        let segmented = SegmentedControl::new(
+            Rect {
+                x: 218,
+                y: 214,
+                width: 346,
+                height: 48,
+            },
+            "Desktop theme",
+            4,
+            1,
+        )
+        .with_gap(6);
+        assert!(segmented.is_valid());
+        assert_eq!(segmented.segment_rect(0).width, 82);
+        assert_eq!(segmented.segment_rect(3).right(), segmented.rect.right());
+        assert_eq!(segmented.hit_test(307, 220), Some(1));
+        assert_eq!(segmented.hit_test(301, 220), None);
+        assert_eq!(
+            segmented.keyboard_target(SegmentNavigationKey::Previous),
+            Some(0)
+        );
+        assert_eq!(segmented.accessibility().role, "radiogroup");
     }
 }
