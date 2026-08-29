@@ -519,8 +519,14 @@ Not implemented yet:
   together, fallback keeps the role baseline and control height stable, and
   unsupported glyphs remain explicit diagnostics. A committed 16-case fixture
   report locks Latin ligatures, Turkish text, combining marks, mixed bidi text,
-  font selection, bounds, baselines, and all four scales. Packaged QEMU
-  typography captures remain follow-up work.
+  font selection, bounds, baselines, and all four scales. A separate deterministic
+  renderer acceptance matrix covers 800x600, 1280x800, and fractional-scale
+  1536x1024 output in every theme. It clips shaped glyph pixels to their layout
+  bounds, keeps critical installer actions untruncated, contains a long Turkish
+  accessibility label, exercises Arabic fallback without missing glyphs, and
+  locks all 12 RGBA checksums in `typography-layout-fixtures.txt`. These are
+  host-rendered fixtures, not VM-display evidence; packaged QEMU typography
+  captures remain follow-up work.
 - The graphical QEMU acceptance run captures LightWhite and Deepside frames with Files and Settings open. It requires the Shell broadcast and both client redraw markers, unchanged application PIDs, an increased compositor repaint sequence, and a visible pixel delta before accepting the live switch.
 - Resize updates the kernel PTY dimensions and VT parser grid together. The packaged `aqua-terminal --probe-pty` path executes a shell command and validates resize without requiring a display.
 - Aqua `rcS` mounts `devpts`, exposes `/dev/ptmx`, and emits `stage=devpts-ready`; this is OS runtime infrastructure rather than a host-only test dependency.

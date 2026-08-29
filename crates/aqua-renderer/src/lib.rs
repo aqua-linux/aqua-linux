@@ -4,7 +4,7 @@ use aqua_installer::{
     InstallerUserField, InstallerWindowLayout, INSTALL_ESP_LABEL, INSTALL_ESP_SIZE_MIB,
     INSTALL_ROOT_LABEL, KEYBOARD_OPTIONS, LANGUAGE_OPTIONS, TIMEZONE_OPTIONS,
 };
-use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind};
+use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     AquaTheme, DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
     FilesWindowModel, LauncherCategory, LauncherMode, LauncherState, NotificationCenter,
@@ -13,7 +13,7 @@ use aqua_shell::{
     FILES_PREVIEW_VISIBLE_LINES, FILES_VISIBLE_ROWS, WORKSPACE_COUNT,
 };
 pub use aqua_text::UI_FONT_FAMILY;
-use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, TextRole, TextService};
+use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
 use std::sync::{Mutex, OnceLock};
 
 pub const UI_FONT_SOURCE: &str = "embedded-ttf";
@@ -126,6 +126,236 @@ pub const fn shell_palette(theme: AquaTheme) -> ShellPalette {
         accent: chrome.accent,
         selection: chrome.accent_soft,
     }
+}
+
+pub const TYPOGRAPHY_LAYOUT_FIXTURE_REVISION: &str = "aqua-typography-layout-fixtures-1";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TypographyLayoutAcceptanceProbe {
+    pub viewport: Viewport,
+    pub theme: AquaTheme,
+    pub scale: OutputScale,
+    pub critical_labels_fit: bool,
+    pub long_label_contained: bool,
+    pub long_label_truncated: bool,
+    pub fallback_glyphs: usize,
+    pub missing_glyphs: usize,
+    pub regions_are_separated: bool,
+    pub checksum: u64,
+}
+
+impl TypographyLayoutAcceptanceProbe {
+    pub const fn is_ready(self) -> bool {
+        self.critical_labels_fit
+            && self.long_label_contained
+            && self.fallback_glyphs > 0
+            && self.missing_glyphs == 0
+            && self.regions_are_separated
+    }
+}
+
+pub fn render_typography_layout_acceptance_rgba(
+    viewport: Viewport,
+    theme: AquaTheme,
+    scale: OutputScale,
+) -> Option<(Vec<u8>, TypographyLayoutAcceptanceProbe)> {
+    let layout = InstallerWindowLayout::for_viewport(viewport).ok()?;
+    let palette = window_chrome_palette(theme);
+    let mut buffer = vec![0_u8; viewport.width as usize * viewport.height as usize * 4];
+    fill_rect(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        Rect {
+            x: 0,
+            y: 0,
+            width: viewport.width,
+            height: viewport.height,
+        },
+        palette.sidebar,
+        255,
+    );
+    fill_rect(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        layout.window,
+        palette.surface,
+        255,
+    );
+    fill_rect(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        layout.titlebar,
+        palette.titlebar,
+        255,
+    );
+    draw_window_controls(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        layout.titlebar.x + 18,
+        layout.titlebar.y + layout.titlebar.height.saturating_sub(14) / 2,
+    );
+    let title = draw_fitted_bitmap_text(
+        &mut buffer,
+        (viewport.width, viewport.height),
+        Rect {
+            x: layout.titlebar.x + 92,
+            y: layout.titlebar.y,
+            width: layout.titlebar.width.saturating_sub(112),
+            height: layout.titlebar.height,
+        },
+        "Aqua Linux Gelişmiş Erişilebilirlik ve Yerelleştirme Ayarları",
+        palette.text,
+        FittedTextOptions::new(TextRole::Title, scale, false),
+    );
+
+    let content_padding = layout.content_padding();
+    let row_width = layout.content.width.saturating_sub(content_padding * 2);
+    let first_row = Rect {
+        x: layout.content.x + content_padding,
+        y: layout.content.y + 72,
+        width: row_width,
+        height: 48,
+    };
+    let second_row = Rect {
+        y: first_row.bottom() + 16,
+        ..first_row
+    };
+    for row in [first_row, second_row] {
+        fill_rounded_rect(
+            &mut buffer,
+            viewport.width,
+            viewport.height,
+            row,
+            8,
+            palette.field,
+            255,
+        );
+    }
+    let long_label = draw_fitted_bitmap_text(
+        &mut buffer,
+        (viewport.width, viewport.height),
+        inset_rect(first_row, 16, 0),
+        "Ekran okuyucu ve yüksek karşıtlık seçeneklerini tüm çalışma alanlarında etkinleştir",
+        palette.text,
+        FittedTextOptions::new(TextRole::Body, scale, false),
+    );
+    let arabic = draw_fitted_bitmap_text(
+        &mut buffer,
+        (viewport.width, viewport.height),
+        inset_rect(second_row, 16, 0),
+        "إعدادات إمكانية الوصول واللغة في أكوا لينكس",
+        palette.text,
+        FittedTextOptions::new(TextRole::Body, scale, false),
+    );
+
+    fill_rect(
+        &mut buffer,
+        viewport.width,
+        viewport.height,
+        layout.footer,
+        palette.toolbar,
+        255,
+    );
+    let controls = [
+        (layout.language_control, "Türkçe (Türkiye)", false),
+        (layout.cancel_button, "Vazgeç", false),
+        (layout.back_button, "Geri", false),
+        (layout.forward_button, "Kurulumu Başlat", true),
+    ];
+    let mut critical_labels_fit = true;
+    let mut fallback_glyphs =
+        title.fallback_glyphs + long_label.fallback_glyphs + arabic.fallback_glyphs;
+    let mut missing_glyphs =
+        title.missing_glyphs + long_label.missing_glyphs + arabic.missing_glyphs;
+    for (rect, label, primary) in controls {
+        fill_rounded_rect(
+            &mut buffer,
+            viewport.width,
+            viewport.height,
+            rect,
+            8,
+            if primary {
+                palette.accent
+            } else {
+                palette.field
+            },
+            255,
+        );
+        let outcome = draw_fitted_bitmap_text(
+            &mut buffer,
+            (viewport.width, viewport.height),
+            inset_rect(rect, 8, 0),
+            label,
+            if primary {
+                [0xff, 0xff, 0xff, 0xff]
+            } else {
+                palette.text
+            },
+            FittedTextOptions::new(TextRole::Control, scale, true),
+        );
+        critical_labels_fit &= !outcome.truncated
+            && outcome.original_width <= rect.width.saturating_sub(16) as f32
+            && outcome.rendered_width <= rect.width.saturating_sub(16) as f32;
+        fallback_glyphs += outcome.fallback_glyphs;
+        missing_glyphs += outcome.missing_glyphs;
+    }
+
+    let checksum = checksum_bytes(&buffer);
+    let probe = TypographyLayoutAcceptanceProbe {
+        viewport,
+        theme,
+        scale,
+        critical_labels_fit,
+        long_label_contained: long_label.rendered_width
+            <= first_row.width.saturating_sub(32) as f32,
+        long_label_truncated: long_label.truncated,
+        fallback_glyphs,
+        missing_glyphs,
+        regions_are_separated: layout.regions_are_separated()
+            && first_row.bottom() < layout.footer.y
+            && second_row.bottom() < layout.footer.y,
+        checksum,
+    };
+    Some((buffer, probe))
+}
+
+pub fn typography_layout_acceptance_report() -> String {
+    let cases = [
+        (Viewport::new(800, 600), OutputScale::One),
+        (Viewport::new(1280, 800), OutputScale::One),
+        (Viewport::new(1536, 1024), OutputScale::FiveQuarters),
+    ];
+    let mut lines = vec![format!(
+        "fixture_revision={TYPOGRAPHY_LAYOUT_FIXTURE_REVISION}"
+    )];
+    for (viewport, scale) in cases {
+        for theme in AquaTheme::ALL {
+            let (_, probe) = render_typography_layout_acceptance_rgba(viewport, theme, scale)
+                .expect("supported typography acceptance viewport");
+            lines.push(format!(
+                "viewport={}x{} scale={}/{} theme={} ready={} critical_labels_fit={} long_label_contained={} long_label_truncated={} fallback_glyphs={} missing_glyphs={} regions_are_separated={} checksum={:016x}",
+                viewport.width,
+                viewport.height,
+                scale.numerator(),
+                scale.denominator(),
+                theme.id(),
+                probe.is_ready(),
+                probe.critical_labels_fit,
+                probe.long_label_contained,
+                probe.long_label_truncated,
+                probe.fallback_glyphs,
+                probe.missing_glyphs,
+                probe.regions_are_separated,
+                probe.checksum,
+            ));
+        }
+    }
+    lines.push(String::new());
+    lines.join("\n")
 }
 
 fn apply_shell_palette(rgba: &mut [u8], theme: AquaTheme) {
@@ -3724,21 +3954,17 @@ fn draw_installer_button(
         245,
     );
     draw_system_surface_primitives(buffer, width, height, rect);
-    let text_width = label.chars().count() as u32 * 7;
-    draw_bitmap_text(
+    draw_fitted_bitmap_text(
         buffer,
         (width, height),
-        (
-            rect.x + rect.width.saturating_sub(text_width) / 2,
-            rect.y + 13,
-        ),
+        inset_rect(rect, 8, 0),
         label,
         if primary {
             [0xff, 0xff, 0xff, 0xff]
         } else {
             palette.text
         },
-        1,
+        FittedTextOptions::new(TextRole::Control, OutputScale::One, true),
     );
 }
 
@@ -6405,16 +6631,18 @@ fn draw_bright_window_titlebar(
         titlebar.x + 18,
         titlebar.y + titlebar.height.saturating_sub(14) / 2,
     );
-    draw_bitmap_text(
+    draw_fitted_bitmap_text(
         buffer,
         (width, height),
-        (
-            titlebar.x + 92,
-            titlebar.y + titlebar.height.saturating_sub(14) / 2,
-        ),
+        Rect {
+            x: titlebar.x + 92,
+            y: titlebar.y,
+            width: titlebar.width.saturating_sub(112),
+            height: titlebar.height,
+        },
         title,
         palette.text,
-        1,
+        FittedTextOptions::new(TextRole::Body, OutputScale::One, false),
     );
     6
 }
@@ -6628,13 +6856,108 @@ fn draw_shaped_text(
     scale: u32,
     service: &mut TextService,
 ) {
-    let (width, height) = canvas;
     let (role, output_scale) = if scale > 1 {
         (TextRole::Caption, OutputScale::Two)
     } else {
         (TextRole::Body, OutputScale::One)
     };
     let line = service.shape_line(text, role, output_scale);
+    draw_shaped_line(buffer, canvas, origin, color, &line, service, None);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct TextDrawOutcome {
+    original_width: f32,
+    rendered_width: f32,
+    truncated: bool,
+    fallback_glyphs: usize,
+    missing_glyphs: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FittedTextOptions {
+    role: TextRole,
+    scale: OutputScale,
+    centered: bool,
+}
+
+impl FittedTextOptions {
+    const fn new(role: TextRole, scale: OutputScale, centered: bool) -> Self {
+        Self {
+            role,
+            scale,
+            centered,
+        }
+    }
+}
+
+fn draw_fitted_bitmap_text(
+    buffer: &mut [u8],
+    canvas: (u32, u32),
+    rect: Rect,
+    text: &str,
+    color: [u8; 4],
+    options: FittedTextOptions,
+) -> TextDrawOutcome {
+    let Some(service) = text_service() else {
+        draw_legacy_bitmap_text(buffer, canvas, (rect.x, rect.y), text, color, 1);
+        return TextDrawOutcome {
+            original_width: 0.0,
+            rendered_width: 0.0,
+            truncated: false,
+            fallback_glyphs: 0,
+            missing_glyphs: text
+                .chars()
+                .filter(|character| !character.is_ascii())
+                .count(),
+        };
+    };
+    let Ok(mut service) = service.lock() else {
+        return TextDrawOutcome {
+            original_width: 0.0,
+            rendered_width: 0.0,
+            truncated: false,
+            fallback_glyphs: 0,
+            missing_glyphs: text.chars().count(),
+        };
+    };
+    let original = service.shape_line(text, options.role, options.scale);
+    let fitted = service.ellipsize(text, options.role, options.scale, rect.width as f32);
+    let rendered_width = fitted.width;
+    let x = if options.centered {
+        rect.x + rect.width.saturating_sub(rendered_width.ceil() as u32) / 2
+    } else {
+        rect.x
+    };
+    let y = rect.y + rect.height.saturating_sub(fitted.height.ceil() as u32) / 2;
+    draw_shaped_line(
+        buffer,
+        canvas,
+        (x, y),
+        color,
+        &fitted,
+        &mut service,
+        Some(rect),
+    );
+    TextDrawOutcome {
+        original_width: original.width,
+        rendered_width,
+        truncated: fitted.text != text,
+        fallback_glyphs: fitted.fallback_glyphs,
+        missing_glyphs: fitted.missing_glyphs,
+    }
+}
+
+fn draw_shaped_line(
+    buffer: &mut [u8],
+    canvas: (u32, u32),
+    origin: (u32, u32),
+    color: [u8; 4],
+    line: &ShapedLine,
+    service: &mut TextService,
+    clip: Option<Rect>,
+) {
+    let (width, height) = canvas;
     let baseline = origin.1 as i32 + line.baseline.ceil() as i32;
     let mut cursor = origin.0 as f32;
     for run in &line.runs {
@@ -6642,8 +6965,8 @@ fn draw_shaped_text(
             let key = GlyphCacheKey {
                 font_id: shaped.font_id,
                 glyph_id: shaped.glyph_id,
-                role,
-                scale: output_scale,
+                role: line.role,
+                scale: line.scale,
                 mode: RenderingMode::Grayscale,
             };
             let Some(glyph) = service.rasterize(key) else {
@@ -6666,6 +6989,14 @@ fn draw_shaped_text(
                     if x < 0 || y < 0 || x >= width as i32 || y >= height as i32 {
                         continue;
                     }
+                    if clip.is_some_and(|clip| {
+                        x < clip.x as i32
+                            || y < clip.y as i32
+                            || x >= clip.right() as i32
+                            || y >= clip.bottom() as i32
+                    }) {
+                        continue;
+                    }
                     let offset = ((y as u32 * width + x as u32) * 4) as usize;
                     let destination = [
                         buffer[offset],
@@ -6682,6 +7013,15 @@ fn draw_shaped_text(
             }
             cursor += shaped.x_advance;
         }
+    }
+}
+
+const fn inset_rect(rect: Rect, horizontal: u32, vertical: u32) -> Rect {
+    Rect {
+        x: rect.x + horizontal,
+        y: rect.y + vertical,
+        width: rect.width.saturating_sub(horizontal.saturating_mul(2)),
+        height: rect.height.saturating_sub(vertical.saturating_mul(2)),
     }
 }
 
@@ -7456,6 +7796,40 @@ mod tests {
                 .any(|alpha| *alpha > 0 && *alpha < 255));
         }
         assert_eq!(aqua_text::UI_FONT_REVISION, "noto-sans-regular-aqua-1");
+    }
+
+    #[test]
+    fn typography_layout_acceptance_keeps_critical_actions_clear() {
+        for (viewport, scale) in [
+            (Viewport::new(800, 600), OutputScale::One),
+            (Viewport::new(1280, 800), OutputScale::One),
+            (Viewport::new(1536, 1024), OutputScale::FiveQuarters),
+        ] {
+            for theme in AquaTheme::ALL {
+                let (rgba, probe) =
+                    render_typography_layout_acceptance_rgba(viewport, theme, scale).unwrap();
+                assert!(probe.is_ready());
+                assert_eq!(
+                    rgba.len(),
+                    viewport.width as usize * viewport.height as usize * 4
+                );
+                assert!(probe.critical_labels_fit);
+                assert!(probe.long_label_contained);
+                assert!(probe.fallback_glyphs > 0);
+                assert_eq!(probe.missing_glyphs, 0);
+                assert!(probe.regions_are_separated);
+                assert_ne!(probe.checksum, 0);
+            }
+        }
+    }
+
+    #[test]
+    fn typography_layout_acceptance_report_is_stable_and_complete() {
+        let first = typography_layout_acceptance_report();
+        assert_eq!(first, typography_layout_acceptance_report());
+        assert_eq!(first.matches("viewport=").count(), 12);
+        assert_eq!(first.matches("ready=true").count(), 12);
+        assert_eq!(first.matches("missing_glyphs=0").count(), 12);
     }
 
     #[test]
