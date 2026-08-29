@@ -98,6 +98,7 @@ impl SharedComponentKind {
                 | Self::ListRow
                 | Self::GridCell
                 | Self::ApplicationOverview
+                | Self::GlobalSearch
                 | Self::SidebarNavigation
         )
     }
@@ -2027,6 +2028,269 @@ impl<'a> ApplicationOverview<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GlobalSearchAccessibility<'a> {
+    pub role: &'static str,
+    pub name: &'a str,
+    pub result_count: usize,
+    pub quick_action_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GlobalSearch<'a> {
+    pub rect: Rect,
+    pub name: &'a str,
+    pub search_name: &'a str,
+    pub search_placeholder: &'a str,
+    pub results_name: &'a str,
+    pub quick_actions_name: &'a str,
+    pub result_count: usize,
+    pub quick_action_count: usize,
+    pub visible_result_limit: usize,
+    pub horizontal_inset: u32,
+    pub search_offset_y: u32,
+    pub search_height: u32,
+    pub section_gap: u32,
+    pub result_row_height: u32,
+    pub result_row_stride: u32,
+    pub quick_action_height: u32,
+    pub quick_action_stride: u32,
+}
+
+impl<'a> GlobalSearch<'a> {
+    pub const fn new(
+        rect: Rect,
+        name: &'a str,
+        search_name: &'a str,
+        search_placeholder: &'a str,
+        section_names: (&'a str, &'a str),
+        result_count: usize,
+        quick_action_count: usize,
+    ) -> Self {
+        Self {
+            rect,
+            name,
+            search_name,
+            search_placeholder,
+            results_name: section_names.0,
+            quick_actions_name: section_names.1,
+            result_count,
+            quick_action_count,
+            visible_result_limit: 5,
+            horizontal_inset: 24,
+            search_offset_y: 54,
+            search_height: 42,
+            section_gap: 18,
+            result_row_height: 52,
+            result_row_stride: 58,
+            quick_action_height: 50,
+            quick_action_stride: 62,
+        }
+    }
+
+    pub const fn title_rect(self) -> Rect {
+        Rect {
+            x: self.rect.x.saturating_add(self.horizontal_inset),
+            y: self.rect.y.saturating_add(18),
+            width: self
+                .rect
+                .width
+                .saturating_sub(self.horizontal_inset.saturating_mul(2)),
+            height: 28,
+        }
+    }
+
+    pub const fn search_rect(self) -> Rect {
+        Rect {
+            x: self.rect.x.saturating_add(self.horizontal_inset),
+            y: self.rect.y.saturating_add(self.search_offset_y),
+            width: self
+                .rect
+                .width
+                .saturating_sub(self.horizontal_inset.saturating_mul(2)),
+            height: self.search_height,
+        }
+    }
+
+    pub const fn search_field(self, value: &'a str, state: ComponentState) -> SearchField<'a> {
+        SearchField::new(
+            self.search_rect(),
+            self.search_name,
+            value,
+            self.search_placeholder,
+        )
+        .with_state(state)
+    }
+
+    pub const fn content_y(self) -> u32 {
+        self.search_rect().bottom().saturating_add(self.section_gap)
+    }
+
+    pub const fn split_x(self) -> u32 {
+        self.rect.x.saturating_add(self.rect.width / 2)
+    }
+
+    pub const fn divider_rect(self) -> Rect {
+        Rect {
+            x: self.split_x(),
+            y: self.content_y(),
+            width: 1,
+            height: self
+                .rect
+                .bottom()
+                .saturating_sub(self.horizontal_inset)
+                .saturating_sub(self.content_y()),
+        }
+    }
+
+    pub const fn results_header_rect(self) -> Rect {
+        Rect {
+            x: self.rect.x.saturating_add(self.horizontal_inset),
+            y: self.content_y(),
+            width: self
+                .split_x()
+                .saturating_sub(self.rect.x.saturating_add(self.horizontal_inset)),
+            height: 16,
+        }
+    }
+
+    pub const fn quick_actions_header_rect(self) -> Rect {
+        let x = self.split_x().saturating_add(22);
+        Rect {
+            x,
+            y: self.content_y(),
+            width: self
+                .rect
+                .right()
+                .saturating_sub(self.horizontal_inset)
+                .saturating_sub(x),
+            height: 16,
+        }
+    }
+
+    pub const fn visible_result_count(self) -> usize {
+        if self.result_count < self.visible_result_limit {
+            self.result_count
+        } else {
+            self.visible_result_limit
+        }
+    }
+
+    pub const fn result_rect(self, index: usize) -> Rect {
+        if index >= self.visible_result_count() {
+            return Rect {
+                x: self.rect.x,
+                y: self.rect.y,
+                width: 0,
+                height: 0,
+            };
+        }
+        Rect {
+            x: self.rect.x.saturating_add(18),
+            y: self
+                .content_y()
+                .saturating_add(24)
+                .saturating_add((index as u32).saturating_mul(self.result_row_stride)),
+            width: (self.rect.width / 2).saturating_sub(30),
+            height: self.result_row_height,
+        }
+    }
+
+    pub const fn quick_action_rect(self, index: usize) -> Rect {
+        if index >= self.quick_action_count {
+            return Rect {
+                x: self.rect.x,
+                y: self.rect.y,
+                width: 0,
+                height: 0,
+            };
+        }
+        Rect {
+            x: self.split_x().saturating_add(18),
+            y: self
+                .content_y()
+                .saturating_add(24)
+                .saturating_add((index as u32).saturating_mul(self.quick_action_stride)),
+            width: (self.rect.width / 2).saturating_sub(42),
+            height: self.quick_action_height,
+        }
+    }
+
+    pub const fn result_at(self, x: u32, y: u32) -> Option<usize> {
+        if !self.is_valid() {
+            return None;
+        }
+        let mut index = 0;
+        while index < self.visible_result_count() {
+            if rect_contains(self.result_rect(index), x, y) {
+                return Some(index);
+            }
+            index += 1;
+        }
+        None
+    }
+
+    pub const fn quick_action_at(self, x: u32, y: u32) -> Option<usize> {
+        if !self.is_valid() {
+            return None;
+        }
+        let mut index = 0;
+        while index < self.quick_action_count {
+            if rect_contains(self.quick_action_rect(index), x, y) {
+                return Some(index);
+            }
+            index += 1;
+        }
+        None
+    }
+
+    pub const fn contains(self, x: u32, y: u32) -> bool {
+        self.is_valid() && rect_contains(self.rect, x, y)
+    }
+
+    pub const fn is_valid(self) -> bool {
+        if self.name.is_empty()
+            || self.search_name.is_empty()
+            || self.search_placeholder.is_empty()
+            || self.results_name.is_empty()
+            || self.quick_actions_name.is_empty()
+            || self.result_count > 128
+            || self.quick_action_count == 0
+            || self.quick_action_count > 8
+            || self.visible_result_limit == 0
+            || self.visible_result_limit > 32
+            || self.rect.width < 480
+            || self.horizontal_inset.saturating_mul(2) >= self.rect.width
+            || self.search_height < 32
+            || self.result_row_height == 0
+            || self.result_row_stride < self.result_row_height
+            || self.quick_action_height == 0
+            || self.quick_action_stride < self.quick_action_height
+        {
+            return false;
+        }
+        let search = self.search_rect();
+        if search.bottom() > self.rect.bottom() || self.divider_rect().bottom() > self.rect.bottom()
+        {
+            return false;
+        }
+        let visible_results = self.visible_result_count();
+        let results_fit = visible_results == 0
+            || self.result_rect(visible_results - 1).bottom() <= self.rect.bottom();
+        results_fit
+            && self.quick_action_rect(self.quick_action_count - 1).bottom() <= self.rect.bottom()
+    }
+
+    pub const fn accessibility(self) -> GlobalSearchAccessibility<'a> {
+        GlobalSearchAccessibility {
+            role: "search",
+            name: self.name,
+            result_count: self.result_count,
+            quick_action_count: self.quick_action_count,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SidebarNavigation<'a> {
     pub rect: Rect,
     pub label: &'a str,
@@ -2140,7 +2404,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_fifteen_shared_primitives() {
+    fn catalog_tracks_the_sixteen_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -2163,6 +2427,7 @@ mod tests {
                 SharedComponentKind::MetadataRow,
                 SharedComponentKind::SectionGroup,
                 SharedComponentKind::ApplicationOverview,
+                SharedComponentKind::GlobalSearch,
             ]
         );
     }
@@ -2259,6 +2524,15 @@ mod tests {
         let metadata = MetadataRow::new(rect, "", "Value");
         let section = SectionGroup::new(rect, "", 1);
         let overview = ApplicationOverview::new(rect, "", "Search", "Search apps", 3);
+        let global_search = GlobalSearch::new(
+            rect,
+            "",
+            "Search",
+            "Search apps",
+            ("Results", "Actions"),
+            1,
+            1,
+        );
         assert!(!button.can_activate());
         assert!(!top_bar.is_valid());
         assert!(!row.can_activate());
@@ -2273,6 +2547,7 @@ mod tests {
         assert!(!metadata.is_valid());
         assert!(!section.is_valid());
         assert!(!overview.is_valid());
+        assert!(!global_search.is_valid());
         assert_eq!(navigation.hit_test(11, 21, 1), None);
     }
 
@@ -2351,6 +2626,59 @@ mod tests {
         assert_eq!(semantics.role, "region");
         assert_eq!(semantics.item_count, 6);
         assert_eq!(semantics.column_count, 3);
+    }
+
+    #[test]
+    fn global_search_composes_split_content_and_rejects_gaps() {
+        let search = GlobalSearch::new(
+            Rect {
+                x: 40,
+                y: 70,
+                width: 720,
+                height: 460,
+            },
+            "Global Search",
+            "Search applications",
+            "Search apps",
+            ("Results", "Quick actions"),
+            6,
+            3,
+        );
+        assert!(search.is_valid());
+        assert_eq!(search.search_rect().x, 64);
+        assert_eq!(search.content_y(), 184);
+        assert_eq!(search.split_x(), 400);
+        assert_eq!(
+            search.result_rect(0),
+            Rect {
+                x: 58,
+                y: 208,
+                width: 330,
+                height: 52
+            }
+        );
+        assert_eq!(search.result_rect(4).bottom(), 492);
+        assert_eq!(search.result_rect(5).width, 0);
+        assert_eq!(
+            search.quick_action_rect(0),
+            Rect {
+                x: 418,
+                y: 208,
+                width: 318,
+                height: 50
+            }
+        );
+        assert_eq!(search.result_at(58, 208), Some(0));
+        assert_eq!(search.result_at(58, 260), None);
+        assert_eq!(search.quick_action_at(418, 208), Some(0));
+        assert_eq!(search.quick_action_at(418, 258), None);
+        assert_eq!(search.result_at(64, 184), None);
+        assert!(search.contains(40, 70));
+        assert!(!search.contains(760, 70));
+        let semantics = search.accessibility();
+        assert_eq!(semantics.role, "search");
+        assert_eq!(semantics.result_count, 6);
+        assert_eq!(semantics.quick_action_count, 3);
     }
 
     #[test]

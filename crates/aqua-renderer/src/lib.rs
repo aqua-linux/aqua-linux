@@ -6148,13 +6148,20 @@ fn draw_launcher_overlay(
 
     let overview = (launcher.mode() == LauncherMode::Applications)
         .then(|| launcher.application_overview(viewport.width, viewport.height));
+    let global_search = (launcher.mode() == LauncherMode::Search)
+        .then(|| launcher.global_search(viewport.width, viewport.height));
     let bounds = launcher.panel_bounds(viewport.width, viewport.height);
-    let panel = overview.map_or(
-        Rect {
-            x: bounds.x,
-            y: bounds.y,
-            width: bounds.width,
-            height: bounds.height,
+    let panel = overview.map_or_else(
+        || {
+            global_search.map_or(
+                Rect {
+                    x: bounds.x,
+                    y: bounds.y,
+                    width: bounds.width,
+                    height: bounds.height,
+                },
+                |search| search.rect,
+            )
         },
         |overview| overview.rect,
     );
@@ -6166,6 +6173,15 @@ fn draw_launcher_overlay(
             viewport.width,
             viewport.height,
             overview,
+            theme,
+            OutputScale::One,
+        );
+    } else if let Some(search) = global_search {
+        primitives += draw_global_search(
+            buffer,
+            viewport.width,
+            viewport.height,
+            search,
             theme,
             OutputScale::One,
         );
@@ -6207,7 +6223,6 @@ fn draw_launcher_overlay(
         OutputScale::One,
     );
 
-    let content_y = search.rect.y + search.rect.height + 18;
     let visible_apps = launcher.visible_apps();
     match launcher.mode() {
         LauncherMode::Applications => {
@@ -6247,59 +6262,40 @@ fn draw_launcher_overlay(
             }
         }
         LauncherMode::Search => {
-            let split_x = panel.x + panel.width / 2;
-            fill_rect(
-                buffer,
-                viewport.width,
-                viewport.height,
-                Rect {
-                    x: split_x,
-                    y: content_y,
-                    width: 1,
-                    height: panel.height.saturating_sub(content_y - panel.y + 24),
-                },
-                palette.border,
-                180,
-            );
-            primitives += 1;
-            draw_bitmap_text(
-                buffer,
-                (viewport.width, viewport.height),
-                (panel.x + 24, content_y),
-                "RESULTS",
-                palette.secondary_text,
-                1,
-            );
-            for (index, app) in visible_apps.iter().take(5).enumerate() {
-                let row = Rect {
-                    x: panel.x + 18,
-                    y: content_y + 24 + index as u32 * 58,
-                    width: panel.width / 2 - 30,
-                    height: 52,
+            let search_layout = global_search.expect("search mode has shared layout");
+            for (index, app) in visible_apps
+                .iter()
+                .take(search_layout.visible_result_count())
+                .enumerate()
+            {
+                let Some(row) = launcher.search_result_row(index, viewport.width, viewport.height)
+                else {
+                    continue;
                 };
                 if index == launcher.selected_index() {
                     fill_rect(
                         buffer,
                         viewport.width,
                         viewport.height,
-                        row,
+                        row.rect,
                         palette.selection,
                         230,
                     );
                     primitives += 1;
                 }
+                let slots = row.slots();
                 draw_app_icon(
                     buffer,
                     viewport.width,
                     viewport.height,
-                    row.x + 8,
-                    row.y + 6,
+                    slots.leading.x,
+                    row.rect.y + 6,
                     index,
                 );
                 draw_bitmap_text(
                     buffer,
                     (viewport.width, viewport.height),
-                    (row.x + 54, row.y + 10),
+                    (slots.label.x, row.rect.y + 10),
                     app.name,
                     palette.text,
                     1,
@@ -6307,36 +6303,27 @@ fn draw_launcher_overlay(
                 draw_bitmap_text(
                     buffer,
                     (viewport.width, viewport.height),
-                    (row.x + 54, row.y + 29),
+                    (slots.label.x, row.rect.y + 29),
                     app.description,
                     palette.secondary_text,
                     1,
                 );
                 primitives += 1;
             }
-            draw_bitmap_text(
-                buffer,
-                (viewport.width, viewport.height),
-                (split_x + 22, content_y),
-                "QUICK ACTIONS",
-                palette.secondary_text,
-                1,
-            );
             for (index, label) in ["OPEN APPLICATIONS", "SYSTEM SETTINGS", "BROWSE FILES"]
                 .iter()
                 .enumerate()
             {
-                let action = Rect {
-                    x: split_x + 18,
-                    y: content_y + 24 + index as u32 * 62,
-                    width: panel.width / 2 - 42,
-                    height: 50,
+                let Some(action) =
+                    launcher.search_quick_action_button(index, viewport.width, viewport.height)
+                else {
+                    continue;
                 };
                 fill_rect(
                     buffer,
                     viewport.width,
                     viewport.height,
-                    action,
+                    action.rect,
                     palette.elevated,
                     220,
                 );
@@ -6344,14 +6331,14 @@ fn draw_launcher_overlay(
                     buffer,
                     viewport.width,
                     viewport.height,
-                    action.x + 12,
-                    action.y + 17,
+                    action.rect.x + 12,
+                    action.rect.y + 17,
                     index,
                 );
                 draw_bitmap_text(
                     buffer,
                     (viewport.width, viewport.height),
-                    (action.x + 42, action.y + 18),
+                    (action.rect.x + 42, action.rect.y + 18),
                     label,
                     palette.text,
                     1,

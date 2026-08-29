@@ -29,7 +29,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Metadata row | Shared host-proven primitive | Properties and System Overview share bounded read-only label/value columns; packaged-QEMU acceptance remains open |
 | Section group | Shared host-proven primitive | Settings and Properties share bounded heading, row, trailing-control, and footer geometry; packaged-QEMU acceptance remains open |
 | Application overview | Shared host-proven primitive | Applications panel surface, title, search, grid layout, and pointer geometry; packaged-QEMU acceptance remains open |
-| Global search | Planned | Search panel and result actions |
+| Global search | Shared host-proven primitive | Split result list, quick-action panel, and exact pointer geometry; packaged-QEMU acceptance remains open |
 | Running-app dock | Planned | Bottom-center shell group |
 | Workspace switcher | Planned | Bottom-right shell group |
 | Notification | Planned | Shell notification center |
@@ -413,8 +413,38 @@ three-column remainder handling, gap rejection, semantics, four themes, and the
 three required viewports including fractional scale. Packaged-QEMU component
 acceptance remains open.
 
+## Global Search Contract
+
+### Anatomy And Geometry
+
+- Global Search owns one bounded panel surface, title region, focused shared
+  search field, split divider, named Results and Quick Actions sections, five
+  visible result slots, and a bounded quick-action list.
+- Result rows and quick-action controls derive their rectangles from the same
+  panel metrics consumed by the renderer. Row height, stride, section inset,
+  and visible-result limit are explicit and saturating.
+- Empty accessible names, invalid counts, undersized panels, overlapping
+  strides, and result or action rectangles that exceed the panel fail closed.
+
+### Input, Semantics, And Composition
+
+- Pointer routing tests only exact half-open result and quick-action rectangles.
+  Section headings, the center divider, panel padding, and inter-row gaps remain
+  non-interactive.
+- The container exposes a named `search` landmark with result and quick-action
+  counts. Its child search field retains `searchbox`; result rows retain
+  `option`; quick actions retain `button` semantics.
+- Launcher Search mode now derives its panel, headings, divider, search field,
+  result rows, quick-action controls, rendering, and pointer targets from this
+  composition. Its real Applications, Settings, and Files actions are unchanged.
+
+The deterministic matrix covers compact split geometry, result/action limits,
+gap rejection, accessibility semantics, four themes, and the three required
+viewports including fractional scale. Packaged-QEMU component acceptance remains
+open.
+
 ## Next Extraction Order
 
-1. Global search, composing its real result list and quick actions into one bounded panel contract.
-2. Running-app dock and workspace switcher.
-3. Notification and confirmation dialog; checkbox and slider remain deferred until real option and bounded-value models exist.
+1. Running-app dock and workspace switcher.
+2. Notification and confirmation dialog.
+3. Checkbox and slider remain deferred until real option and bounded-value models exist.

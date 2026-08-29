@@ -461,13 +461,15 @@ The implementation inventory and extraction order are maintained in
 [component-catalog.md](component-catalog.md). Top system bar, window frame,
 menu, metadata row, section group, standard button, icon button, search field,
 switch, segmented control, toolbar, list row, grid cell, application overview,
-and sidebar navigation are
+global search, and sidebar navigation are
 host-proven across their applicable states, four themes, three required
 viewports, and a fractional scale. Installer,
 Applications, Global Search, Terminal, Properties, Settings, and Files consume
 the applicable primitives; the Applications surface composes the shared search
-field and grid cells through one bounded overview contract, while Files correctly
-remains on its real list-row path. Shared geometry drives both renderer and input routing.
+field and grid cells through one bounded overview contract, Global Search
+composes its real split results and quick actions through a separate bounded
+contract, and Files correctly remains on its real list-row path. Shared geometry
+drives both renderer and input routing.
 Packaged-QEMU component acceptance and the remaining catalog entries stay open.
 
 Done when desktop, Applications, Search, Terminal, Files, Settings, and the
