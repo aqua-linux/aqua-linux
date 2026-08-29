@@ -299,9 +299,9 @@ Current checkpoint:
 - The Partitions form consumes the bounded storage inventory, skips blocked devices during keyboard navigation, and applies an install target only through the existing eligible-candidate conversion. Its raster shows device identity, capacity, destructive warning, and the canonical EFI/root layout; a fourth deterministic installer PNG now covers this step.
 - Time Zone now uses a bounded IANA catalog with keyboard selection, model synchronization, and a real selected/applied raster screen. The fifth deterministic installer PNG covers İstanbul, UTC, Berlin, and New York choices while preserving the existing installed timezone metadata path.
 - User Information now provides bounded username/display-name editing and accepts only a password-configured status from the future secure input component; password characters are explicitly ignored and never enter state, model, raster, or metadata. The sixth deterministic installer PNG shows the applied profile without password content.
-- Summary now renders all validated selections and the real/dry-run mode as a seventh deterministic installer PNG. Its bounded control accepts the exact current-target confirmation phrase only in real mode, invalidates readiness when target or mode changes, and exports the same contract through the recovery-safe Buildroot probe.
+- Summary now renders all validated selections and the real/dry-run mode as a seventh deterministic installer PNG. Real mode first consumes the shared target-bound checkbox acknowledgement and then accepts the exact current-target confirmation phrase; target or mode changes invalidate readiness, and the recovery-safe Buildroot probe exports the same contract without granting execution authority.
 - A packaged `/usr/bin/aqua-installer` opens as a real `aqua.installer` wl_shm xdg-toplevel, loads the canonical symbol and real Linux storage inventory, and remains manual with live transaction execution disabled by default. QEMU proves the surface fills the 1280x800 DRM output without desktop chrome, applies Turkish locale, Turkish Q, `/dev/vdb`, Europe/Istanbul, bounded username/display name, password-configured status, and exact target-bound `ERASE /dev/vdb` confirmation. Password characters are not accepted or logged.
-- An acceptance-only presentation rehearsal now compiles the confirmed model into the canonical 20-step graph, proves the non-executing runner reports `executed=false`, renders graph-bound 40%, 65%, and 95% Installation states, reaches Completed only at 20/20 and 100%, and captures both final live Wayland surfaces. The full packaged path records 104 forwarded key events, real virtio pointer footer and form clicks, 34 client rerenders, and seven distinct QEMU screendumps without dispatching disk commands.
+- An acceptance-only presentation rehearsal now compiles the confirmed model into the canonical 20-step graph, proves the non-executing runner reports `executed=false`, renders graph-bound 40%, 65%, and 95% Installation states, reaches Completed only at 20/20 and 100%, and captures both final live Wayland surfaces. The full packaged path records 106 forwarded key events, real virtio pointer footer and form clicks, target-bound destructive acknowledgement, exact uppercase confirmation, 35 client rerenders, and seven distinct QEMU screendumps without dispatching disk commands.
 - Responsive footer pointer hit-testing now covers Language, Cancel, Back, Forward/Install, and Restart. It rejects controls hidden by the active installer step and routes accepted Wayland button presses through the same `InstallerUiAction` and model validation path as keyboard activation.
 - Choice, disk, and user-field rows now share exact responsive rectangles between `aqua-renderer` and installer pointer hit-testing. Bounded catalog clicks update validated selections, blocked disks reject hits, eligible disks remain unapplied until explicit activation, and field clicks cannot create a user profile.
 - Packaged QEMU acceptance proves the pointer path end to end. The installer full-output input origin is `(0,0)`, a real virtio mouse advances Welcome and selects the Turkish Language row, repaint synchronization is required between clicks, and keyboard navigation then completes the transaction rehearsal without relaxing any execution gate.
@@ -460,7 +460,7 @@ reduced-motion tests pass without jumps, stuck input, or unbounded timers.
 The implementation inventory and extraction order are maintained in
 [component-catalog.md](component-catalog.md). Top system bar, window frame,
 menu, metadata row, section group, standard button, icon button, search field,
-switch, segmented control, toolbar, list row, grid cell, application overview,
+checkbox, switch, segmented control, toolbar, list row, grid cell, application overview,
 global search, running-app dock, workspace switcher, notification, confirmation
 dialog, and sidebar navigation are packaged-QEMU-proven across their applicable states,
 four themes, three required
@@ -481,10 +481,10 @@ share compact/detailed geometry, explicit repeat-activation versus exact-text
 requirements, intent-only keyboard semantics, and alert accessibility. Their
 existing action authorization, target identity, and execution gates remain
 model-owned.
-The packaged acceptance-only component client proves all twenty shared
+The packaged acceptance-only component client proves all twenty-one shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
-to recovery after each bounded session. Checkbox and slider remain open until
-real installer-option and audio-volume models exist.
+to recovery after each bounded session. Slider remains open until a real
+bounded audio-volume model exists.
 
 Done when desktop, Applications, Search, Terminal, Files, Settings, and the
 installer consume the shared catalog; visual regression evidence covers the

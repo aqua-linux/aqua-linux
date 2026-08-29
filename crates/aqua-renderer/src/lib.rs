@@ -3083,6 +3083,7 @@ pub fn render_installer_window_rgba_with_theme(
             progress,
             logo,
             palette,
+            theme,
         },
     );
     primitives += draw_installer_footer(&mut buffer, width, height, &layout, ui, theme);
@@ -3148,6 +3149,7 @@ struct InstallerContentContext<'a> {
     progress: Option<&'a InstallProgressEvent>,
     logo: InstallerImageSource<'a>,
     palette: WindowChromePalette,
+    theme: AquaTheme,
 }
 
 fn draw_installer_content(
@@ -3163,6 +3165,7 @@ fn draw_installer_content(
         progress,
         logo,
         palette,
+        theme,
     } = context;
     let padding = layout.content_padding();
     let text_x = layout.content.x + padding;
@@ -3382,6 +3385,7 @@ fn draw_installer_content(
                     model,
                     forms,
                     palette,
+                    theme,
                 },
             );
         }
@@ -3902,6 +3906,7 @@ struct InstallerSummaryView<'a> {
     model: &'a InstallerModel,
     forms: &'a InstallerFormState,
     palette: WindowChromePalette,
+    theme: AquaTheme,
 }
 
 fn draw_installer_summary(
@@ -3997,12 +4002,7 @@ fn draw_installer_summary(
         primitives += 3;
     }
 
-    let confirmation_panel = Rect {
-        x: view.x,
-        y: tiles_y + 202,
-        width: available_width,
-        height: 88,
-    };
+    let confirmation_panel = view.layout.summary_confirmation_panel();
     let confirmation_surface = if view.palette.text[0] > 0x80 {
         view.palette.hover
     } else if view.model.mode() == InstallMode::Real {
@@ -4058,13 +4058,7 @@ fn draw_installer_summary(
             (title.x, title.y)
         },
     );
-    let detail_position = confirmation_dialog.map_or(
-        (confirmation_panel.x + 16, confirmation_panel.y + 45),
-        |dialog| {
-            let detail = dialog.slots().detail;
-            (detail.x, detail.y)
-        },
-    );
+    let detail_position = (confirmation_panel.x + 16, confirmation_panel.y + 62);
     draw_bitmap_text(
         buffer,
         (width, height),
@@ -4077,6 +4071,21 @@ fn draw_installer_summary(
         },
         1,
     );
+    if view.model.mode() == InstallMode::Real {
+        let checkbox = view.forms.summary().acknowledgement_checkbox(
+            view.model,
+            view.layout,
+            "Hedef diskin silineceğini anlıyorum",
+        );
+        primitives += draw_checkbox(
+            buffer,
+            width,
+            height,
+            checkbox,
+            view.theme,
+            OutputScale::One,
+        );
+    }
     draw_bitmap_text(
         buffer,
         (width, height),
@@ -8038,6 +8047,13 @@ mod tests {
         model.advance().unwrap();
         model.set_mode(InstallMode::Real);
         let mut forms = InstallerFormState::default();
+        assert_eq!(
+            forms
+                .summary_mut()
+                .handle_key(&mut model, InstallerSummaryKey::Activate)
+                .unwrap(),
+            aqua_installer::InstallerSummaryUpdate::AcknowledgementChanged(true)
+        );
         let confirmation = model.confirmation_phrase().unwrap();
         for character in confirmation.chars() {
             forms

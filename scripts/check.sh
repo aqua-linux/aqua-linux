@@ -1520,14 +1520,19 @@ grep -Fq 'installer-keyboard-partitions' scripts/send-qemu-monitor-input.py
 grep -Fq 'installer-partitions-timezone' scripts/send-qemu-monitor-input.py
 grep -Fq 'installer-timezone-user' scripts/send-qemu-monitor-input.py
 grep -Fq 'installer-user-summary-confirmation' scripts/send-qemu-monitor-input.py
-grep -Fq 'aqua_installer_redraw_count=34' scripts/check-installer-wayland-qemu.sh
+grep -Fq '"sendkey ret 100"' scripts/send-qemu-monitor-input.py
+grep -Fq 'aqua_installer_redraw_count=35' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_keyboard_layout=trq' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_target_device=/dev/vdb' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_timezone=Europe/Istanbul' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_user_profile username=aqua display_name=user password_configured=true' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'aqua_installer_summary_destructive_acknowledgement=true' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_summary_confirmation_applied=true' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_summary_target_device=/dev/vdb' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'installer-welcome' crates/aqua-compositor/src/main.rs
+grep -Fq 'snapshot.keyboard_event_count >= 106' crates/aqua-compositor/src/main.rs
+grep -Fq '.any(|surface| surface.commit_count >= 38)' crates/aqua-compositor/src/main.rs
+grep -Fq 'DestructiveAcknowledgementRequired' crates/aqua-installer/src/lib.rs
 grep -Fq 'CONFIG_VFAT_FS=y' br2-external/aqua/board/aqua/x86_64/linux.config
 grep -Fq 'installer_qemu_transaction = "a second exact opt-in executes' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'installer_failure_cleanup = "an exact QEMU-only AFTER_EFI_MOUNT injection' docs/aqua-linux/compositor-foundation.toml
@@ -1561,7 +1566,7 @@ grep -Fq 'pub fn typography_fixture_report' crates/aqua-text/src/lib.rs
 grep -Fq 'noto-sans-arabic-regular-2.009' docs/aqua-linux/typography-fixtures.txt
 grep -Fq 'pub fn typography_layout_acceptance_report' crates/aqua-renderer/src/lib.rs
 grep -Fq 'aqua-typography-layout-fixtures-1' docs/aqua-linux/typography-layout-fixtures.txt
-grep -Fq 'aqua-component-fixtures-17' docs/aqua-linux/component-fixtures.txt
+grep -Fq 'aqua-component-fixtures-18' docs/aqua-linux/component-fixtures.txt
 test -f docs/aqua-linux/component-catalog.md
 grep -Fq 'Window frame and title bar | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Top system bar | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
@@ -1578,6 +1583,7 @@ grep -Fq 'Confirmation dialog | Shared packaged-QEMU-proven primitive' docs/aqua
 grep -Fq 'Standard button | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Icon button | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Search field | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Checkbox | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Switch | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Segmented control | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Toolbar | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
@@ -1597,6 +1603,7 @@ grep -Fq 'pub struct RunningAppDock' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct WorkspaceSwitcher' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct NotificationToast' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct ConfirmationDialog' crates/aqua-components/src/lib.rs
+grep -Fq 'pub struct Checkbox' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct SwitchControl' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct SegmentedControl' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct Toolbar' crates/aqua-components/src/lib.rs
@@ -1604,6 +1611,7 @@ grep -Fq 'pub struct SidebarNavigation' crates/aqua-components/src/lib.rs
 grep -Fq 'aqua-components = { path = "../aqua-components" }' crates/aqua-shell/Cargo.toml
 grep -Fq 'aqua-components = { path = "../aqua-components" }' crates/aqua-renderer/Cargo.toml
 grep -Fq 'aqua-components = { path = "../aqua-components" }' crates/aqua-compositor/Cargo.toml
+grep -Fq 'aqua-components = { path = "../aqua-components" }' crates/aqua-installer/Cargo.toml
 grep -Fq 'pub fn first_party_window_action(' crates/aqua-compositor/src/lib.rs
 grep -Fq 'WindowFrame::new(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'StandardButton::new(' crates/aqua-renderer/src/lib.rs
@@ -1625,8 +1633,8 @@ grep -Fq 'model.theme_segmented_control()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=typography-acceptance' scripts/check-typography-wayland-qemu.exp
 grep -Fq 'typography_wayland_surface_ready=true' scripts/check-typography-wayland-qemu.sh
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=component-acceptance' scripts/check-component-wayland-qemu.exp
-grep -Fq 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-17' scripts/check-component-wayland-qemu.sh
-grep -Fq 'component_wayland_shared_primitive_count=20' scripts/check-component-wayland-qemu.sh
+grep -Fq 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-18' scripts/check-component-wayland-qemu.sh
+grep -Fq 'component_wayland_shared_primitive_count=21' scripts/check-component-wayland-qemu.sh
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=elevation-acceptance' scripts/check-elevation-wayland-qemu.exp
 grep -Fq 'elevation_wayland_focused_surface_count=1' scripts/check-elevation-wayland-qemu.sh
 grep -Fq 'gpu_shadow_damage_rects=2' scripts/check-elevation-wayland-qemu.sh

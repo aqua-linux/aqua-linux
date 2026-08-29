@@ -94,6 +94,7 @@ impl SharedComponentKind {
                 | Self::SearchField
                 | Self::StandardButton
                 | Self::IconButton
+                | Self::Checkbox
                 | Self::Switch
                 | Self::ListRow
                 | Self::GridCell
@@ -161,6 +162,7 @@ impl ComponentState {
         Self::Success,
         Self::Attention,
     ];
+    pub const CHECKBOX_STATES: [Self; 9] = Self::SWITCH_STATES;
     pub const SEGMENTED_CONTROL_STATES: [Self; 9] = Self::SWITCH_STATES;
 
     pub const fn id(self) -> &'static str {
@@ -641,6 +643,99 @@ pub struct SwitchAccessibility<'a> {
     pub checked: bool,
     pub disabled: bool,
     pub busy: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckboxSlots {
+    pub indicator: Rect,
+    pub label: Rect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Checkbox<'a> {
+    pub rect: Rect,
+    pub label: &'a str,
+    pub checked: bool,
+    pub state: ComponentState,
+}
+
+impl<'a> Checkbox<'a> {
+    pub const fn new(rect: Rect, label: &'a str, checked: bool) -> Self {
+        Self {
+            rect,
+            label,
+            checked,
+            state: ComponentState::Idle,
+        }
+    }
+
+    pub const fn with_state(mut self, state: ComponentState) -> Self {
+        self.state = state;
+        self
+    }
+
+    pub const fn slots(self) -> CheckboxSlots {
+        let inset = 4;
+        let size = 20;
+        let gap = 8;
+        let indicator = Rect {
+            x: self.rect.x.saturating_add(inset),
+            y: self
+                .rect
+                .y
+                .saturating_add(self.rect.height.saturating_sub(size) / 2),
+            width: size,
+            height: size,
+        };
+        CheckboxSlots {
+            indicator,
+            label: Rect {
+                x: indicator.right().saturating_add(gap),
+                y: self.rect.y,
+                width: self
+                    .rect
+                    .right()
+                    .saturating_sub(indicator.right().saturating_add(gap)),
+                height: self.rect.height,
+            },
+        }
+    }
+
+    pub const fn focus_rect(self) -> Rect {
+        expanded_rect(self.rect, 2)
+    }
+
+    pub const fn is_valid(self) -> bool {
+        let slots = self.slots();
+        !self.label.is_empty()
+            && self.rect.width >= 52
+            && self.rect.height >= 28
+            && slots.indicator.width == 20
+            && slots.indicator.height == 20
+            && slots.label.width > 0
+    }
+
+    pub const fn can_toggle(self) -> bool {
+        self.is_valid() && self.state.can_activate()
+    }
+
+    pub const fn pointer_toggles(self, x: u32, y: u32) -> bool {
+        self.can_toggle() && rect_contains(self.rect, x, y)
+    }
+
+    pub const fn keyboard_toggles(self, key: ActivationKey) -> bool {
+        self.can_toggle() && matches!(key, ActivationKey::Enter | ActivationKey::Space)
+    }
+
+    pub const fn accessibility(self) -> SwitchAccessibility<'a> {
+        SwitchAccessibility {
+            role: "checkbox",
+            name: self.label,
+            checked: self.checked,
+            disabled: matches!(self.state, ComponentState::Disabled),
+            busy: matches!(self.state, ComponentState::Loading),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3128,7 +3223,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_tracks_the_twenty_shared_primitives() {
+    fn catalog_tracks_the_twenty_one_shared_primitives() {
         assert_eq!(SharedComponentKind::ALL.len(), 22);
         assert_eq!(
             SharedComponentKind::ALL
@@ -3144,6 +3239,7 @@ mod tests {
                 SharedComponentKind::SearchField,
                 SharedComponentKind::StandardButton,
                 SharedComponentKind::IconButton,
+                SharedComponentKind::Checkbox,
                 SharedComponentKind::Switch,
                 SharedComponentKind::Menu,
                 SharedComponentKind::ListRow,
@@ -3218,16 +3314,49 @@ mod tests {
             let row = ListRow::new(rect, "Item", ListRowRole::Option).with_state(state);
             let cell = GridCell::new(rect, "Item", GridCellLayout::IconLeading).with_state(state);
             let switch = SwitchControl::new(rect, "Setting", false).with_state(state);
+            let checkbox = Checkbox::new(rect, "Acknowledge", false).with_state(state);
             let segmented = SegmentedControl::new(rect, "Theme", 3, 0).with_state(state);
             assert!(!button.pointer_hit(11, 21));
             assert!(!row.pointer_hit(11, 21));
             assert!(!cell.pointer_hit(11, 21));
             assert!(!switch.pointer_toggles(11, 21));
+            assert!(!checkbox.pointer_toggles(11, 21));
             assert_eq!(segmented.hit_test(11, 21), None);
             assert!(!button.keyboard_activates(ActivationKey::Enter));
             assert!(!row.keyboard_activates(ActivationKey::Space));
             assert!(!cell.keyboard_activates(ActivationKey::Space));
+            assert!(!checkbox.keyboard_toggles(ActivationKey::Space));
         }
+    }
+
+    #[test]
+    fn checkbox_owns_stable_indicator_label_input_and_semantics() {
+        let checkbox = Checkbox::new(
+            Rect {
+                x: 20,
+                y: 40,
+                width: 280,
+                height: 36,
+            },
+            "I understand the target disk will be erased",
+            true,
+        )
+        .with_state(ComponentState::KeyboardFocus);
+        let slots = checkbox.slots();
+        assert_eq!(slots.indicator.width, 20);
+        assert_eq!(slots.indicator.height, 20);
+        assert!(slots.indicator.right() < slots.label.x);
+        assert_eq!(slots.label.right(), checkbox.rect.right());
+        assert!(checkbox.pointer_toggles(checkbox.rect.x, checkbox.rect.y));
+        assert!(!checkbox.pointer_toggles(checkbox.rect.right(), checkbox.rect.y));
+        assert!(checkbox.keyboard_toggles(ActivationKey::Space));
+        assert!(checkbox.keyboard_toggles(ActivationKey::Enter));
+        let semantics = checkbox.accessibility();
+        assert_eq!(semantics.role, "checkbox");
+        assert_eq!(semantics.name, checkbox.label);
+        assert!(semantics.checked);
+        assert!(!semantics.disabled);
+        assert!(!semantics.busy);
     }
 
     #[test]
@@ -3245,6 +3374,7 @@ mod tests {
         let icon = IconButton::new(rect, "", IconButtonGlyph::Back);
         let search = SearchField::new(rect, "", "", "Search");
         let switch = SwitchControl::new(rect, "", false);
+        let checkbox = Checkbox::new(rect, "", false);
         let segmented = SegmentedControl::new(rect, "", 3, 0);
         let toolbar = Toolbar::new(rect, "");
         let navigation = SidebarNavigation::new(rect, "", rect, 40);
@@ -3280,6 +3410,7 @@ mod tests {
         assert!(!icon.can_activate());
         assert!(!search.accepts_input());
         assert!(!switch.can_toggle());
+        assert!(!checkbox.can_toggle());
         assert!(!segmented.is_valid());
         assert!(!toolbar.is_valid());
         assert!(!navigation.is_valid());

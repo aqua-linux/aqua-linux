@@ -4365,7 +4365,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         snapshots[0].sample_checksum
                     );
                     println!("component_wayland_catalog_count=22");
-                    println!("component_wayland_shared_primitive_count=20");
+                    println!("component_wayland_shared_primitive_count=21");
                 } else {
                     if elevation_scenario {
                         let focused = snapshots
@@ -4982,14 +4982,14 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                     let _ = std::io::stdout().flush();
                                 }
                                 let snapshot = smithay_session.borrow().input_snapshot();
-                                let installer_ready = snapshot.keyboard_event_count >= 98
-                                    && snapshot.keyboard_forward_count >= 98
+                                let installer_ready = snapshot.keyboard_event_count >= 106
+                                    && snapshot.keyboard_forward_count >= 106
                                     && source.keyboard_devices >= 1
                                     && smithay_session
                                         .borrow()
                                         .client_surface_snapshots()
                                         .iter()
-                                        .any(|surface| surface.commit_count >= 37);
+                                        .any(|surface| surface.commit_count >= 38);
                                 if installer_ready {
                                     println!("installer_wayland_input_sequence_complete=true");
                                     let _ = std::io::stdout().flush();
@@ -5372,14 +5372,14 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     }
                     let snapshot = smithay_session.borrow().input_snapshot();
                     let ready = if installer_scenario {
-                        snapshot.keyboard_event_count >= 98
-                            && snapshot.keyboard_forward_count >= 98
+                        snapshot.keyboard_event_count >= 106
+                            && snapshot.keyboard_forward_count >= 106
                             && source.keyboard_devices >= 1
                             && smithay_session
                                 .borrow()
                                 .client_surface_snapshots()
                                 .iter()
-                                .any(|surface| surface.commit_count >= 37)
+                                .any(|surface| surface.commit_count >= 38)
                     } else {
                         snapshot.keyboard_event_count >= 1
                             && snapshot.pointer_motion_count >= 1

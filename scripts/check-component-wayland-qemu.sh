@@ -57,14 +57,14 @@ need_marker() {
 }
 
 need_marker '[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh'
-need_marker 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-17'
+need_marker 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-18'
 need_marker 'aqua_component_acceptance_catalog=22'
-need_marker 'aqua_component_acceptance_shared=20'
+need_marker 'aqua_component_acceptance_shared=21'
 need_marker 'aqua_component_acceptance_ready=true'
 need_marker 'component_wayland_surface_ready=true'
 need_marker 'component_wayland_surface_size=1280x800'
 need_marker 'component_wayland_catalog_count=22'
-need_marker 'component_wayland_shared_primitive_count=20'
+need_marker 'component_wayland_shared_primitive_count=21'
 need_marker 'component_wayland_shell_chrome_visible=false'
 need_marker 'session_scenario=component-acceptance'
 need_marker 'component_wayland_client_started=true'

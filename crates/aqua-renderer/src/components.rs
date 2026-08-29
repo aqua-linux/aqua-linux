@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-17";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-18";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -296,6 +296,104 @@ pub(crate) fn draw_switch_control(
     } else {
         3
     }
+}
+
+pub(crate) fn draw_checkbox(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    checkbox: Checkbox<'_>,
+    theme: AquaTheme,
+    scale: OutputScale,
+) -> usize {
+    let palette = window_chrome_palette(theme);
+    let slots = checkbox.slots();
+    let surface = match checkbox.state {
+        ComponentState::Disabled | ComponentState::Loading => palette.row_alternate,
+        ComponentState::Error => [0xc9, 0x3c, 0x47, 0xff],
+        ComponentState::Success => [0x2c, 0x8a, 0x59, 0xff],
+        ComponentState::Attention => [0xd1, 0x8b, 0x24, 0xff],
+        ComponentState::Hover | ComponentState::Pressed if checkbox.checked => palette.accent_soft,
+        _ if checkbox.checked => palette.accent,
+        ComponentState::Hover | ComponentState::Pressed => palette.hover,
+        _ => palette.field,
+    };
+    fill_rounded_rect(buffer, width, height, slots.indicator, 4, surface, 245);
+    draw_rect_outline(buffer, width, height, slots.indicator, palette.border, 240);
+    let mut primitives = 2;
+    if checkbox.checked {
+        let mark = Rect {
+            x: slots.indicator.x + 5,
+            y: slots.indicator.y + 5,
+            width: 10,
+            height: 10,
+        };
+        fill_rect(
+            buffer,
+            width,
+            height,
+            Rect {
+                x: mark.x,
+                y: mark.y + 5,
+                width: 4,
+                height: 3,
+            },
+            palette.field,
+            255,
+        );
+        fill_rect(
+            buffer,
+            width,
+            height,
+            Rect {
+                x: mark.x + 3,
+                y: mark.y + 3,
+                width: 3,
+                height: 6,
+            },
+            palette.field,
+            255,
+        );
+        fill_rect(
+            buffer,
+            width,
+            height,
+            Rect {
+                x: mark.x + 5,
+                y: mark.y + 1,
+                width: 5,
+                height: 3,
+            },
+            palette.field,
+            255,
+        );
+        primitives += 3;
+    }
+    draw_fitted_bitmap_text(
+        buffer,
+        (width, height),
+        slots.label,
+        checkbox.label,
+        if matches!(checkbox.state, ComponentState::Disabled) {
+            palette.secondary_text
+        } else {
+            palette.text
+        },
+        FittedTextOptions::new(TextRole::Control, scale, false),
+    );
+    primitives += 1;
+    if checkbox.state == ComponentState::KeyboardFocus {
+        draw_rect_outline(
+            buffer,
+            width,
+            height,
+            checkbox.focus_rect(),
+            palette.accent,
+            220,
+        );
+        primitives += 1;
+    }
+    primitives
 }
 
 pub(crate) fn draw_segmented_control(
@@ -933,6 +1031,7 @@ pub struct ComponentAcceptanceProbe {
     pub search_field_state_count: usize,
     pub segmented_control_state_count: usize,
     pub switch_state_count: usize,
+    pub checkbox_state_count: usize,
     pub sidebar_row_count: usize,
     pub toolbar_ready: bool,
     pub window_frame_ready: bool,
@@ -961,6 +1060,7 @@ impl ComponentAcceptanceProbe {
             && self.search_field_state_count == ComponentState::SEARCH_FIELD_STATES.len()
             && self.segmented_control_state_count == ComponentState::SEGMENTED_CONTROL_STATES.len()
             && self.switch_state_count == ComponentState::SWITCH_STATES.len()
+            && self.checkbox_state_count == ComponentState::CHECKBOX_STATES.len()
             && self.sidebar_row_count == ComponentState::LIST_ROW_STATES.len()
             && self.toolbar_ready
             && self.window_frame_ready
@@ -1331,6 +1431,43 @@ pub fn render_component_acceptance_rgba(
             input_semantics &= switch.keyboard_toggles(ActivationKey::Space) == switch.can_toggle();
             let semantics = switch.accessibility();
             accessibility_semantics &= semantics.role == "switch"
+                && !semantics.name.is_empty()
+                && semantics.checked == (index % 2 == 0)
+                && semantics.disabled == (control_state == ComponentState::Disabled)
+                && semantics.busy == (control_state == ComponentState::Loading);
+        }
+
+        if let Some(control_state) = ComponentState::CHECKBOX_STATES.get(index).copied() {
+            let checkbox = Checkbox::new(
+                Rect {
+                    x: rect.x.saturating_add(4),
+                    y: rect.y.saturating_add(5),
+                    width: 122,
+                    height: 28,
+                },
+                control_state.id(),
+                index % 2 == 0,
+            )
+            .with_state(control_state);
+            draw_checkbox(
+                &mut buffer,
+                viewport.width,
+                viewport.height,
+                checkbox,
+                theme,
+                scale,
+            );
+            let slots = checkbox.slots();
+            stable_geometry &= checkbox.is_valid()
+                && slots.indicator.fits_in(viewport)
+                && slots.label.fits_in(viewport)
+                && slots.indicator.right() < slots.label.x;
+            input_semantics &=
+                checkbox.pointer_toggles(checkbox.rect.x, checkbox.rect.y) == checkbox.can_toggle();
+            input_semantics &=
+                checkbox.keyboard_toggles(ActivationKey::Space) == checkbox.can_toggle();
+            let semantics = checkbox.accessibility();
+            accessibility_semantics &= semantics.role == "checkbox"
                 && !semantics.name.is_empty()
                 && semantics.checked == (index % 2 == 0)
                 && semantics.disabled == (control_state == ComponentState::Disabled)
@@ -1887,6 +2024,7 @@ pub fn render_component_acceptance_rgba(
         search_field_state_count: ComponentState::SEARCH_FIELD_STATES.len(),
         segmented_control_state_count: ComponentState::SEGMENTED_CONTROL_STATES.len(),
         switch_state_count: ComponentState::SWITCH_STATES.len(),
+        checkbox_state_count: ComponentState::CHECKBOX_STATES.len(),
         sidebar_row_count: ComponentState::LIST_ROW_STATES.len(),
         toolbar_ready,
         window_frame_ready,
@@ -1927,7 +2065,7 @@ pub fn component_acceptance_report() -> String {
             let (_, probe) = render_component_acceptance_rgba(viewport, theme, scale)
                 .expect("supported component acceptance viewport");
             lines.push(format!(
-                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,confirmation-dialog,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} global_search_ready={} running_app_dock_ready={} workspace_switcher_ready={} notification_ready={} confirmation_dialog_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
+                "components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,checkbox,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,confirmation-dialog,sidebar-navigation,toolbar viewport={}x{} scale={}/{} theme={} button_states={} icon_button_states={} search_field_states={} checkbox_states={} switch_states={} segmented_control_states={} list_row_states={} grid_cell_states={} sidebar_rows={} toolbar_ready={} window_frame_ready={} menu_ready={} section_group_ready={} metadata_row_ready={} top_system_bar_ready={} application_overview_ready={} global_search_ready={} running_app_dock_ready={} workspace_switcher_ready={} notification_ready={} confirmation_dialog_ready={} stable_geometry={} input_semantics={} accessibility_semantics={} ready={} checksum={:016x}",
                 viewport.width,
                 viewport.height,
                 scale.numerator(),
@@ -1936,6 +2074,7 @@ pub fn component_acceptance_report() -> String {
                 probe.button_state_count,
                 probe.icon_button_state_count,
                 probe.search_field_state_count,
+                probe.checkbox_state_count,
                 probe.switch_state_count,
                 probe.segmented_control_state_count,
                 probe.list_row_state_count,
@@ -1986,6 +2125,7 @@ mod tests {
                 SharedComponentKind::SearchField,
                 SharedComponentKind::StandardButton,
                 SharedComponentKind::IconButton,
+                SharedComponentKind::Checkbox,
                 SharedComponentKind::Switch,
                 SharedComponentKind::Menu,
                 SharedComponentKind::ListRow,
@@ -2040,7 +2180,7 @@ mod tests {
         assert_eq!(first, component_acceptance_report());
         assert_eq!(
             first
-                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,confirmation-dialog,sidebar-navigation,toolbar")
+                .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,checkbox,switch,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,confirmation-dialog,sidebar-navigation,toolbar")
                 .count(),
             12
         );

@@ -9,6 +9,7 @@ rust-version.workspace = true
 path = "src/lib.rs"
 
 [dependencies]
+aqua-components = { path = "../aqua-components" }
 aqua-scene = { path = "../aqua-scene" }
 sha2 = "0.10.9"
 
