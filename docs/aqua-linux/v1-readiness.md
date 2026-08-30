@@ -121,11 +121,15 @@ shell state change, process event, session action, motion, or repaint request.
 Real activity resets the settled state. Once settled, a repaint without an
 external cause is counted as an idle violation and an active motion timer is
 reported separately; the normal bounded event wait is not classified as a
-repaint. The bounded event snapshot is emitted only after clean CRTC restoration
-and is explicitly marked
+repaint. The observation window uses monotonic elapsed time, CPU cost uses the
+process CPU clock, and bounded Linux `VmRSS` samples retain the highest resident
+set observed during the workload so a transient increase is not hidden by a
+lower final reading. CPU time and peak RSS growth are attached to the same event
+snapshot. The bounded event snapshot is emitted only after clean CRTC
+restoration and is explicitly marked
 `r2_presentation_acceptance_complete=false`. Packaged QEMU runs still need to
-connect CPU and memory observations, select fixed project budgets, cover all
-four workloads, and isolate diagnostic readback before R2 can pass.
+select fixed project budgets, cover all four workloads, and isolate diagnostic
+readback before R2 can pass.
 
 ### R3: Wayland Compatibility And Display Behavior
 

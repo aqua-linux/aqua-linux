@@ -116,6 +116,9 @@ pub struct PresentationEventSnapshot {
     pub cpu_framebuffer_copies: u32,
     pub max_frame_time_us: Option<u32>,
     pub max_input_to_present_us: Option<u32>,
+    pub observation_window_ms: Option<u32>,
+    pub cpu_time_us: Option<u64>,
+    pub memory_growth_kib: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -173,6 +176,9 @@ pub struct PresentationTelemetry {
     max_frame_time_us: Option<u32>,
     max_input_to_present_us: Option<u32>,
     input_to_present_samples: u32,
+    observation_window_ms: Option<u32>,
+    cpu_time_us: Option<u64>,
+    memory_growth_kib: Option<u64>,
 }
 
 impl PresentationTelemetry {
@@ -199,6 +205,9 @@ impl PresentationTelemetry {
             max_frame_time_us: None,
             max_input_to_present_us: None,
             input_to_present_samples: 0,
+            observation_window_ms: None,
+            cpu_time_us: None,
+            memory_growth_kib: None,
         }
     }
 
@@ -277,15 +286,28 @@ impl PresentationTelemetry {
         Ok(())
     }
 
+    pub fn record_resource_observation(
+        &mut self,
+        observation_window_ms: u32,
+        cpu_time_us: u64,
+        memory_growth_kib: u64,
+    ) -> Result<(), PresentationTelemetryError> {
+        if observation_window_ms == 0 {
+            return Err(PresentationTelemetryError::InvalidObservationWindow);
+        }
+        self.observation_window_ms = Some(observation_window_ms);
+        self.cpu_time_us = Some(cpu_time_us);
+        self.memory_growth_kib = Some(memory_growth_kib);
+        Ok(())
+    }
+
     pub fn finish(
-        self,
+        mut self,
         observation_window_ms: u32,
         cpu_time_us: u64,
         memory_growth_kib: u64,
     ) -> Result<PresentationSample, PresentationTelemetryError> {
-        if observation_window_ms == 0 {
-            return Err(PresentationTelemetryError::InvalidObservationWindow);
-        }
+        self.record_resource_observation(observation_window_ms, cpu_time_us, memory_growth_kib)?;
         if self.frames_requested == 0
             || self.frames_presented.checked_add(self.dropped_frames) != Some(self.frames_requested)
         {
@@ -295,7 +317,7 @@ impl PresentationTelemetry {
             target: self.target,
             path: self.path,
             workload: self.workload,
-            observation_window_ms,
+            observation_window_ms: self.observation_window_ms.unwrap_or_default(),
             frames_requested: self.frames_requested,
             frames_presented: self.frames_presented,
             dropped_frames: self.dropped_frames,
@@ -309,8 +331,8 @@ impl PresentationTelemetry {
             repeating_repaint_timer_after_settle: self.repeating_repaint_timer_after_settle,
             max_frame_time_us: self.max_frame_time_us,
             max_input_to_present_us: self.max_input_to_present_us,
-            cpu_time_us: Some(cpu_time_us),
-            memory_growth_kib: Some(memory_growth_kib),
+            cpu_time_us: self.cpu_time_us,
+            memory_growth_kib: self.memory_growth_kib,
         })
     }
 
@@ -331,6 +353,9 @@ impl PresentationTelemetry {
             cpu_framebuffer_copies: self.cpu_framebuffer_copies,
             max_frame_time_us: self.max_frame_time_us,
             max_input_to_present_us: self.max_input_to_present_us,
+            observation_window_ms: self.observation_window_ms,
+            cpu_time_us: self.cpu_time_us,
+            memory_growth_kib: self.memory_growth_kib,
         }
     }
 
@@ -609,6 +634,13 @@ mod tests {
         assert_eq!(idle_snapshot.settled_idle_observations, 1);
         assert_eq!(idle_snapshot.settled_idle_repaints, 0);
         assert!(!idle_snapshot.repeating_repaint_timer_after_settle);
+        telemetry
+            .record_resource_observation(1_000, 90_000, 128)
+            .unwrap();
+        let resource_snapshot = telemetry.event_snapshot();
+        assert_eq!(resource_snapshot.observation_window_ms, Some(1_000));
+        assert_eq!(resource_snapshot.cpu_time_us, Some(90_000));
+        assert_eq!(resource_snapshot.memory_growth_kib, Some(128));
         telemetry.record_frame_requested().unwrap();
         telemetry.record_dropped_frame().unwrap();
 

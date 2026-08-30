@@ -3826,6 +3826,68 @@ fn input_to_present_latency_us(event_time_us: u64, presented_time_us: u64) -> Re
         .map_err(|_| "input-to-present latency exceeds telemetry range".to_string())
 }
 
+#[cfg(any(all(target_os = "linux", feature = "smithay-smoke"), test))]
+fn parse_proc_status_rss_kib(status: &str) -> Result<u64, String> {
+    const MAX_RSS_KIB: u64 = 1 << 40;
+    let line = status
+        .lines()
+        .find(|line| line.starts_with("VmRSS:"))
+        .ok_or_else(|| "process status does not contain VmRSS".to_string())?;
+    let mut fields = line.split_ascii_whitespace();
+    if fields.next() != Some("VmRSS:") {
+        return Err("process VmRSS label is invalid".to_string());
+    }
+    let value = fields
+        .next()
+        .ok_or_else(|| "process VmRSS value is missing".to_string())?
+        .parse::<u64>()
+        .map_err(|_| "process VmRSS value is invalid".to_string())?;
+    if fields.next() != Some("kB") || fields.next().is_some() || value > MAX_RSS_KIB {
+        return Err("process VmRSS record is invalid or unbounded".to_string());
+    }
+    Ok(value)
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn process_resident_memory_kib() -> Result<u64, String> {
+    const MAX_STATUS_BYTES: u64 = 64 * 1024;
+    let mut status = String::new();
+    File::open("/proc/self/status")
+        .map_err(|error| format!("cannot open process status: {error}"))?
+        .take(MAX_STATUS_BYTES + 1)
+        .read_to_string(&mut status)
+        .map_err(|error| format!("cannot read process status: {error}"))?;
+    if status.len() as u64 > MAX_STATUS_BYTES {
+        return Err("process status exceeds telemetry limit".to_string());
+    }
+    parse_proc_status_rss_kib(&status)
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn process_cpu_time_us() -> Result<u64, String> {
+    let mut time = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    if unsafe { libc::clock_gettime(libc::CLOCK_PROCESS_CPUTIME_ID, &mut time) } != 0 {
+        return Err(format!(
+            "cannot read process CPU clock: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    let seconds = u64::try_from(time.tv_sec)
+        .map_err(|_| "process CPU clock returned negative seconds".to_string())?;
+    let nanoseconds = u64::try_from(time.tv_nsec)
+        .map_err(|_| "process CPU clock returned negative nanoseconds".to_string())?;
+    if nanoseconds >= 1_000_000_000 {
+        return Err("process CPU clock returned invalid nanoseconds".to_string());
+    }
+    seconds
+        .checked_mul(1_000_000)
+        .and_then(|value| value.checked_add(nanoseconds / 1_000))
+        .ok_or_else(|| "process CPU clock exceeds telemetry range".to_string())
+}
+
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 fn monotonic_time_us() -> Result<u64, String> {
     let mut time = libc::timespec {
@@ -4733,6 +4795,28 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     let r2_pending_input_time_us = Cell::new(None::<u64>);
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let r2_idle_settled = Cell::new(false);
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let r2_resource_started_at = std::time::Instant::now();
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let r2_cpu_started_us = if r2_presentation_enabled {
+        Some(process_cpu_time_us().unwrap_or_else(|error| {
+            eprintln!("cannot start R2 CPU observation: {error}");
+            std::process::exit(1);
+        }))
+    } else {
+        None
+    };
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let r2_initial_rss_kib = if r2_presentation_enabled {
+        Some(process_resident_memory_kib().unwrap_or_else(|error| {
+            eprintln!("cannot start R2 memory observation: {error}");
+            std::process::exit(1);
+        }))
+    } else {
+        None
+    };
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let r2_max_rss_kib = Cell::new(r2_initial_rss_kib.unwrap_or_default());
 
     let result = present_drm_wayland_page_flip!(
         &device,
@@ -5089,6 +5173,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         let input_event_time_us = source
                             .dispatch_until(&mut smithay_session.borrow_mut(), dispatch_timeout)?;
                         if r2_presentation_enabled {
+                            r2_max_rss_kib
+                                .set(r2_max_rss_kib.get().max(process_resident_memory_kib()?));
                             if let Some(input_event_time_us) = input_event_time_us {
                                 r2_pending_input_time_us.set(Some(
                                     r2_pending_input_time_us
@@ -7212,6 +7298,50 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
         Ok(final_state) => {
             #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
             if r2_presentation_enabled {
+                r2_max_rss_kib.set(r2_max_rss_kib.get().max(
+                    process_resident_memory_kib().unwrap_or_else(|error| {
+                        eprintln!("cannot finalize R2 memory observation: {error}");
+                        std::process::exit(1);
+                    }),
+                ));
+                let observation_window_ms =
+                    u32::try_from(r2_resource_started_at.elapsed().as_millis())
+                        .unwrap_or_else(|_| {
+                            eprintln!("R2 resource observation window exceeds telemetry range");
+                            std::process::exit(1);
+                        })
+                        .max(1);
+                let cpu_time_us = process_cpu_time_us()
+                    .and_then(|current| {
+                        current
+                            .checked_sub(r2_cpu_started_us.unwrap_or_default())
+                            .ok_or_else(|| {
+                                "process CPU clock regressed during R2 observation".to_string()
+                            })
+                    })
+                    .unwrap_or_else(|error| {
+                        eprintln!("cannot finalize R2 CPU observation: {error}");
+                        std::process::exit(1);
+                    });
+                let memory_growth_kib = r2_max_rss_kib
+                    .get()
+                    .saturating_sub(r2_initial_rss_kib.unwrap_or_default());
+                r2_presentation_telemetry
+                    .borrow_mut()
+                    .as_mut()
+                    .unwrap_or_else(|| {
+                        eprintln!("resource observation arrived before DRM telemetry");
+                        std::process::exit(1);
+                    })
+                    .record_resource_observation(
+                        observation_window_ms,
+                        cpu_time_us,
+                        memory_growth_kib,
+                    )
+                    .unwrap_or_else(|error| {
+                        eprintln!("cannot record R2 resource observation: {error}");
+                        std::process::exit(1);
+                    });
                 record_wayland_presentation_counters(
                     &mut r2_presentation_telemetry.borrow_mut(),
                     &mut r2_wayland_counters.borrow_mut(),
@@ -7277,6 +7407,18 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                 println!(
                     "r2_presentation_max_frame_time_us={}",
                     snapshot.max_frame_time_us.unwrap_or_default()
+                );
+                println!(
+                    "r2_presentation_observation_window_ms={}",
+                    snapshot.observation_window_ms.unwrap_or_default()
+                );
+                println!(
+                    "r2_presentation_cpu_time_us={}",
+                    snapshot.cpu_time_us.unwrap_or_default()
+                );
+                println!(
+                    "r2_presentation_memory_growth_kib={}",
+                    snapshot.memory_growth_kib.unwrap_or_default()
                 );
                 println!("r2_presentation_acceptance_complete=false");
             }
@@ -10335,7 +10477,7 @@ mod fbdev_tests {
         bytes_per_pixel, checksum_frame_bytes, client_shadow_damage_rects, decode_png_rgba,
         drm_kms_confirmation_source, drm_wayland_hold_seconds, fbdev_confirmation_source,
         input_to_present_latency_us, opaque_layer_covers_reference_output, pack_rgba_frame,
-        parse_virtual_size, probe_drm_device, r2_presentation_workload,
+        parse_proc_status_rss_kib, parse_virtual_size, probe_drm_device, r2_presentation_workload,
         record_drm_presentation_event, record_live_idle_observation,
         record_wayland_presentation_counters, render_fbdev_frame, with_stride,
         DrmPresentationEvent, WaylandPresentationCounters,
@@ -10449,6 +10591,16 @@ mod fbdev_tests {
         assert_eq!(input_to_present_latency_us(10_000, 10_000).unwrap(), 1);
         assert!(input_to_present_latency_us(10_001, 10_000).is_err());
         assert!(input_to_present_latency_us(0, u64::from(u32::MAX) + 1).is_err());
+    }
+
+    #[test]
+    fn process_rss_parser_requires_one_bounded_kib_record() {
+        let status = "Name:\taqua-compositor\nVmPeak:\t4096 kB\nVmRSS:\t1536 kB\nThreads:\t1\n";
+        assert_eq!(parse_proc_status_rss_kib(status).unwrap(), 1_536);
+        assert!(parse_proc_status_rss_kib("Name:\taqua\n").is_err());
+        assert!(parse_proc_status_rss_kib("VmRSS: 10 MB\n").is_err());
+        assert!(parse_proc_status_rss_kib("VmRSS: 10 kB trailing\n").is_err());
+        assert!(parse_proc_status_rss_kib("VmRSS: 1099511627777 kB\n").is_err());
     }
 
     #[test]

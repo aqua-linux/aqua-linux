@@ -660,6 +660,8 @@ page-flip boundary; the snapshot reports both a bounded sample count and maximum
 input-to-present latency. The idle workload now counts quiet live dispatch
 intervals, resets settling on real input or state activity, and records both
 post-settle repaint violations and repeating motion timers without treating the
-normal bounded event wait as a repaint. The emitted snapshot remains partial
-and cannot satisfy acceptance; packaged QEMU resource, four-workload, budget,
-and diagnostic-isolation evidence remain open.
+normal bounded event wait as a repaint. Monotonic observation duration, process
+CPU-clock consumption, and the maximum bounded Linux `VmRSS` growth sampled
+throughout the workload now complete the live resource bridge. The emitted
+snapshot remains partial and cannot satisfy acceptance; packaged QEMU
+four-workload, budget, and diagnostic-isolation evidence remain open.
