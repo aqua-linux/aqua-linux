@@ -59,11 +59,20 @@ expect {
     eof { puts stderr "QEMU exited before Settings mapped during R2 soak"; exit 1 }
 }
 
-for {set cycle 1} {$cycle <= 10} {incr cycle} {
+for {set cycle 1} {$cycle <= $env(INPUT_CYCLES)} {incr cycle} {
     inject_input public-applications "R2 soak Applications cycle $cycle"
-    after 750
+    expect {
+        -exact {desktop_event_launcher_visible=true} {}
+        timeout { puts stderr "Timed out waiting for Applications repaint during cycle $cycle"; exit 1 }
+        eof { puts stderr "QEMU exited before Applications repaint during cycle $cycle"; exit 1 }
+    }
     inject_input public-launcher-dismiss "R2 soak dismiss cycle $cycle"
-    after 24000
+    expect {
+        -exact {desktop_event_launcher_visible=false} {}
+        timeout { puts stderr "Timed out waiting for launcher-dismiss repaint during cycle $cycle"; exit 1 }
+        eof { puts stderr "QEMU exited before launcher-dismiss repaint during cycle $cycle"; exit 1 }
+    }
+    after $env(INPUT_INTERVAL_MS)
 }
 
 set minimum_end_ms [expr {$soak_started_ms + ($env(SOAK_SECONDS) * 1000) + 5000}]
