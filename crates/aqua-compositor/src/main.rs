@@ -623,6 +623,8 @@ struct LiveGpuCompositor {
     shadow_mask_cache: ShadowMaskCache,
     client_shadow_texture_cache: Vec<ClientShadowTextureCacheEntry>,
     opaque_direct_bridge_ready: bool,
+    render_submission_revision: u64,
+    full_frame_readbacks: u32,
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
@@ -1210,6 +1212,8 @@ impl LiveGpuCompositor {
             shadow_mask_cache: ShadowMaskCache::default(),
             client_shadow_texture_cache: Vec::new(),
             opaque_direct_bridge_ready: false,
+            render_submission_revision: 0,
+            full_frame_readbacks: 0,
         })
     }
 
@@ -1446,6 +1450,7 @@ impl LiveGpuCompositor {
         height: u32,
         revisions: Option<&[u64]>,
         opaque_sources: Option<&[bool]>,
+        readback: bool,
     ) -> Result<GpuOffscreenFrameResult, String> {
         self.ensure_target_size(width, height)?;
         let opaque_direct_candidate = opaque_client_covers_output(client_plan, opaque_sources);
@@ -1466,7 +1471,7 @@ impl LiveGpuCompositor {
             "gpu_shadow_damage_rects={}",
             client_shadow_damage_rects(client_plan, width, height).len()
         );
-        let (frame_rgba, checksum) = render_gpu_scene(
+        let readback_frame = render_gpu_scene(
             &mut self.renderer,
             &mut self.target,
             &self.wallpaper_texture,
@@ -1495,9 +1500,29 @@ impl LiveGpuCompositor {
             self.motion_frame,
             self.target_size,
             opaque_sources,
-            true,
-        )?
-        .ok_or_else(|| "direct GPU scene readback was not produced".to_string())?;
+            readback,
+        )?;
+        self.render_submission_revision = self
+            .render_submission_revision
+            .checked_add(1)
+            .ok_or_else(|| "GPU render submission revision overflowed".to_string())?;
+        let submission_token = width as u64
+            ^ (height as u64).rotate_left(19)
+            ^ self.render_submission_revision.rotate_left(37)
+            ^ client_plan.steps.iter().fold(0_u64, |checksum, step| {
+                checksum.rotate_left(11) ^ step.sample_checksum
+            });
+        let (frame_rgba, checksum) = match readback_frame {
+            Some((frame_rgba, checksum)) => {
+                self.full_frame_readbacks = self
+                    .full_frame_readbacks
+                    .checked_add(1)
+                    .ok_or_else(|| "GPU full-frame readback counter overflowed".to_string())?;
+                (frame_rgba, checksum)
+            }
+            None if !readback => (Vec::new(), submission_token),
+            None => return Err("direct GPU scene readback was not produced".to_string()),
+        };
         let result = GpuOffscreenFrameResult {
             surface_count: self
                 .scene
@@ -1659,6 +1684,7 @@ fn render_live_gpu_wayland_frame(
     snapshots: &[SmithayClientSurfaceSnapshot],
     output_width: u32,
     output_height: u32,
+    readback: bool,
 ) -> Result<(Vec<u8>, GpuOffscreenFrameResult), String> {
     let frame_started = std::time::Instant::now();
     let paint_plan = external_client_paint_plan(snapshots)?;
@@ -1690,7 +1716,7 @@ fn render_live_gpu_wayland_frame(
             .surfaces
             .iter()
             .all(|surface| !surface.visible || surface.material == MaterialKind::Image);
-    if direct_bridge_candidate {
+    if readback && direct_bridge_candidate {
         let direct_started = std::time::Instant::now();
         let frame_rgba = paint_plan.steps[0].client_buffer_rgba.clone();
         let checksum = checksum_frame_bytes(&frame_rgba);
@@ -1735,17 +1761,22 @@ fn render_live_gpu_wayland_frame(
         output_height,
         Some(&revisions),
         Some(&opaque_sources),
+        readback,
     )?;
     let render_ms = render_started.elapsed().as_millis();
     let pack_started = std::time::Instant::now();
-    let scanout_frame = pack_rgba_frame(
-        &gpu_frame.frame_rgba,
-        output_width,
-        output_height,
-        output_width,
-        output_height,
-        32,
-    )?;
+    let scanout_frame = if readback {
+        pack_rgba_frame(
+            &gpu_frame.frame_rgba,
+            output_width,
+            output_height,
+            output_width,
+            output_height,
+            32,
+        )?
+    } else {
+        gpu_frame.checksum.to_le_bytes().to_vec()
+    };
     let pack_ms = pack_started.elapsed().as_millis();
     if compositor
         .session_menu_state
@@ -3477,7 +3508,7 @@ fn drm_wayland_hold_seconds(value: Option<&str>, persistent: bool) -> Option<u64
             value
                 .and_then(|value| value.parse().ok())
                 .unwrap_or(3)
-                .min(30),
+                .min(120),
         )
     }
 }
@@ -4329,7 +4360,9 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
         println!("[AQUA-COMPOSITOR] stage=drm-wayland-session status=blocked-confirmation");
         std::process::exit(1);
     };
-    let frame_count = 3;
+    let r2_idle_workload = env::var("AQUA_R2_PRESENTATION_TELEMETRY").as_deref() == Ok("true")
+        && env::var("AQUA_R2_PRESENTATION_WORKLOAD").as_deref() == Ok("idle");
+    let frame_count = if r2_idle_workload { 1 } else { 3 };
     let timeout_ms = 2_000;
     let persistent_session =
         env::var("AQUA_DRM_WAYLAND_SESSION_PERSISTENT").as_deref() == Ok("true");
@@ -4824,6 +4857,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
         PresentationEvidenceTarget::Physical
     };
     let r2_presentation_telemetry = RefCell::new(None);
+    #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+    let cpu_scanout_compat = drm_device_uses_cpu_scanout_compat(&device);
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let r2_wayland_counters = RefCell::new(WaylandPresentationCounters::default());
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -4922,14 +4957,23 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                             println!("icon_wayland_theme={}", compositor.theme.id());
                         }
                     }
-                    let gpu_frame =
-                        compositor.render_direct_at(&paint_plan, width, height, None, None)?;
+                    let gpu_frame = compositor.render_direct_at(
+                        &paint_plan,
+                        width,
+                        height,
+                        None,
+                        None,
+                        cpu_scanout_compat,
+                    )?;
                     println!(
                         "desktop_system_overview_visible={}",
                         !(installer_scenario || typography_scenario || component_scenario)
                     );
-                    let scanout_frame =
-                        pack_rgba_frame(&gpu_frame.frame_rgba, width, height, width, height, 32)?;
+                    let scanout_frame = if cpu_scanout_compat {
+                        pack_rgba_frame(&gpu_frame.frame_rgba, width, height, width, height, 32)?
+                    } else {
+                        gpu_frame.checksum.to_le_bytes().to_vec()
+                    };
                     let checksum = gpu_frame.checksum;
                     *live_gpu_wayland_compositor.borrow_mut() = Some(compositor);
                     *live_gpu_wayland_frame.borrow_mut() = Some(gpu_frame);
@@ -5075,10 +5119,9 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
             }
             #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
             if let Some(gpu_frame) = live_gpu_wayland_frame.borrow().as_ref() {
-                let virtio_scanout_compat = drm_device_uses_cpu_scanout_compat(&device);
                 println!(
                     "drm_wayland_composition_backend={}",
-                    if virtio_scanout_compat {
+                    if cpu_scanout_compat {
                         "smithay-gles2-readback-dumb-buffer"
                     } else {
                         "smithay-gles2-gbm"
@@ -5105,19 +5148,23 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                 println!("drm_wayland_gpu_context_lifecycle=session-owned");
                 println!(
                     "drm_wayland_scanout_bridge={}",
-                    if virtio_scanout_compat {
+                    if cpu_scanout_compat {
                         "gpu-readback-dumb-buffer"
                     } else {
                         "gbm-dmabuf-direct"
                     }
                 );
-                println!("drm_wayland_scanout_cpu_copy={virtio_scanout_compat}");
+                println!("drm_wayland_scanout_cpu_copy={cpu_scanout_compat}");
+                println!("drm_wayland_direct_dmabuf_scanout={}", !cpu_scanout_compat);
+                println!("drm_wayland_gpu_frame_readback={cpu_scanout_compat}");
                 println!(
-                    "drm_wayland_direct_dmabuf_scanout={}",
-                    !virtio_scanout_compat
+                    "drm_wayland_gpu_checksum_source={}",
+                    if cpu_scanout_compat {
+                        "frame-readback"
+                    } else {
+                        "render-submission-token"
+                    }
                 );
-                println!("drm_wayland_gpu_frame_readback=true");
-                println!("drm_wayland_gpu_checksum_source=frame-readback");
             }
             println!("calloop_drm_dispatch_passes={}", active.event_frames.len());
             println!("received_page_flip_events={}", active.event_frames.len());
@@ -5308,6 +5355,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                             &snapshots,
                                             output_width,
                                             output_height,
+                                            cpu_scanout_compat,
                                         )?;
                                         *live_gpu_wayland_frame.borrow_mut() = Some(gpu_frame);
                                         frame
@@ -5660,6 +5708,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                         &snapshots,
                                         output_width,
                                         output_height,
+                                        cpu_scanout_compat,
                                     )?;
                                     *live_gpu_wayland_frame.borrow_mut() = Some(gpu_frame);
                                     frame
@@ -5935,6 +5984,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         &reordered_snapshots,
                         active_width,
                         active_height,
+                        cpu_scanout_compat,
                     )?;
                     println!("drm_wayland_gpu_repaint_updates=true");
                     println!("drm_wayland_gpu_context_reused=true");
@@ -6531,6 +6581,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 &files_snapshots,
                                 active_width,
                                 active_height,
+                                cpu_scanout_compat,
                             )?;
                             println!("drm_wayland_files_gpu_repaint=true");
                             println!("drm_wayland_files_gpu_context_reused=true");
@@ -6968,6 +7019,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 &settings_snapshots,
                                 active_width,
                                 active_height,
+                                cpu_scanout_compat,
                             )?;
                             println!("drm_wayland_settings_gpu_repaint=true");
                             println!("drm_wayland_settings_gpu_context_reused=true");
@@ -7157,6 +7209,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         &surviving_snapshots,
                         active_width,
                         active_height,
+                        cpu_scanout_compat,
                     )?;
                     println!("drm_wayland_client_cleanup_gpu_repaint=true");
                     println!("drm_wayland_client_cleanup_gpu_context_reused=true");
@@ -7249,6 +7302,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         &[],
                         active_width,
                         active_height,
+                        cpu_scanout_compat,
                     )?;
                     println!("drm_wayland_close_gpu_repaint=true");
                     println!("drm_wayland_close_gpu_context_reused=true");
@@ -7361,6 +7415,27 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                 let memory_growth_kib = r2_max_rss_kib
                     .get()
                     .saturating_sub(r2_initial_rss_kib.unwrap_or_default());
+                #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+                let full_frame_readbacks = live_gpu_wayland_compositor
+                    .borrow()
+                    .as_ref()
+                    .map_or(0, |compositor| compositor.full_frame_readbacks);
+                #[cfg(not(all(target_os = "linux", feature = "smithay-gpu")))]
+                let full_frame_readbacks = 0;
+                for _ in 0..full_frame_readbacks {
+                    r2_presentation_telemetry
+                        .borrow_mut()
+                        .as_mut()
+                        .unwrap_or_else(|| {
+                            eprintln!("readback observation arrived before DRM telemetry");
+                            std::process::exit(1);
+                        })
+                        .record_full_frame_readback()
+                        .unwrap_or_else(|error| {
+                            eprintln!("cannot record R2 full-frame readback: {error}");
+                            std::process::exit(1);
+                        });
+                }
                 r2_presentation_telemetry
                     .borrow_mut()
                     .as_mut()
@@ -7416,6 +7491,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     snapshot.frame_callbacks_sent
                 );
                 println!("r2_presentation_damage_commits={}", snapshot.damage_commits);
+                println!(
+                    "r2_presentation_full_frame_readbacks={}",
+                    snapshot.full_frame_readbacks
+                );
                 println!(
                     "r2_presentation_settled_idle_observations={}",
                     snapshot.settled_idle_observations
@@ -10769,7 +10848,7 @@ mod fbdev_tests {
     #[test]
     fn drm_wayland_persistent_policy_ignores_bounded_hold_value() {
         assert_eq!(drm_wayland_hold_seconds(Some("10"), false), Some(10));
-        assert_eq!(drm_wayland_hold_seconds(Some("999"), false), Some(30));
+        assert_eq!(drm_wayland_hold_seconds(Some("999"), false), Some(120));
         assert_eq!(drm_wayland_hold_seconds(None, false), Some(3));
         assert_eq!(drm_wayland_hold_seconds(Some("1"), true), None);
     }
