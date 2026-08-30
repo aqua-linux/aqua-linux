@@ -490,6 +490,11 @@ unavailable, starting, degraded, applying, and applied control states. Slider an
 mute input are enabled only in the applied state; applying renders the last
 authoritative value while retaining the desired preference separately, and a
 degraded transition blocks further input without discarding that preference. It
+also bounds native control submission to three failed attempts for one graph
+generation, then exposes degraded and waits for a newer synchronized generation
+before retrying. Deterministic adapter and Settings tests prove the retained
+preference, blocked fourth submission, generation-gated recovery, and final
+acknowledgement. This does not add packaged QEMU or hardware evidence and
 deliberately does not claim physical hardware support. The typed PipeWire/WirePlumber
 transport maps synchronized graph snapshots and typed control calls into the
 same acknowledgement gate. The non-default Buildroot profile now packages the

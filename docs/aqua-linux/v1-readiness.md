@@ -143,7 +143,13 @@ volume, mute, and configured-default operations; Settings can drive this backend
 without treating submission as acknowledgement. Its UI model and renderer expose
 unavailable, starting, degraded, applying, and applied states, keep the last
 authoritative volume visible while an intent is pending, and enable slider/mute
-input only after authoritative reconciliation reaches applied. A separate
+input only after authoritative reconciliation reaches applied. A
+control-submission guard now permits at most three failed native submissions
+per authoritative graph generation. Exhaustion retains the desired preference,
+keeps the last authoritative value visible, disables Settings input, and waits
+for a newer synchronized generation before retrying; deterministic adapter and
+shell tests cover failure, blocking, recovery, and acknowledgement. This is
+host control-plane evidence rather than packaged media or hardware evidence. A separate
 Buildroot rehearsal profile has resolved the exact package delta, packages a versioned bounded
 WirePlumber 0.5 native bridge, and passed `legal-info` while the default image
 stayed unchanged. Its second, audio-only rootfs overlay now explicitly enables

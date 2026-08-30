@@ -55,6 +55,8 @@ grep -Fq 'MAX_AUDIO_DEVICES' "$ADAPTER"
 grep -Fq 'StaleGeneration' "$ADAPTER"
 grep -Fq 'ConflictingGeneration' "$ADAPTER"
 grep -Fq 'request_confirmed' "$ADAPTER"
+grep -Fq 'MAX_AUDIO_CONTROL_SUBMISSION_ATTEMPTS' "$ADAPTER"
+grep -Fq 'submission_retry_exhausted' "$ADAPTER"
 test -f "$PIPEWIRE_TRANSPORT"
 grep -Fq 'pub trait PipeWireApi' "$PIPEWIRE_TRANSPORT"
 grep -Fq 'pub struct PipeWireApiTransport' "$PIPEWIRE_TRANSPORT"
@@ -71,6 +73,8 @@ grep -Fq 'aqua_settings_audio_service_health=' "$SETTINGS_CLIENT"
 grep -Fq 'aqua_settings_audio_backend_applied={}' "$SETTINGS_CLIENT"
 grep -Fq 'aqua_settings_audio_control_status={}' "$SETTINGS_CLIENT"
 grep -Fq 'aqua_settings_audio_controls_enabled={}' "$SETTINGS_CLIENT"
+grep -Fq 'aqua_settings_audio_submission_attempts={}' "$SETTINGS_CLIENT"
+grep -Fq 'aqua_settings_audio_submission_retry_exhausted={}' "$SETTINGS_CLIENT"
 if grep -Fq 'AQUA_AUDIO_DEV_SND' "$SETTINGS_CLIENT"; then
     echo 'Settings must not treat /dev/snd as authoritative service readiness.' >&2
     exit 1

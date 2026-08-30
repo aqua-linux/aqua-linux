@@ -1345,7 +1345,18 @@ impl AudioVolumeModel {
         self.adapter.backend_applied()
     }
 
+    pub fn submission_attempts(&self) -> u8 {
+        self.adapter.consecutive_submission_failures()
+    }
+
+    pub fn submission_retry_exhausted(&self) -> bool {
+        self.adapter.submission_retry_exhausted()
+    }
+
     pub fn control_status(&self) -> AudioControlStatus {
+        if self.submission_retry_exhausted() {
+            return AudioControlStatus::Degraded;
+        }
         match self.service_health() {
             AudioServiceHealth::Unavailable => AudioControlStatus::Unavailable,
             AudioServiceHealth::Starting => AudioControlStatus::Starting,
@@ -3689,6 +3700,28 @@ mod tests {
     use super::*;
     use aqua_service_adapters::{AudioDevice, AudioDeviceKind};
 
+    #[derive(Debug)]
+    struct RejectingAudioBackend {
+        state: AudioAuthoritativeState,
+        reject_submissions: bool,
+    }
+
+    impl AudioBackend for RejectingAudioBackend {
+        type Error = ();
+
+        fn authoritative_state(&mut self) -> Result<AudioAuthoritativeState, Self::Error> {
+            Ok(self.state.clone())
+        }
+
+        fn submit(&mut self, _request: &AudioRequest) -> Result<(), Self::Error> {
+            if self.reject_submissions {
+                Err(())
+            } else {
+                Ok(())
+            }
+        }
+    }
+
     fn ready_audio_state(
         generation: u64,
         volume_percent: u8,
@@ -4349,6 +4382,56 @@ mod tests {
         assert_eq!(model.audio.control_status(), AudioControlStatus::Applied);
         assert!(model.audio.controls_enabled());
         assert!(model.audio.backend_applied());
+    }
+
+    #[test]
+    fn settings_audio_degrades_after_bounded_submission_failures_and_recovers() {
+        let mut model = SettingsWindowModel {
+            selected_category: 4,
+            ..SettingsWindowModel::default()
+        };
+        let mut backend = RejectingAudioBackend {
+            state: ready_audio_state(1, 40, false),
+            reject_submissions: true,
+        };
+
+        for expected_attempts in 1..=aqua_service_adapters::MAX_AUDIO_CONTROL_SUBMISSION_ATTEMPTS {
+            assert!(model.synchronize_audio_backend(&mut backend).is_err());
+            assert_eq!(model.audio.submission_attempts(), expected_attempts);
+        }
+        assert!(model.audio.submission_retry_exhausted());
+        assert_eq!(model.audio.control_status(), AudioControlStatus::Degraded);
+        assert!(!model.audio.controls_enabled());
+        assert_eq!(model.audio.volume_percent(), 70);
+        assert_eq!(model.audio.authoritative_volume_percent(), Some(40));
+        assert_eq!(
+            model
+                .synchronize_audio_backend(&mut backend)
+                .expect("same generation remains blocked")
+                .submitted_request_id,
+            None
+        );
+
+        backend.reject_submissions = false;
+        backend.state = ready_audio_state(2, 40, false);
+        assert_eq!(
+            model
+                .synchronize_audio_backend(&mut backend)
+                .expect("new generation reopens submission")
+                .submitted_request_id,
+            Some(4)
+        );
+        assert_eq!(model.audio.control_status(), AudioControlStatus::Applying);
+        backend.state = ready_audio_state(3, 70, false);
+        assert!(
+            model
+                .synchronize_audio_backend(&mut backend)
+                .expect("replacement acknowledgement")
+                .reconcile
+                .request_confirmed
+        );
+        assert_eq!(model.audio.control_status(), AudioControlStatus::Applied);
+        assert!(model.audio.controls_enabled());
     }
 
     #[cfg(unix)]

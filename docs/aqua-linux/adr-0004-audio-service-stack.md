@@ -94,7 +94,11 @@ conditions are met:
   across service loss, and requires authoritative reconciliation before an
   intent is reported as applied. The typed `PipeWireApiTransport` now maps only
   graph-synchronized native API snapshots and typed volume, mute, and configured
-  default-output calls into that contract. The opt-in
+  default-output calls into that contract. Native control submission has a
+  fixed three-attempt budget per authoritative graph generation. Exhaustion
+  preserves the desired preference, blocks further submission, and exposes a
+  degraded Settings state until a newer synchronized generation reopens the
+  acknowledgement cycle. The opt-in
   `aqua-audio-native` package now implements that typed boundary against
   WirePlumber 0.5 with a versioned, fixed-size C ABI, bounded waits, and strict
   Rust-side validation. The opt-in rootfs now packages and enables it without
