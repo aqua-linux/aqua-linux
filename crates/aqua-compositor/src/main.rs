@@ -46,12 +46,12 @@ use aqua_compositor::{
     probe_smithay_launcher_seat, probe_static_frame_buffer, probe_static_frame_plan,
     probe_static_paint_plan, probe_static_raster_export, probe_static_raster_png_export,
     probe_static_render_plan, probe_static_shell_scene, probe_static_software_raster,
-    probe_visible_preview_plan, probe_xdg_shell_binding, probe_xdg_toplevel_client,
-    probe_xdg_toplevel_window_model, read_session_config, run_calloop_socket_smoke,
-    run_event_loop_smoke, run_manual_display_output_smoke, run_manual_nested_preview_execution,
-    run_nested_output_surface_lifecycle, run_nested_preview_frame_loop, run_session_loop_smoke,
-    run_session_once_smoke, run_wayland_display_smoke, run_wayland_socket_smoke, status_lines,
-    Viewport,
+    probe_text_input, probe_visible_preview_plan, probe_xdg_shell_binding,
+    probe_xdg_toplevel_client, probe_xdg_toplevel_window_model, read_session_config,
+    run_calloop_socket_smoke, run_event_loop_smoke, run_manual_display_output_smoke,
+    run_manual_nested_preview_execution, run_nested_output_surface_lifecycle,
+    run_nested_preview_frame_loop, run_session_loop_smoke, run_session_once_smoke,
+    run_wayland_display_smoke, run_wayland_socket_smoke, status_lines, Viewport,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_compositor::{
@@ -234,6 +234,7 @@ fn main() {
         "probe-xdg-toplevel-client" => probe_xdg_toplevel_client_cli(),
         "probe-selection-ownership" => probe_selection_ownership_cli(),
         "probe-drag-and-drop" => probe_drag_and_drop_cli(),
+        "probe-text-input" => probe_text_input_cli(),
         "probe-xdg-toplevel-window-model" => probe_xdg_toplevel_window_model_cli(),
         "probe-launcher-model" => probe_launcher_model_cli(),
         "probe-launcher-input-scene" => probe_launcher_input_scene_cli(),
@@ -10484,6 +10485,82 @@ fn probe_drag_and_drop_cli() {
         Err(error) => {
             eprintln!("drag-and-drop probe failed: {error}");
             finish_stage("drag-and-drop", false);
+        }
+    }
+}
+
+fn probe_text_input_cli() {
+    match probe_text_input() {
+        Ok(probe) => {
+            println!("[AQUA-COMPOSITOR] stage=text-input status=running");
+            println!("text_input_status={}", probe.status);
+            println!("text_input_protocol={}", probe.text_input_protocol);
+            println!("input_method_protocol={}", probe.input_method_protocol);
+            println!("client_count={}", probe.client_count);
+            println!(
+                "text_input_visible_to_normal_clients={}",
+                probe.text_input_visible_to_normal_clients
+            );
+            println!(
+                "input_method_hidden_from_normal_clients={}",
+                probe.input_method_hidden_from_normal_clients
+            );
+            println!(
+                "input_method_visible_to_authorized_client={}",
+                probe.input_method_visible_to_authorized_client
+            );
+            println!("focus_follows_keyboard={}", probe.focus_follows_keyboard);
+            println!(
+                "unfocused_enable_rejected={}",
+                probe.unfocused_enable_rejected
+            );
+            println!(
+                "focused_enable_activates_input_method={}",
+                probe.focused_enable_activates_input_method
+            );
+            println!(
+                "surrounding_text_forwarded={}",
+                probe.surrounding_text_forwarded
+            );
+            println!("content_type_forwarded={}", probe.content_type_forwarded);
+            println!(
+                "cursor_rectangle_forwarded={}",
+                probe.cursor_rectangle_forwarded
+            );
+            println!(
+                "turkish_preedit_delivered={}",
+                probe.turkish_preedit_delivered
+            );
+            println!(
+                "turkish_commit_delivered={}",
+                probe.turkish_commit_delivered
+            );
+            println!(
+                "delete_surrounding_delivered={}",
+                probe.delete_surrounding_delivered
+            );
+            println!("serial_synchronized={}", probe.serial_synchronized);
+            println!(
+                "focus_handoff_deactivates_input_method={}",
+                probe.focus_handoff_deactivates_input_method
+            );
+            println!(
+                "focus_handoff_enters_new_client={}",
+                probe.focus_handoff_enters_new_client
+            );
+            println!(
+                "stale_unfocused_client_blocked={}",
+                probe.stale_unfocused_client_blocked
+            );
+            println!("popup_parent_bound={}", probe.popup_parent_bound);
+            println!("popup_repositioned={}", probe.popup_repositioned);
+            println!("payload_limit_bytes={}", probe.payload_limit_bytes);
+            println!("host_stub={}", probe.host_stub);
+            finish_stage("text-input", probe.is_ready());
+        }
+        Err(error) => {
+            eprintln!("text-input probe failed: {error}");
+            finish_stage("text-input", false);
         }
     }
 }

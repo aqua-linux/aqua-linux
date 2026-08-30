@@ -67,6 +67,8 @@ lines = [
     "",
     cell(data.get("r3SelectionBoundary", "")),
     "",
+    cell(data.get("r3TextInputBoundary", "")),
+    "",
     cell(data["currentStage"]),
     "",
     "## Phases",

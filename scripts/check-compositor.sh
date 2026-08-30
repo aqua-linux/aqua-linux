@@ -412,6 +412,15 @@ check_output_contains "drop_delivered_to_target=true" cargo run -p aqua-composit
 check_output_contains "source_finished=true" cargo run -p aqua-compositor -- probe-drag-and-drop
 check_output_contains "rejected_drop_cancelled=true" cargo run -p aqua-compositor -- probe-drag-and-drop
 check_output_contains "rejected_drop_not_delivered=true" cargo run -p aqua-compositor -- probe-drag-and-drop
+check_output_contains "[AQUA-COMPOSITOR] stage=text-input status=ok" cargo run -p aqua-compositor -- probe-text-input
+check_output_contains "input_method_hidden_from_normal_clients=true" cargo run -p aqua-compositor -- probe-text-input
+check_output_contains "input_method_visible_to_authorized_client=true" cargo run -p aqua-compositor -- probe-text-input
+check_output_contains "unfocused_enable_rejected=true" cargo run -p aqua-compositor -- probe-text-input
+check_output_contains "turkish_preedit_delivered=true" cargo run -p aqua-compositor -- probe-text-input
+check_output_contains "turkish_commit_delivered=true" cargo run -p aqua-compositor -- probe-text-input
+check_output_contains "serial_synchronized=true" cargo run -p aqua-compositor -- probe-text-input
+check_output_contains "focus_handoff_deactivates_input_method=true" cargo run -p aqua-compositor -- probe-text-input
+check_output_contains "popup_repositioned=true" cargo run -p aqua-compositor -- probe-text-input
 check_output_contains "[AQUA-COMPOSITOR] stage=xdg-toplevel-window-model status=ok" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model
 check_output_contains "window_model_status=xdg-toplevel-window-model" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model
 check_output_contains "source_client_ready=ok" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model

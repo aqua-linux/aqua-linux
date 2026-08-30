@@ -20,7 +20,7 @@ vt100 = "0.16.2"
 
 [features]
 default = []
-smithay-smoke = ["dep:input", "dep:libc", "dep:smithay", "dep:tempfile", "dep:wayland-client", "dep:wayland-protocols"]
+smithay-smoke = ["dep:input", "dep:libc", "dep:smithay", "dep:tempfile", "dep:wayland-client", "dep:wayland-protocols", "dep:wayland-protocols-misc"]
 smithay-gpu = ["smithay-smoke", "smithay/backend_drm", "smithay/backend_egl", "smithay/backend_gbm", "smithay/renderer_gl"]
 
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -33,6 +33,7 @@ smithay = { version = "0.7.0", default-features = false, features = ["backend_li
 tempfile = { version = "3.27.0", optional = true }
 wayland-client = { version = "=0.31.14", optional = true }
 wayland-protocols = { version = "=0.32.12", default-features = false, features = ["client", "server"], optional = true }
+wayland-protocols-misc = { version = "=0.3.12", default-features = false, features = ["client"], optional = true }
 
 [lib]
 path = "src/lib.rs"

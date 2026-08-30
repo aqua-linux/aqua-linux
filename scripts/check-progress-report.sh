@@ -81,6 +81,7 @@ for needle in [
     "## Product Readiness",
     "exact direct-FD payload transfer",
     "separate two-client drag-and-drop probe",
+    "authorized input-method client",
     "| Classification | packaged-QEMU-proven prototype |",
     "| Daily-use ready | No |",
     "| Hardware-proven | No |",
