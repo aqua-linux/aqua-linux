@@ -8,6 +8,8 @@ import sys
 
 
 WORKLOADS = {"idle", "window-interaction", "animation", "multi-client"}
+MIN_REVIEW_RUNS = 3
+MAX_REVIEW_RUNS = 10
 INTEGER_FIELDS = {
     "frames_requested",
     "frames_presented",
@@ -222,6 +224,48 @@ def validate_diagnostic_log(text: str) -> dict[str, int | str | bool]:
     return parsed
 
 
+def validate_evidence_log(
+    text: str,
+) -> tuple[list[dict[str, int | str | bool]], dict[str, int | str | bool]]:
+    return validate_log(text), validate_diagnostic_log(text)
+
+
+def repeated_review_lines(logs: list[str]) -> list[str]:
+    if not MIN_REVIEW_RUNS <= len(logs) <= MAX_REVIEW_RUNS:
+        raise ValueError(
+            f"R2 review requires {MIN_REVIEW_RUNS}-{MAX_REVIEW_RUNS} independent runs"
+        )
+    runs = [validate_evidence_log(log) for log in logs]
+    records = [record for run_records, _ in runs for record in run_records]
+    lines = [
+        "r2_review_record_begin=v1",
+        f"r2_review_qemu_runs={len(runs)}",
+        f"r2_review_workload_records={len(records)}",
+        f"r2_review_diagnostic_records={len(runs)}",
+    ]
+    for workload in sorted(WORKLOADS):
+        workload_records = [
+            record for record in records if record["workload"] == workload
+        ]
+        for field in (
+            "max_frame_time_us",
+            "max_input_to_present_us",
+            "cpu_time_us",
+            "memory_growth_kib",
+        ):
+            maximum = max(int(record[field]) for record in workload_records)
+            lines.append(f"r2_review_{workload}_{field}={maximum}")
+    lines.extend(
+        (
+            "r2_review_minimum_runs_met=true",
+            "r2_review_diagnostic_isolation_recorded=true",
+            "r2_review_budget_selected=false",
+            "r2_review_record_end=v1",
+        )
+    )
+    return lines
+
+
 def fixture_record(workload: str) -> str:
     idle = workload == "idle"
     values = {
@@ -276,6 +320,9 @@ def self_test() -> None:
     diagnostic = validate_diagnostic_log(fixture)
     assert len(records) == 4
     assert diagnostic["full_frame_readbacks"] == 2
+    review = repeated_review_lines([fixture] * MIN_REVIEW_RUNS)
+    assert f"r2_review_qemu_runs={MIN_REVIEW_RUNS}" in review
+    assert "r2_review_budget_selected=false" in review
     try:
         validate_log(fixture.replace("r2_presentation_path=production-gbm-kms", "r2_presentation_path=legacy-cpu-copy", 1))
     except ValueError:
@@ -296,6 +343,12 @@ def self_test() -> None:
         pass
     else:
         raise AssertionError("production-blocking diagnostic fixture unexpectedly passed")
+    try:
+        repeated_review_lines([fixture] * (MIN_REVIEW_RUNS - 1))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("undersized repeated-run review unexpectedly passed")
 
 
 def read_bounded_log(path: pathlib.Path) -> str:
@@ -310,12 +363,22 @@ def main() -> int:
         self_test()
         print("Aqua Linux R2 presentation log validator self-test passed.")
         return 0
+    if len(sys.argv) >= 2 and sys.argv[1] == "--summarize-repeated":
+        paths = [pathlib.Path(argument) for argument in sys.argv[2:]]
+        resolved_paths = [path.resolve() for path in paths]
+        if len(set(resolved_paths)) != len(resolved_paths):
+            raise ValueError("R2 repeated review requires distinct serial log paths")
+        logs = [read_bounded_log(path) for path in paths]
+        print("\n".join(repeated_review_lines(logs)))
+        return 0
     if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} SERIAL_LOG", file=sys.stderr)
+        print(
+            f"Usage: {sys.argv[0]} SERIAL_LOG | --summarize-repeated SERIAL_LOG...",
+            file=sys.stderr,
+        )
         return 2
     log = read_bounded_log(pathlib.Path(sys.argv[1]))
-    records = validate_log(log)
-    validate_diagnostic_log(log)
+    records, _ = validate_evidence_log(log)
     print("r2_qemu_workload_records=4")
     print(f"r2_recorded_max_frame_time_us={max(int(record['max_frame_time_us']) for record in records)}")
     print(f"r2_recorded_max_input_to_present_us={max(int(record['max_input_to_present_us']) for record in records)}")

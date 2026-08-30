@@ -157,6 +157,25 @@ budget selection false. The runner contract alone is not runtime evidence; a
 current image must still execute it successfully and repeated observations must
 be reviewed before budgets are recorded.
 
+`scripts/check-r2-presentation-repeated-qemu.sh` now makes that review input
+repeatable. It accepts only three through ten independent boots, refuses to
+overwrite an existing evidence directory, preserves every serial log and
+single-run report, and revalidates each complete workload plus diagnostic set.
+The resulting versioned review record reports workload-specific observed maxima
+for frame time, input-to-present latency, CPU time, and memory growth. It records
+that the minimum run count and diagnostic isolation are present while keeping
+`r2_review_budget_selected=false`; observed maxima are not silently promoted to
+project budgets. A fresh packaged image still has to execute the runner before
+this contract produces runtime evidence.
+
+A fresh-image rehearsal on the current macOS QEMU host reached all four
+workloads, including packaged Files and Settings, but correctly failed closed:
+the available `virtio_gpu` device uses Aqua's `legacy-cpu-copy` fallback rather
+than the required production GBM/KMS scanout path. The next R2 implementation
+step is therefore to integrate and prove a GBM/KMS-capable emulated display
+target. Repeated collection and budget review remain downstream of that gate;
+the legacy-path measurements are not valid substitutes.
+
 ### R3: Wayland Compatibility And Display Behavior
 
 Scope: support the protocol set required for a coherent desktop and its
