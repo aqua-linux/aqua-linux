@@ -115,11 +115,17 @@ pointer-motion, and pointer-button events contribute their real monotonic
 microsecond timestamps; the bridge retains the earliest unpresented event and
 measures it at the next real page-flip boundary. The snapshot exposes both the
 bounded sample count and maximum input-to-present latency so a missing sample
-cannot be mistaken for zero latency. The bounded event snapshot is emitted only
-after clean CRTC restoration and is explicitly marked
+cannot be mistaken for zero latency. During an idle workload, the same live
+loop counts quiet dispatch intervals only when there is no input, client or
+shell state change, process event, session action, motion, or repaint request.
+Real activity resets the settled state. Once settled, a repaint without an
+external cause is counted as an idle violation and an active motion timer is
+reported separately; the normal bounded event wait is not classified as a
+repaint. The bounded event snapshot is emitted only after clean CRTC restoration
+and is explicitly marked
 `r2_presentation_acceptance_complete=false`. Packaged QEMU runs still need to
-connect idle-state, CPU, and memory observations, select fixed project budgets,
-cover all four workloads, and isolate diagnostic readback before R2 can pass.
+connect CPU and memory observations, select fixed project budgets, cover all
+four workloads, and isolate diagnostic readback before R2 can pass.
 
 ### R3: Wayland Compatibility And Display Behavior
 

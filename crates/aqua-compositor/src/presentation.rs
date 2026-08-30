@@ -90,6 +90,7 @@ pub struct PresentationSample {
     pub damage_commits: u32,
     pub full_frame_readbacks: u32,
     pub cpu_framebuffer_copies: u32,
+    pub settled_idle_observations: u32,
     pub settled_idle_repaints: u32,
     pub repeating_repaint_timer_after_settle: bool,
     pub max_frame_time_us: Option<u32>,
@@ -109,6 +110,9 @@ pub struct PresentationEventSnapshot {
     pub frame_callbacks_sent: u32,
     pub damage_commits: u32,
     pub input_to_present_samples: u32,
+    pub settled_idle_observations: u32,
+    pub settled_idle_repaints: u32,
+    pub repeating_repaint_timer_after_settle: bool,
     pub cpu_framebuffer_copies: u32,
     pub max_frame_time_us: Option<u32>,
     pub max_input_to_present_us: Option<u32>,
@@ -163,6 +167,7 @@ pub struct PresentationTelemetry {
     damage_commits: u32,
     full_frame_readbacks: u32,
     cpu_framebuffer_copies: u32,
+    settled_idle_observations: u32,
     settled_idle_repaints: u32,
     repeating_repaint_timer_after_settle: bool,
     max_frame_time_us: Option<u32>,
@@ -188,6 +193,7 @@ impl PresentationTelemetry {
             damage_commits: 0,
             full_frame_readbacks: 0,
             cpu_framebuffer_copies: 0,
+            settled_idle_observations: 0,
             settled_idle_repaints: 0,
             repeating_repaint_timer_after_settle: false,
             max_frame_time_us: None,
@@ -242,6 +248,13 @@ impl PresentationTelemetry {
         increment_event(&mut self.settled_idle_repaints, "settled-idle-repaint")
     }
 
+    pub fn record_settled_idle_observation(&mut self) -> Result<(), PresentationTelemetryError> {
+        increment_event(
+            &mut self.settled_idle_observations,
+            "settled-idle-observation",
+        )
+    }
+
     pub const fn mark_repeating_repaint_timer_after_settle(&mut self) {
         self.repeating_repaint_timer_after_settle = true;
     }
@@ -291,6 +304,7 @@ impl PresentationTelemetry {
             damage_commits: self.damage_commits,
             full_frame_readbacks: self.full_frame_readbacks,
             cpu_framebuffer_copies: self.cpu_framebuffer_copies,
+            settled_idle_observations: self.settled_idle_observations,
             settled_idle_repaints: self.settled_idle_repaints,
             repeating_repaint_timer_after_settle: self.repeating_repaint_timer_after_settle,
             max_frame_time_us: self.max_frame_time_us,
@@ -311,6 +325,9 @@ impl PresentationTelemetry {
             frame_callbacks_sent: self.frame_callbacks_sent,
             damage_commits: self.damage_commits,
             input_to_present_samples: self.input_to_present_samples,
+            settled_idle_observations: self.settled_idle_observations,
+            settled_idle_repaints: self.settled_idle_repaints,
+            repeating_repaint_timer_after_settle: self.repeating_repaint_timer_after_settle,
             cpu_framebuffer_copies: self.cpu_framebuffer_copies,
             max_frame_time_us: self.max_frame_time_us,
             max_input_to_present_us: self.max_input_to_present_us,
@@ -377,6 +394,7 @@ impl PresentationSample {
         let frame_count_ready = self.workload != PresentationWorkload::Idle
             || (self.frames_requested == 1 && self.frames_presented == 1);
         frame_count_ready
+            && (self.workload != PresentationWorkload::Idle || self.settled_idle_observations > 0)
             && self.settled_idle_repaints == 0
             && !self.repeating_repaint_timer_after_settle
     }
@@ -541,6 +559,7 @@ mod tests {
             damage_commits: usize::from(workload != PresentationWorkload::Idle) as u32 * 12,
             full_frame_readbacks: 0,
             cpu_framebuffer_copies: 0,
+            settled_idle_observations: u32::from(idle) * 5,
             settled_idle_repaints: 0,
             repeating_repaint_timer_after_settle: false,
             max_frame_time_us: Some(16_700),
@@ -585,6 +604,11 @@ mod tests {
         assert_eq!(event_snapshot.max_frame_time_us, Some(14_000));
         assert_eq!(event_snapshot.input_to_present_samples, 1);
         assert_eq!(event_snapshot.max_input_to_present_us, Some(24_000));
+        telemetry.record_settled_idle_observation().unwrap();
+        let idle_snapshot = telemetry.event_snapshot();
+        assert_eq!(idle_snapshot.settled_idle_observations, 1);
+        assert_eq!(idle_snapshot.settled_idle_repaints, 0);
+        assert!(!idle_snapshot.repeating_repaint_timer_after_settle);
         telemetry.record_frame_requested().unwrap();
         telemetry.record_dropped_frame().unwrap();
 
@@ -689,6 +713,21 @@ mod tests {
         );
 
         assert!(!report.production_path_ready);
+        assert!(!report.idle_suppression_ready);
+        assert!(!report.is_baseline_ready());
+    }
+
+    #[test]
+    fn idle_workload_requires_a_real_settled_observation() {
+        let mut fixtures = samples();
+        fixtures[0].settled_idle_observations = 0;
+        let report = R2PresentationReport::evaluate(
+            PresentationEvidenceTarget::HostFixture,
+            BUDGET,
+            &fixtures,
+            diagnostic(),
+        );
+
         assert!(!report.idle_suppression_ready);
         assert!(!report.is_baseline_ready());
     }
