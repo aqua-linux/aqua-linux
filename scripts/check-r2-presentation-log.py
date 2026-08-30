@@ -433,6 +433,49 @@ def qualification_soak_report_lines(text: str) -> list[str]:
     ]
 
 
+def repeated_qualification_review_lines(logs: list[str]) -> list[str]:
+    if not MIN_REVIEW_RUNS <= len(logs) <= MAX_REVIEW_RUNS:
+        raise ValueError(
+            f"R2 qualification review requires {MIN_REVIEW_RUNS}-{MAX_REVIEW_RUNS} independent runs"
+        )
+    runs = [validate_qualification_soak_log(log) for log in logs]
+    records = [record for record, _ in runs]
+    keyboard_events = [
+        next(
+            int(line.strip().partition("=")[2])
+            for line in log.replace("\r", "").splitlines()
+            if line.strip().startswith("drm_wayland_input_keyboard_events=")
+        )
+        for log in logs
+    ]
+    return [
+        "r2_qualification_review_record_begin=v1",
+        f"r2_qualification_review_qemu_runs={len(runs)}",
+        f"r2_qualification_review_diagnostic_records={len(runs)}",
+        f"r2_qualification_review_min_observation_window_ms={min(int(record['observation_window_ms']) for record in records)}",
+        f"r2_qualification_review_min_input_to_present_samples={min(int(record['input_to_present_samples']) for record in records)}",
+        f"r2_qualification_review_min_keyboard_events={min(keyboard_events)}",
+        f"r2_qualification_review_total_frames_presented={sum(int(record['frames_presented']) for record in records)}",
+        f"r2_qualification_review_max_frame_time_us={max(int(record['max_frame_time_us']) for record in records)}",
+        f"r2_qualification_review_max_input_to_present_us={max(int(record['max_input_to_present_us']) for record in records)}",
+        f"r2_qualification_review_max_cpu_time_us={max(int(record['cpu_time_us']) for record in records)}",
+        f"r2_qualification_review_max_memory_growth_kib={max(int(record['memory_growth_kib']) for record in records)}",
+        "r2_qualification_review_minimum_runs_met=true",
+        "r2_qualification_review_crashes=0",
+        "r2_qualification_review_client_lifecycle_complete=true",
+        "r2_qualification_review_diagnostic_isolation_recorded=true",
+        f"r2_qualification_review_budget_profile={QEMU_QUALIFICATION_BUDGET_PROFILE}",
+        f"r2_qualification_review_budget_max_frame_time_us={QEMU_QUALIFICATION_BUDGET['max_frame_time_us']}",
+        f"r2_qualification_review_budget_max_input_to_present_us={QEMU_QUALIFICATION_BUDGET['max_input_to_present_us']}",
+        f"r2_qualification_review_budget_max_cpu_time_us={QEMU_QUALIFICATION_BUDGET['max_cpu_time_us']}",
+        f"r2_qualification_review_budget_max_memory_growth_kib={QEMU_QUALIFICATION_BUDGET['max_memory_growth_kib']}",
+        "r2_qualification_review_budget_max_dropped_frames=0",
+        "r2_qualification_review_physical_evidence=false",
+        "r2_qualification_review_release_ready=false",
+        "r2_qualification_review_record_end=v1",
+    ]
+
+
 def repeated_review_lines(logs: list[str]) -> list[str]:
     if not MIN_REVIEW_RUNS <= len(logs) <= MAX_REVIEW_RUNS:
         raise ValueError(
@@ -716,6 +759,24 @@ def self_test() -> None:
     )
     assert "r2_qualification_soak_crashes=0" in qualification_report
     assert "r2_qualification_soak_release_ready=false" in qualification_report
+    qualification_review = repeated_qualification_review_lines(
+        [qualification_fixture] * MIN_REVIEW_RUNS
+    )
+    assert (
+        f"r2_qualification_review_qemu_runs={MIN_REVIEW_RUNS}"
+        in qualification_review
+    )
+    assert "r2_qualification_review_minimum_runs_met=true" in qualification_review
+    assert "r2_qualification_review_physical_evidence=false" in qualification_review
+    assert "r2_qualification_review_release_ready=false" in qualification_review
+    try:
+        repeated_qualification_review_lines(
+            [qualification_fixture] * (MIN_REVIEW_RUNS - 1)
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("undersized R2 qualification review unexpectedly passed")
     qualification_failure_cases = (
         (
             f"r2_presentation_observation_window_ms={QEMU_QUALIFICATION_MIN_OBSERVATION_WINDOW_MS}",
@@ -767,6 +828,16 @@ def main() -> int:
         logs = [read_bounded_log(path) for path in paths]
         print("\n".join(repeated_review_lines(logs)))
         return 0
+    if len(sys.argv) >= 2 and sys.argv[1] == "--summarize-repeated-qualification":
+        paths = [pathlib.Path(argument) for argument in sys.argv[2:]]
+        resolved_paths = [path.resolve() for path in paths]
+        if len(set(resolved_paths)) != len(resolved_paths):
+            raise ValueError(
+                "R2 repeated qualification review requires distinct serial log paths"
+            )
+        logs = [read_bounded_log(path) for path in paths]
+        print("\n".join(repeated_qualification_review_lines(logs)))
+        return 0
     if len(sys.argv) == 3 and sys.argv[1] == "--summarize-soak":
         log = read_bounded_log(pathlib.Path(sys.argv[2]))
         print("\n".join(soak_report_lines(log)))
@@ -777,7 +848,7 @@ def main() -> int:
         return 0
     if len(sys.argv) != 2:
         print(
-            f"Usage: {sys.argv[0]} SERIAL_LOG | --summarize-repeated SERIAL_LOG... | --summarize-soak SERIAL_LOG | --summarize-qualification-soak SERIAL_LOG",
+            f"Usage: {sys.argv[0]} SERIAL_LOG | --summarize-repeated SERIAL_LOG... | --summarize-repeated-qualification SERIAL_LOG... | --summarize-soak SERIAL_LOG | --summarize-qualification-soak SERIAL_LOG",
             file=sys.stderr,
         )
         return 2

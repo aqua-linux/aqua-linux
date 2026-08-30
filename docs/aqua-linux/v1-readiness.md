@@ -207,18 +207,29 @@ on 2026-08-30 observed 1,344,436 ms, 94 keyboard events, 71 presented frames,
 latency, 1,232,394,556 us CPU time, and 134,200 KiB peak RSS growth. Client
 reap, CRTC restoration, GBM release, recovery return, and isolated diagnostic
 readback passed. The record explicitly retains `physical_evidence=false` and
-`release_ready=false`; this is one longer QEMU qualification run, not repeated
-qualification or physical stability evidence.
+`release_ready=false`.
+
+`scripts/check-r2-presentation-repeated-qualification-qemu.sh` now accepts only
+three through ten fresh qualification boots, refuses to overwrite evidence, and
+revalidates every independent serial log before emitting a bounded aggregate
+review. Three independent cold boots completed on 2026-08-30 with three
+isolated diagnostic records and 213 presented frames. Every run dispatched 94
+keyboard events; their minimum observation window was 1,319,699 ms and minimum
+input-sample count was 38. The aggregate maxima were 8,505 us page-flip wait,
+44,045,721 us input latency, 1,232,394,556 us CPU time, and 134,348 KiB RSS
+growth. The review explicitly retains `physical_evidence=false` and
+`release_ready=false`; repeated QEMU qualification is not physical stability or
+release evidence.
 
 The packaged kernel now enables Bochs DRM and the macOS QEMU runner defaults to
 `bochs-display`. This reaches Aqua's `production-gbm-kms` path with GLES
 software rendering and direct GBM dma-buf scanout, while emitting zero
 production full-frame readbacks and CPU framebuffer copies. The virtio target
 remains a separately identified `legacy-cpu-copy` fallback. Repeated collection,
-QEMU budget review, the initial bounded soak, and one acknowledgement-gated
-qualification run are complete for these profiles. Independent repeated
-qualification runs and a separately selected physical-target budget remain
-downstream; QEMU TCG measurements are not physical responsiveness evidence.
+QEMU budget review, the initial bounded soak, and three independently validated
+acknowledgement-gated qualification runs are complete for these profiles. A
+separately selected physical-target budget remains downstream; QEMU TCG
+measurements are not physical responsiveness evidence.
 
 ### R3: Wayland Compatibility And Display Behavior
 
