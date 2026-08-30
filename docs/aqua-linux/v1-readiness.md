@@ -199,8 +199,11 @@ playback rejection, and recovery-shell availability with
 `failed_service=wireplumber`. A controlled-input exhaustion profile separately
 proves one exact 4,800-frame zero-PCM capture before four PipeWire losses, then
 requires capture open to fail without a success marker after the cleaned
-degraded state, with no host-microphone access. A separate controlled
-active-capture profile kills PipeWire after
+degraded state, with no host-microphone access. Its policy-service counterpart
+proves the same capture precondition before four WirePlumber losses, requires
+three complete media-pair renewals, and rejects a new capture after the cleaned
+`failed_service=wireplumber` degraded state without host-microphone access. A
+separate controlled active-capture profile kills PipeWire after
 480 zero-PCM frames, requires an explicit interrupted result without false
 capture success, observes ordered recovery, and captures a new exact 4,800
 frames without host-microphone access. Its policy-service counterpart kills

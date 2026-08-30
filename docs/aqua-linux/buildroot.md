@@ -359,6 +359,15 @@ media PIDs, the supervisor PID file, and the PipeWire socket must be gone.
 responsive. This is bounded virtual policy-exhaustion evidence, not default
 audio enablement or physical-device support.
 
+`scripts/check-audio-capture-policy-restart-exhaustion-qemu.sh` closes the
+matching controlled-input policy boundary. One exact 4,800-frame zero-PCM
+capture establishes the healthy precondition before the test terminates four
+successive WirePlumber processes. The first three losses must renew both media
+processes; the fourth must produce the cleaned degraded state with
+`failed_service=wireplumber`. A new capture must fail without a success marker,
+while recovery remains responsive and no host microphone is requested. This is
+bounded virtual capture policy-exhaustion evidence only.
+
 `scripts/check-audio-active-capture-loss-qemu.sh` adds the matching active-input
 service boundary without requesting a host microphone. QEMU's timer-backed
 `none` ADC supplies controlled zero PCM; the probe publishes an active marker

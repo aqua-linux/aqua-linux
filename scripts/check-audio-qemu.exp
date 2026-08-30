@@ -30,7 +30,7 @@ if {$audio_contract eq "output" || $audio_contract eq "service-loss" || $audio_c
     lappend qemu_args -audiodev "wav,id=aqua-audio,path=$env(WAV_CAPTURE),out.frequency=48000,out.channels=2,out.format=s16"
     lappend qemu_args -device ich9-intel-hda
     lappend qemu_args -device hda-duplex,audiodev=aqua-audio
-} elseif {$audio_contract eq "input" || $audio_contract eq "capture-service-loss" || $audio_contract eq "capture-policy-service-loss" || $audio_contract eq "capture-restart-exhaustion"} {
+} elseif {$audio_contract eq "input" || $audio_contract eq "capture-service-loss" || $audio_contract eq "capture-policy-service-loss" || $audio_contract eq "capture-restart-exhaustion" || $audio_contract eq "capture-policy-restart-exhaustion"} {
     lappend qemu_args -audiodev "none,id=aqua-audio,in.frequency=48000,in.channels=2,in.format=s16"
     lappend qemu_args -device ich9-intel-hda
     lappend qemu_args -device hda-duplex,audiodev=aqua-audio
@@ -511,6 +511,38 @@ if {$audio_contract eq "policy-restart-exhaustion"} {
         -exact {[AQUA-AUDIO] stage=qemu-policy-restart-exhaustion status=failed} { puts stderr "Policy-service restart exhaustion contract failed"; exit 1 }
         timeout { puts stderr "Policy-service restart exhaustion marker missing"; exit 1 }
         eof { puts stderr "QEMU exited during policy-service restart exhaustion"; exit 1 }
+    }
+    expect -exact {# }
+    send -- "poweroff -f\r"
+    expect eof
+    exit 0
+}
+
+if {$audio_contract eq "capture-policy-restart-exhaustion"} {
+    shell {capture_policy_exhaustion_ok=1; previous_pipewire=""; previous_wireplumber=""; retired_media_pids=""; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe capture-silence' || capture_policy_exhaustion_ok=0} {establishing controlled capture before policy restart exhaustion}
+    for {set expected_attempt 1} {$expected_attempt <= 4} {incr expected_attempt} {
+        shell [format {pipewire_pid="$(sed -n 's/^pipewire_pid=//p' /run/aqua/media-service-supervisor.state 2>/dev/null)"; wireplumber_pid="$(sed -n 's/^wireplumber_pid=//p' /run/aqua/media-service-supervisor.state 2>/dev/null)"; state_attempt="$(sed -n 's/^attempts=//p' /run/aqua/media-service-supervisor.state 2>/dev/null)"; [ -n "$pipewire_pid" ] && [ -n "$wireplumber_pid" ] && [ "$pipewire_pid" != "$previous_pipewire" ] && [ "$wireplumber_pid" != "$previous_wireplumber" ] && [ "$state_attempt" = "%d" ] || capture_policy_exhaustion_ok=0; previous_pipewire="$pipewire_pid"; previous_wireplumber="$wireplumber_pid"; retired_media_pids="$retired_media_pids $pipewire_pid $wireplumber_pid"; [ "$capture_policy_exhaustion_ok" = 1 ] && kill "$wireplumber_pid" || capture_policy_exhaustion_ok=0} $expected_attempt] "terminating WirePlumber capture attempt $expected_attempt"
+        if {$expected_attempt < 4} {
+            set next_attempt [expr {$expected_attempt + 1}]
+            shell [format {i=0; while [ "$i" -lt 30 ]; do next_pipewire="$(sed -n 's/^pipewire_pid=//p' /run/aqua/media-service-supervisor.state 2>/dev/null)"; next_wireplumber="$(sed -n 's/^wireplumber_pid=//p' /run/aqua/media-service-supervisor.state 2>/dev/null)"; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state 2>/dev/null && grep -Fq 'attempts=%d' /run/aqua/media-service-supervisor.state 2>/dev/null && [ -n "$next_pipewire" ] && [ -n "$next_wireplumber" ] && [ "$next_pipewire" != "$previous_pipewire" ] && [ "$next_wireplumber" != "$previous_wireplumber" ] && break; sleep 1; i=$((i + 1)); done; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state 2>/dev/null || capture_policy_exhaustion_ok=0; grep -Fq 'attempts=%d' /run/aqua/media-service-supervisor.state 2>/dev/null || capture_policy_exhaustion_ok=0} $next_attempt $next_attempt] "waiting for capture policy-service attempt $next_attempt"
+        } else {
+            shell {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'state=degraded' /run/aqua/media-service-supervisor.state 2>/dev/null; do sleep 1; i=$((i + 1)); done} {waiting for fail-closed capture policy-service degradation}
+        }
+    }
+    shell {cat /run/aqua/audio-qemu-supervisor.log} {reporting bounded capture policy restart evidence}
+    shell {capture_status=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe capture-silence' >/run/aqua/audio-capture-policy-restart-exhaustion-probe.log 2>&1 || capture_status=$?; cat /run/aqua/audio-capture-policy-restart-exhaustion-probe.log; [ "$capture_status" -ne 0 ] || capture_policy_exhaustion_ok=0; if grep -Fq '[AQUA-AUDIO] stage=media-probe status=ok direction=capture' /run/aqua/audio-capture-policy-restart-exhaustion-probe.log; then capture_policy_exhaustion_ok=0; fi} {checking capture remains fail-closed after policy exhaustion}
+    shell {grep -Fq 'state=degraded' /run/aqua/media-service-supervisor.state || capture_policy_exhaustion_ok=0; grep -Fq 'attempts=4' /run/aqua/media-service-supervisor.state || capture_policy_exhaustion_ok=0; grep -Fq 'restarts=3' /run/aqua/media-service-supervisor.state || capture_policy_exhaustion_ok=0; grep -Fq 'max_restarts=3' /run/aqua/media-service-supervisor.state || capture_policy_exhaustion_ok=0; grep -Fq 'failed_service=wireplumber' /run/aqua/media-service-supervisor.state || capture_policy_exhaustion_ok=0} {checking final capture policy restart counters}
+    shell {[ ! -e /run/aqua/media-service-supervisor.pid ] || capture_policy_exhaustion_ok=0; [ ! -e /run/user/1000/pipewire-0 ] || capture_policy_exhaustion_ok=0; grep -Fxq 'pipewire_pid=' /run/aqua/media-service-supervisor.state || capture_policy_exhaustion_ok=0; grep -Fxq 'wireplumber_pid=' /run/aqua/media-service-supervisor.state || capture_policy_exhaustion_ok=0} {checking capture policy-exhaustion media cleanup}
+    shell {for retired_pid in $retired_media_pids; do kill -0 "$retired_pid" 2>/dev/null && capture_policy_exhaustion_ok=0; done} {checking capture policy-exhaustion media processes are gone}
+    shell {su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/dev/null 2>&1 && capture_policy_exhaustion_ok=0; test "$(grep -Fc '[AQUA-MEDIA] stage=media-service-supervisor status=restarting failed_service=wireplumber' /run/aqua/audio-qemu-supervisor.log)" -eq 3 || capture_policy_exhaustion_ok=0} {checking unavailable capture graph and finite policy restarts}
+    shell {grep -Fq '[AQUA-MEDIA] stage=media-service-supervisor status=degraded reason=restart-limit failed_service=wireplumber attempts=4 restarts=3' /run/aqua/audio-qemu-supervisor.log || capture_policy_exhaustion_ok=0} {checking capture policy restart-limit marker}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-capture-policy-restart-exhaustion'; [ "$capture_policy_exhaustion_ok" = 1 ] && echo "$marker status=ok failed_service=wireplumber attempts=4 restarts=3 restart_limit=true full_stack_retired=true services_stopped=true capture_before=true capture_blocked=true false_success=false controlled_pattern=zero-pcm host_microphone=false recovery_shell=true" || echo "$marker status=failed"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-capture-policy-restart-exhaustion status=ok failed_service=wireplumber attempts=4 restarts=3 restart_limit=true full_stack_retired=true services_stopped=true capture_before=true capture_blocked=true false_success=false controlled_pattern=zero-pcm host_microphone=false recovery_shell=true} {}
+        -exact {[AQUA-AUDIO] stage=qemu-capture-policy-restart-exhaustion status=failed} { puts stderr "Capture policy-service restart exhaustion contract failed"; exit 1 }
+        timeout { puts stderr "Capture policy-service restart exhaustion marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited during capture policy-service restart exhaustion"; exit 1 }
     }
     expect -exact {# }
     send -- "poweroff -f\r"
