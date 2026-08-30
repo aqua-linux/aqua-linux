@@ -110,12 +110,16 @@ The same stream baselines aggregate Smithay damage and frame-callback counters,
 records only monotonic deltas at DRM event boundaries, rejects counter
 regression, and performs a final synchronization after the last presentation.
 This avoids multiplying session-wide counters by the number of mapped surfaces
-and captures callbacks emitted after the last page flip. The bounded event
-snapshot is emitted only after clean CRTC restoration and is explicitly marked
+and captures callbacks emitted after the last page flip. Libinput keyboard,
+pointer-motion, and pointer-button events contribute their real monotonic
+microsecond timestamps; the bridge retains the earliest unpresented event and
+measures it at the next real page-flip boundary. The snapshot exposes both the
+bounded sample count and maximum input-to-present latency so a missing sample
+cannot be mistaken for zero latency. The bounded event snapshot is emitted only
+after clean CRTC restoration and is explicitly marked
 `r2_presentation_acceptance_complete=false`. Packaged QEMU runs still need to
-connect input latency, idle state, CPU, and memory observations, select fixed
-project budgets, cover all four workloads, and isolate diagnostic readback
-before R2 can pass.
+connect idle-state, CPU, and memory observations, select fixed project budgets,
+cover all four workloads, and isolate diagnostic readback before R2 can pass.
 
 ### R3: Wayland Compatibility And Display Behavior
 
