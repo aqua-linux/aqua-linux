@@ -399,7 +399,8 @@ impl PresentationSample {
     }
 
     fn event_scheduling_ready(self) -> bool {
-        self.page_flip_events == self.frames_presented && self.frame_callbacks_sent > 0
+        self.page_flip_events == self.frames_presented
+            && (self.workload == PresentationWorkload::Idle || self.frame_callbacks_sent > 0)
     }
 
     fn production_path_ready(self) -> bool {
@@ -580,7 +581,7 @@ mod tests {
             frames_presented: frame_count,
             dropped_frames: 0,
             page_flip_events: frame_count,
-            frame_callbacks_sent: frame_count,
+            frame_callbacks_sent: if idle { 0 } else { frame_count },
             damage_commits: usize::from(workload != PresentationWorkload::Idle) as u32 * 12,
             full_frame_readbacks: 0,
             cpu_framebuffer_copies: 0,
