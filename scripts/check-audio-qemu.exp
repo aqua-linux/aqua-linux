@@ -38,6 +38,10 @@ if {$audio_contract eq "output" || $audio_contract eq "service-loss" || $audio_c
     lappend qemu_args -audiodev "dbus,id=aqua-audio,nsamples=480,in.frequency=48000,in.channels=2,in.format=s16"
     lappend qemu_args -device ich9-intel-hda
     lappend qemu_args -device hda-duplex,audiodev=aqua-audio
+} elseif {$audio_contract eq "active-input-unplug"} {
+    lappend qemu_args -audiodev "dbus,id=aqua-audio,nsamples=480,in.frequency=48000,in.channels=2,in.format=s16"
+    lappend qemu_args -device ich9-intel-hda,id=aqua-hda-input,addr=04.0
+    lappend qemu_args -device hda-duplex,bus=aqua-hda-input.0,audiodev=aqua-audio
 } elseif {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug"} {
     lappend qemu_args -audiodev "wav,id=aqua-route-primary,path=$env(WAV_ROUTE_PRIMARY),out.frequency=48000,out.channels=2,out.format=s16"
     lappend qemu_args -audiodev "wav,id=aqua-route-secondary,path=$env(WAV_ROUTE_SECONDARY),out.frequency=48000,out.channels=2,out.format=s16"
@@ -49,12 +53,12 @@ if {$audio_contract eq "output" || $audio_contract eq "service-loss" || $audio_c
     puts stderr "Unsupported audio QEMU contract: $audio_contract"
     exit 2
 }
-if {$audio_contract eq "input-signal" || $audio_contract eq "input-disconnect"} {
+if {$audio_contract eq "input-signal" || $audio_contract eq "input-disconnect" || $audio_contract eq "active-input-unplug"} {
     lappend qemu_args -display "dbus,p2p=on,audiodev=aqua-audio"
 } else {
     lappend qemu_args -display none
 }
-if {$audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug" || $audio_contract eq "input-signal" || $audio_contract eq "input-disconnect"} {
+if {$audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug" || $audio_contract eq "input-signal" || $audio_contract eq "input-disconnect" || $audio_contract eq "active-input-unplug"} {
     lappend qemu_args -qmp "unix:$env(QMP_SOCKET),server=on,wait=off"
 }
 lappend qemu_args -no-reboot
@@ -207,7 +211,7 @@ if {$audio_contract eq "control-service-loss"} {
     exit 0
 }
 
-if {$audio_contract eq "input-signal" || $audio_contract eq "input-disconnect"} {
+if {$audio_contract eq "input-signal" || $audio_contract eq "input-disconnect" || $audio_contract eq "active-input-unplug"} {
     if {$audio_contract eq "input-disconnect"} {
         set injector_command [list $env(AUDIO_INPUT_INJECTOR) $env(QMP_SOCKET) $env(AUDIO_INPUT_READY) $env(AUDIO_INPUT_RESULT) $env(AUDIO_INPUT_DISCONNECT_BYTES)]
     } else {
@@ -234,7 +238,46 @@ if {$audio_contract eq "input-signal" || $audio_contract eq "input-disconnect"} 
         puts stderr "Timed out waiting for the QEMU D-Bus input injector"
         exit 1
     }
-    if {$audio_contract eq "input-disconnect"} {
+    if {$audio_contract eq "active-input-unplug"} {
+        shell {active_input_ok=1; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe capture-signal' || active_input_ok=0} {establishing deterministic input transport before removal}
+        shell {rm -f /run/aqua/audio-active-input-unplug.log; capture_status=0; [ "$active_input_ok" = 1 ] && su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe capture-expect-input-route-loss' >/run/aqua/audio-active-input-unplug.log 2>&1 & capture_pid=$!; i=0; while [ "$i" -lt 10 ] && ! grep -Fq '[AQUA-AUDIO] stage=media-probe status=active direction=capture frames=480' /run/aqua/audio-active-input-unplug.log 2>/dev/null; do sleep 1; i=$((i + 1)); done; capture_started=0; grep -Fq '[AQUA-AUDIO] stage=media-probe status=active direction=capture frames=480' /run/aqua/audio-active-input-unplug.log && capture_started=1} {starting route-aware capture on the selected input}
+        send -- {marker='[AQUA-AUDIO] stage=qemu-active-input-unplug-precondition'; [ "$capture_started" = 1 ] && echo "$marker status=ok selected_slot=04.0 active_stream=true frames=480 controlled_pattern=bipolar-injected host_microphone=false" || echo "$marker status=failed"}
+        send -- "\r"
+        expect {
+            -exact {[AQUA-AUDIO] stage=qemu-active-input-unplug-precondition status=ok selected_slot=04.0 active_stream=true frames=480 controlled_pattern=bipolar-injected host_microphone=false} {}
+            -exact {[AQUA-AUDIO] stage=qemu-active-input-unplug-precondition status=failed} { puts stderr "Active input removal precondition failed"; exit 1 }
+            timeout { puts stderr "Active input removal precondition marker missing"; exit 1 }
+            eof { puts stderr "QEMU exited before active input removal"; exit 1 }
+        }
+        expect -exact {# }
+        if {[catch {exec python3 $env(QMP_DEVICE_DELETE) $env(QMP_SOCKET) aqua-hda-input} delete_result]} {
+            puts stderr $delete_result
+            exit 1
+        }
+        shell {i=0; while [ "$i" -lt 30 ] && [ "$(awk '/^ [0-9]+ / { count++ } END { print count+0 }' /proc/asound/cards)" -ne 0 ]; do sleep 1; i=$((i + 1)); done; test "$(awk '/^ [0-9]+ / { count++ } END { print count+0 }' /proc/asound/cards)" -eq 0 || active_input_ok=0; wait "$capture_pid" || capture_status=$?; cat /run/aqua/audio-active-input-unplug.log; [ "$capture_status" -eq 3 ] || active_input_ok=0; grep -Fq '[AQUA-AUDIO] stage=media-probe status=interrupted direction=capture reason=input-route-loss frames=480' /run/aqua/audio-active-input-unplug.log || active_input_ok=0; if grep -Fq '[AQUA-AUDIO] stage=media-probe status=ok direction=capture' /run/aqua/audio-active-input-unplug.log; then active_input_ok=0; fi} {requiring explicit authoritative input-route-loss interruption}
+        send -- {marker='[AQUA-AUDIO] stage=qemu-device-unplug'; [ "$active_input_ok" = 1 ] && echo "$marker status=ok device=aqua-hda-input event=DEVICE_DELETED alsa_inputs=0"}
+        send -- "\r"
+        expect {
+            -exact {[AQUA-AUDIO] stage=qemu-device-unplug status=ok device=aqua-hda-input event=DEVICE_DELETED alsa_inputs=0} {}
+            timeout { puts stderr "Active input device removal was not acknowledged"; exit 1 }
+            eof { puts stderr "QEMU exited during active input device removal"; exit 1 }
+        }
+        expect -exact {# }
+        shell {[ "$active_input_ok" = 1 ] && su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe capture-unavailable' || active_input_ok=0; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || active_input_ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/dev/null || active_input_ok=0} {requiring fail-closed capture state with media services responsive}
+        shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}
+        send -- {marker='[AQUA-AUDIO] stage=qemu-active-input-unplug'; [ "$active_input_ok" = 1 ] && echo "$marker status=ok removed_default_input=true active_stream_aborted=true false_success=false new_capture_blocked=true services_running=true controlled_pattern=bipolar-injected host_microphone=false recovery_shell=true" || echo "$marker status=failed"}
+        send -- "\r"
+        expect {
+            -exact {[AQUA-AUDIO] stage=qemu-active-input-unplug status=ok removed_default_input=true active_stream_aborted=true false_success=false new_capture_blocked=true services_running=true controlled_pattern=bipolar-injected host_microphone=false recovery_shell=true} {}
+            -exact {[AQUA-AUDIO] stage=qemu-active-input-unplug status=failed} { puts stderr "Active input unplug contract failed"; exit 1 }
+            timeout { puts stderr "Final active input unplug marker missing"; exit 1 }
+            eof { puts stderr "QEMU exited before the active input unplug marker"; exit 1 }
+        }
+        expect -exact {# }
+        send -- "poweroff -f\r"
+        expect eof
+        exit 0
+    } elseif {$audio_contract eq "input-disconnect"} {
         shell {input_failure_ok=1; probe_status=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe capture-signal' >/run/aqua/audio-input-disconnect.log 2>&1 || probe_status=$?; cat /run/aqua/audio-input-disconnect.log; test "$probe_status" -ne 0 || input_failure_ok=0; grep -Fq '[AQUA-AUDIO] stage=media-probe status=failed reason=invalid-injected-signal' /run/aqua/audio-input-disconnect.log || input_failure_ok=0; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || input_failure_ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/dev/null || input_failure_ok=0} {rejecting an interrupted deterministic input stream}
     } else {
         shell {ok=1; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe capture-signal' || ok=0} {capturing the deterministic non-silent PCM signal}

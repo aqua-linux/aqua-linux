@@ -192,7 +192,13 @@ the graph degraded, confirms process/socket cleanup, rejects new playback and
 active-capture profile kills PipeWire after
 480 zero-PCM frames, requires an explicit interrupted result without false
 capture success, observes ordered recovery, and captures a new exact 4,800
-frames without host-microphone access. Other media error matrices remain open.
+frames without host-microphone access. A distinct device-loss profile validates
+one complete D-Bus-injected bipolar capture, removes the sole duplex HDA
+controller during a second client's 480-frame checkpoint, requires native
+topology to report zero inputs and explicit `input-route-loss` without false
+completion, and blocks new capture while services remain responsive. It uses no
+host microphone and proves no physical-device behavior. Other media error
+matrices remain open.
 Native volume/mute controls are now separately proven to reject acknowledgement
 while the real PipeWire socket is absent and to succeed again only after the
 supervisor restores a new authoritative graph. Other control and UI failure

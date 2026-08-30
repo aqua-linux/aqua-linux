@@ -327,6 +327,18 @@ must restore the graph before a new client captures exactly 4,800 zero-PCM
 frames. This is virtual service-loss evidence, not physical microphone or
 device-disconnect support.
 
+`scripts/check-audio-active-input-unplug-qemu.sh` separates input-device loss
+from media-service loss. A private D-Bus injector first proves one complete
+4,800-frame bipolar capture without host microphone access. A second capture
+publishes its 480-frame active checkpoint before QMP removes the sole duplex HDA
+controller at PCI 04.0 and acknowledges `DEVICE_DELETED`. The route-aware probe
+requires the native graph to converge to zero inputs and no default input,
+reports `input-route-loss` with no capture-success marker, and then confirms a
+new capture is blocked by the missing authoritative route while PipeWire,
+WirePlumber, and recovery remain responsive. This is bounded virtual
+input-topology evidence, not physical microphone, jack, USB, or Bluetooth
+hotplug support.
+
 `scripts/check-audio-control-service-loss-qemu.sh` exercises the native
 volume/mute acknowledgement boundary during a deterministic real graph outage.
 It first requires one successful control cycle, briefly holds the supervisor

@@ -34,6 +34,18 @@ static struct aqua_audio_native_node *default_output(
   return NULL;
 }
 
+static struct aqua_audio_native_node *default_input(
+    struct aqua_audio_native_snapshot *snapshot) {
+  for (uint32_t index = 0; index < snapshot->node_count; ++index) {
+    struct aqua_audio_native_node *node = &snapshot->nodes[index];
+    if (node->kind == AQUA_AUDIO_NATIVE_INPUT &&
+        strcmp(node->name, snapshot->default_input) == 0) {
+      return node;
+    }
+  }
+  return NULL;
+}
+
 static int native_failure(struct aqua_audio_native *handle,
     const char *operation, int32_t status) {
   fprintf(stderr,
@@ -136,6 +148,36 @@ static uint32_t output_count(
     }
   }
   return count;
+}
+
+static uint32_t input_count(const struct aqua_audio_native_snapshot *snapshot) {
+  uint32_t count = 0;
+  for (uint32_t index = 0; index < snapshot->node_count; ++index) {
+    if (snapshot->nodes[index].kind == AQUA_AUDIO_NATIVE_INPUT) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+static int capture_unavailable(void) {
+  struct aqua_audio_native *handle = NULL;
+  int32_t status = aqua_audio_native_open(5000, &handle);
+  struct aqua_audio_native_snapshot snapshot;
+  if (status == AQUA_AUDIO_NATIVE_OK) {
+    status = aqua_audio_native_snapshot(handle, 5000, &snapshot);
+  }
+  if (status != AQUA_AUDIO_NATIVE_OK || input_count(&snapshot) != 0 ||
+      default_input(&snapshot)) {
+    fprintf(stderr, "[AQUA-AUDIO] stage=media-probe status=failed "
+                    "reason=input-route-still-available\n");
+    aqua_audio_native_close(handle);
+    return 1;
+  }
+  printf("[AQUA-AUDIO] stage=media-probe status=blocked direction=capture "
+         "reason=no-input-route inputs=0\n");
+  aqua_audio_native_close(handle);
+  return 0;
 }
 
 static int routes(const char *required_node_fragment) {
@@ -445,17 +487,41 @@ static int playback(unsigned int required_periods, int expect_interruption,
 }
 
 static int capture(enum capture_requirement requirement,
-                   unsigned int required_periods, int expect_interruption) {
+                   unsigned int required_periods, int expect_interruption,
+                   int expect_route_loss) {
+  struct aqua_audio_native *route_handle = NULL;
+  char initial_default[AQUA_AUDIO_NATIVE_NODE_NAME_BYTES] = {0};
+  if (expect_route_loss) {
+    int32_t native_status = aqua_audio_native_open(5000, &route_handle);
+    struct aqua_audio_native_snapshot initial_snapshot;
+    if (native_status == AQUA_AUDIO_NATIVE_OK) {
+      native_status =
+          aqua_audio_native_snapshot(route_handle, 5000, &initial_snapshot);
+    }
+    if (native_status != AQUA_AUDIO_NATIVE_OK ||
+        input_count(&initial_snapshot) != 1 ||
+        !default_input(&initial_snapshot)) {
+      fprintf(stderr, "[AQUA-AUDIO] stage=media-probe status=failed "
+                      "reason=input-route-monitor-initial\n");
+      aqua_audio_native_close(route_handle);
+      return 1;
+    }
+    memcpy(initial_default, initial_snapshot.default_input,
+           sizeof(initial_default));
+  }
+
   snd_pcm_t *pcm = NULL;
   int status = snd_pcm_open(&pcm, "default", SND_PCM_STREAM_CAPTURE, 0);
   if (status < 0) {
     fprintf(stderr, "[AQUA-AUDIO] stage=media-probe status=failed "
                     "reason=open-capture detail=%s\n",
             snd_strerror(status));
+    aqua_audio_native_close(route_handle);
     return 1;
   }
   if (configure(pcm, SND_PCM_STREAM_CAPTURE) != 0) {
     snd_pcm_close(pcm);
+    aqua_audio_native_close(route_handle);
     return 1;
   }
   status = snd_pcm_start(pcm);
@@ -464,6 +530,7 @@ static int capture(enum capture_requirement requirement,
                     "reason=start-capture detail=%s\n",
             snd_strerror(status));
     snd_pcm_close(pcm);
+    aqua_audio_native_close(route_handle);
     return 1;
   }
 
@@ -483,11 +550,13 @@ static int capture(enum capture_requirement requirement,
                 "detail=%s\n",
                 (unsigned long long)frames, snd_strerror(status));
         snd_pcm_close(pcm);
+        aqua_audio_native_close(route_handle);
         return 3;
       }
       fprintf(stderr, "[AQUA-AUDIO] stage=media-probe status=failed "
                       "reason=capture-timeout\n");
       snd_pcm_close(pcm);
+      aqua_audio_native_close(route_handle);
       return 1;
     }
     snd_pcm_sframes_t read_frames = snd_pcm_readi(pcm, samples, PERIOD_FRAMES);
@@ -499,10 +568,12 @@ static int capture(enum capture_requirement requirement,
                 "detail=%s\n",
                 (unsigned long long)frames, snd_strerror((int)read_frames));
         snd_pcm_close(pcm);
+        aqua_audio_native_close(route_handle);
         return 3;
       }
       if (recover_io(pcm, (int)read_frames) != 0) {
         snd_pcm_close(pcm);
+        aqua_audio_native_close(route_handle);
         return 1;
       }
       --period;
@@ -525,12 +596,46 @@ static int capture(enum capture_requirement requirement,
       }
     }
     frames += (uint64_t)read_frames;
-    if (expect_interruption && period == 0) {
+    if ((expect_interruption || expect_route_loss) && period == 0) {
       printf("[AQUA-AUDIO] stage=media-probe status=active "
              "direction=capture frames=%llu\n",
              (unsigned long long)frames);
       fflush(stdout);
       poll(NULL, 0, 2000);
+      if (expect_route_loss) {
+        struct aqua_audio_native_snapshot current_snapshot;
+        int route_lost = 0;
+        for (unsigned int attempt = 0; attempt < 50; ++attempt) {
+          int32_t native_status = aqua_audio_native_snapshot(
+              route_handle, 5000, &current_snapshot);
+          if (native_status != AQUA_AUDIO_NATIVE_OK) {
+            break;
+          }
+          if (input_count(&current_snapshot) == 0 &&
+              !default_input(&current_snapshot) &&
+              strcmp(current_snapshot.default_input, initial_default) != 0) {
+            route_lost = 1;
+            break;
+          }
+          poll(NULL, 0, 100);
+        }
+        if (!route_lost) {
+          fprintf(stderr, "[AQUA-AUDIO] stage=media-probe status=failed "
+                          "reason=input-route-loss-not-observed frames=%llu\n",
+                  (unsigned long long)frames);
+          snd_pcm_drop(pcm);
+          snd_pcm_close(pcm);
+          aqua_audio_native_close(route_handle);
+          return 1;
+        }
+        fprintf(stderr, "[AQUA-AUDIO] stage=media-probe status=interrupted "
+                        "direction=capture reason=input-route-loss frames=%llu\n",
+                (unsigned long long)frames);
+        snd_pcm_drop(pcm);
+        snd_pcm_close(pcm);
+        aqua_audio_native_close(route_handle);
+        return 3;
+      }
     }
   }
   snd_pcm_drop(pcm);
@@ -583,7 +688,7 @@ static int capture(enum capture_requirement requirement,
 int main(int argc, char **argv) {
   if (argc != 2) {
     fprintf(stderr,
-            "usage: aqua-audio-probe playback|playback-expect-interruption|playback-expect-route-loss|playback-active-stable|capture|capture-silence|capture-signal|capture-expect-interruption|controls|routes|routes-secondary|fallback|primary-two|primary-one\n");
+            "usage: aqua-audio-probe playback|playback-expect-interruption|playback-expect-route-loss|playback-active-stable|capture|capture-silence|capture-signal|capture-expect-interruption|capture-expect-input-route-loss|capture-unavailable|controls|routes|routes-secondary|fallback|primary-two|primary-one\n");
     return 2;
   }
   if (strcmp(argv[1], "playback") == 0) {
@@ -599,16 +704,22 @@ int main(int argc, char **argv) {
     return playback(PLAYBACK_PERIODS, 0, 1, 0);
   }
   if (strcmp(argv[1], "capture") == 0) {
-    return capture(CAPTURE_OBSERVE, CAPTURE_PERIODS, 0);
+    return capture(CAPTURE_OBSERVE, CAPTURE_PERIODS, 0, 0);
   }
   if (strcmp(argv[1], "capture-silence") == 0) {
-    return capture(CAPTURE_REQUIRE_SILENCE, CAPTURE_PERIODS, 0);
+    return capture(CAPTURE_REQUIRE_SILENCE, CAPTURE_PERIODS, 0, 0);
   }
   if (strcmp(argv[1], "capture-signal") == 0) {
-    return capture(CAPTURE_REQUIRE_SIGNAL, CAPTURE_PERIODS, 0);
+    return capture(CAPTURE_REQUIRE_SIGNAL, CAPTURE_PERIODS, 0, 0);
   }
   if (strcmp(argv[1], "capture-expect-interruption") == 0) {
-    return capture(CAPTURE_OBSERVE, INTERRUPTED_CAPTURE_PERIODS, 1);
+    return capture(CAPTURE_OBSERVE, INTERRUPTED_CAPTURE_PERIODS, 1, 0);
+  }
+  if (strcmp(argv[1], "capture-expect-input-route-loss") == 0) {
+    return capture(CAPTURE_OBSERVE, INTERRUPTED_CAPTURE_PERIODS, 0, 1);
+  }
+  if (strcmp(argv[1], "capture-unavailable") == 0) {
+    return capture_unavailable();
   }
   if (strcmp(argv[1], "controls") == 0) {
     return controls();
@@ -629,6 +740,6 @@ int main(int argc, char **argv) {
     return primary_topology(1);
   }
   fprintf(stderr,
-          "usage: aqua-audio-probe playback|playback-expect-interruption|playback-expect-route-loss|playback-active-stable|capture|capture-silence|capture-signal|capture-expect-interruption|controls|routes|routes-secondary|fallback|primary-two|primary-one\n");
+          "usage: aqua-audio-probe playback|playback-expect-interruption|playback-expect-route-loss|playback-active-stable|capture|capture-silence|capture-signal|capture-expect-interruption|capture-expect-input-route-loss|capture-unavailable|controls|routes|routes-secondary|fallback|primary-two|primary-one\n");
   return 2;
 }
