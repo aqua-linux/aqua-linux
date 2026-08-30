@@ -42,13 +42,13 @@ use aqua_compositor::{
     probe_client_window_model, probe_display_activation_plan, probe_display_output_handoff,
     probe_display_output_plan, probe_launcher_input_scene_binding,
     probe_manual_nested_preview_backend, probe_renderer_surface_sources, probe_runtime_assets,
-    probe_session_bootstrap, probe_session_skeleton, probe_smithay_launcher_seat,
-    probe_static_frame_buffer, probe_static_frame_plan, probe_static_paint_plan,
-    probe_static_raster_export, probe_static_raster_png_export, probe_static_render_plan,
-    probe_static_shell_scene, probe_static_software_raster, probe_visible_preview_plan,
-    probe_xdg_shell_binding, probe_xdg_toplevel_client, probe_xdg_toplevel_window_model,
-    read_session_config, run_calloop_socket_smoke, run_event_loop_smoke,
-    run_manual_display_output_smoke, run_manual_nested_preview_execution,
+    probe_selection_ownership, probe_session_bootstrap, probe_session_skeleton,
+    probe_smithay_launcher_seat, probe_static_frame_buffer, probe_static_frame_plan,
+    probe_static_paint_plan, probe_static_raster_export, probe_static_raster_png_export,
+    probe_static_render_plan, probe_static_shell_scene, probe_static_software_raster,
+    probe_visible_preview_plan, probe_xdg_shell_binding, probe_xdg_toplevel_client,
+    probe_xdg_toplevel_window_model, read_session_config, run_calloop_socket_smoke,
+    run_event_loop_smoke, run_manual_display_output_smoke, run_manual_nested_preview_execution,
     run_nested_output_surface_lifecycle, run_nested_preview_frame_loop, run_session_loop_smoke,
     run_session_once_smoke, run_wayland_display_smoke, run_wayland_socket_smoke, status_lines,
     Viewport,
@@ -232,6 +232,7 @@ fn main() {
         "probe-client-surface-registry" => probe_client_surface_registry_cli(),
         "probe-xdg-shell-binding" => probe_xdg_shell_binding_cli(),
         "probe-xdg-toplevel-client" => probe_xdg_toplevel_client_cli(),
+        "probe-selection-ownership" => probe_selection_ownership_cli(),
         "probe-xdg-toplevel-window-model" => probe_xdg_toplevel_window_model_cli(),
         "probe-launcher-model" => probe_launcher_model_cli(),
         "probe-launcher-input-scene" => probe_launcher_input_scene_cli(),
@@ -269,7 +270,7 @@ fn main() {
         _ => {
             eprintln!("unknown command: {command}");
             eprintln!(
-                "usage: aqua-compositor [status|probe-assets <runtime-asset-root>|probe-renderer-backend [auto|gpu|software]|probe-gpu-offscreen-frame [device]|smoke-loop|smoke-wayland|smoke-socket|smoke-calloop-socket|probe-session-config|probe-session-env|probe-session-bootstrap <config-path> <prepared-runtime-dir>|probe-session|probe-output-plan|dump-output-plan|probe-display-output-handoff|probe-display-activation-plan|probe-drm-device [device]|probe-drm-dumb-buffer [device]|probe-drm-gbm-scanout-buffer [device]|present-drm-gbm-scanout [device]|present-drm-kms [device]|present-drm-page-flip [device]|run-drm-frame-loop [device]|run-drm-session-loop [device]|run-drm-wayland-session [device]|run-wayland-test-client [socket]|smoke-display-output|smoke-nested-output-surface|probe-visible-preview-plan|probe-visible-preview-export|export-visible-preview-html <path>|probe-fbdev-frame <width> <height> <bits-per-pixel>|present-fbdev [device]|smoke-nested-preview-loop|probe-manual-nested-preview-backend|run-manual-nested-preview-execution|probe-client-window-model|probe-client-surface-lifecycle|probe-client-surface-registry|probe-xdg-shell-binding|probe-xdg-toplevel-client|probe-xdg-toplevel-window-model|probe-launcher-model|probe-launcher-input-scene|probe-smithay-launcher-seat|probe-evdev-aqua-seat <keyboard-event> <pointer-event>|probe-scene|dump-scene|probe-render-plan|dump-render-plan|probe-renderer-surface-sources|probe-client-layer-pipeline|probe-paint-plan|dump-paint-plan|probe-frame-plan|dump-frame-plan|probe-frame-buffer|dump-frame-buffer|probe-raster|dump-raster|probe-raster-export|dump-raster-export|export-raster-ppm <path>|probe-raster-png-export|dump-raster-png-export|export-raster-png <path>|smoke-run-once|smoke-session-loop]"
+                "usage: aqua-compositor [status|probe-assets <runtime-asset-root>|probe-renderer-backend [auto|gpu|software]|probe-gpu-offscreen-frame [device]|smoke-loop|smoke-wayland|smoke-socket|smoke-calloop-socket|probe-session-config|probe-session-env|probe-session-bootstrap <config-path> <prepared-runtime-dir>|probe-session|probe-output-plan|dump-output-plan|probe-display-output-handoff|probe-display-activation-plan|probe-drm-device [device]|probe-drm-dumb-buffer [device]|probe-drm-gbm-scanout-buffer [device]|present-drm-gbm-scanout [device]|present-drm-kms [device]|present-drm-page-flip [device]|run-drm-frame-loop [device]|run-drm-session-loop [device]|run-drm-wayland-session [device]|run-wayland-test-client [socket]|smoke-display-output|smoke-nested-output-surface|probe-visible-preview-plan|probe-visible-preview-export|export-visible-preview-html <path>|probe-fbdev-frame <width> <height> <bits-per-pixel>|present-fbdev [device]|smoke-nested-preview-loop|probe-manual-nested-preview-backend|run-manual-nested-preview-execution|probe-client-window-model|probe-client-surface-lifecycle|probe-client-surface-registry|probe-xdg-shell-binding|probe-xdg-toplevel-client|probe-selection-ownership|probe-xdg-toplevel-window-model|probe-launcher-model|probe-launcher-input-scene|probe-smithay-launcher-seat|probe-evdev-aqua-seat <keyboard-event> <pointer-event>|probe-scene|dump-scene|probe-render-plan|dump-render-plan|probe-renderer-surface-sources|probe-client-layer-pipeline|probe-paint-plan|dump-paint-plan|probe-frame-plan|dump-frame-plan|probe-frame-buffer|dump-frame-buffer|probe-raster|dump-raster|probe-raster-export|dump-raster-export|export-raster-ppm <path>|probe-raster-png-export|dump-raster-png-export|export-raster-png <path>|smoke-run-once|smoke-session-loop]"
             );
             std::process::exit(2);
         }
@@ -10332,6 +10333,61 @@ fn probe_smithay_launcher_seat_cli() {
             eprintln!("Smithay launcher seat probe failed: {error}");
             println!("[AQUA-COMPOSITOR] stage=smithay-launcher-seat status=error");
             std::process::exit(1);
+        }
+    }
+}
+
+fn probe_selection_ownership_cli() {
+    match probe_selection_ownership() {
+        Ok(probe) => {
+            println!("[AQUA-COMPOSITOR] stage=selection-ownership status=running");
+            println!("selection_status={}", probe.status);
+            println!("clipboard_protocol={}", probe.clipboard_protocol);
+            println!("primary_protocol={}", probe.primary_protocol);
+            println!("client_count={}", probe.client_count);
+            println!(
+                "globals_visible_to_both_clients={}",
+                probe.globals_visible_to_both_clients
+            );
+            println!("focus_follows_keyboard={}", probe.focus_follows_keyboard);
+            println!(
+                "unfocused_clipboard_rejected={}",
+                probe.unfocused_clipboard_rejected
+            );
+            println!(
+                "unfocused_primary_rejected={}",
+                probe.unfocused_primary_rejected
+            );
+            println!(
+                "focused_clipboard_accepted={}",
+                probe.focused_clipboard_accepted
+            );
+            println!(
+                "focused_primary_accepted={}",
+                probe.focused_primary_accepted
+            );
+            println!(
+                "clipboard_offer_reaches_new_focus={}",
+                probe.clipboard_offer_reaches_new_focus
+            );
+            println!(
+                "primary_offer_reaches_new_focus={}",
+                probe.primary_offer_reaches_new_focus
+            );
+            println!(
+                "ownership_handoff_accepted={}",
+                probe.ownership_handoff_accepted
+            );
+            println!(
+                "data_control_global_exposed={}",
+                probe.data_control_global_exposed
+            );
+            println!("host_stub={}", probe.host_stub);
+            finish_stage("selection-ownership", probe.is_ready());
+        }
+        Err(error) => {
+            eprintln!("selection ownership probe failed: {error}");
+            finish_stage("selection-ownership", false);
         }
     }
 }

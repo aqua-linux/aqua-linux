@@ -349,6 +349,7 @@ EOF
         "${tmp_dir}/aqua-compositor" probe-client-layer-pipeline > "${CONTRACT_DIR}/client-layer-pipeline-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-xdg-shell-binding > "${CONTRACT_DIR}/xdg-shell-binding-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-xdg-toplevel-client > "${CONTRACT_DIR}/xdg-toplevel-client-probe.txt"
+        "${tmp_dir}/aqua-compositor" probe-selection-ownership > "${CONTRACT_DIR}/selection-ownership-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-xdg-toplevel-window-model > "${CONTRACT_DIR}/xdg-toplevel-window-model-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-launcher-model > "${CONTRACT_DIR}/launcher-model-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-launcher-input-scene > "${CONTRACT_DIR}/launcher-input-scene-probe.txt"

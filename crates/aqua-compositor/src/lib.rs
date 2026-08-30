@@ -370,7 +370,8 @@ use calloop::{
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use smithay::{
     backend::input::{Axis, AxisSource, ButtonState, KeyState, Keycode},
-    delegate_compositor, delegate_seat, delegate_shm, delegate_xdg_shell,
+    delegate_compositor, delegate_data_device, delegate_primary_selection, delegate_seat,
+    delegate_shm, delegate_xdg_shell,
     input::{
         keyboard::FilterResult,
         pointer::{AxisFrame, ButtonEvent, CursorImageStatus, MotionEvent},
@@ -379,7 +380,7 @@ use smithay::{
     reexports::wayland_server::{
         backend::{ClientData, ClientId, DisconnectReason},
         protocol::{wl_buffer, wl_callback, wl_seat, wl_surface::WlSurface},
-        Client, Display, DisplayHandle, ListeningSocket,
+        Client, Display, DisplayHandle, ListeningSocket, Resource,
     },
     utils::Serial,
     wayland::shell::xdg::{
@@ -392,6 +393,16 @@ use smithay::{
             with_states, BufferAssignment, CompositorClientState, CompositorHandler,
             CompositorState, RectangleKind,
         },
+        selection::{
+            data_device::{
+                set_data_device_focus, ClientDndGrabHandler, DataDeviceHandler, DataDeviceState,
+                ServerDndGrabHandler,
+            },
+            primary_selection::{
+                set_primary_focus, PrimarySelectionHandler, PrimarySelectionState,
+            },
+            SelectionHandler, SelectionSource, SelectionTarget,
+        },
         shm::{with_buffer_contents, ShmHandler, ShmState},
     },
 };
@@ -403,11 +414,20 @@ use {
         delegate_noop,
         protocol::{
             wl_buffer as client_wl_buffer, wl_callback as client_wl_callback, wl_compositor,
+            wl_data_device as client_wl_data_device,
+            wl_data_device_manager as client_wl_data_device_manager,
+            wl_data_offer as client_wl_data_offer, wl_data_source as client_wl_data_source,
             wl_keyboard as client_wl_keyboard, wl_pointer as client_wl_pointer,
             wl_region as client_wl_region, wl_registry, wl_seat as client_wl_seat,
             wl_shm as client_wl_shm, wl_shm_pool as client_wl_shm_pool, wl_surface,
         },
         Connection as ClientConnection, Dispatch as ClientDispatch, QueueHandle, WEnum,
+    },
+    wayland_protocols::wp::primary_selection::zv1::client::{
+        zwp_primary_selection_device_manager_v1 as client_primary_selection_manager,
+        zwp_primary_selection_device_v1 as client_primary_selection_device,
+        zwp_primary_selection_offer_v1 as client_primary_selection_offer,
+        zwp_primary_selection_source_v1 as client_primary_selection_source,
     },
     wayland_protocols::xdg::shell::client::{
         xdg_surface as client_xdg_surface, xdg_toplevel as client_xdg_toplevel,
@@ -871,6 +891,46 @@ pub struct XdgToplevelClientProbe {
     pub renderer_started: bool,
     pub boot_graphics: bool,
     pub host_stub: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectionOwnershipProbe {
+    pub product: &'static str,
+    pub status: &'static str,
+    pub clipboard_protocol: &'static str,
+    pub primary_protocol: &'static str,
+    pub client_count: usize,
+    pub globals_visible_to_both_clients: bool,
+    pub focus_follows_keyboard: bool,
+    pub unfocused_clipboard_rejected: bool,
+    pub unfocused_primary_rejected: bool,
+    pub focused_clipboard_accepted: bool,
+    pub focused_primary_accepted: bool,
+    pub clipboard_offer_reaches_new_focus: bool,
+    pub primary_offer_reaches_new_focus: bool,
+    pub ownership_handoff_accepted: bool,
+    pub data_control_global_exposed: bool,
+    pub host_stub: bool,
+}
+
+impl SelectionOwnershipProbe {
+    pub fn is_ready(&self) -> bool {
+        self.product == PRODUCT
+            && self.status == "selection-ownership"
+            && self.clipboard_protocol == "wl_data_device_manager"
+            && self.primary_protocol == "zwp_primary_selection_device_manager_v1"
+            && self.client_count == 2
+            && self.globals_visible_to_both_clients
+            && self.focus_follows_keyboard
+            && self.unfocused_clipboard_rejected
+            && self.unfocused_primary_rejected
+            && self.focused_clipboard_accepted
+            && self.focused_primary_accepted
+            && self.clipboard_offer_reaches_new_focus
+            && self.primary_offer_reaches_new_focus
+            && self.ownership_handoff_accepted
+            && !self.data_control_global_exposed
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2360,6 +2420,10 @@ pub fn probe_xdg_shell_binding(
 
 pub fn probe_xdg_toplevel_client() -> Result<XdgToplevelClientProbe, Box<dyn std::error::Error>> {
     probe_xdg_toplevel_client_impl()
+}
+
+pub fn probe_selection_ownership() -> Result<SelectionOwnershipProbe, Box<dyn std::error::Error>> {
+    probe_selection_ownership_impl()
 }
 
 pub fn probe_xdg_toplevel_window_model(
@@ -3971,6 +4035,138 @@ fn probe_xdg_toplevel_client_impl() -> Result<XdgToplevelClientProbe, Box<dyn st
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn probe_selection_ownership_impl() -> Result<SelectionOwnershipProbe, Box<dyn std::error::Error>> {
+    let mut session = AquaCompositorSession::new()?;
+    let (server_stream_one, client_stream_one) = std::os::unix::net::UnixStream::pair()?;
+    let (server_stream_two, client_stream_two) = std::os::unix::net::UnixStream::pair()?;
+    let server_client_one = session.insert_client(server_stream_one)?;
+    let server_client_two = session.insert_client(server_stream_two)?;
+
+    let client_one_conn = ClientConnection::from_socket(client_stream_one)?;
+    let client_two_conn = ClientConnection::from_socket(client_stream_two)?;
+    let mut event_queue_one = client_one_conn.new_event_queue();
+    let mut event_queue_two = client_two_conn.new_event_queue();
+    let qh_one = event_queue_one.handle();
+    let qh_two = event_queue_two.handle();
+    client_one_conn.display().get_registry(&qh_one, ());
+    client_two_conn.display().get_registry(&qh_two, ());
+    client_one_conn.flush()?;
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+
+    let mut client_one = SelectionSmokeClientState::default();
+    let mut client_two = SelectionSmokeClientState::default();
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    client_one_conn.flush()?;
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+
+    let surface_one = session
+        .wayland_state
+        .committed_surfaces
+        .iter()
+        .find(|surface| surface.client().as_ref() == Some(&server_client_one))
+        .cloned()
+        .ok_or("first selection client did not commit a focus surface")?;
+    let surface_two = session
+        .wayland_state
+        .committed_surfaces
+        .iter()
+        .find(|surface| surface.client().as_ref() == Some(&server_client_two))
+        .cloned()
+        .ok_or("second selection client did not commit a focus surface")?;
+
+    let keyboard = session
+        .wayland_state
+        .seat
+        .get_keyboard()
+        .ok_or("Aqua Seat keyboard is required for selection ownership")?;
+    keyboard.set_focus(
+        &mut session.wayland_state,
+        Some(surface_one),
+        Serial::from(1),
+    );
+    session.flush_clients()?;
+
+    client_two.set_clipboard(2);
+    client_two.set_primary(2);
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    let unfocused_clipboard_rejected = session.wayland_state.clipboard_selection_count == 0;
+    let unfocused_primary_rejected = session.wayland_state.primary_selection_count == 0;
+
+    client_one.set_clipboard(3);
+    client_one.set_primary(3);
+    client_one_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    let focused_clipboard_accepted = session.wayland_state.clipboard_selection_count == 1;
+    let focused_primary_accepted = session.wayland_state.primary_selection_count == 1;
+
+    keyboard.set_focus(
+        &mut session.wayland_state,
+        Some(surface_two),
+        Serial::from(4),
+    );
+    session.flush_clients()?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    let clipboard_offer_reaches_new_focus = client_two.clipboard_offer_received;
+    let primary_offer_reaches_new_focus = client_two.primary_offer_received;
+
+    client_two.set_clipboard(5);
+    client_two.set_primary(5);
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    let ownership_handoff_accepted = session.wayland_state.clipboard_selection_count == 2
+        && session.wayland_state.primary_selection_count == 2;
+
+    Ok(SelectionOwnershipProbe {
+        product: PRODUCT,
+        status: "selection-ownership",
+        clipboard_protocol: "wl_data_device_manager",
+        primary_protocol: "zwp_primary_selection_device_manager_v1",
+        client_count: 2,
+        globals_visible_to_both_clients: client_one.globals_ready() && client_two.globals_ready(),
+        focus_follows_keyboard: true,
+        unfocused_clipboard_rejected,
+        unfocused_primary_rejected,
+        focused_clipboard_accepted,
+        focused_primary_accepted,
+        clipboard_offer_reaches_new_focus,
+        primary_offer_reaches_new_focus,
+        ownership_handoff_accepted,
+        data_control_global_exposed: client_one.data_control_global_seen
+            || client_two.data_control_global_seen,
+        host_stub: false,
+    })
+}
+
+#[cfg(not(all(target_os = "linux", feature = "smithay-smoke")))]
+fn probe_selection_ownership_impl() -> Result<SelectionOwnershipProbe, Box<dyn std::error::Error>> {
+    Ok(SelectionOwnershipProbe {
+        product: PRODUCT,
+        status: "selection-ownership",
+        clipboard_protocol: "wl_data_device_manager",
+        primary_protocol: "zwp_primary_selection_device_manager_v1",
+        client_count: 2,
+        globals_visible_to_both_clients: true,
+        focus_follows_keyboard: true,
+        unfocused_clipboard_rejected: true,
+        unfocused_primary_rejected: true,
+        focused_clipboard_accepted: true,
+        focused_primary_accepted: true,
+        clipboard_offer_reaches_new_focus: true,
+        primary_offer_reaches_new_focus: true,
+        ownership_handoff_accepted: true,
+        data_control_global_exposed: false,
+        host_stub: true,
+    })
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 fn run_wayland_display_smoke_impl() -> Result<WaylandDisplaySmokeResult, Box<dyn std::error::Error>>
 {
     let display: Display<WaylandSmokeState> = Display::new()?;
@@ -4383,9 +4579,12 @@ pub fn status_lines() -> [&'static str; 16] {
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 struct WaylandSmokeState {
+    display_handle: DisplayHandle,
     compositor_state: CompositorState,
     shm_state: ShmState,
     xdg_shell_state: XdgShellState,
+    data_device_state: DataDeviceState,
+    primary_selection_state: PrimarySelectionState,
     seat_state: SeatState<Self>,
     seat: Seat<Self>,
     launcher_state: LauncherState,
@@ -4424,6 +4623,7 @@ struct WaylandSmokeState {
     shm_buffer_stride: u32,
     close_new_toplevels: bool,
     mapped_surface: Option<WlSurface>,
+    committed_surfaces: Vec<WlSurface>,
     mapped_surfaces: Vec<ServerSurfaceRecord>,
     toplevel_surfaces: Vec<ToplevelSurface>,
     pointer_focus_surface: Option<WlSurface>,
@@ -4459,6 +4659,8 @@ struct WaylandSmokeState {
     alt_pressed: bool,
     workspace_switch_count: usize,
     workspace_move_count: usize,
+    clipboard_selection_count: usize,
+    primary_selection_count: usize,
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -4499,9 +4701,14 @@ impl WaylandSmokeState {
         let trash_model = TrashModel::open(trash_root)?;
 
         Ok(Self {
+            display_handle: display_handle.clone(),
             compositor_state: CompositorState::new::<WaylandSmokeState>(display_handle),
             shm_state: ShmState::new::<WaylandSmokeState>(display_handle, []),
             xdg_shell_state: XdgShellState::new::<WaylandSmokeState>(display_handle),
+            data_device_state: DataDeviceState::new::<WaylandSmokeState>(display_handle),
+            primary_selection_state: PrimarySelectionState::new::<WaylandSmokeState>(
+                display_handle,
+            ),
             seat_state,
             seat,
             launcher_state: LauncherState::default(),
@@ -4540,6 +4747,7 @@ impl WaylandSmokeState {
             shm_buffer_stride: 0,
             close_new_toplevels: true,
             mapped_surface: None,
+            committed_surfaces: Vec::new(),
             mapped_surfaces: Vec::new(),
             toplevel_surfaces: Vec::new(),
             pointer_focus_surface: None,
@@ -4575,6 +4783,8 @@ impl WaylandSmokeState {
             alt_pressed: false,
             workspace_switch_count: 0,
             workspace_move_count: 0,
+            clipboard_selection_count: 0,
+            primary_selection_count: 0,
         })
     }
 
@@ -8238,6 +8448,9 @@ impl CompositorHandler for WaylandSmokeState {
 
     fn commit(&mut self, surface: &WlSurface) {
         self.surface_commit_count += 1;
+        if !self.committed_surfaces.contains(surface) {
+            self.committed_surfaces.push(surface.clone());
+        }
         let installer_full_output = self.toplevel_surfaces.iter().any(|toplevel| {
             toplevel.wl_surface() == surface
                 && with_states(toplevel.wl_surface(), |states| {
@@ -8445,6 +8658,8 @@ impl CompositorHandler for WaylandSmokeState {
     }
 
     fn destroyed(&mut self, surface: &WlSurface) {
+        self.committed_surfaces
+            .retain(|committed| committed != surface);
         let previous_count = self.mapped_surfaces.len();
         self.mapped_surfaces
             .retain(|record| record.surface != *surface);
@@ -8690,9 +8905,50 @@ impl SeatHandler for WaylandSmokeState {
         &mut self.seat_state
     }
 
-    fn focus_changed(&mut self, _seat: &Seat<Self>, _focused: Option<&WlSurface>) {}
+    fn focus_changed(&mut self, seat: &Seat<Self>, focused: Option<&WlSurface>) {
+        let client = focused.and_then(Resource::client);
+        set_data_device_focus(&self.display_handle, seat, client.clone());
+        set_primary_focus(&self.display_handle, seat, client);
+    }
 
     fn cursor_image(&mut self, _seat: &Seat<Self>, _image: CursorImageStatus) {}
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl SelectionHandler for WaylandSmokeState {
+    type SelectionUserData = ();
+
+    fn new_selection(
+        &mut self,
+        target: SelectionTarget,
+        _source: Option<SelectionSource>,
+        _seat: Seat<Self>,
+    ) {
+        match target {
+            SelectionTarget::Clipboard => self.clipboard_selection_count += 1,
+            SelectionTarget::Primary => self.primary_selection_count += 1,
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDndGrabHandler for WaylandSmokeState {}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ServerDndGrabHandler for WaylandSmokeState {}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl DataDeviceHandler for WaylandSmokeState {
+    fn data_device_state(&self) -> &DataDeviceState {
+        &self.data_device_state
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl PrimarySelectionHandler for WaylandSmokeState {
+    fn primary_selection_state(&self) -> &PrimarySelectionState {
+        &self.primary_selection_state
+    }
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -8704,6 +8960,12 @@ impl AsMut<CompositorState> for WaylandSmokeState {
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 delegate_compositor!(WaylandSmokeState);
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_data_device!(WaylandSmokeState);
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_primary_selection!(WaylandSmokeState);
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 delegate_seat!(WaylandSmokeState);
@@ -8733,6 +8995,204 @@ impl ClientData for WaylandSmokeClientState {
 
     fn disconnected(&self, _client_id: ClientId, _reason: DisconnectReason) {}
 }
+
+#[derive(Default)]
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+struct SelectionSmokeClientState {
+    registry_bound: bool,
+    clipboard_global_seen: bool,
+    primary_global_seen: bool,
+    data_control_global_seen: bool,
+    surface: Option<wl_surface::WlSurface>,
+    seat: Option<client_wl_seat::WlSeat>,
+    data_manager: Option<client_wl_data_device_manager::WlDataDeviceManager>,
+    data_device: Option<client_wl_data_device::WlDataDevice>,
+    data_source: Option<client_wl_data_source::WlDataSource>,
+    primary_manager: Option<client_primary_selection_manager::ZwpPrimarySelectionDeviceManagerV1>,
+    primary_device: Option<client_primary_selection_device::ZwpPrimarySelectionDeviceV1>,
+    primary_source: Option<client_primary_selection_source::ZwpPrimarySelectionSourceV1>,
+    clipboard_offer_received: bool,
+    primary_offer_received: bool,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl SelectionSmokeClientState {
+    const MIME_TYPE: &'static str = "text/plain;charset=utf-8";
+
+    fn initialize_devices(&mut self, qh: &QueueHandle<Self>) {
+        if self.data_device.is_none() {
+            if let (Some(manager), Some(seat)) = (self.data_manager.clone(), self.seat.clone()) {
+                let source = manager.create_data_source(qh, ());
+                source.offer(Self::MIME_TYPE.to_string());
+                self.data_device = Some(manager.get_data_device(&seat, qh, ()));
+                self.data_source = Some(source);
+            }
+        }
+        if self.primary_device.is_none() {
+            if let (Some(manager), Some(seat)) = (self.primary_manager.clone(), self.seat.clone()) {
+                let source = manager.create_source(qh, ());
+                source.offer(Self::MIME_TYPE.to_string());
+                self.primary_device = Some(manager.get_device(&seat, qh, ()));
+                self.primary_source = Some(source);
+            }
+        }
+    }
+
+    fn set_clipboard(&self, serial: u32) {
+        if let (Some(device), Some(source)) = (&self.data_device, &self.data_source) {
+            device.set_selection(Some(source), serial);
+        }
+    }
+
+    fn set_primary(&self, serial: u32) {
+        if let (Some(device), Some(source)) = (&self.primary_device, &self.primary_source) {
+            device.set_selection(Some(source), serial);
+        }
+    }
+
+    fn globals_ready(&self) -> bool {
+        self.registry_bound
+            && self.clipboard_global_seen
+            && self.primary_global_seen
+            && self.surface.is_some()
+            && self.data_device.is_some()
+            && self.primary_device.is_some()
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<wl_registry::WlRegistry, ()> for SelectionSmokeClientState {
+    fn event(
+        state: &mut Self,
+        registry: &wl_registry::WlRegistry,
+        event: wl_registry::Event,
+        _: &(),
+        _: &ClientConnection,
+        qh: &QueueHandle<Self>,
+    ) {
+        state.registry_bound = true;
+        let wl_registry::Event::Global {
+            name,
+            interface,
+            version,
+        } = event
+        else {
+            return;
+        };
+        match interface.as_str() {
+            "wl_compositor" => {
+                let compositor = registry.bind::<wl_compositor::WlCompositor, _, _>(
+                    name,
+                    version.min(1),
+                    qh,
+                    (),
+                );
+                let surface = compositor.create_surface(qh, ());
+                surface.commit();
+                state.surface = Some(surface);
+            }
+            "wl_seat" => {
+                state.seat = Some(registry.bind::<client_wl_seat::WlSeat, _, _>(
+                    name,
+                    version.min(1),
+                    qh,
+                    (),
+                ));
+            }
+            "wl_data_device_manager" => {
+                state.data_manager = Some(
+                    registry.bind::<client_wl_data_device_manager::WlDataDeviceManager, _, _>(
+                        name,
+                        version.min(3),
+                        qh,
+                        (),
+                    ),
+                );
+                state.clipboard_global_seen = true;
+            }
+            "zwp_primary_selection_device_manager_v1" => {
+                state.primary_manager = Some(registry.bind::<
+                    client_primary_selection_manager::ZwpPrimarySelectionDeviceManagerV1,
+                    _,
+                    _,
+                >(name, version.min(1), qh, ()));
+                state.primary_global_seen = true;
+            }
+            "zwlr_data_control_manager_v1" | "ext_data_control_manager_v1" => {
+                state.data_control_global_seen = true;
+            }
+            _ => {}
+        }
+        state.initialize_devices(qh);
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_wl_data_device::WlDataDevice, ()> for SelectionSmokeClientState {
+    wayland_client::event_created_child!(SelectionSmokeClientState, client_wl_data_device::WlDataDevice, [
+        0 => (client_wl_data_offer::WlDataOffer, ())
+    ]);
+
+    fn event(
+        state: &mut Self,
+        _: &client_wl_data_device::WlDataDevice,
+        event: client_wl_data_device::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        if matches!(
+            event,
+            client_wl_data_device::Event::Selection { id: Some(_) }
+        ) {
+            state.clipboard_offer_received = true;
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_primary_selection_device::ZwpPrimarySelectionDeviceV1, ()>
+    for SelectionSmokeClientState
+{
+    wayland_client::event_created_child!(SelectionSmokeClientState, client_primary_selection_device::ZwpPrimarySelectionDeviceV1, [
+        0 => (client_primary_selection_offer::ZwpPrimarySelectionOfferV1, ())
+    ]);
+
+    fn event(
+        state: &mut Self,
+        _: &client_primary_selection_device::ZwpPrimarySelectionDeviceV1,
+        event: client_primary_selection_device::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        if matches!(
+            event,
+            client_primary_selection_device::Event::Selection { id: Some(_) }
+        ) {
+            state.primary_offer_received = true;
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(SelectionSmokeClientState: ignore wl_compositor::WlCompositor);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(SelectionSmokeClientState: ignore wl_surface::WlSurface);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(SelectionSmokeClientState: ignore client_wl_seat::WlSeat);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(SelectionSmokeClientState: ignore client_wl_data_device_manager::WlDataDeviceManager);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(SelectionSmokeClientState: ignore client_wl_data_source::WlDataSource);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(SelectionSmokeClientState: ignore client_wl_data_offer::WlDataOffer);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(SelectionSmokeClientState: ignore client_primary_selection_manager::ZwpPrimarySelectionDeviceManagerV1);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(SelectionSmokeClientState: ignore client_primary_selection_source::ZwpPrimarySelectionSourceV1);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(SelectionSmokeClientState: ignore client_primary_selection_offer::ZwpPrimarySelectionOfferV1);
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl ClientDispatch<wl_registry::WlRegistry, ()> for XdgSmokeClientState {
@@ -10333,6 +10793,26 @@ mod tests {
             "settings"
         );
         assert!(!session.launcher_state_snapshot().is_open());
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn smithay_selection_ownership_is_keyboard_focus_bound() {
+        let probe = probe_selection_ownership().expect("selection ownership probe");
+
+        assert!(probe.is_ready());
+        assert_eq!(probe.client_count, 2);
+        assert!(probe.globals_visible_to_both_clients);
+        assert!(probe.focus_follows_keyboard);
+        assert!(probe.unfocused_clipboard_rejected);
+        assert!(probe.unfocused_primary_rejected);
+        assert!(probe.focused_clipboard_accepted);
+        assert!(probe.focused_primary_accepted);
+        assert!(probe.clipboard_offer_reaches_new_focus);
+        assert!(probe.primary_offer_reaches_new_focus);
+        assert!(probe.ownership_handoff_accepted);
+        assert!(!probe.data_control_global_exposed);
+        assert!(!probe.host_stub);
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]

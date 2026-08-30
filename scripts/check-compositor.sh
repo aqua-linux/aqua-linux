@@ -386,6 +386,13 @@ check_output_contains "client_close_event_received=ok" cargo run -p aqua-composi
 check_output_contains "test_wayland_client_started=true" cargo run -p aqua-compositor -- probe-xdg-toplevel-client
 check_output_contains "test_wayland_client_count=2" cargo run -p aqua-compositor -- probe-xdg-toplevel-client
 check_output_contains "boot_graphics=false" cargo run -p aqua-compositor -- probe-xdg-toplevel-client
+check_output_contains "[AQUA-COMPOSITOR] stage=selection-ownership status=ok" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "client_count=2" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "unfocused_clipboard_rejected=true" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "unfocused_primary_rejected=true" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "clipboard_offer_reaches_new_focus=true" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "primary_offer_reaches_new_focus=true" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "data_control_global_exposed=false" cargo run -p aqua-compositor -- probe-selection-ownership
 check_output_contains "[AQUA-COMPOSITOR] stage=xdg-toplevel-window-model status=ok" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model
 check_output_contains "window_model_status=xdg-toplevel-window-model" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model
 check_output_contains "source_client_ready=ok" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model
