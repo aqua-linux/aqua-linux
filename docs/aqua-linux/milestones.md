@@ -670,3 +670,9 @@ validator requires exactly one structurally complete QEMU production-GBM/KMS
 record per workload before reporting observed timing and resource maxima. Those
 maxima are explicitly not selected budgets, and the validator keeps diagnostic
 isolation false until separate runtime evidence exists.
+A bounded packaged-QEMU runner now sequences idle, real-input window
+interaction, frame-driven animation with real input, and two-client Files plus
+Settings workloads in separate recovery-returning sessions. It uses snapshot
+disk mode, refuses a rootfs older than the compositor source, and validates the
+combined log without selecting budgets. Executing that runner on a freshly
+built image and reviewing repeated measurements remain open.

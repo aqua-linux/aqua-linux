@@ -105,7 +105,7 @@ def validate_record(record: dict[str, str]) -> dict[str, int | str | bool]:
     presented = int(parsed["frames_presented"])
     if requested == 0 or requested != presented or parsed["page_flip_events"] != presented:
         raise ValueError(f"incomplete R2 frame accounting for {workload}")
-    if int(parsed["frame_callbacks_sent"]) == 0:
+    if workload != "idle" and int(parsed["frame_callbacks_sent"]) == 0:
         raise ValueError(f"missing frame callback evidence for {workload}")
     if int(parsed["max_frame_time_us"]) == 0 or int(parsed["observation_window_ms"]) == 0:
         raise ValueError(f"missing timing evidence for {workload}")
@@ -149,7 +149,7 @@ def fixture_record(workload: str) -> str:
         "frames_requested": "1" if idle else "3",
         "frames_presented": "1" if idle else "3",
         "page_flip_events": "1" if idle else "3",
-        "frame_callbacks_sent": "1",
+        "frame_callbacks_sent": "0" if idle else "1",
         "damage_commits": "0" if idle else "2",
         "settled_idle_observations": "5" if idle else "0",
         "settled_idle_repaints": "0",

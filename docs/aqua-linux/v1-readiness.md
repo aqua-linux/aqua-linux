@@ -141,6 +141,18 @@ continues to emit `r2_budget_selected=false` and
 `r2_diagnostic_isolation_recorded=false`. Its deterministic self-test proves the
 log contract, not packaged runtime performance.
 
+The bounded `scripts/check-r2-presentation-qemu.sh` runner now defines one
+recovery-safe QEMU boot with four isolated compositor sessions. Idle receives no
+injected activity; window interaction uses real virtio keyboard input;
+animation combines the frame-driven motion scenario with a real input sample;
+and multi-client launches packaged Files and Settings through the launcher. The
+runner refuses a rootfs older than the compositor source, uses snapshot disk
+mode, returns through recovery between workloads, and passes the combined serial
+log to the validator. It deliberately leaves budget selection and diagnostic
+isolation false. The runner contract alone is not runtime evidence; a current
+image must still execute it successfully and repeated observations must be
+reviewed before budgets are recorded.
+
 ### R3: Wayland Compatibility And Display Behavior
 
 Scope: support the protocol set required for a coherent desktop and its

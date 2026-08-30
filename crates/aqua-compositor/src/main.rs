@@ -4681,16 +4681,21 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let smithay_seat_started = smithay_session.borrow().seat_started();
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
-    let input_source = RefCell::new(if input_required || motion_scenario {
-        Some(
-            LibinputAquaSeatSource::open("seat0").unwrap_or_else(|error| {
-                eprintln!("cannot prepare DRM Wayland libinput source: {error}");
-                std::process::exit(1);
-            }),
-        )
-    } else {
-        None
-    });
+    let input_source = RefCell::new(
+        if input_required
+            || motion_scenario
+            || env::var("AQUA_R2_PRESENTATION_TELEMETRY").as_deref() == Ok("true")
+        {
+            Some(
+                LibinputAquaSeatSource::open("seat0").unwrap_or_else(|error| {
+                    eprintln!("cannot prepare DRM Wayland libinput source: {error}");
+                    std::process::exit(1);
+                }),
+            )
+        } else {
+            None
+        },
+    );
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let input_enabled = input_source.borrow().is_some();
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]

@@ -1,0 +1,101 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+proc inject_input {mode description} {
+    global env
+    if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) $mode} input_error]} {
+        puts stderr "$description failed: $input_error"
+        exit 1
+    }
+}
+
+proc expect_session_end {workload} {
+    expect {
+        -exact {r2_presentation_record_end=v1} {}
+        timeout { puts stderr "Timed out waiting for $workload R2 record"; exit 1 }
+        eof { puts stderr "QEMU exited before $workload R2 record"; exit 1 }
+    }
+    expect {
+        -exact {[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok} {}
+        timeout { puts stderr "Timed out waiting for $workload cleanup"; exit 1 }
+        eof { puts stderr "QEMU exited before $workload cleanup"; exit 1 }
+    }
+    expect {
+        -exact {# } {}
+        timeout { puts stderr "Recovery shell did not return after $workload"; exit 1 }
+        eof { puts stderr "QEMU exited before recovery after $workload"; exit 1 }
+    }
+}
+
+proc start_bounded_session {workload seconds} {
+    send -- "AQUA_R2_PRESENTATION_TELEMETRY=true AQUA_R2_PRESENTATION_WORKLOAD=$workload AQUA_DRM_WAYLAND_SESSION_HOLD_SECONDS=$seconds AQUA_DRM_WAYLAND_SESSION_HEADLESS_TEST_CONFIRMED=true AQUA_DRM_WAYLAND_SESSION_TEST_MODE=headless-qemu AQUA_DRM_WAYLAND_SCENARIO=desktop-event-loop /usr/bin/aqua-compositor run-drm-wayland-session /dev/dri/card0\r"
+    expect {
+        -exact {[AQUA-COMPOSITOR] stage=drm-wayland-session status=active} {}
+        timeout { puts stderr "Timed out starting $workload R2 session"; exit 1 }
+        eof { puts stderr "QEMU exited while starting $workload R2 session"; exit 1 }
+    }
+}
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp $env(CPUS) \
+    -m $env(MEMORY) \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1} \
+    -serial stdio \
+    -monitor unix:$env(MONITOR_SOCKET),server=on,wait=off \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -device virtio-keyboard-pci \
+    -device virtio-mouse-pci \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh} {}
+    timeout { puts stderr "Timed out waiting for recovery-ready"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery-ready"; exit 1 }
+}
+expect -exact {aqua-linux login: }
+send -- "root\r"
+expect -exact {# }
+
+start_bounded_session idle 4
+expect_session_end idle
+
+start_bounded_session window-interaction 6
+inject_input public-applications "Window-interaction launcher input"
+after 250
+inject_input public-search "Window-interaction search input"
+expect_session_end window-interaction
+
+send -- "AQUA_R2_PRESENTATION_TELEMETRY=true AQUA_R2_PRESENTATION_WORKLOAD=animation AQUA_DRM_WAYLAND_SESSION_PERSISTENT=true AQUA_DRM_WAYLAND_SESSION_HEADLESS_TEST_CONFIRMED=true AQUA_DRM_WAYLAND_SESSION_TEST_MODE=headless-qemu AQUA_DRM_WAYLAND_SCENARIO=motion-acceptance /usr/bin/aqua-compositor run-drm-wayland-session /dev/dri/card0\r"
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-wayland-session status=active} {}
+    timeout { puts stderr "Timed out starting animation R2 session"; exit 1 }
+    eof { puts stderr "QEMU exited while starting animation R2 session"; exit 1 }
+}
+inject_input input-burst "Animation input sample"
+expect_session_end animation
+
+start_bounded_session multi-client 12
+inject_input files-launch-fast "Multi-client Files launch"
+expect {
+    -exact {desktop_launch_surface_app_id=aqua.files} {}
+    timeout { puts stderr "Timed out waiting for Files in multi-client workload"; exit 1 }
+    eof { puts stderr "QEMU exited before Files mapped"; exit 1 }
+}
+inject_input settings-launch-fast "Multi-client Settings launch"
+expect {
+    -exact {desktop_launch_surface_app_id=aqua.settings} {}
+    timeout { puts stderr "Timed out waiting for Settings in multi-client workload"; exit 1 }
+    eof { puts stderr "QEMU exited before Settings mapped"; exit 1 }
+}
+expect_session_end multi-client
+
+send -- "poweroff -f\r"
+expect eof
