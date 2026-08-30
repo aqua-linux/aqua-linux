@@ -23,7 +23,7 @@ TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-output}"
 
 case "${AQUA_AUDIO_QEMU_CONTRACT}" in
-    output|input|input-signal|input-disconnect|service-loss|restart-exhaustion|multi-route|hotplug) ;;
+    output|input|input-signal|input-disconnect|service-loss|capture-service-loss|restart-exhaustion|multi-route|hotplug) ;;
     *)
         echo "Unsupported audio QEMU contract: ${AQUA_AUDIO_QEMU_CONTRACT}" >&2
         exit 2
@@ -155,6 +155,18 @@ elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = service-loss; then
     python3 "${ROOT_DIR}/scripts/check-qemu-audio-wave.py" "${WAV_CAPTURE}"
     echo 'Aqua Linux active audio service-loss recovery check passed.'
     echo "Playback capture: ${WAV_CAPTURE}"
+elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = capture-service-loss; then
+    for marker in \
+        '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \
+        '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true' \
+        '[AQUA-AUDIO] stage=media-probe status=active direction=capture frames=480' \
+        '[AQUA-AUDIO] stage=media-probe status=interrupted direction=capture reason=pcm-io' \
+        '[AQUA-AUDIO] stage=qemu-capture-service-loss status=ok failed_service=pipewire active_stream_aborted=true false_success=false restart_recovery=true capture_after=true controlled_pattern=zero-pcm host_microphone=false recovery_shell=true'
+    do
+        grep -Fq "${marker}" "${SERIAL_LOG}"
+    done
+    test "$(grep -Fc '[AQUA-AUDIO] stage=media-probe status=ok direction=capture frames=4800 rate=48000 channels=2 format=s16le peak_abs=0 pattern=silence' "${SERIAL_LOG}")" -eq 1
+    echo 'Aqua Linux active audio capture service-loss recovery check passed.'
 elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = restart-exhaustion; then
     for marker in \
         '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \

@@ -515,8 +515,11 @@ and verifies a new 48,000-frame non-silent playback. A separate restart-budget
 profile terminates four successive real PipeWire processes, requires exactly
 three restarts before `degraded` with attempts=4/restarts=3, proves media
 process and socket cleanup, blocks new playback, and retains recovery-shell
-access. Other error evidence remains open R4 work; physical hardware support
-is not claimed.
+access. An active capture profile additionally reads 480 controlled zero-PCM
+frames, terminates PipeWire, requires explicit `Broken pipe` interruption with
+no false capture completion, then proves ordered recovery and a new exact
+4,800-frame zero-PCM capture without host-microphone access. Other error
+evidence remains open R4 work; physical hardware support is not claimed.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
 to recovery after each bounded session.

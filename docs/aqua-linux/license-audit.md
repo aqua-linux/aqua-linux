@@ -48,7 +48,8 @@ is outside this audit.
   GLib only in the opt-in audio profile; the default image does not select it.
 - The project-authored `aqua-audio-probe` is MIT licensed, links to alsa-lib
   and the project-authored native bridge, and exists solely for bounded opt-in
-  audio acceptance, including explicit active-stream interruption reporting.
+  audio acceptance, including explicit active playback and capture interruption
+  reporting.
   The restart-exhaustion profile reuses the same probe and packaged services;
   it introduces no package, runtime dependency, or license-closure change. The
   default image does not select it.
