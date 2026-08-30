@@ -93,6 +93,16 @@ host fixtures prove fail-closed evaluation, but `supports_release_claim`
 remains false. Live QEMU telemetry, fixed project budgets, soak evidence, and
 physical-target evidence are still required before R2 can pass.
 
+The model now also owns a bounded `PresentationTelemetry` collector. It accepts
+ordered frame requests, page flips or explicit drops, callbacks, damage,
+input-to-present timing, readback, CPU-copy, settled-idle, and final resource
+measurements; rejects presentation without an outstanding request, incomplete
+frame accounting, zero timing/window values, and more than 100,000 events; and
+builds the immutable sample consumed by the report. `LegacyCpuCopy` is a
+separate path and cannot satisfy production acceptance. This records the
+current virtio fallback honestly; the collector is not yet wired to packaged
+QEMU runtime events.
+
 ### R3: Wayland Compatibility And Display Behavior
 
 Scope: support the protocol set required for a coherent desktop and its
