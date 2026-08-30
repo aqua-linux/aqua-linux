@@ -651,6 +651,9 @@ dumb-buffer fallback is represented separately as `LegacyCpuCopy` and is
 therefore unable to pass the production-path gate. The live DRM-Wayland loop
 now feeds opt-in initial and repaint request/page-flip events plus measured
 submit-to-event timing into this collector, preserves the runtime-selected path,
-and counts dumb-buffer copies separately. The emitted snapshot remains partial
-and cannot satisfy acceptance; packaged QEMU callback, damage, latency, idle,
-resource, four-workload, budget, and diagnostic-isolation evidence remain open.
+and counts dumb-buffer copies separately. Aggregate Smithay frame-callback and
+damage counters are baselined once, recorded as monotonic deltas without
+per-surface multiplication, and synchronized once more after the final flip.
+The emitted snapshot remains partial and cannot satisfy acceptance; packaged
+QEMU latency, idle, resource, four-workload, budget, and diagnostic-isolation
+evidence remain open.

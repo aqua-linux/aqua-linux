@@ -106,6 +106,8 @@ pub struct PresentationEventSnapshot {
     pub frames_requested: u32,
     pub frames_presented: u32,
     pub page_flip_events: u32,
+    pub frame_callbacks_sent: u32,
+    pub damage_commits: u32,
     pub cpu_framebuffer_copies: u32,
     pub max_frame_time_us: Option<u32>,
 }
@@ -298,6 +300,8 @@ impl PresentationTelemetry {
             frames_requested: self.frames_requested,
             frames_presented: self.frames_presented,
             page_flip_events: self.page_flip_events,
+            frame_callbacks_sent: self.frame_callbacks_sent,
+            damage_commits: self.damage_commits,
             cpu_framebuffer_copies: self.cpu_framebuffer_copies,
             max_frame_time_us: self.max_frame_time_us,
         }
@@ -566,6 +570,8 @@ mod tests {
         assert_eq!(event_snapshot.frames_requested, 1);
         assert_eq!(event_snapshot.frames_presented, 1);
         assert_eq!(event_snapshot.page_flip_events, 1);
+        assert_eq!(event_snapshot.frame_callbacks_sent, 2);
+        assert_eq!(event_snapshot.damage_commits, 1);
         assert_eq!(event_snapshot.max_frame_time_us, Some(14_000));
         telemetry.record_frame_requested().unwrap();
         telemetry.record_dropped_frame().unwrap();
