@@ -340,6 +340,15 @@ must fail closed while the recovery shell remains responsive. This is bounded
 QEMU service-exhaustion evidence; it does not enable audio by default or prove
 physical-device behavior.
 
+`scripts/check-audio-capture-restart-exhaustion-qemu.sh` proves the same real
+PipeWire budget against the controlled input path. QEMU's timer-backed `none`
+ADC first supplies one exact 4,800-frame zero-PCM capture. The test then
+terminates four successive PipeWire processes, requires complete media-pair
+renewal after the first three losses, and reaches the cleaned degraded state at
+attempt 4/restart 3. A second capture must fail at open without a success marker,
+while the recovery shell remains responsive. No host microphone is requested;
+this is bounded virtual capture-exhaustion evidence.
+
 `scripts/check-audio-policy-restart-exhaustion-qemu.sh` applies the same real
 budget to policy-service failure. It terminates four successive supervisor-owned
 WirePlumber processes and requires a different PipeWire/WirePlumber pair after

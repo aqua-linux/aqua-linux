@@ -196,7 +196,10 @@ the graph degraded, confirms process/socket cleanup, rejects new playback and
 kills four successive WirePlumber processes, requires a new complete media pair
 after each permitted restart, then proves the same degraded counters, cleanup,
 playback rejection, and recovery-shell availability with
-`failed_service=wireplumber`. A separate controlled
+`failed_service=wireplumber`. A controlled-input exhaustion profile separately
+proves one exact 4,800-frame zero-PCM capture before four PipeWire losses, then
+requires capture open to fail without a success marker after the cleaned
+degraded state, with no host-microphone access. A separate controlled
 active-capture profile kills PipeWire after
 480 zero-PCM frames, requires an explicit interrupted result without false
 capture success, observes ordered recovery, and captures a new exact 4,800
