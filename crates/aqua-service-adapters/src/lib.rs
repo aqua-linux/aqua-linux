@@ -216,20 +216,11 @@ pub enum AudioIntent {
     SetDefaultOutput(String),
 }
 
-impl AudioIntent {
-    fn is_confirmed_by(&self, state: &AudioAuthoritativeState) -> bool {
-        match self {
-            Self::SetOutputVolume(value) => state.output_volume_percent == *value,
-            Self::SetOutputMuted(value) => state.output_muted == *value,
-            Self::SetDefaultOutput(id) => state.default_output.as_deref() == Some(id.as_str()),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AudioRequest {
     id: u64,
     expected_generation: u64,
+    target_output: Option<String>,
     intent: AudioIntent,
 }
 
@@ -242,8 +233,28 @@ impl AudioRequest {
         self.expected_generation
     }
 
+    pub fn target_output(&self) -> Option<&str> {
+        self.target_output.as_deref()
+    }
+
     pub const fn intent(&self) -> &AudioIntent {
         &self.intent
+    }
+
+    fn is_confirmed_by(&self, state: &AudioAuthoritativeState) -> bool {
+        match &self.intent {
+            AudioIntent::SetOutputVolume(value) => {
+                self.target_output.as_deref() == state.default_output.as_deref()
+                    && state.output_volume_percent == *value
+            }
+            AudioIntent::SetOutputMuted(value) => {
+                self.target_output.as_deref() == state.default_output.as_deref()
+                    && state.output_muted == *value
+            }
+            AudioIntent::SetDefaultOutput(id) => {
+                state.default_output.as_deref() == Some(id.as_str())
+            }
+        }
     }
 }
 
@@ -424,7 +435,7 @@ impl AudioServiceAdapter {
         let mut request_rejected_or_lost = false;
         if let Some(request) = self.pending_request.take() {
             request_confirmed =
-                next.health == AudioServiceHealth::Ready && request.intent.is_confirmed_by(&next);
+                next.health == AudioServiceHealth::Ready && request.is_confirmed_by(&next);
             request_rejected_or_lost = !request_confirmed;
         }
         self.state = next;
@@ -444,37 +455,45 @@ impl AudioServiceAdapter {
         {
             return Ok(None);
         }
-        let intent = if self.state.output_volume_percent != self.desired_volume_percent {
-            Some(AudioIntent::SetOutputVolume(self.desired_volume_percent))
-        } else if self.state.output_muted != self.desired_muted {
-            Some(AudioIntent::SetOutputMuted(self.desired_muted))
-        } else if let Some(id) = self.desired_output.as_deref() {
-            if self.state.default_output.as_deref() != Some(id) {
-                let device = self
-                    .state
-                    .devices
-                    .iter()
-                    .find(|device| device.id == id)
-                    .ok_or_else(|| AudioAdapterError::UnknownDesiredOutput(id.to_string()))?;
-                if device.kind != AudioDeviceKind::Output {
-                    return Err(AudioAdapterError::WrongRouteKind {
-                        route: "output",
-                        id: id.to_string(),
-                    });
+        let (intent, target_output) =
+            if self.state.output_volume_percent != self.desired_volume_percent {
+                (
+                    Some(AudioIntent::SetOutputVolume(self.desired_volume_percent)),
+                    self.state.default_output.clone(),
+                )
+            } else if self.state.output_muted != self.desired_muted {
+                (
+                    Some(AudioIntent::SetOutputMuted(self.desired_muted)),
+                    self.state.default_output.clone(),
+                )
+            } else if let Some(id) = self.desired_output.as_deref() {
+                if self.state.default_output.as_deref() != Some(id) {
+                    let device = self
+                        .state
+                        .devices
+                        .iter()
+                        .find(|device| device.id == id)
+                        .ok_or_else(|| AudioAdapterError::UnknownDesiredOutput(id.to_string()))?;
+                    if device.kind != AudioDeviceKind::Output {
+                        return Err(AudioAdapterError::WrongRouteKind {
+                            route: "output",
+                            id: id.to_string(),
+                        });
+                    }
+                    (Some(AudioIntent::SetDefaultOutput(id.to_string())), None)
+                } else {
+                    (None, None)
                 }
-                Some(AudioIntent::SetDefaultOutput(id.to_string()))
             } else {
-                None
-            }
-        } else {
-            None
-        };
+                (None, None)
+            };
         let Some(intent) = intent else {
             return Ok(None);
         };
         let request = AudioRequest {
             id: self.next_request_id,
             expected_generation: self.state.generation,
+            target_output,
             intent,
         };
         self.next_request_id = self
@@ -664,6 +683,7 @@ mod tests {
             .unwrap()
             .expect("volume request");
         assert_eq!(volume.expected_generation(), 1);
+        assert_eq!(volume.target_output(), Some("sink.1"));
         assert_eq!(volume.intent(), &AudioIntent::SetOutputVolume(70));
         assert!(!adapter.backend_applied());
 
@@ -684,6 +704,34 @@ mod tests {
                 .unwrap()
                 .request_confirmed
         );
+        assert!(adapter.backend_applied());
+    }
+
+    #[test]
+    fn output_route_change_cannot_falsely_confirm_a_pending_control() {
+        let mut adapter = AudioServiceAdapter::with_preferences(70, false).unwrap();
+        adapter.reconcile(ready_state(1, 55, false)).unwrap();
+        let request = adapter
+            .next_reconciliation_request()
+            .unwrap()
+            .expect("volume request");
+        assert_eq!(request.target_output(), Some("sink.1"));
+
+        let fallback = AudioAuthoritativeState::new(
+            2,
+            AudioServiceHealth::Ready,
+            vec![output("sink.1"), output("sink.2"), input("source.1")],
+            Some("sink.2".to_string()),
+            Some("source.1".to_string()),
+            70,
+            false,
+        )
+        .unwrap();
+        let outcome = adapter.reconcile(fallback).unwrap();
+        assert!(outcome.generation_advanced);
+        assert!(!outcome.request_confirmed);
+        assert!(outcome.request_rejected_or_lost);
+        assert!(adapter.pending_request().is_none());
         assert!(adapter.backend_applied());
     }
 

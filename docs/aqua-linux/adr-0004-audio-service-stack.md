@@ -103,6 +103,13 @@ conditions are met:
   cannot silently reset the attempt budget. The packaged QEMU probe verifies
   three rejected submissions, a bridge-blocked fourth call, a real graph
   generation change, and final authoritative acknowledgement. The opt-in
+  adapter now also binds volume and mute requests to the authoritative default
+  output that received them. A route-generation change rejects the old request
+  even when the fallback output coincidentally already has the desired value;
+  that coincidence may satisfy the retained preference, but it cannot
+  acknowledge a command sent to the removed output. The native snapshot bridge
+  records default sink/source IDs only when their node media kinds match, so an
+  output-only graph cannot expose a sink as `default_input`. The opt-in
   `aqua-audio-native` package now implements that typed boundary against
   WirePlumber 0.5 with a versioned, fixed-size C ABI, bounded waits, and strict
   Rust-side validation. The opt-in rootfs now packages and enables it without
@@ -196,8 +203,14 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    With the socket absent, the native control probe must fail at `open` and
    emit no success marker. Releasing the supervisor must produce a new
    PipeWire PID and a second acknowledged control cycle. This proves an
-   unavailable graph cannot create a false control acknowledgement. Other
-   media error behavior remains open.
+   unavailable graph cannot create a false control acknowledgement. An
+   additional two-output run prepares PCI 04.0 at the desired volume, selects
+   PCI 05.0 at a different volume, leaves the adapter request pending, and then
+   removes 05.0 through acknowledged QMP deletion. The fallback's matching
+   value must not confirm the old target-bound request; reconciliation must
+   report it rejected or lost, avoid an unnecessary resubmission, and retain
+   running services plus recovery-shell access. Other media error behavior
+   remains open.
 4. Settings and the top bar consume authoritative adapter state. Pointer and
    keyboard changes must be acknowledged by the service before the UI claims
    application; service failure must visibly degrade and recover.
@@ -268,7 +281,11 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    evidence without host microphone or physical hotplug claims. Other error
    evidence now also includes the production adapter's packaged-QEMU submission
    budget: three failed calls retain one graph generation, the fourth is blocked,
-   and only a real graph change permits the acknowledged recovery call. Physical
+   and only a real graph change permits the acknowledged recovery call. A
+   separate selected-route loss run binds a pending volume request to PCI 05.0,
+   removes that output, and proves PCI 04.0's already-matching value cannot
+   falsely acknowledge the removed target; the request becomes lost while the
+   retained preference is already satisfied without resubmission. Physical
    hardware behavior and other error evidence remain open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.

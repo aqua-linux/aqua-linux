@@ -412,10 +412,10 @@ int32_t aqua_audio_native_snapshot(struct aqua_audio_native *handle,
         g_variant_unref(properties);
       }
 
-      if (id == default_output_id)
+      if (id == default_output_id && kind == 0)
         status = copy_bounded(out_snapshot->default_output,
             sizeof(out_snapshot->default_output), name, handle);
-      else if (id == default_input_id)
+      else if (id == default_input_id && kind == 1)
         status = copy_bounded(out_snapshot->default_input,
             sizeof(out_snapshot->default_input), name, handle);
       if (status != AQUA_AUDIO_NATIVE_OK) {
