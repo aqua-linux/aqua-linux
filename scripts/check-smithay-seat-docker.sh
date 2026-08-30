@@ -102,6 +102,24 @@ docker run --rm --platform linux/amd64 \
         printf "%s\n" "$text_input_output" | grep -Fq "payload_limit_bytes=4000"
         printf "%s\n" "$text_input_output" | grep -Fq "host_stub=false"
         printf "%s\n" "$text_input_output" | grep -Fq "[AQUA-COMPOSITOR] stage=text-input status=ok"
+        output_matrix="$(cargo run --quiet -p aqua-compositor --features smithay-smoke -- probe-wayland-output-matrix)" || {
+            printf "%s\n" "$output_matrix"
+            exit 1
+        }
+        printf "%s\n" "$output_matrix"
+        printf "%s\n" "$output_matrix" | grep -Fq "client_count=2"
+        printf "%s\n" "$output_matrix" | grep -Fq "outputs_visible_to_both_clients=true"
+        printf "%s\n" "$output_matrix" | grep -Fq "modes_match_supported_matrix=true"
+        printf "%s\n" "$output_matrix" | grep -Fq "preferred_modes_advertised=true"
+        printf "%s\n" "$output_matrix" | grep -Fq "logical_coordinates_match=true"
+        printf "%s\n" "$output_matrix" | grep -Fq "integer_scales_match=true"
+        printf "%s\n" "$output_matrix" | grep -Fq "fractional_scale_120ths=150"
+        printf "%s\n" "$output_matrix" | grep -Fq "viewport_source_applied=true"
+        printf "%s\n" "$output_matrix" | grep -Fq "viewport_destination_applied=true"
+        printf "%s\n" "$output_matrix" | grep -Fq "hotplug_remove_reaches_both_clients=true"
+        printf "%s\n" "$output_matrix" | grep -Fq "remaining_output_usable=true"
+        printf "%s\n" "$output_matrix" | grep -Fq "host_stub=false"
+        printf "%s\n" "$output_matrix" | grep -Fq "[AQUA-COMPOSITOR] stage=wayland-output-matrix status=ok"
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_launcher_keyboard_is_compositor_owned
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
@@ -116,4 +134,6 @@ docker run --rm --platform linux/amd64 \
             smithay_drag_and_drop_is_focus_safe_and_bounded
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_text_input_is_focus_and_authorization_safe
+        cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
+            smithay_output_matrix_is_discoverable_scaled_and_hotpluggable
     '

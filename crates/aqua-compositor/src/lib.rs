@@ -374,23 +374,24 @@ use calloop::{
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use smithay::{
     backend::input::{Axis, AxisSource, ButtonState, KeyState, Keycode},
-    delegate_compositor, delegate_data_device, delegate_input_method_manager,
-    delegate_primary_selection, delegate_seat, delegate_shm, delegate_text_input_manager,
-    delegate_xdg_shell,
+    delegate_compositor, delegate_data_device, delegate_fractional_scale,
+    delegate_input_method_manager, delegate_output, delegate_primary_selection, delegate_seat,
+    delegate_shm, delegate_text_input_manager, delegate_viewporter, delegate_xdg_shell,
     input::{
         keyboard::FilterResult,
         pointer::{AxisFrame, ButtonEvent, CursorImageStatus, MotionEvent},
         Seat, SeatHandler, SeatState,
     },
+    output::{Mode as OutputMode, Output, PhysicalProperties, Scale, Subpixel},
     reexports::wayland_server::{
-        backend::{ClientData, ClientId, DisconnectReason},
+        backend::{ClientData, ClientId, DisconnectReason, GlobalId},
         protocol::{
             wl_buffer, wl_callback, wl_data_device_manager::DndAction as ServerDndAction, wl_seat,
             wl_surface::WlSurface,
         },
         Client, Display, DisplayHandle, ListeningSocket, Resource,
     },
-    utils::{Logical, Rectangle, Serial},
+    utils::{Logical, Rectangle, Serial, Transform},
     wayland::shell::xdg::{
         Configure, PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
         XdgToplevelSurfaceData,
@@ -401,9 +402,13 @@ use smithay::{
             with_states, BufferAssignment, CompositorClientState, CompositorHandler,
             CompositorState, RectangleKind,
         },
+        fractional_scale::{
+            with_fractional_scale, FractionalScaleHandler, FractionalScaleManagerState,
+        },
         input_method::{
             InputMethodHandler, InputMethodManagerState, PopupSurface as InputMethodPopupSurface,
         },
+        output::{OutputHandler, OutputManagerState},
         selection::{
             data_device::{
                 clear_data_device_selection, set_data_device_focus, ClientDndGrabHandler,
@@ -417,6 +422,7 @@ use smithay::{
         },
         shm::{with_buffer_contents, ShmHandler, ShmState},
         text_input::TextInputManagerState,
+        viewporter::{ViewportCachedState, ViewporterState},
     },
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -430,11 +436,16 @@ use {
             wl_data_device as client_wl_data_device,
             wl_data_device_manager as client_wl_data_device_manager,
             wl_data_offer as client_wl_data_offer, wl_data_source as client_wl_data_source,
-            wl_keyboard as client_wl_keyboard, wl_pointer as client_wl_pointer,
-            wl_region as client_wl_region, wl_registry, wl_seat as client_wl_seat,
-            wl_shm as client_wl_shm, wl_shm_pool as client_wl_shm_pool, wl_surface,
+            wl_keyboard as client_wl_keyboard, wl_output as client_wl_output,
+            wl_pointer as client_wl_pointer, wl_region as client_wl_region, wl_registry,
+            wl_seat as client_wl_seat, wl_shm as client_wl_shm, wl_shm_pool as client_wl_shm_pool,
+            wl_surface,
         },
-        Connection as ClientConnection, Dispatch as ClientDispatch, QueueHandle, WEnum,
+        Connection as ClientConnection, Dispatch as ClientDispatch, Proxy, QueueHandle, WEnum,
+    },
+    wayland_protocols::wp::fractional_scale::v1::client::{
+        wp_fractional_scale_manager_v1 as client_fractional_scale_manager,
+        wp_fractional_scale_v1 as client_fractional_scale,
     },
     wayland_protocols::wp::primary_selection::zv1::client::{
         zwp_primary_selection_device_manager_v1 as client_primary_selection_manager,
@@ -446,9 +457,15 @@ use {
         zwp_text_input_manager_v3 as client_text_input_manager,
         zwp_text_input_v3 as client_text_input,
     },
+    wayland_protocols::wp::viewporter::client::{
+        wp_viewport as client_viewport, wp_viewporter as client_viewporter,
+    },
     wayland_protocols::xdg::shell::client::{
         xdg_surface as client_xdg_surface, xdg_toplevel as client_xdg_toplevel,
         xdg_wm_base as client_xdg_wm_base,
+    },
+    wayland_protocols::xdg::xdg_output::zv1::client::{
+        zxdg_output_manager_v1 as client_xdg_output_manager, zxdg_output_v1 as client_xdg_output,
     },
     wayland_protocols_misc::zwp_input_method_v2::client::{
         zwp_input_method_manager_v2 as client_input_method_manager,
@@ -1089,6 +1106,44 @@ impl TextInputProbe {
             && self.popup_parent_bound
             && self.popup_repositioned
             && self.payload_limit_bytes == 4_000
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WaylandOutputMatrixProbe {
+    pub product: &'static str,
+    pub status: &'static str,
+    pub client_count: usize,
+    pub outputs_visible_to_both_clients: bool,
+    pub modes_match_supported_matrix: bool,
+    pub preferred_modes_advertised: bool,
+    pub logical_coordinates_match: bool,
+    pub integer_scales_match: bool,
+    pub fractional_scale_advertised: bool,
+    pub fractional_scale_120ths: u32,
+    pub viewport_source_applied: bool,
+    pub viewport_destination_applied: bool,
+    pub hotplug_remove_reaches_both_clients: bool,
+    pub remaining_output_usable: bool,
+    pub host_stub: bool,
+}
+
+impl WaylandOutputMatrixProbe {
+    pub fn is_ready(&self) -> bool {
+        self.product == PRODUCT
+            && self.status == "wayland-output-matrix"
+            && self.client_count == 2
+            && self.outputs_visible_to_both_clients
+            && self.modes_match_supported_matrix
+            && self.preferred_modes_advertised
+            && self.logical_coordinates_match
+            && self.integer_scales_match
+            && self.fractional_scale_advertised
+            && self.fractional_scale_120ths == 150
+            && self.viewport_source_applied
+            && self.viewport_destination_applied
+            && self.hotplug_remove_reaches_both_clients
+            && self.remaining_output_usable
     }
 }
 
@@ -2591,6 +2646,11 @@ pub fn probe_drag_and_drop() -> Result<DragAndDropProbe, Box<dyn std::error::Err
 
 pub fn probe_text_input() -> Result<TextInputProbe, Box<dyn std::error::Error>> {
     probe_text_input_impl()
+}
+
+pub fn probe_wayland_output_matrix() -> Result<WaylandOutputMatrixProbe, Box<dyn std::error::Error>>
+{
+    probe_wayland_output_matrix_impl()
 }
 
 pub fn probe_xdg_toplevel_window_model(
@@ -4810,6 +4870,179 @@ fn probe_text_input_impl() -> Result<TextInputProbe, Box<dyn std::error::Error>>
     })
 }
 
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn probe_wayland_output_matrix_impl() -> Result<WaylandOutputMatrixProbe, Box<dyn std::error::Error>>
+{
+    let mut session = AquaCompositorSession::new()?;
+    session.wayland_state.surface_preferred_scale = 1.25;
+    let primary_mode = OutputMode {
+        size: (1280, 800).into(),
+        refresh: 60_000,
+    };
+    session.wayland_state.outputs[0].set_preferred(primary_mode);
+    session.wayland_state.outputs[0].change_current_state(
+        Some(primary_mode),
+        Some(Transform::Normal),
+        Some(Scale::Integer(1)),
+        Some((0, 0).into()),
+    );
+    let fractional_output = configured_output(
+        "Aqua-2",
+        (2560, 1440),
+        (1280, 0),
+        Scale::Custom {
+            advertised_integer: 2,
+            fractional: 1.25,
+        },
+        (597, 336),
+    );
+    session.wayland_state.output_globals.push(
+        fractional_output.create_global::<WaylandSmokeState>(&session.wayland_state.display_handle),
+    );
+    session.wayland_state.outputs.push(fractional_output);
+    let (server_stream_one, client_stream_one) = std::os::unix::net::UnixStream::pair()?;
+    let (server_stream_two, client_stream_two) = std::os::unix::net::UnixStream::pair()?;
+    session.insert_client(server_stream_one)?;
+    session.insert_client(server_stream_two)?;
+
+    let client_one_conn = ClientConnection::from_socket(client_stream_one)?;
+    let client_two_conn = ClientConnection::from_socket(client_stream_two)?;
+    let mut event_queue_one = client_one_conn.new_event_queue();
+    let mut event_queue_two = client_two_conn.new_event_queue();
+    let qh_one = event_queue_one.handle();
+    let qh_two = event_queue_two.handle();
+    client_one_conn.display().get_registry(&qh_one, ());
+    client_two_conn.display().get_registry(&qh_two, ());
+    client_one_conn.flush()?;
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+
+    let mut client_one = OutputSmokeClientState::default();
+    let mut client_two = OutputSmokeClientState::default();
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    while event_queue_one.dispatch_pending(&mut client_one)? > 0 {}
+    while event_queue_two.dispatch_pending(&mut client_two)? > 0 {}
+    client_one_conn.flush()?;
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    while event_queue_one.dispatch_pending(&mut client_one)? > 0 {}
+    while event_queue_two.dispatch_pending(&mut client_two)? > 0 {}
+
+    let globals_visible_to_both_clients = client_one.globals_ready() && client_two.globals_ready();
+    client_one.request_surface_extensions(&qh_one)?;
+    client_two.request_surface_extensions(&qh_two)?;
+    client_one_conn.flush()?;
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    while event_queue_one.dispatch_pending(&mut client_one)? > 0 {}
+    while event_queue_two.dispatch_pending(&mut client_two)? > 0 {}
+
+    let matrix_matches = |client: &OutputSmokeClientState| {
+        let primary = client
+            .outputs
+            .iter()
+            .find(|record| record.protocol_name.as_deref() == Some("Aqua-1"));
+        let fractional = client
+            .outputs
+            .iter()
+            .find(|record| record.protocol_name.as_deref() == Some("Aqua-2"));
+        primary.is_some_and(|record| record.mode == Some((1280, 800, 60_000)))
+            && fractional.is_some_and(|record| record.mode == Some((2560, 1440, 60_000)))
+    };
+    let preferred_matches = |client: &OutputSmokeClientState| {
+        client
+            .outputs
+            .iter()
+            .all(|record| record.current && record.preferred)
+    };
+    let logical_matches = |client: &OutputSmokeClientState| {
+        client.outputs.iter().any(|record| {
+            record.protocol_name.as_deref() == Some("Aqua-1")
+                && record.location == Some((0, 0))
+                && record.logical_position == Some((0, 0))
+                && record.logical_size == Some((1280, 800))
+        }) && client.outputs.iter().any(|record| {
+            record.protocol_name.as_deref() == Some("Aqua-2")
+                && record.location == Some((1280, 0))
+                && record.logical_position == Some((1280, 0))
+                && record.logical_size == Some((2048, 1152))
+        })
+    };
+    let scale_matches = |client: &OutputSmokeClientState| {
+        client.outputs.iter().any(|record| {
+            record.protocol_name.as_deref() == Some("Aqua-1") && record.integer_scale == Some(1)
+        }) && client.outputs.iter().any(|record| {
+            record.protocol_name.as_deref() == Some("Aqua-2") && record.integer_scale == Some(2)
+        })
+    };
+
+    let removed_global_one = client_one
+        .outputs
+        .iter()
+        .find(|record| record.protocol_name.as_deref() == Some("Aqua-2"))
+        .map(|record| record.global_name)
+        .ok_or("first client did not discover Aqua-2")?;
+    let removed_global_two = client_two
+        .outputs
+        .iter()
+        .find(|record| record.protocol_name.as_deref() == Some("Aqua-2"))
+        .map(|record| record.global_name)
+        .ok_or("second client did not discover Aqua-2")?;
+    session
+        .wayland_state
+        .display_handle
+        .disable_global::<WaylandSmokeState>(session.wayland_state.output_globals[1].clone());
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    while event_queue_one.dispatch_pending(&mut client_one)? > 0 {}
+    while event_queue_two.dispatch_pending(&mut client_two)? > 0 {}
+
+    let hotplug_remove_reaches_both_clients =
+        client_one.removed_globals.contains(&removed_global_one)
+            && client_two.removed_globals.contains(&removed_global_two);
+    let remaining_output_usable = session.wayland_state.outputs[0].current_mode()
+        == Some(OutputMode {
+            size: (1280, 800).into(),
+            refresh: 60_000,
+        })
+        && client_one
+            .outputs
+            .iter()
+            .any(|record| record.protocol_name.as_deref() == Some("Aqua-1") && record.current);
+
+    Ok(WaylandOutputMatrixProbe {
+        product: PRODUCT,
+        status: "wayland-output-matrix",
+        client_count: 2,
+        outputs_visible_to_both_clients: globals_visible_to_both_clients,
+        modes_match_supported_matrix: matrix_matches(&client_one) && matrix_matches(&client_two),
+        preferred_modes_advertised: preferred_matches(&client_one)
+            && preferred_matches(&client_two),
+        logical_coordinates_match: logical_matches(&client_one) && logical_matches(&client_two),
+        integer_scales_match: scale_matches(&client_one) && scale_matches(&client_two),
+        fractional_scale_advertised: client_one.fractional_scale_120ths == Some(150)
+            && client_two.fractional_scale_120ths == Some(150)
+            && session.wayland_state.fractional_scale_request_count == 2,
+        fractional_scale_120ths: client_one.fractional_scale_120ths.unwrap_or_default(),
+        viewport_source_applied: session.wayland_state.viewport_source
+            == Some((8.0, 12.0, 320.0, 180.0)),
+        viewport_destination_applied: session.wayland_state.viewport_destination
+            == Some((640, 360)),
+        hotplug_remove_reaches_both_clients,
+        remaining_output_usable,
+        host_stub: false,
+    })
+}
+
 #[cfg(not(all(target_os = "linux", feature = "smithay-smoke")))]
 fn probe_drag_and_drop_impl() -> Result<DragAndDropProbe, Box<dyn std::error::Error>> {
     Ok(DragAndDropProbe {
@@ -4867,6 +5100,28 @@ fn probe_text_input_impl() -> Result<TextInputProbe, Box<dyn std::error::Error>>
         popup_parent_bound: true,
         popup_repositioned: true,
         payload_limit_bytes: 4_000,
+        host_stub: true,
+    })
+}
+
+#[cfg(not(all(target_os = "linux", feature = "smithay-smoke")))]
+fn probe_wayland_output_matrix_impl() -> Result<WaylandOutputMatrixProbe, Box<dyn std::error::Error>>
+{
+    Ok(WaylandOutputMatrixProbe {
+        product: PRODUCT,
+        status: "wayland-output-matrix",
+        client_count: 2,
+        outputs_visible_to_both_clients: true,
+        modes_match_supported_matrix: true,
+        preferred_modes_advertised: true,
+        logical_coordinates_match: true,
+        integer_scales_match: true,
+        fractional_scale_advertised: true,
+        fractional_scale_120ths: 150,
+        viewport_source_applied: true,
+        viewport_destination_applied: true,
+        hotplug_remove_reaches_both_clients: true,
+        remaining_output_usable: true,
         host_stub: true,
     })
 }
@@ -5326,6 +5581,11 @@ struct WaylandSmokeState {
     primary_selection_state: PrimarySelectionState,
     _text_input_manager_state: TextInputManagerState,
     _input_method_manager_state: InputMethodManagerState,
+    _output_manager_state: OutputManagerState,
+    _fractional_scale_manager_state: FractionalScaleManagerState,
+    _viewporter_state: ViewporterState,
+    outputs: Vec<Output>,
+    output_globals: Vec<GlobalId>,
     seat_state: SeatState<Self>,
     seat: Seat<Self>,
     launcher_state: LauncherState,
@@ -5412,6 +5672,10 @@ struct WaylandSmokeState {
     input_method_popup_new_count: usize,
     input_method_popup_dismiss_count: usize,
     input_method_popup_reposition_count: usize,
+    fractional_scale_request_count: usize,
+    surface_preferred_scale: f64,
+    viewport_source: Option<(f64, f64, f64, f64)>,
+    viewport_destination: Option<(i32, i32)>,
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -5436,6 +5700,37 @@ struct ServerSurfaceRecord {
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn configured_output(
+    name: &str,
+    size: (i32, i32),
+    location: (i32, i32),
+    scale: Scale,
+    physical_size: (i32, i32),
+) -> Output {
+    let output = Output::new(
+        name.to_string(),
+        PhysicalProperties {
+            size: physical_size.into(),
+            subpixel: Subpixel::HorizontalRgb,
+            make: "Aqua Linux".to_string(),
+            model: "Supported virtual display".to_string(),
+        },
+    );
+    let mode = OutputMode {
+        size: size.into(),
+        refresh: 60_000,
+    };
+    output.set_preferred(mode);
+    output.change_current_state(
+        Some(mode),
+        Some(Transform::Normal),
+        Some(scale),
+        Some(location.into()),
+    );
+    output
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl WaylandSmokeState {
     fn new(display_handle: &DisplayHandle) -> Result<Self, Box<dyn std::error::Error>> {
         let mut seat_state = SeatState::new();
@@ -5450,6 +5745,21 @@ impl WaylandSmokeState {
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("/home/aqua/Trash"));
         let trash_model = TrashModel::open(trash_root)?;
+
+        let output_manager_state =
+            OutputManagerState::new_with_xdg_output::<WaylandSmokeState>(display_handle);
+        let fractional_scale_manager_state =
+            FractionalScaleManagerState::new::<WaylandSmokeState>(display_handle);
+        let viewporter_state = ViewporterState::new::<WaylandSmokeState>(display_handle);
+        let primary_output = configured_output(
+            "Aqua-1",
+            (1536, 1024),
+            (0, 0),
+            Scale::Integer(1),
+            (346, 231),
+        );
+        let output_globals =
+            vec![primary_output.create_global::<WaylandSmokeState>(display_handle)];
 
         Ok(Self {
             display_handle: display_handle.clone(),
@@ -5472,6 +5782,11 @@ impl WaylandSmokeState {
                         .is_some_and(|data| data.input_method_authorized)
                 },
             ),
+            _output_manager_state: output_manager_state,
+            _fractional_scale_manager_state: fractional_scale_manager_state,
+            _viewporter_state: viewporter_state,
+            outputs: vec![primary_output],
+            output_globals,
             seat_state,
             seat,
             launcher_state: LauncherState::default(),
@@ -5558,6 +5873,10 @@ impl WaylandSmokeState {
             input_method_popup_new_count: 0,
             input_method_popup_dismiss_count: 0,
             input_method_popup_reposition_count: 0,
+            fractional_scale_request_count: 0,
+            surface_preferred_scale: 1.0,
+            viewport_source: None,
+            viewport_destination: None,
         })
     }
 
@@ -7402,6 +7721,19 @@ impl SmithayDrmSession {
         }
         self.session.wayland_state.output_width = width;
         self.session.wayland_state.output_height = height;
+        let mode = OutputMode {
+            size: (width as i32, height as i32).into(),
+            refresh: 60_000,
+        };
+        if let Some(output) = self.session.wayland_state.outputs.first() {
+            output.set_preferred(mode);
+            output.change_current_state(
+                Some(mode),
+                Some(Transform::Normal),
+                Some(Scale::Integer(1)),
+                Some((0, 0).into()),
+            );
+        }
     }
 
     pub fn launcher_state_snapshot(&self) -> LauncherState {
@@ -9268,6 +9600,13 @@ impl CompositorHandler for WaylandSmokeState {
         if !self.committed_surfaces.contains(surface) {
             self.committed_surfaces.push(surface.clone());
         }
+        let viewport = with_states(surface, |states| {
+            *states.cached_state.get::<ViewportCachedState>().current()
+        });
+        self.viewport_source = viewport
+            .src
+            .map(|src| (src.loc.x, src.loc.y, src.size.w, src.size.h));
+        self.viewport_destination = viewport.dst.map(|dst| (dst.w, dst.h));
         let installer_full_output = self.toplevel_surfaces.iter().any(|toplevel| {
             toplevel.wl_surface() == surface
                 && with_states(toplevel.wl_surface(), |states| {
@@ -9518,6 +9857,22 @@ impl CompositorHandler for WaylandSmokeState {
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl BufferHandler for WaylandSmokeState {
     fn buffer_destroyed(&mut self, _buffer: &wl_buffer::WlBuffer) {}
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl OutputHandler for WaylandSmokeState {}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl FractionalScaleHandler for WaylandSmokeState {
+    fn new_fractional_scale(&mut self, surface: WlSurface) {
+        self.fractional_scale_request_count += 1;
+        let preferred_scale = self.surface_preferred_scale;
+        with_states(&surface, |states| {
+            with_fractional_scale(states, |fractional_scale| {
+                fractional_scale.set_preferred_scale(preferred_scale);
+            });
+        });
+    }
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -9861,6 +10216,9 @@ delegate_data_device!(WaylandSmokeState);
 delegate_input_method_manager!(WaylandSmokeState);
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_output!(WaylandSmokeState);
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 delegate_primary_selection!(WaylandSmokeState);
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -9871,6 +10229,12 @@ delegate_shm!(WaylandSmokeState);
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 delegate_text_input_manager!(WaylandSmokeState);
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_fractional_scale!(WaylandSmokeState);
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_viewporter!(WaylandSmokeState);
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 delegate_xdg_shell!(WaylandSmokeState);
@@ -9926,6 +10290,226 @@ impl ClientData for WaylandSmokeClientState {
         }
     }
 }
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+#[derive(Debug, Default)]
+struct OutputSmokeRecord {
+    global_name: u32,
+    proxy: Option<client_wl_output::WlOutput>,
+    protocol_name: Option<String>,
+    location: Option<(i32, i32)>,
+    mode: Option<(i32, i32, i32)>,
+    current: bool,
+    preferred: bool,
+    integer_scale: Option<i32>,
+    logical_position: Option<(i32, i32)>,
+    logical_size: Option<(i32, i32)>,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+#[derive(Debug, Default)]
+struct OutputSmokeClientState {
+    registry_bound: bool,
+    compositor: Option<wl_compositor::WlCompositor>,
+    xdg_output_manager: Option<client_xdg_output_manager::ZxdgOutputManagerV1>,
+    fractional_scale_manager: Option<client_fractional_scale_manager::WpFractionalScaleManagerV1>,
+    viewporter: Option<client_viewporter::WpViewporter>,
+    outputs: Vec<OutputSmokeRecord>,
+    removed_globals: Vec<u32>,
+    surface: Option<wl_surface::WlSurface>,
+    fractional_scale_120ths: Option<u32>,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl OutputSmokeClientState {
+    fn request_surface_extensions(&mut self, qh: &QueueHandle<Self>) -> Result<(), &'static str> {
+        let xdg_output_manager = self
+            .xdg_output_manager
+            .as_ref()
+            .ok_or("xdg-output manager was not advertised")?;
+        for output in &self.outputs {
+            xdg_output_manager.get_xdg_output(
+                output.proxy.as_ref().ok_or("wl_output proxy missing")?,
+                qh,
+                output.global_name,
+            );
+        }
+
+        let surface = self
+            .compositor
+            .as_ref()
+            .ok_or("wl_compositor was not advertised")?
+            .create_surface(qh, ());
+        self.fractional_scale_manager
+            .as_ref()
+            .ok_or("fractional-scale manager was not advertised")?
+            .get_fractional_scale(&surface, qh, ());
+        let viewport = self
+            .viewporter
+            .as_ref()
+            .ok_or("viewporter was not advertised")?
+            .get_viewport(&surface, qh, ());
+        viewport.set_source(8.0, 12.0, 320.0, 180.0);
+        viewport.set_destination(640, 360);
+        surface.commit();
+        self.surface = Some(surface);
+        Ok(())
+    }
+
+    fn globals_ready(&self) -> bool {
+        self.registry_bound
+            && self.compositor.is_some()
+            && self.xdg_output_manager.is_some()
+            && self.fractional_scale_manager.is_some()
+            && self.viewporter.is_some()
+            && self.outputs.len() == 2
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<wl_registry::WlRegistry, ()> for OutputSmokeClientState {
+    fn event(
+        state: &mut Self,
+        registry: &wl_registry::WlRegistry,
+        event: wl_registry::Event,
+        _: &(),
+        _: &ClientConnection,
+        qh: &QueueHandle<Self>,
+    ) {
+        match event {
+            wl_registry::Event::Global {
+                name,
+                interface,
+                version,
+            } => {
+                state.registry_bound = true;
+                match interface.as_str() {
+                    "wl_compositor" => {
+                        state.compositor = Some(registry.bind(name, version.min(6), qh, ()))
+                    }
+                    "wl_output" => {
+                        let proxy = registry.bind(name, version.min(4), qh, ());
+                        state.outputs.push(OutputSmokeRecord {
+                            global_name: name,
+                            proxy: Some(proxy),
+                            ..OutputSmokeRecord::default()
+                        });
+                    }
+                    "zxdg_output_manager_v1" => {
+                        state.xdg_output_manager = Some(registry.bind(name, version.min(3), qh, ()))
+                    }
+                    "wp_fractional_scale_manager_v1" => {
+                        state.fractional_scale_manager =
+                            Some(registry.bind(name, version.min(1), qh, ()))
+                    }
+                    "wp_viewporter" => {
+                        state.viewporter = Some(registry.bind(name, version.min(1), qh, ()))
+                    }
+                    _ => {}
+                }
+            }
+            wl_registry::Event::GlobalRemove { name } => state.removed_globals.push(name),
+            _ => {}
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_wl_output::WlOutput, ()> for OutputSmokeClientState {
+    fn event(
+        state: &mut Self,
+        output: &client_wl_output::WlOutput,
+        event: client_wl_output::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        let Some(record) = state.outputs.iter_mut().find(|record| {
+            record
+                .proxy
+                .as_ref()
+                .is_some_and(|proxy| proxy.id() == output.id())
+        }) else {
+            return;
+        };
+        match event {
+            client_wl_output::Event::Geometry { x, y, .. } => record.location = Some((x, y)),
+            client_wl_output::Event::Mode {
+                flags,
+                width,
+                height,
+                refresh,
+            } => {
+                record.mode = Some((width, height, refresh));
+                if let WEnum::Value(flags) = flags {
+                    record.current = flags.contains(client_wl_output::Mode::Current);
+                    record.preferred = flags.contains(client_wl_output::Mode::Preferred);
+                }
+            }
+            client_wl_output::Event::Scale { factor } => record.integer_scale = Some(factor),
+            client_wl_output::Event::Name { name } => record.protocol_name = Some(name),
+            _ => {}
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_xdg_output::ZxdgOutputV1, u32> for OutputSmokeClientState {
+    fn event(
+        state: &mut Self,
+        _: &client_xdg_output::ZxdgOutputV1,
+        event: client_xdg_output::Event,
+        global_name: &u32,
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        let Some(record) = state
+            .outputs
+            .iter_mut()
+            .find(|record| record.global_name == *global_name)
+        else {
+            return;
+        };
+        match event {
+            client_xdg_output::Event::LogicalPosition { x, y } => {
+                record.logical_position = Some((x, y))
+            }
+            client_xdg_output::Event::LogicalSize { width, height } => {
+                record.logical_size = Some((width, height))
+            }
+            _ => {}
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_fractional_scale::WpFractionalScaleV1, ()> for OutputSmokeClientState {
+    fn event(
+        state: &mut Self,
+        _: &client_fractional_scale::WpFractionalScaleV1,
+        event: client_fractional_scale::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let client_fractional_scale::Event::PreferredScale { scale } = event {
+            state.fractional_scale_120ths = Some(scale);
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(OutputSmokeClientState: ignore wl_compositor::WlCompositor);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(OutputSmokeClientState: ignore wl_surface::WlSurface);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(OutputSmokeClientState: ignore client_xdg_output_manager::ZxdgOutputManagerV1);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(OutputSmokeClientState: ignore client_fractional_scale_manager::WpFractionalScaleManagerV1);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(OutputSmokeClientState: ignore client_viewporter::WpViewporter);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(OutputSmokeClientState: ignore client_viewport::WpViewport);
 
 #[derive(Default)]
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -12617,6 +13201,27 @@ mod tests {
         assert!(probe.popup_parent_bound);
         assert!(probe.popup_repositioned);
         assert_eq!(probe.payload_limit_bytes, 4_000);
+        assert!(!probe.host_stub);
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn smithay_output_matrix_is_discoverable_scaled_and_hotpluggable() {
+        let probe = probe_wayland_output_matrix().expect("Wayland output matrix probe");
+
+        assert!(probe.is_ready());
+        assert_eq!(probe.client_count, 2);
+        assert!(probe.outputs_visible_to_both_clients);
+        assert!(probe.modes_match_supported_matrix);
+        assert!(probe.preferred_modes_advertised);
+        assert!(probe.logical_coordinates_match);
+        assert!(probe.integer_scales_match);
+        assert!(probe.fractional_scale_advertised);
+        assert_eq!(probe.fractional_scale_120ths, 150);
+        assert!(probe.viewport_source_applied);
+        assert!(probe.viewport_destination_applied);
+        assert!(probe.hotplug_remove_reaches_both_clients);
+        assert!(probe.remaining_output_usable);
         assert!(!probe.host_stub);
     }
 

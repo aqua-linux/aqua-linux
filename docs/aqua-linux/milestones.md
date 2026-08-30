@@ -230,6 +230,12 @@ Current compatibility extension:
   Turkish UTF-8 preedit and commit delivery, deletion, focus handoff, and
   parent-bound popup repositioning. The packaged rootfs runs the same probe
   with `host_stub=false`; the broader keyboard and locale matrix remains open.
+- A two-client Linux probe publishes two standard `wl_output` globals with
+  xdg-output logical geometry, current and preferred 60 Hz modes, integer
+  fallback scales, fractional-scale preference, and viewporter state. Both
+  clients observe the second global's removal while the first stays usable.
+  The packaged rootfs runs the same feature-enabled probe; hardware connector
+  events and the broader scale, transform, and application matrix remain open.
 
 ## Milestone 6: Boot Aqua Compositor In QEMU
 
