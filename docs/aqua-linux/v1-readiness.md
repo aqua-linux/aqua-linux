@@ -152,8 +152,13 @@ proves sink/source-node discovery, output playback into a non-silent 48 kHz
 capture, volume/mute, bounded WirePlumber restart recovery, and a separate
 controlled 4,800-frame zero-PCM input stream while the default kernel and
 rootfs stay sound-free. The input profile avoids host microphone access and
-proves deterministic stream delivery, not acoustic quality. Non-silent
-injected input still remains open. A separate
+proves deterministic stream delivery, not acoustic quality. Non-silent input
+is now separately proven by a private QEMU D-Bus `AudioInListener` that serves
+a fixed 1 kHz bipolar square wave. The guest captures exactly 4,800 stereo
+S16LE frames through HDA, ALSA, and PipeWire with a 4,096 peak, all 9,600
+samples non-zero, and balanced polarity; the host independently verifies the
+declared injector format and byte count. This remains virtual transport
+evidence and does not claim a physical microphone. A separate
 two-controller QEMU profile now proves two authoritative output nodes,
 configured-default submission through the native API, effective-route
 acknowledgement, and non-silent playback captures on both routes. A bounded QMP

@@ -14,6 +14,12 @@ enum {
   CAPTURE_PERIODS = 10,
 };
 
+enum capture_requirement {
+  CAPTURE_OBSERVE,
+  CAPTURE_REQUIRE_SILENCE,
+  CAPTURE_REQUIRE_SIGNAL,
+};
+
 static struct aqua_audio_native_node *default_output(
     struct aqua_audio_native_snapshot *snapshot) {
   for (uint32_t index = 0; index < snapshot->node_count; ++index) {
@@ -321,7 +327,7 @@ static int playback(void) {
   return 0;
 }
 
-static int capture(int require_silence) {
+static int capture(enum capture_requirement requirement) {
   snd_pcm_t *pcm = NULL;
   int status = snd_pcm_open(&pcm, "default", SND_PCM_STREAM_CAPTURE, 0);
   if (status < 0) {
@@ -346,6 +352,9 @@ static int capture(int require_silence) {
   int16_t samples[PERIOD_FRAMES * CHANNELS];
   uint64_t frames = 0;
   uint32_t peak_abs = 0;
+  uint64_t nonzero_samples = 0;
+  uint64_t positive_samples = 0;
+  uint64_t negative_samples = 0;
   for (unsigned int period = 0; period < CAPTURE_PERIODS; ++period) {
     status = snd_pcm_wait(pcm, 5000);
     if (status <= 0) {
@@ -370,6 +379,13 @@ static int capture(int require_silence) {
         if (magnitude > peak_abs) {
           peak_abs = magnitude;
         }
+        if (sample > 0) {
+          ++positive_samples;
+          ++nonzero_samples;
+        } else if (sample < 0) {
+          ++negative_samples;
+          ++nonzero_samples;
+        }
       }
     }
     frames += (uint64_t)read_frames;
@@ -382,34 +398,56 @@ static int capture(int require_silence) {
             (unsigned long long)frames);
     return 1;
   }
-  if (require_silence && peak_abs != 0) {
+  if (requirement == CAPTURE_REQUIRE_SILENCE && peak_abs != 0) {
     fprintf(stderr, "[AQUA-AUDIO] stage=media-probe status=failed "
                     "reason=unexpected-capture-data peak_abs=%u\n",
             peak_abs);
     return 1;
   }
+  if (requirement == CAPTURE_REQUIRE_SIGNAL &&
+      (peak_abs < 1024 || peak_abs > 8192 || nonzero_samples < 8000 ||
+       positive_samples < 1000 || negative_samples < 1000)) {
+    fprintf(stderr, "[AQUA-AUDIO] stage=media-probe status=failed "
+                    "reason=invalid-injected-signal peak_abs=%u "
+                    "nonzero_samples=%llu positive_samples=%llu "
+                    "negative_samples=%llu\n",
+            peak_abs, (unsigned long long)nonzero_samples,
+            (unsigned long long)positive_samples,
+            (unsigned long long)negative_samples);
+    return 1;
+  }
   printf("[AQUA-AUDIO] stage=media-probe status=ok direction=capture "
          "frames=%llu rate=%d channels=%d format=s16le peak_abs=%u "
-         "pattern=%s\n",
+         "pattern=%s nonzero_samples=%llu positive_samples=%llu "
+         "negative_samples=%llu\n",
          (unsigned long long)frames, SAMPLE_RATE, CHANNELS, peak_abs,
-         require_silence ? "silence" : "observed");
+         requirement == CAPTURE_REQUIRE_SILENCE
+             ? "silence"
+             : (requirement == CAPTURE_REQUIRE_SIGNAL ? "bipolar-injected"
+                                                      : "observed"),
+         (unsigned long long)nonzero_samples,
+         (unsigned long long)positive_samples,
+         (unsigned long long)negative_samples);
   return 0;
 }
 
 int main(int argc, char **argv) {
   if (argc != 2) {
     fprintf(stderr,
-            "usage: aqua-audio-probe playback|capture|capture-silence|controls|routes|routes-secondary|fallback\n");
+            "usage: aqua-audio-probe playback|capture|capture-silence|capture-signal|controls|routes|routes-secondary|fallback\n");
     return 2;
   }
   if (strcmp(argv[1], "playback") == 0) {
     return playback();
   }
   if (strcmp(argv[1], "capture") == 0) {
-    return capture(0);
+    return capture(CAPTURE_OBSERVE);
   }
   if (strcmp(argv[1], "capture-silence") == 0) {
-    return capture(1);
+    return capture(CAPTURE_REQUIRE_SILENCE);
+  }
+  if (strcmp(argv[1], "capture-signal") == 0) {
+    return capture(CAPTURE_REQUIRE_SIGNAL);
   }
   if (strcmp(argv[1], "controls") == 0) {
     return controls();
@@ -424,6 +462,6 @@ int main(int argc, char **argv) {
     return fallback();
   }
   fprintf(stderr,
-          "usage: aqua-audio-probe playback|capture|capture-silence|controls|routes|routes-secondary|fallback\n");
+          "usage: aqua-audio-probe playback|capture|capture-silence|capture-signal|controls|routes|routes-secondary|fallback\n");
   return 2;
 }

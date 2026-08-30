@@ -137,8 +137,12 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    playback, removes its HDA controller through QMP, requires the matching
    asynchronous deletion event and a one-card ALSA topology, then requires the
    native snapshot to expose the sole remaining output as default and proves
-   non-silent fallback playback. Non-silent injected input and broader error
-   behavior remain open.
+   non-silent fallback playback. A fifth run attaches a private peer-to-peer
+   QEMU D-Bus audio listener and injects a bounded 1 kHz bipolar square wave
+   without host microphone access. The guest captures exactly 4,800 stereo
+   S16LE frames through HDA, ALSA, and PipeWire; all 9,600 samples are non-zero,
+   the measured peak is 4,096, and positive/negative counts are balanced.
+   Broader error behavior remains open.
 4. Settings and the top bar consume authoritative adapter state. Pointer and
    keyboard changes must be acknowledged by the service before the UI claims
    application; service failure must visibly degrade and recover.
@@ -181,8 +185,9 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
   QEMU acceptance additionally proves acknowledged multi-device default-output
   switching and playback on both routes. Selected virtual PCI output removal
   additionally proves acknowledged device deletion, authoritative fallback,
-  and resumed playback. Non-silent injected input and broader error evidence
-  remain open.
+  and resumed playback. A private QEMU D-Bus input listener additionally proves
+  deterministic non-silent capture through the declared HDA device without
+  requesting a host microphone. Broader error evidence remains open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

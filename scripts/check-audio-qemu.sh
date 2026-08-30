@@ -12,13 +12,17 @@ WAV_ROUTE_SECONDARY="${WAV_ROUTE_SECONDARY:-${EVIDENCE_DIR}/route-secondary.wav}
 QEMU_PID_FILE="${QEMU_PID_FILE:-${EVIDENCE_DIR}/qemu.pid}"
 QMP_SOCKET="${QMP_SOCKET:-${EVIDENCE_DIR}/qmp.sock}"
 QMP_DEVICE_DELETE="${QMP_DEVICE_DELETE:-${ROOT_DIR}/scripts/qmp-device-delete.py}"
+AUDIO_INPUT_INJECTOR="${AUDIO_INPUT_INJECTOR:-${EVIDENCE_DIR}/qemu-dbus-audio-input}"
+AUDIO_INPUT_READY="${AUDIO_INPUT_READY:-${EVIDENCE_DIR}/input-injector.ready}"
+AUDIO_INPUT_RESULT="${AUDIO_INPUT_RESULT:-${EVIDENCE_DIR}/input-injector.result}"
+AUDIO_INPUT_LOG="${AUDIO_INPUT_LOG:-${EVIDENCE_DIR}/input-injector.log}"
 MEMORY="${MEMORY:-1024M}"
 CPUS="${CPUS:-2}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-output}"
 
 case "${AQUA_AUDIO_QEMU_CONTRACT}" in
-    output|input|multi-route|hotplug) ;;
+    output|input|input-signal|multi-route|hotplug) ;;
     *)
         echo "Unsupported audio QEMU contract: ${AQUA_AUDIO_QEMU_CONTRACT}" >&2
         exit 2
@@ -41,7 +45,8 @@ done
 
 mkdir -p "${EVIDENCE_DIR}"
 rm -f "${SERIAL_LOG}" "${WAV_CAPTURE}" "${WAV_ROUTE_PRIMARY}" \
-    "${WAV_ROUTE_SECONDARY}" "${QEMU_PID_FILE}" "${QMP_SOCKET}"
+    "${WAV_ROUTE_SECONDARY}" "${QEMU_PID_FILE}" "${QMP_SOCKET}" \
+    "${AUDIO_INPUT_READY}" "${AUDIO_INPUT_RESULT}" "${AUDIO_INPUT_LOG}"
 cleanup() {
     if test -f "${QEMU_PID_FILE}"; then
         qemu_pid="$(cat "${QEMU_PID_FILE}" 2>/dev/null || true)"
@@ -57,6 +62,7 @@ trap cleanup EXIT INT TERM
 export ROOT_DIR KERNEL ROOTFS SERIAL_LOG WAV_CAPTURE QEMU_PID_FILE MEMORY CPUS TIMEOUT_SECONDS
 export WAV_ROUTE_PRIMARY WAV_ROUTE_SECONDARY
 export QMP_SOCKET QMP_DEVICE_DELETE
+export AUDIO_INPUT_INJECTOR AUDIO_INPUT_READY AUDIO_INPUT_RESULT AUDIO_INPUT_LOG
 export AQUA_AUDIO_QEMU_CONTRACT
 expect "${ROOT_DIR}/scripts/check-audio-qemu.exp"
 
@@ -90,6 +96,34 @@ elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = input; then
         grep -Fq "${marker}" "${SERIAL_LOG}"
     done
     echo 'Aqua Linux declared-device QEMU audio input check passed.'
+elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = input-signal; then
+    for marker in \
+        '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \
+        '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true' \
+        '[AQUA-AUDIO] stage=media-probe status=ok direction=capture frames=4800 rate=48000 channels=2 format=s16le' \
+        'pattern=bipolar-injected' \
+        '[AQUA-AUDIO] stage=qemu-capture status=ok pattern=bipolar-injected' \
+        '[AQUA-AUDIO] stage=qemu-input-signal status=ok declared_device=intel-hda codec=hda-duplex backend=dbus capture=true frames=4800 host_microphone=false'
+    do
+        grep -Fq "${marker}" "${SERIAL_LOG}"
+    done
+    for result in \
+        'status=ok' \
+        'format=s16le' \
+        'rate=48000' \
+        'channels=2' \
+        'amplitude=4096' \
+        'pattern=square-1khz'
+    do
+        grep -Fxq "${result}" "${AUDIO_INPUT_RESULT}"
+    done
+    served_bytes="$(sed -n 's/^bytes_served=//p' "${AUDIO_INPUT_RESULT}")"
+    case "${served_bytes}" in
+        *[!0-9]*|'') echo 'Invalid D-Bus input byte count.' >&2; exit 1 ;;
+    esac
+    test "${served_bytes}" -ge 19200
+    echo 'Aqua Linux deterministic non-silent QEMU audio input check passed.'
+    echo "Injector result: ${AUDIO_INPUT_RESULT}"
 elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = multi-route; then
     for marker in \
         '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-output outputs=2 capture_node=false' \

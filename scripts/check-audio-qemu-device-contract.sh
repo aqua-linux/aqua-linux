@@ -7,12 +7,14 @@ AUDIO_CONFIG="${ROOT_DIR}/br2-external/aqua/configs/aqua_x86_64_audio_rehearsal_
 FRAGMENT="${ROOT_DIR}/br2-external/aqua/board/aqua/x86_64/linux-audio-qemu.config"
 RUNNER="${ROOT_DIR}/scripts/check-audio-qemu.sh"
 INPUT_RUNNER="${ROOT_DIR}/scripts/check-audio-input-qemu.sh"
+SIGNAL_INPUT_RUNNER="${ROOT_DIR}/scripts/check-audio-signal-input-qemu.sh"
 MULTI_ROUTE_RUNNER="${ROOT_DIR}/scripts/check-audio-multi-route-qemu.sh"
 HOTPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-hotplug-qemu.sh"
 QMP_DELETE="${ROOT_DIR}/scripts/qmp-device-delete.py"
 EXPECT_SCRIPT="${ROOT_DIR}/scripts/check-audio-qemu.exp"
 PROBE_CONFIG="${ROOT_DIR}/br2-external/aqua/package/aqua-audio-probe/Config.in"
 PROBE_MAKE="${ROOT_DIR}/br2-external/aqua/package/aqua-audio-probe/aqua-audio-probe.mk"
+DBUS_INPUT_SOURCE="${ROOT_DIR}/scripts/qemu-dbus-audio-input.c"
 
 for assignment in \
     CONFIG_SOUND=y \
@@ -23,6 +25,21 @@ for assignment in \
     CONFIG_HOTPLUG_PCI_ACPI=y
 do
     grep -Fxq "${assignment}" "${FRAGMENT}"
+done
+
+test -x "${SIGNAL_INPUT_RUNNER}"
+grep -Fq 'AQUA_AUDIO_QEMU_CONTRACT=input-signal' "${SIGNAL_INPUT_RUNNER}"
+for contract in \
+    'dbus,id=aqua-audio,nsamples=480' \
+    'dbus,p2p=on,audiodev=aqua-audio' \
+    'RegisterInListener' \
+    'org.qemu.Display1.AudioInListener' \
+    'aqua-audio-probe capture-signal' \
+    'pattern=bipolar-injected' \
+    'backend=dbus capture=true frames=4800 host_microphone=false'
+do
+    grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}" \
+        "${SIGNAL_INPUT_RUNNER}" "${DBUS_INPUT_SOURCE}"
 done
 
 test -x "${HOTPLUG_RUNNER}"
@@ -98,4 +115,4 @@ do
     grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}"
 done
 
-echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backend=none controlled_input=zero-pcm multi_route=true selected_device_unplug=true fallback=true default_image_audio=false'
+echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backends=none,dbus controlled_inputs=zero-pcm,bipolar-signal multi_route=true selected_device_unplug=true fallback=true host_microphone=false default_image_audio=false'
