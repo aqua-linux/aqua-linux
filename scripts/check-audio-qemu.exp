@@ -26,7 +26,7 @@ set qemu_args [list qemu-system-x86_64 \
     -monitor none \
     -vga none \
     -device virtio-vga]
-if {$audio_contract eq "output" || $audio_contract eq "service-loss" || $audio_contract eq "policy-service-loss" || $audio_contract eq "control-service-loss" || $audio_contract eq "restart-exhaustion" || $audio_contract eq "policy-restart-exhaustion"} {
+if {$audio_contract eq "output" || $audio_contract eq "service-loss" || $audio_contract eq "policy-service-loss" || $audio_contract eq "control-service-loss" || $audio_contract eq "control-policy-service-loss" || $audio_contract eq "restart-exhaustion" || $audio_contract eq "policy-restart-exhaustion"} {
     lappend qemu_args -audiodev "wav,id=aqua-audio,path=$env(WAV_CAPTURE),out.frequency=48000,out.channels=2,out.format=s16"
     lappend qemu_args -device ich9-intel-hda
     lappend qemu_args -device hda-duplex,audiodev=aqua-audio
@@ -234,6 +234,28 @@ if {$audio_contract eq "control-service-loss"} {
         -exact {[AQUA-AUDIO] stage=qemu-control-service-loss status=failed} { puts stderr "Audio control service-loss contract failed"; exit 1 }
         timeout { puts stderr "Audio control service-loss marker missing"; exit 1 }
         eof { puts stderr "QEMU exited during audio control service-loss recovery"; exit 1 }
+    }
+    expect -exact {# }
+    shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}
+    send -- "poweroff -f\r"
+    expect eof
+    exit 0
+}
+
+if {$audio_contract eq "control-policy-service-loss"} {
+    shell {control_policy_loss_ok=1; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe controls' || control_policy_loss_ok=0} {establishing acknowledged controls before policy-service loss}
+    shell {supervisor_pid="$(cat /run/aqua/media-service-supervisor.pid)"; old_pipewire="$(sed -n 's/^pipewire_pid=//p' /run/aqua/media-service-supervisor.state)"; old_wireplumber="$(sed -n 's/^wireplumber_pid=//p' /run/aqua/media-service-supervisor.state)"; kill "$old_wireplumber"; i=0; while [ "$i" -lt 10 ] && ! grep -Fq 'state=restarting' /run/aqua/media-service-supervisor.state 2>/dev/null; do sleep 1; i=$((i + 1)); done; grep -Fq 'failed_service=wireplumber' /run/aqua/media-service-supervisor.state || control_policy_loss_ok=0; kill -STOP "$supervisor_pid"; [ ! -S /run/user/1000/pipewire-0 ] || control_policy_loss_ok=0} {holding the full-stack outage caused by policy-service loss}
+    shell {control_status=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe controls' >/run/aqua/audio-control-policy-service-loss.log 2>&1 || control_status=$?; cat /run/aqua/audio-control-policy-service-loss.log; [ "$control_status" -ne 0 ] || control_policy_loss_ok=0; grep -Fq '[AQUA-AUDIO] stage=control-probe status=failed operation=open' /run/aqua/audio-control-policy-service-loss.log || control_policy_loss_ok=0; if grep -Fq '[AQUA-AUDIO] stage=control-probe status=ok' /run/aqua/audio-control-policy-service-loss.log; then control_policy_loss_ok=0; fi} {rejecting control acknowledgement during policy-triggered graph outage}
+    shell {kill -CONT "$supervisor_pid"; i=0; while [ "$i" -lt 30 ]; do new_pipewire="$(sed -n 's/^pipewire_pid=//p' /run/aqua/media-service-supervisor.state 2>/dev/null)"; new_wireplumber="$(sed -n 's/^wireplumber_pid=//p' /run/aqua/media-service-supervisor.state 2>/dev/null)"; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state 2>/dev/null && [ -n "$new_pipewire" ] && [ -n "$new_wireplumber" ] && [ "$new_pipewire" != "$old_pipewire" ] && [ "$new_wireplumber" != "$old_wireplumber" ] && break; sleep 1; i=$((i + 1)); done; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || control_policy_loss_ok=0; grep -Fq 'attempts=2' /run/aqua/media-service-supervisor.state || control_policy_loss_ok=0; grep -Fq 'restarts=1' /run/aqua/media-service-supervisor.state || control_policy_loss_ok=0} {releasing full-stack policy-service recovery}
+    shell {kill -0 "$old_pipewire" 2>/dev/null && control_policy_loss_ok=0; kill -0 "$old_wireplumber" 2>/dev/null && control_policy_loss_ok=0; grep -Fq '[AQUA-MEDIA] stage=media-service-supervisor status=restarting failed_service=wireplumber' /run/aqua/audio-qemu-supervisor.log || control_policy_loss_ok=0; grep -Fq '[AQUA-MEDIA] stage=media-service-supervisor status=stopping service=pipewire' /run/aqua/audio-qemu-supervisor.log || control_policy_loss_ok=0; cat /run/aqua/audio-qemu-supervisor.log} {checking complete policy-triggered media replacement}
+    shell {[ "$control_policy_loss_ok" = 1 ] && su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe controls' || control_policy_loss_ok=0} {checking acknowledged controls after policy-service recovery}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-control-policy-service-loss'; [ "$control_policy_loss_ok" = 1 ] && echo "$marker status=ok failed_service=wireplumber control_rejected=true false_acknowledgement=false full_stack_restart=true old_processes_retired=true restart_recovery=true control_after=true recovery_shell=true" || echo "$marker status=failed"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-control-policy-service-loss status=ok failed_service=wireplumber control_rejected=true false_acknowledgement=false full_stack_restart=true old_processes_retired=true restart_recovery=true control_after=true recovery_shell=true} {}
+        -exact {[AQUA-AUDIO] stage=qemu-control-policy-service-loss status=failed} { puts stderr "Audio control policy-service loss contract failed"; exit 1 }
+        timeout { puts stderr "Audio control policy-service loss marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited during audio control policy-service recovery"; exit 1 }
     }
     expect -exact {# }
     shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}

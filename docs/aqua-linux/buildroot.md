@@ -410,6 +410,15 @@ releases the unchanged supervisor policy; a different PipeWire PID,
 `attempts=2`, and a second successful control cycle prove recovery. This does
 not make submission equivalent to acknowledgement or enable audio by default.
 
+`scripts/check-audio-control-policy-service-loss-qemu.sh` proves the matching
+WirePlumber boundary. After one acknowledged volume/mute cycle, it terminates
+the supervisor-owned policy process and pauses the supervisor only after that
+loss has retired PipeWire and entered its bounded restart delay. Native control
+open must fail without an acknowledgement while the complete graph is absent.
+Recovery must replace both old media processes at attempt 2/restart 1 before a
+second control cycle succeeds. This remains opt-in virtual-device evidence and
+does not enable audio by default.
+
 `/usr/bin/aqua-session-check` is the recovery-safe aggregate checker for the same contract. Boot writes its output to `/run/aqua-session-check.log`, and users can run it manually from the recovery shell.
 
 ## Current Boot Choice
