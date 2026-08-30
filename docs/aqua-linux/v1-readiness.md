@@ -196,7 +196,11 @@ the graph degraded, confirms process/socket cleanup, rejects new playback and
 active-capture profile kills PipeWire after
 480 zero-PCM frames, requires an explicit interrupted result without false
 capture success, observes ordered recovery, and captures a new exact 4,800
-frames without host-microphone access. A distinct device-loss profile validates
+frames without host-microphone access. Its policy-service counterpart kills
+WirePlumber at the same active checkpoint, requires the capture client to fail
+explicitly, proves both old media processes retire before attempt 2/restart 1,
+and captures a new exact 4,800 zero-PCM frames on the replacement graph. A
+distinct device-loss profile validates
 one complete D-Bus-injected bipolar capture, removes the sole duplex HDA
 controller during a second client's 480-frame checkpoint, requires native
 topology to report zero inputs and explicit `input-route-loss` without false

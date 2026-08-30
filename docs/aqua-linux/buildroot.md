@@ -350,6 +350,16 @@ must restore the graph before a new client captures exactly 4,800 zero-PCM
 frames. This is virtual service-loss evidence, not physical microphone or
 device-disconnect support.
 
+`scripts/check-audio-active-capture-policy-loss-qemu.sh` covers the active-input
+policy-service boundary against the same controlled source. It records the
+supervisor-owned PipeWire and WirePlumber PIDs, publishes the 480-frame capture
+checkpoint, and terminates only WirePlumber. The client must exit with status 3
+and `Broken pipe` without a capture-success marker. The supervisor must stop the
+old PipeWire process, retire both old PIDs, and start a new ordered pair at
+attempt 2/restart 1 before a new client captures exactly 4,800 zero-PCM frames.
+This proves full-stack recovery for the declared virtual policy failure; it is
+not seamless capture or physical microphone evidence.
+
 `scripts/check-audio-active-input-unplug-qemu.sh` separates input-device loss
 from media-service loss. A private D-Bus injector first proves one complete
 4,800-frame bipolar capture without host microphone access. A second capture

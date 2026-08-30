@@ -24,7 +24,7 @@ TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-output}"
 
 case "${AQUA_AUDIO_QEMU_CONTRACT}" in
-    output|input|input-signal|input-disconnect|active-input-unplug|service-loss|policy-service-loss|capture-service-loss|control-service-loss|restart-exhaustion|multi-route|hotplug|replug|nondefault-unplug|active-nondefault-unplug|active-default-unplug) ;;
+    output|input|input-signal|input-disconnect|active-input-unplug|service-loss|policy-service-loss|capture-service-loss|capture-policy-service-loss|control-service-loss|restart-exhaustion|multi-route|hotplug|replug|nondefault-unplug|active-nondefault-unplug|active-default-unplug) ;;
     *)
         echo "Unsupported audio QEMU contract: ${AQUA_AUDIO_QEMU_CONTRACT}" >&2
         exit 2
@@ -215,6 +215,19 @@ elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = capture-service-loss; then
     done
     test "$(grep -Fc '[AQUA-AUDIO] stage=media-probe status=ok direction=capture frames=4800 rate=48000 channels=2 format=s16le peak_abs=0 pattern=silence' "${SERIAL_LOG}")" -eq 1
     echo 'Aqua Linux active audio capture service-loss recovery check passed.'
+elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = capture-policy-service-loss; then
+    for marker in \
+        '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \
+        '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true' \
+        '[AQUA-AUDIO] stage=qemu-capture-policy-loss-precondition status=ok active_stream=true frames=480 pipewire_pid=true wireplumber_pid=true controlled_pattern=zero-pcm host_microphone=false' \
+        '[AQUA-AUDIO] stage=media-probe status=interrupted direction=capture reason=pcm-io' \
+        '[AQUA-AUDIO] stage=qemu-capture-policy-service-loss status=ok failed_service=wireplumber active_stream_aborted=true false_success=false full_stack_restart=true old_processes_retired=true restart_recovery=true capture_after=true controlled_pattern=zero-pcm host_microphone=false recovery_shell=true'
+    do
+        grep -Fq "${marker}" "${SERIAL_LOG}"
+    done
+    test "$(grep -Fc '[AQUA-MEDIA] stage=media-service-supervisor status=restarting failed_service=wireplumber' "${SERIAL_LOG}")" -eq 1
+    test "$(grep -Fc '[AQUA-AUDIO] stage=media-probe status=ok direction=capture frames=4800 rate=48000 channels=2 format=s16le peak_abs=0 pattern=silence' "${SERIAL_LOG}")" -eq 1
+    echo 'Aqua Linux active audio capture policy-service loss recovery check passed.'
 elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = control-service-loss; then
     for marker in \
         '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \
