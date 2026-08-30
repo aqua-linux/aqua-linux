@@ -31,7 +31,8 @@ for assignment in \
     'eudev_version=3.2.14' \
     'lua_version=5.4.8' \
     'glib_version=2.82.5' \
-    'aqua_audio_native_version=1'
+    'aqua_audio_native_version=1' \
+    'aqua_audio_probe_version=1'
 do
     grep -Fxq "$assignment" "$AUDIO_OVERLAY/etc/aqua/audio-stack.conf"
 done
@@ -52,7 +53,7 @@ mkdir -p \
     "$FIXTURE/usr/lib/wireplumber-0.5" \
     "$FIXTURE/usr/share/pipewire" \
     "$FIXTURE/usr/share/wireplumber"
-for executable in pipewire wireplumber wpctl; do
+for executable in pipewire wireplumber wpctl aqua-audio-probe; do
     : > "$FIXTURE/usr/bin/$executable"
     chmod 755 "$FIXTURE/usr/bin/$executable"
 done
@@ -62,7 +63,8 @@ for runtime_file in \
     usr/lib/wireplumber-0.5/libwireplumber-module-default-nodes-api.so \
     usr/lib/wireplumber-0.5/libwireplumber-module-mixer-api.so \
     usr/share/pipewire/pipewire.conf \
-    usr/share/wireplumber/wireplumber.conf
+    usr/share/wireplumber/wireplumber.conf \
+    etc/alsa/conf.d/99-aqua-pipewire-default.conf
 do
     : > "$FIXTURE/$runtime_file"
 done

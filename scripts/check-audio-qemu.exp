@@ -1,0 +1,117 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+proc shell {command description} {
+    send -- "$command\r"
+    expect {
+        -exact {# } {}
+        timeout { puts stderr "Timed out while $description"; exit 1 }
+        eof { puts stderr "QEMU exited while $description"; exit 1 }
+    }
+}
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp $env(CPUS) \
+    -m $env(MEMORY) \
+    -pidfile $env(QEMU_PID_FILE) \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1} \
+    -serial stdio \
+    -monitor none \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -audiodev wav,id=aqua-audio,path=$env(WAV_CAPTURE),out.frequency=48000,out.channels=2,out.format=s16 \
+    -device ich9-intel-hda \
+    -device hda-duplex,audiodev=aqua-audio \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh} {}
+    timeout { puts stderr "Timed out waiting for Aqua recovery"; exit 1 }
+    eof { puts stderr "QEMU exited before Aqua recovery"; exit 1 }
+}
+expect {
+    -exact {aqua-linux login: } {}
+    timeout { puts stderr "Timed out waiting for serial login"; exit 1 }
+    eof { puts stderr "QEMU exited before serial login"; exit 1 }
+}
+send -- "root\r"
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Timed out waiting for root shell"; exit 1 }
+    eof { puts stderr "QEMU exited before root shell"; exit 1 }
+}
+
+shell {ok=1; grep -Fq '[AQUA-SESSION] stage=session-check status=ok no_graphics=true' /run/aqua-session-check.log || { cat /run/aqua-session-check.log; ok=0; }; /usr/bin/aqua-session-check >/run/aqua/audio-qemu-session-check.log 2>/run/aqua/audio-qemu-session-check.err || { cat /run/aqua/audio-qemu-session-check.log /run/aqua/audio-qemu-session-check.err; ok=0; }} {checking the base session contract with media package group members}
+send -- {[ "$ok" = 1 ] && echo '[AQUA-AUDIO] stage=qemu-session status=ok base_session=true additional_group_members=true' || echo '[AQUA-AUDIO] stage=qemu-session status=failed'}
+send -- "\r"
+expect {
+    -exact {[AQUA-AUDIO] stage=qemu-session status=ok base_session=true additional_group_members=true} {}
+    -exact {[AQUA-AUDIO] stage=qemu-session status=failed} { puts stderr "Base session contract failed in the audio image"; exit 1 }
+    timeout { puts stderr "Base session contract failed in the audio image"; exit 1 }
+    eof { puts stderr "QEMU exited during base session verification"; exit 1 }
+}
+expect -exact {# }
+
+shell {ok=1; /usr/bin/aqua-audio-rootfs-check || ok=0; test -d /proc/asound || ok=0; grep -Fq 'Intel' /proc/asound/cards || ok=0; test -c /dev/snd/pcmC0D0p || ok=0; test -c /dev/snd/pcmC0D0c || ok=0} {checking HDA duplex discovery}
+send -- {[ "$ok" = 1 ] && echo '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true'}
+send -- "\r"
+expect {
+    -exact {[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true} {}
+    timeout { puts stderr "HDA duplex device contract failed"; exit 1 }
+    eof { puts stderr "QEMU exited during device verification"; exit 1 }
+}
+expect -exact {# }
+
+shell {AQUA_SESSION_ALLOWED_COMMAND=/usr/bin/aqua-media-service-supervisor /usr/bin/aqua-session-user-launch /usr/bin/aqua-media-service-supervisor >/run/aqua/audio-qemu-supervisor.log 2>&1 &} {starting per-user media services}
+shell {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'state=running' /run/aqua/media-service-supervisor.state 2>/dev/null; do sleep 1; i=$((i + 1)); done} {waiting for PipeWire and WirePlumber}
+shell {ok=1; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || ok=0; grep -Fq 'service_owner_uid=1000' /run/aqua/media-service-supervisor.state || ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/run/aqua/wpctl-status.txt 2>&1 || ok=0; grep -Fq 'Sinks:' /run/aqua/wpctl-status.txt || ok=0; grep -Fq 'Sources:' /run/aqua/wpctl-status.txt || ok=0} {checking per-user graph and duplex routes}
+send -- {[ "$ok" = 1 ] && echo '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true'}
+send -- "\r"
+expect {
+    -exact {[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true} {}
+    timeout { puts stderr "Per-user audio service contract failed"; exit 1 }
+    eof { puts stderr "QEMU exited during service verification"; exit 1 }
+}
+expect -exact {# }
+
+shell {ok=1; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe controls' || ok=0} {checking acknowledged default-route volume and mute through the native bridge}
+send -- {[ "$ok" = 1 ] && echo '[AQUA-AUDIO] stage=qemu-route status=ok default_sink=true requested_volume=0.35 mute_cycle=true' || echo '[AQUA-AUDIO] stage=qemu-route status=failed'}
+send -- "\r"
+expect {
+    -exact {[AQUA-AUDIO] stage=qemu-route status=ok default_sink=true requested_volume=0.35 mute_cycle=true} {}
+    -exact {[AQUA-AUDIO] stage=qemu-route status=failed} { puts stderr "Default route control contract failed"; exit 1 }
+    timeout { puts stderr "Default route control contract failed"; exit 1 }
+    eof { puts stderr "QEMU exited during route verification"; exit 1 }
+}
+expect -exact {# }
+
+shell {su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe playback'} {playing bounded test signal}
+shell {old_wp="$(sed -n 's/^wireplumber_pid=//p' /run/aqua/media-service-supervisor.state)"; kill "$old_wp"; i=0; while [ "$i" -lt 30 ]; do new_wp="$(sed -n 's/^wireplumber_pid=//p' /run/aqua/media-service-supervisor.state 2>/dev/null)"; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state 2>/dev/null && [ -n "$new_wp" ] && [ "$new_wp" != "$old_wp" ] && break; sleep 1; i=$((i + 1)); done} {waiting for bounded service recovery}
+shell {ok=1; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || ok=0; grep -Fq 'attempts=2' /run/aqua/media-service-supervisor.state || ok=0; grep -Fq 'service_owner_uid=1000' /run/aqua/media-service-supervisor.state || ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl get-volume @DEFAULT_AUDIO_SINK@' >/dev/null || ok=0} {checking recovered graph}
+send -- {[ "$ok" = 1 ] && echo '[AQUA-AUDIO] stage=qemu-recovery status=ok failed_service=wireplumber restart_recovery=true owner_uid=1000'}
+send -- "\r"
+expect {
+    -exact {[AQUA-AUDIO] stage=qemu-recovery status=ok failed_service=wireplumber restart_recovery=true owner_uid=1000} {}
+    timeout { puts stderr "Audio service recovery contract failed"; exit 1 }
+    eof { puts stderr "QEMU exited during recovery verification"; exit 1 }
+}
+expect -exact {# }
+
+shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}
+send -- {echo '[AQUA-AUDIO] stage=qemu-media status=ok declared_device=intel-hda codec=hda-duplex backend=wav playback=true input_node=true input_stream=false restart_recovery=true'}
+send -- "\r"
+expect {
+    -exact {[AQUA-AUDIO] stage=qemu-media status=ok declared_device=intel-hda codec=hda-duplex backend=wav playback=true input_node=true input_stream=false restart_recovery=true} {}
+    timeout { puts stderr "Final QEMU media marker missing"; exit 1 }
+    eof { puts stderr "QEMU exited before final media marker"; exit 1 }
+}
+expect -exact {# }
+send -- "poweroff -f\r"
+expect eof

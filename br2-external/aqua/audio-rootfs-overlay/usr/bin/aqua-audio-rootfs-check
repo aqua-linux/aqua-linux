@@ -64,7 +64,8 @@ for assignment in \
     'eudev_version=3.2.14' \
     'lua_version=5.4.8' \
     'glib_version=2.82.5' \
-    'aqua_audio_native_version=1'
+    'aqua_audio_native_version=1' \
+    'aqua_audio_probe_version=1'
 do
     require_value "${assignment%%=*}" "${assignment#*=}"
 done
@@ -72,6 +73,7 @@ CONFIG="${ROOT}/etc/aqua/media-services.conf"
 
 for executable in \
     /usr/bin/aqua-audio-rootfs-check \
+    /usr/bin/aqua-audio-probe \
     /usr/bin/aqua-media-service-supervisor \
     /usr/bin/aqua-media-service-stop \
     /usr/bin/pipewire \
@@ -87,6 +89,7 @@ for runtime_file in \
     /usr/lib/wireplumber-0.5/libwireplumber-module-default-nodes-api.so \
     /usr/lib/wireplumber-0.5/libwireplumber-module-mixer-api.so \
     /usr/share/pipewire/pipewire.conf \
+    /etc/alsa/conf.d/99-aqua-pipewire-default.conf \
     /usr/share/wireplumber/wireplumber.conf
 do
     require_regular "${runtime_file}"

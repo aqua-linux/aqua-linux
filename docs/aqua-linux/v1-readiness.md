@@ -147,9 +147,13 @@ stayed unchanged. Its second, audio-only rootfs overlay now explicitly enables
 the per-user supervisor, records exact stack versions, and installs a checker
 that proves required configuration, modules, identity, compatibility-layer
 exclusions, and the absence of an automatic root service. The complete final
-rootfs artifact passes that checker. Default-image enablement remains blocked until real
-declared-device QEMU media behavior and the remaining UI acknowledgement gate
-are proven. Buildroot availability or a valid rootfs alone is not an
+rootfs artifact passes that checker. The opt-in Intel HDA QEMU baseline now
+proves sink/source-node discovery, output playback into a non-silent 48 kHz
+capture, volume/mute, and bounded WirePlumber restart recovery while the
+default kernel and rootfs stay sound-free. The WAV backend has no ADC, so
+controlled input streaming, multi-device route changes, hotplug/error behavior,
+and the remaining UI acknowledgement gate still block default-image enablement.
+Buildroot availability or output-only QEMU evidence is not a complete audio
 integration decision.
 
 ### R5: Accessibility, Internationalization, And Input

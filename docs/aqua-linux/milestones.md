@@ -486,14 +486,18 @@ Settings Audio now supplies the real bounded slider consumer: a persistent
 `aqua-service-adapters` contract. Controls require a ready authoritative state
 with a valid output route; `/dev/snd` alone is insufficient, and desired values
 are not reported as applied before reconciliation. It deliberately does not
-claim playback or physical hardware support. The typed PipeWire/WirePlumber
+claim physical hardware support. The typed PipeWire/WirePlumber
 transport maps synchronized graph snapshots and typed control calls into the
 same acknowledgement gate. The non-default Buildroot profile now packages the
 bounded native WirePlumber 0.5 bridge and proves its dependency and legal-info
 closure. Its ordered audio-only overlay enables the per-user supervisor, pins
 the exact stack manifest, and passes a fail-closed checker against the complete
-Buildroot rootfs artifact without changing the default image. Declared-device
-QEMU media evidence remains open R4 work.
+Buildroot rootfs artifact without changing the default image. The audio-only
+Intel HDA kernel fragment and declared QEMU device now prove sink/source-node
+discovery, 48 kHz stereo S16LE output into a non-silent WAV capture,
+volume/mute, and bounded WirePlumber recovery. Controlled input streaming,
+multi-device routing, and hotplug/error evidence remain open R4 work; physical
+hardware support is not claimed.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
 to recovery after each bounded session.

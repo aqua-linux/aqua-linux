@@ -52,12 +52,31 @@ docker run --rm \
         grep -Fxq \
             '\''BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_AQUA_PATH)/rootfs-overlay $(BR2_EXTERNAL_AQUA_PATH)/audio-rootfs-overlay"'\'' \
             "${output_dir}/.config"
+        grep -Fxq \
+            '\''BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_AQUA_PATH)/board/aqua/x86_64/linux-audio-qemu.config"'\'' \
+            "${output_dir}/.config"
+        grep -Fxq "CONFIG_SOUND=y" \
+            "${output_dir}/build/linux-6.6.32/.config"
+        grep -Fxq "CONFIG_SND=y" \
+            "${output_dir}/build/linux-6.6.32/.config"
+        grep -Fxq "CONFIG_SND_HDA=y" \
+            "${output_dir}/build/linux-6.6.32/.config"
+        grep -Fxq "CONFIG_SND_HDA_INTEL=y" \
+            "${output_dir}/build/linux-6.6.32/.config"
+        grep -Fxq "CONFIG_SND_HDA_GENERIC=y" \
+            "${output_dir}/build/linux-6.6.32/.config"
+        test -x "${rootfs}/usr/bin/aqua-audio-probe"
         cp "${output_dir}/.config" "${evidence_dir}/audio-rootfs.config"
+        cp "${output_dir}/build/linux-6.6.32/.config" \
+            "${evidence_dir}/linux-audio-qemu.config"
+        cp "${output_dir}/images/bzImage" "${evidence_dir}/bzImage"
+        cp "${output_dir}/images/rootfs.ext2" "${evidence_dir}/rootfs.ext2"
         sha256sum \
             "${rootfs}/etc/aqua/audio-stack.conf" \
             "${rootfs}/etc/aqua/media-services.conf" \
             "${rootfs}/usr/bin/pipewire" \
             "${rootfs}/usr/bin/wireplumber" \
+            "${rootfs}/usr/bin/aqua-audio-probe" \
             "${rootfs}/usr/lib/libaqua-audio-native.so.1" > \
             "${evidence_dir}/rootfs-contract.sha256"
     '
