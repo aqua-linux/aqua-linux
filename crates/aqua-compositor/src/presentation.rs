@@ -1,4 +1,5 @@
 pub const MAX_PRESENTATION_SAMPLES: usize = 8;
+pub const MAX_PRESENTATION_EVENTS: u32 = 100_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PresentationEvidenceTarget {
@@ -21,6 +22,7 @@ impl PresentationEvidenceTarget {
 pub enum PresentationPath {
     ProductionGbmKms,
     DiagnosticReadback,
+    LegacyCpuCopy,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,6 +77,217 @@ pub struct PresentationSample {
     pub max_input_to_present_us: Option<u32>,
     pub cpu_time_us: Option<u64>,
     pub memory_growth_kib: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PresentationTelemetryError {
+    EventLimitExceeded(&'static str),
+    NoOutstandingFrame,
+    InvalidFrameTime,
+    InvalidInputToPresentTime,
+    InvalidObservationWindow,
+    IncompleteFrameAccounting,
+}
+
+impl std::fmt::Display for PresentationTelemetryError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EventLimitExceeded(event) => {
+                write!(
+                    formatter,
+                    "presentation telemetry event limit exceeded: {event}"
+                )
+            }
+            Self::NoOutstandingFrame => formatter.write_str("no requested frame is outstanding"),
+            Self::InvalidFrameTime => formatter.write_str("frame time must be non-zero"),
+            Self::InvalidInputToPresentTime => {
+                formatter.write_str("input-to-present time must be non-zero")
+            }
+            Self::InvalidObservationWindow => {
+                formatter.write_str("observation window must be non-zero")
+            }
+            Self::IncompleteFrameAccounting => {
+                formatter.write_str("requested frames are not fully presented or dropped")
+            }
+        }
+    }
+}
+
+impl std::error::Error for PresentationTelemetryError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PresentationTelemetry {
+    target: PresentationEvidenceTarget,
+    path: PresentationPath,
+    workload: PresentationWorkload,
+    frames_requested: u32,
+    frames_presented: u32,
+    dropped_frames: u32,
+    page_flip_events: u32,
+    frame_callbacks_sent: u32,
+    damage_commits: u32,
+    full_frame_readbacks: u32,
+    cpu_framebuffer_copies: u32,
+    settled_idle_repaints: u32,
+    repeating_repaint_timer_after_settle: bool,
+    max_frame_time_us: Option<u32>,
+    max_input_to_present_us: Option<u32>,
+}
+
+impl PresentationTelemetry {
+    pub const fn new(
+        target: PresentationEvidenceTarget,
+        path: PresentationPath,
+        workload: PresentationWorkload,
+    ) -> Self {
+        Self {
+            target,
+            path,
+            workload,
+            frames_requested: 0,
+            frames_presented: 0,
+            dropped_frames: 0,
+            page_flip_events: 0,
+            frame_callbacks_sent: 0,
+            damage_commits: 0,
+            full_frame_readbacks: 0,
+            cpu_framebuffer_copies: 0,
+            settled_idle_repaints: 0,
+            repeating_repaint_timer_after_settle: false,
+            max_frame_time_us: None,
+            max_input_to_present_us: None,
+        }
+    }
+
+    pub fn record_frame_requested(&mut self) -> Result<(), PresentationTelemetryError> {
+        increment_event(&mut self.frames_requested, "frame-request")
+    }
+
+    pub fn record_page_flip(
+        &mut self,
+        frame_time_us: u32,
+    ) -> Result<(), PresentationTelemetryError> {
+        if frame_time_us == 0 {
+            return Err(PresentationTelemetryError::InvalidFrameTime);
+        }
+        self.require_outstanding_frame()?;
+        increment_event(&mut self.frames_presented, "frame-presented")?;
+        increment_event(&mut self.page_flip_events, "page-flip")?;
+        self.max_frame_time_us = Some(
+            self.max_frame_time_us
+                .map_or(frame_time_us, |current| current.max(frame_time_us)),
+        );
+        Ok(())
+    }
+
+    pub fn record_dropped_frame(&mut self) -> Result<(), PresentationTelemetryError> {
+        self.require_outstanding_frame()?;
+        increment_event(&mut self.dropped_frames, "dropped-frame")
+    }
+
+    pub fn record_frame_callbacks(&mut self, count: u32) -> Result<(), PresentationTelemetryError> {
+        add_events(&mut self.frame_callbacks_sent, count, "frame-callback")
+    }
+
+    pub fn record_damage_commits(&mut self, count: u32) -> Result<(), PresentationTelemetryError> {
+        add_events(&mut self.damage_commits, count, "damage-commit")
+    }
+
+    pub fn record_full_frame_readback(&mut self) -> Result<(), PresentationTelemetryError> {
+        increment_event(&mut self.full_frame_readbacks, "full-frame-readback")
+    }
+
+    pub fn record_cpu_framebuffer_copy(&mut self) -> Result<(), PresentationTelemetryError> {
+        increment_event(&mut self.cpu_framebuffer_copies, "cpu-framebuffer-copy")
+    }
+
+    pub fn record_settled_idle_repaint(&mut self) -> Result<(), PresentationTelemetryError> {
+        increment_event(&mut self.settled_idle_repaints, "settled-idle-repaint")
+    }
+
+    pub const fn mark_repeating_repaint_timer_after_settle(&mut self) {
+        self.repeating_repaint_timer_after_settle = true;
+    }
+
+    pub fn record_input_to_present(
+        &mut self,
+        latency_us: u32,
+    ) -> Result<(), PresentationTelemetryError> {
+        if latency_us == 0 {
+            return Err(PresentationTelemetryError::InvalidInputToPresentTime);
+        }
+        self.max_input_to_present_us = Some(
+            self.max_input_to_present_us
+                .map_or(latency_us, |current| current.max(latency_us)),
+        );
+        Ok(())
+    }
+
+    pub fn finish(
+        self,
+        observation_window_ms: u32,
+        cpu_time_us: u64,
+        memory_growth_kib: u64,
+    ) -> Result<PresentationSample, PresentationTelemetryError> {
+        if observation_window_ms == 0 {
+            return Err(PresentationTelemetryError::InvalidObservationWindow);
+        }
+        if self.frames_requested == 0
+            || self.frames_presented.checked_add(self.dropped_frames) != Some(self.frames_requested)
+        {
+            return Err(PresentationTelemetryError::IncompleteFrameAccounting);
+        }
+        Ok(PresentationSample {
+            target: self.target,
+            path: self.path,
+            workload: self.workload,
+            observation_window_ms,
+            frames_requested: self.frames_requested,
+            frames_presented: self.frames_presented,
+            dropped_frames: self.dropped_frames,
+            page_flip_events: self.page_flip_events,
+            frame_callbacks_sent: self.frame_callbacks_sent,
+            damage_commits: self.damage_commits,
+            full_frame_readbacks: self.full_frame_readbacks,
+            cpu_framebuffer_copies: self.cpu_framebuffer_copies,
+            settled_idle_repaints: self.settled_idle_repaints,
+            repeating_repaint_timer_after_settle: self.repeating_repaint_timer_after_settle,
+            max_frame_time_us: self.max_frame_time_us,
+            max_input_to_present_us: self.max_input_to_present_us,
+            cpu_time_us: Some(cpu_time_us),
+            memory_growth_kib: Some(memory_growth_kib),
+        })
+    }
+
+    fn require_outstanding_frame(&self) -> Result<(), PresentationTelemetryError> {
+        let accounted = self
+            .frames_presented
+            .checked_add(self.dropped_frames)
+            .ok_or(PresentationTelemetryError::EventLimitExceeded(
+                "frame-accounting",
+            ))?;
+        if accounted >= self.frames_requested {
+            return Err(PresentationTelemetryError::NoOutstandingFrame);
+        }
+        Ok(())
+    }
+}
+
+fn increment_event(value: &mut u32, event: &'static str) -> Result<(), PresentationTelemetryError> {
+    add_events(value, 1, event)
+}
+
+fn add_events(
+    value: &mut u32,
+    count: u32,
+    event: &'static str,
+) -> Result<(), PresentationTelemetryError> {
+    let next = value
+        .checked_add(count)
+        .filter(|next| *next <= MAX_PRESENTATION_EVENTS)
+        .ok_or(PresentationTelemetryError::EventLimitExceeded(event))?;
+    *value = next;
+    Ok(())
 }
 
 impl PresentationSample {
@@ -291,6 +504,94 @@ mod tests {
 
     fn samples() -> [PresentationSample; 4] {
         PresentationWorkload::ALL.map(sample)
+    }
+
+    #[test]
+    fn telemetry_builds_an_ordered_bounded_sample_from_live_event_inputs() {
+        let mut telemetry = PresentationTelemetry::new(
+            PresentationEvidenceTarget::HostFixture,
+            PresentationPath::ProductionGbmKms,
+            PresentationWorkload::WindowInteraction,
+        );
+        telemetry.record_frame_requested().unwrap();
+        telemetry.record_damage_commits(1).unwrap();
+        telemetry.record_frame_callbacks(2).unwrap();
+        telemetry.record_page_flip(14_000).unwrap();
+        telemetry.record_input_to_present(24_000).unwrap();
+        telemetry.record_frame_requested().unwrap();
+        telemetry.record_dropped_frame().unwrap();
+
+        let collected = telemetry.finish(1_000, 90_000, 128).unwrap();
+        assert_eq!(collected.frames_requested, 2);
+        assert_eq!(collected.frames_presented, 1);
+        assert_eq!(collected.dropped_frames, 1);
+        assert_eq!(collected.page_flip_events, 1);
+        assert_eq!(collected.frame_callbacks_sent, 2);
+        assert_eq!(collected.max_frame_time_us, Some(14_000));
+        assert_eq!(collected.max_input_to_present_us, Some(24_000));
+        assert_eq!(collected.cpu_time_us, Some(90_000));
+        assert_eq!(collected.memory_growth_kib, Some(128));
+    }
+
+    #[test]
+    fn telemetry_rejects_out_of_order_incomplete_and_unbounded_events_atomically() {
+        let mut telemetry = PresentationTelemetry::new(
+            PresentationEvidenceTarget::HostFixture,
+            PresentationPath::ProductionGbmKms,
+            PresentationWorkload::Animation,
+        );
+        assert_eq!(
+            telemetry.record_page_flip(10_000),
+            Err(PresentationTelemetryError::NoOutstandingFrame)
+        );
+        assert_eq!(
+            telemetry.record_frame_callbacks(MAX_PRESENTATION_EVENTS + 1),
+            Err(PresentationTelemetryError::EventLimitExceeded(
+                "frame-callback"
+            ))
+        );
+        assert_eq!(telemetry.frame_callbacks_sent, 0);
+        telemetry.record_frame_requested().unwrap();
+        assert_eq!(
+            telemetry.clone().finish(1_000, 1, 0),
+            Err(PresentationTelemetryError::IncompleteFrameAccounting)
+        );
+        assert_eq!(
+            telemetry.record_page_flip(0),
+            Err(PresentationTelemetryError::InvalidFrameTime)
+        );
+        telemetry.record_dropped_frame().unwrap();
+        assert_eq!(
+            telemetry.finish(0, 1, 0),
+            Err(PresentationTelemetryError::InvalidObservationWindow)
+        );
+    }
+
+    #[test]
+    fn legacy_cpu_copy_telemetry_cannot_satisfy_the_production_report() {
+        let mut telemetry = PresentationTelemetry::new(
+            PresentationEvidenceTarget::HostFixture,
+            PresentationPath::LegacyCpuCopy,
+            PresentationWorkload::WindowInteraction,
+        );
+        telemetry.record_frame_requested().unwrap();
+        telemetry.record_damage_commits(1).unwrap();
+        telemetry.record_frame_callbacks(1).unwrap();
+        telemetry.record_cpu_framebuffer_copy().unwrap();
+        telemetry.record_full_frame_readback().unwrap();
+        telemetry.record_page_flip(10_000).unwrap();
+        telemetry.record_input_to_present(20_000).unwrap();
+        let mut fixtures = samples();
+        fixtures[1] = telemetry.finish(1_000, 80_000, 64).unwrap();
+
+        let report = R2PresentationReport::evaluate(
+            PresentationEvidenceTarget::HostFixture,
+            BUDGET,
+            &fixtures,
+            diagnostic(),
+        );
+        assert!(!report.production_path_ready);
+        assert!(!report.is_baseline_ready());
     }
 
     #[test]

@@ -642,3 +642,11 @@ timing, CPU, memory growth, and dropped frames against caller-supplied budgets.
 Host fixtures cover both acceptance and fail-closed cases without claiming
 runtime performance. Live QEMU instrumentation, project budget selection, soak
 evidence, and physical-target measurements remain open readiness work.
+
+An ordered, bounded telemetry collector now constructs those samples from
+frame requests, page flips or drops, callbacks, damage, latency, readback,
+CPU-copy, idle, and resource events. It rejects out-of-order or incomplete
+accounting and caps each counter at 100,000 events. The existing virtio
+dumb-buffer fallback is represented separately as `LegacyCpuCopy` and is
+therefore unable to pass the production-path gate. Packaged QEMU wiring and
+measured evidence remain open.
