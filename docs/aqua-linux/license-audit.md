@@ -36,11 +36,15 @@ is outside this audit.
   not selected. Enabling them requires a refreshed generated legal-info review
   and the ADR 0004 runtime gates.
 - A separate non-default audio rehearsal profile completed Buildroot `show-info`
-  and `legal-info` on 2026-08-30. The exact additions were alsa-lib, PipeWire,
-  WirePlumber, Lua, libglib2, pcre2, and their two host helpers; the generated
-  manifest verified all six recorded stack versions. D-Bus, Bluetooth, JACK,
-  PulseAudio, FFmpeg, GStreamer, and V4L2 remained disabled. This local evidence
-  does not clear release publication or enable the packages in the default image.
+  and `legal-info` on 2026-08-30. The exact additions were the MIT
+  `aqua-audio-native` bridge, alsa-lib, PipeWire, WirePlumber, Lua, libglib2,
+  pcre2, and their two host helpers; the generated manifest verified every
+  recorded stack version. D-Bus, Bluetooth, JACK, PulseAudio, FFmpeg,
+  GStreamer, and V4L2 remained disabled. This local evidence does not clear
+  release publication or enable the packages in the default image.
+- The project-authored `aqua-audio-native` bridge is MIT licensed and carries
+  its license text in the Buildroot package source. It links to WirePlumber and
+  GLib only in the opt-in audio profile; the default image does not select it.
 
 ## Unresolved Publication Gate
 

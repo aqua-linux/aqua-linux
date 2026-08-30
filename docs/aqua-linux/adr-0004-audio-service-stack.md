@@ -94,7 +94,10 @@ conditions are met:
   across service loss, and requires authoritative reconciliation before an
   intent is reported as applied. The typed `PipeWireApiTransport` now maps only
   graph-synchronized native API snapshots and typed volume, mute, and configured
-  default-output calls into that contract. Its native library binding and
+  default-output calls into that contract. The opt-in
+  `aqua-audio-native` package now implements that typed boundary against
+  WirePlumber 0.5 with a versioned, fixed-size C ABI, bounded waits, and strict
+  Rust-side validation. Enabling it in a bootable image and collecting
   packaged runtime evidence remain separate gates.
 - `aqua_x86_64_audio_rehearsal_defconfig` resolves the exact package closure
   without changing the default image. The 2026-08-30 rehearsal verified
@@ -149,11 +152,12 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
 - Aqua now has a bounded per-user media-service supervisor with ordered
   PipeWire/WirePlumber startup, reverse-order shutdown, finite readiness,
   restart, and degraded-state handling. Its packaged default remains disabled.
-- The typed PipeWire/WirePlumber API transport core and exact Buildroot
-  dependency/legal-info rehearsal are complete. The next audio implementation
-  item is the native library binding behind that transport, followed by
-  opt-in packaging and declared-device QEMU media evidence; command-output
-  parsing remains prohibited.
+- The typed PipeWire/WirePlumber transport and native library binding are
+  complete as an opt-in Buildroot package. The bridge uses the WirePlumber
+  object manager, default-nodes API, mixer API, and synchronized acknowledgments
+  without command-output parsing. The default image still excludes the entire
+  stack; the next audio item is an opt-in rootfs contract followed by
+  declared-device QEMU media evidence.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

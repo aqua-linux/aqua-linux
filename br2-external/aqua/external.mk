@@ -1,1 +1,1 @@
-# Aqua Linux currently uses only a rootfs overlay for Milestone 0/1.
+include $(sort $(wildcard $(BR2_EXTERNAL_AQUA_PATH)/package/*/*.mk))

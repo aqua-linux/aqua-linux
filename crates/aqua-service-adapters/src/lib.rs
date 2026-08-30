@@ -2,11 +2,17 @@ use std::collections::HashSet;
 use std::fmt;
 
 mod pipewire;
+#[cfg(all(feature = "wireplumber-native", any(target_os = "linux", test)))]
+mod wireplumber_native;
 
 pub use pipewire::{
     PipeWireApi, PipeWireApiNode, PipeWireApiPhase, PipeWireApiSnapshot, PipeWireApiTransport,
     PipeWireTransportError,
 };
+#[cfg(all(feature = "wireplumber-native", target_os = "linux"))]
+pub use wireplumber_native::WirePlumberNativeApi;
+#[cfg(all(feature = "wireplumber-native", target_os = "linux"))]
+pub use wireplumber_native::WirePlumberNativeError;
 
 pub const MAX_AUDIO_DEVICES: usize = 32;
 pub const MAX_AUDIO_DEVICE_ID_BYTES: usize = 64;

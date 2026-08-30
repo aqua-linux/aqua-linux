@@ -133,7 +133,7 @@ the root recovery TTY remains independent.
 The graphical supervisor also owns `/usr/bin/aqua-media-service-supervisor`
 inside that unprivileged session. Its checked-in policy at
 `/etc/aqua/media-services.conf` is disabled by default because PipeWire and
-WirePlumber are not packaged yet. When explicitly enabled, it requires the
+WirePlumber are absent from the default image. When explicitly enabled, it requires the
 private session runtime, starts PipeWire before WirePlumber, waits a finite
 time for the PipeWire socket, restarts the complete pair within a bounded
 budget, stops WirePlumber before PipeWire, and records disabled, running,
@@ -168,18 +168,27 @@ PipeWire and WirePlumber, with Aqua consuming authoritative service state
 through a bounded adapter. The Buildroot 2025.02.17 LTS defconfig keeps
 PipeWire, WirePlumber, alsa-lib, Lua, and GLib unselected. The separate
 `aqua_x86_64_audio_rehearsal_defconfig` selects the narrow audio closure without
-changing that default. `scripts/rehearse-audio-buildroot-closure.sh` runs
-`show-info` and `legal-info` against the pinned tree and writes local evidence
-under `build/audio-rehearsal/`; the 2026-08-30 run verified the six recorded
-stack versions and kept D-Bus, Bluetooth, JACK, PulseAudio, FFmpeg, GStreamer,
-and V4L2 disabled. Generated evidence remains untracked and is not release
-clearance. eudev is already packaged for general device discovery. Aqua has a locked unprivileged
+changing that default. Its restricted ALSA plugin lists include `ioplug` and
+the `ext` control plugin, which PipeWire's ALSA compatibility modules require
+for their external PCM and control APIs; it does not enable the full plugin
+set. The profile also selects the project-authored MIT
+`aqua-audio-native` package, whose versioned bounded ABI connects the typed
+transport to WirePlumber's object-manager, mixer, and default-node APIs.
+Because the pinned Buildroot WirePlumber package installs only to the target
+tree, the Aqua package first invokes its standard Meson staging install so the
+public headers, library, and pkg-config metadata are available to dependents.
+`scripts/rehearse-audio-buildroot-closure.sh` compiles that bridge, runs
+`show-info` and `legal-info` against the pinned tree, and writes local evidence
+under `build/audio-rehearsal/`; the 2026-08-30 run verified the recorded stack
+and bridge versions and kept D-Bus, Bluetooth, JACK, PulseAudio, FFmpeg,
+GStreamer, and V4L2 disabled. Generated evidence remains untracked and is not
+release clearance. eudev is already packaged for general device discovery. Aqua has a locked unprivileged
 graphical-session identity, a private user-owned runtime directory, and
-explicit `video`, `audio`, and `input` group membership. Audio packaging must
-still add the native PipeWire/WirePlumber library binding and real QEMU media
-evidence. The typed transport core, ordered per-user supervisor, dependency
-rehearsal, and fail-closed `aqua-service-adapters` state/intent boundary are
-present, but none makes `/dev/snd` alone sufficient to enable Settings. No
+explicit `video`, `audio`, and `input` group membership. Audio work must still
+add an opt-in rootfs contract and real QEMU media evidence. The typed transport,
+native bridge, ordered per-user supervisor, dependency rehearsal, and
+fail-closed `aqua-service-adapters` state/intent boundary are present, but none
+makes `/dev/snd` alone sufficient to enable Settings. No
 root-owned media daemon, command-output parser, or globally writable `/dev/snd`
 fallback is permitted.
 

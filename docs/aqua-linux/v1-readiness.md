@@ -141,10 +141,11 @@ deferred desired volume and mute, and fail-closed unavailable/degraded behavior.
 Its typed PipeWire transport maps only synchronized snapshots and typed native
 volume, mute, and configured-default operations; Settings can drive this backend
 without treating submission as acknowledgement. A separate Buildroot rehearsal
-profile has also resolved the exact package delta and passed `legal-info` while
-the default image stayed unchanged. Packaging remains blocked until the native
-library binding, opt-in rootfs contract, and real QEMU media evidence exist.
-Buildroot availability alone is not an integration decision.
+profile has resolved the exact package delta, packages a versioned bounded
+WirePlumber 0.5 native bridge, and passed `legal-info` while the default image
+stayed unchanged. Default-image enablement remains blocked until the opt-in
+rootfs contract and real QEMU media evidence exist. Buildroot availability
+alone is not an integration decision.
 
 ### R5: Accessibility, Internationalization, And Input
 

@@ -7,3 +7,7 @@ rust-version.workspace = true
 
 [lib]
 path = "src/lib.rs"
+
+[features]
+default = []
+wireplumber-native = []

@@ -1,0 +1,6 @@
+config BR2_PACKAGE_AQUA_AUDIO_NATIVE
+    bool "Aqua WirePlumber native audio binding"
+    depends on BR2_PACKAGE_WIREPLUMBER
+    help
+      Installs Aqua's bounded native WirePlumber 0.5 API bridge. This
+      package is opt-in and does not start PipeWire or WirePlumber.
