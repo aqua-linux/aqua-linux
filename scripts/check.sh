@@ -1552,6 +1552,10 @@ grep -Fq 'probe-selection-ownership' scripts/check-compositor.sh
 grep -Fq 'unfocused_clipboard_rejected=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'unfocused_primary_rejected=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'data_control_global_exposed=false' scripts/check-smithay-seat-docker.sh
+grep -Fq 'clipboard_payload_transferred=true' scripts/check-smithay-seat-docker.sh
+grep -Fq 'primary_payload_transferred=true' scripts/check-smithay-seat-docker.sh
+grep -Fq 'owner_disconnect_clears_clipboard=true' scripts/check-smithay-seat-docker.sh
+grep -Fq 'owner_disconnect_clears_primary=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'server_shm_buffer_sampled=ok' scripts/check-compositor.sh
 grep -Fq 'probe-xdg-toplevel-window-model' scripts/check-compositor.sh
 grep -Fq 'probe-launcher-model' scripts/check-compositor.sh

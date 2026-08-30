@@ -461,9 +461,16 @@ Implemented now:
   selection. A Linux probe uses two independent Wayland connections to prove
   both globals are visible, unfocused ownership requests are rejected, focused
   requests are accepted, existing offers reach the newly focused client, and
-  the new owner can replace both selections. No `wlr-data-control` or external
-  data-control global is exposed. Payload transfer, MIME negotiation,
-  cancellation on owner exit, and drag-and-drop remain separate R3 work.
+  the new owner can replace both selections. The receiver selects
+  `text/plain;charset=utf-8` from two advertised types, never requests the
+  unsupported type, and receives exact clipboard and primary bytes through the
+  protocol file descriptors. The probe caps each read at 4096 bytes with a
+  two-second timeout; production transfer remains direct between clients, so
+  the compositor does not retain or accumulate payload bytes. Client
+  disconnect notifications are queued into the compositor dispatch path and
+  clear only selections owned by the disconnected client. No
+  `wlr-data-control` or external data-control global is exposed. Drag-and-drop
+  remains separate R3 work.
 - Bounded packaged QEMU input validation with two layers: a low-level evdev diagnostic probe and the shared DRM-Wayland session's libinput/udev seat0 discovery. One persistent HMP connection serves every keyboard, relative pointer, button, and screendump request through a Unix control socket. Normalized events reach Aqua Seat without stopping dispatch after cumulative probe counters are satisfied. The production path opens the launcher, dismisses a notification, promotes the FIFO queue, selects desktop icons, opens and refreshes Aqua Properties, confirms confined Trash emptying, forwards a 24-event Settings keyboard burst plus 17 host pointer commands with explicit virtio motion coalescing, captures the session menu, and completes two clean compositor cycles.
 - Smithay GPU texture damage is expressed in destination-local coordinates. This prevents non-origin icon, client, overview, notification, and session textures from being clipped by a second application of the destination offset. Clean-desktop and session-menu QEMU captures cover the direct GPU overlay path; session content replaces overview content on their shared surface surface.
 - Client-window elevation uses shared control, panel, dialog, and active-window tokens. The renderer rasterizes bounded rounded shadow masks and caches them by physical geometry, output scale, theme, and elevation; the Smithay GLES path reuses uploaded mask textures, places each shadow immediately below its client surface, and computes viewport-clipped shadow damage. A committed 16-case fixture matrix covers all themes and supported scales. One recovery-safe packaged QEMU boot maps two fixture windows with exactly one focused surface, captures all four themes as distinct 1280x800 PNGs, verifies two mask uploads and bounded damage regions per session, and returns to recovery after each capture.

@@ -187,6 +187,9 @@ Tasks:
 - Bind standard clipboard and primary-selection ownership to keyboard focus;
   reject replacement attempts from unfocused clients without exposing a
   privileged data-control protocol.
+- Transfer clipboard and primary-selection payloads directly between clients
+  through the negotiated standard MIME type, clear dead owners, and keep the
+  compositor out of the payload data plane.
 - Support move, resize, close, and basic stacking.
 - Add Aqua window chrome.
 - Keep compositor stable when a client exits.
@@ -205,8 +208,10 @@ Current compatibility extension:
 
 - Two independent Linux Wayland clients now prove clipboard and primary
   ownership rejection, acceptance, focus handoff, and offer visibility through
-  the packaged compositor contract. Actual payload transfer, MIME negotiation,
-  owner-disconnect cleanup, and drag-and-drop remain in R3.
+  the packaged compositor contract. The same clients negotiate UTF-8 text,
+  reject an unsupported MIME choice, transfer exact clipboard and primary
+  bytes through file descriptors, and receive cleared selections after the
+  owner disconnects. Drag-and-drop remains in R3.
 
 ## Milestone 6: Boot Aqua Compositor In QEMU
 

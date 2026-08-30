@@ -1,14 +1,18 @@
 use std::fs;
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+use std::io::{Read, Write};
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use std::os::unix::fs::FileTypeExt;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+use std::os::unix::io::AsFd;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use std::sync::mpsc::{self, Receiver};
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 mod presentation;
@@ -395,11 +399,12 @@ use smithay::{
         },
         selection::{
             data_device::{
-                set_data_device_focus, ClientDndGrabHandler, DataDeviceHandler, DataDeviceState,
-                ServerDndGrabHandler,
+                clear_data_device_selection, set_data_device_focus, ClientDndGrabHandler,
+                DataDeviceHandler, DataDeviceState, ServerDndGrabHandler,
             },
             primary_selection::{
-                set_primary_focus, PrimarySelectionHandler, PrimarySelectionState,
+                clear_primary_selection, set_primary_focus, PrimarySelectionHandler,
+                PrimarySelectionState,
             },
             SelectionHandler, SelectionSource, SelectionTarget,
         },
@@ -908,6 +913,17 @@ pub struct SelectionOwnershipProbe {
     pub focused_primary_accepted: bool,
     pub clipboard_offer_reaches_new_focus: bool,
     pub primary_offer_reaches_new_focus: bool,
+    pub clipboard_mime_negotiated: bool,
+    pub primary_mime_negotiated: bool,
+    pub unsupported_mime_not_requested: bool,
+    pub clipboard_payload_transferred: bool,
+    pub primary_payload_transferred: bool,
+    pub clipboard_payload_bytes: usize,
+    pub primary_payload_bytes: usize,
+    pub transfer_limit_bytes: usize,
+    pub compositor_buffers_payload: bool,
+    pub owner_disconnect_clears_clipboard: bool,
+    pub owner_disconnect_clears_primary: bool,
     pub ownership_handoff_accepted: bool,
     pub data_control_global_exposed: bool,
     pub host_stub: bool,
@@ -928,6 +944,18 @@ impl SelectionOwnershipProbe {
             && self.focused_primary_accepted
             && self.clipboard_offer_reaches_new_focus
             && self.primary_offer_reaches_new_focus
+            && self.clipboard_mime_negotiated
+            && self.primary_mime_negotiated
+            && self.unsupported_mime_not_requested
+            && self.clipboard_payload_transferred
+            && self.primary_payload_transferred
+            && self.clipboard_payload_bytes > 0
+            && self.clipboard_payload_bytes <= self.transfer_limit_bytes
+            && self.primary_payload_bytes > 0
+            && self.primary_payload_bytes <= self.transfer_limit_bytes
+            && !self.compositor_buffers_payload
+            && self.owner_disconnect_clears_clipboard
+            && self.owner_disconnect_clears_primary
             && self.ownership_handoff_accepted
             && !self.data_control_global_exposed
     }
@@ -4036,6 +4064,9 @@ fn probe_xdg_toplevel_client_impl() -> Result<XdgToplevelClientProbe, Box<dyn st
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 fn probe_selection_ownership_impl() -> Result<SelectionOwnershipProbe, Box<dyn std::error::Error>> {
+    const CLIPBOARD_PAYLOAD: &[u8] = b"Aqua clipboard transfer\n";
+    const PRIMARY_PAYLOAD: &[u8] = b"Aqua primary selection transfer\n";
+
     let mut session = AquaCompositorSession::new()?;
     let (server_stream_one, client_stream_one) = std::os::unix::net::UnixStream::pair()?;
     let (server_stream_two, client_stream_two) = std::os::unix::net::UnixStream::pair()?;
@@ -4055,8 +4086,9 @@ fn probe_selection_ownership_impl() -> Result<SelectionOwnershipProbe, Box<dyn s
     session.dispatch_clients()?;
     session.flush_clients()?;
 
-    let mut client_one = SelectionSmokeClientState::default();
-    let mut client_two = SelectionSmokeClientState::default();
+    let mut client_one =
+        SelectionSmokeClientState::with_payloads(CLIPBOARD_PAYLOAD, PRIMARY_PAYLOAD);
+    let mut client_two = SelectionSmokeClientState::with_payloads(b"replacement", b"replacement");
     event_queue_one.blocking_dispatch(&mut client_one)?;
     event_queue_two.blocking_dispatch(&mut client_two)?;
     client_one_conn.flush()?;
@@ -4116,6 +4148,59 @@ fn probe_selection_ownership_impl() -> Result<SelectionOwnershipProbe, Box<dyn s
     let clipboard_offer_reaches_new_focus = client_two.clipboard_offer_received;
     let primary_offer_reaches_new_focus = client_two.primary_offer_received;
 
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    let clipboard_payload = client_two.read_clipboard_payload()?;
+    let primary_payload = client_two.read_primary_payload()?;
+    let clipboard_mime_negotiated = client_two
+        .clipboard_offer_mimes
+        .iter()
+        .any(|mime| mime == SelectionSmokeClientState::MIME_TYPE)
+        && client_two
+            .clipboard_requested_mimes
+            .iter()
+            .any(|mime| mime == SelectionSmokeClientState::MIME_TYPE);
+    let primary_mime_negotiated = client_two
+        .primary_offer_mimes
+        .iter()
+        .any(|mime| mime == SelectionSmokeClientState::MIME_TYPE)
+        && client_two
+            .primary_requested_mimes
+            .iter()
+            .any(|mime| mime == SelectionSmokeClientState::MIME_TYPE);
+    let unsupported_mime_not_requested = !client_one
+        .clipboard_requested_mimes
+        .iter()
+        .chain(client_one.primary_requested_mimes.iter())
+        .chain(client_two.clipboard_requested_mimes.iter())
+        .chain(client_two.primary_requested_mimes.iter())
+        .any(|mime| mime == SelectionSmokeClientState::UNSUPPORTED_MIME_TYPE);
+    let clipboard_payload_transferred = clipboard_payload == CLIPBOARD_PAYLOAD;
+    let primary_payload_transferred = primary_payload == PRIMARY_PAYLOAD;
+    let clipboard_payload_bytes = clipboard_payload.len();
+    let primary_payload_bytes = primary_payload.len();
+    let data_control_global_exposed =
+        client_one.data_control_global_seen || client_two.data_control_global_seen;
+    let globals_visible_to_both_clients = client_one.globals_ready() && client_two.globals_ready();
+
+    session
+        .wayland_state
+        .display_handle
+        .backend_handle()
+        .kill_client(server_client_one.id(), DisconnectReason::ConnectionClosed);
+    drop(client_one);
+    drop(qh_one);
+    drop(event_queue_one);
+    drop(client_one_conn);
+    drop(server_client_one);
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    let owner_disconnect_clears_clipboard = client_two.clipboard_selection_cleared;
+    let owner_disconnect_clears_primary = client_two.primary_selection_cleared;
+
     client_two.set_clipboard(5);
     client_two.set_primary(5);
     client_two_conn.flush()?;
@@ -4129,7 +4214,7 @@ fn probe_selection_ownership_impl() -> Result<SelectionOwnershipProbe, Box<dyn s
         clipboard_protocol: "wl_data_device_manager",
         primary_protocol: "zwp_primary_selection_device_manager_v1",
         client_count: 2,
-        globals_visible_to_both_clients: client_one.globals_ready() && client_two.globals_ready(),
+        globals_visible_to_both_clients,
         focus_follows_keyboard: true,
         unfocused_clipboard_rejected,
         unfocused_primary_rejected,
@@ -4137,9 +4222,19 @@ fn probe_selection_ownership_impl() -> Result<SelectionOwnershipProbe, Box<dyn s
         focused_primary_accepted,
         clipboard_offer_reaches_new_focus,
         primary_offer_reaches_new_focus,
+        clipboard_mime_negotiated,
+        primary_mime_negotiated,
+        unsupported_mime_not_requested,
+        clipboard_payload_transferred,
+        primary_payload_transferred,
+        clipboard_payload_bytes,
+        primary_payload_bytes,
+        transfer_limit_bytes: SelectionSmokeClientState::TRANSFER_LIMIT_BYTES,
+        compositor_buffers_payload: false,
+        owner_disconnect_clears_clipboard,
+        owner_disconnect_clears_primary,
         ownership_handoff_accepted,
-        data_control_global_exposed: client_one.data_control_global_seen
-            || client_two.data_control_global_seen,
+        data_control_global_exposed,
         host_stub: false,
     })
 }
@@ -4160,6 +4255,17 @@ fn probe_selection_ownership_impl() -> Result<SelectionOwnershipProbe, Box<dyn s
         focused_primary_accepted: true,
         clipboard_offer_reaches_new_focus: true,
         primary_offer_reaches_new_focus: true,
+        clipboard_mime_negotiated: true,
+        primary_mime_negotiated: true,
+        unsupported_mime_not_requested: true,
+        clipboard_payload_transferred: true,
+        primary_payload_transferred: true,
+        clipboard_payload_bytes: 24,
+        primary_payload_bytes: 32,
+        transfer_limit_bytes: 4_096,
+        compositor_buffers_payload: false,
+        owner_disconnect_clears_clipboard: true,
+        owner_disconnect_clears_primary: true,
         ownership_handoff_accepted: true,
         data_control_global_exposed: false,
         host_stub: true,
@@ -4580,6 +4686,7 @@ pub fn status_lines() -> [&'static str; 16] {
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 struct WaylandSmokeState {
     display_handle: DisplayHandle,
+    disconnected_clients: Arc<Mutex<Vec<ClientId>>>,
     compositor_state: CompositorState,
     shm_state: ShmState,
     xdg_shell_state: XdgShellState,
@@ -4661,6 +4768,8 @@ struct WaylandSmokeState {
     workspace_move_count: usize,
     clipboard_selection_count: usize,
     primary_selection_count: usize,
+    clipboard_selection_owner: Option<ClientId>,
+    primary_selection_owner: Option<ClientId>,
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -4702,6 +4811,7 @@ impl WaylandSmokeState {
 
         Ok(Self {
             display_handle: display_handle.clone(),
+            disconnected_clients: Arc::new(Mutex::new(Vec::new())),
             compositor_state: CompositorState::new::<WaylandSmokeState>(display_handle),
             shm_state: ShmState::new::<WaylandSmokeState>(display_handle, []),
             xdg_shell_state: XdgShellState::new::<WaylandSmokeState>(display_handle),
@@ -4785,7 +4895,36 @@ impl WaylandSmokeState {
             workspace_move_count: 0,
             clipboard_selection_count: 0,
             primary_selection_count: 0,
+            clipboard_selection_owner: None,
+            primary_selection_owner: None,
         })
+    }
+
+    fn process_disconnected_selection_owners(&mut self) {
+        let disconnected = {
+            let mut queue = self.disconnected_clients.lock().unwrap();
+            std::mem::take(&mut *queue)
+        };
+        if disconnected.is_empty() {
+            return;
+        }
+
+        let clear_clipboard = self
+            .clipboard_selection_owner
+            .as_ref()
+            .is_some_and(|owner| disconnected.iter().any(|client| client == owner));
+        let clear_primary = self
+            .primary_selection_owner
+            .as_ref()
+            .is_some_and(|owner| disconnected.iter().any(|client| client == owner));
+        if clear_clipboard {
+            clear_data_device_selection(&self.display_handle, &self.seat);
+            self.clipboard_selection_owner = None;
+        }
+        if clear_primary {
+            clear_primary_selection(&self.display_handle, &self.seat);
+            self.primary_selection_owner = None;
+        }
     }
 
     fn focus_top_surface_in_active_workspace(&mut self, serial: u32) {
@@ -8256,13 +8395,18 @@ impl AquaCompositorSession {
     }
 
     fn insert_client(&mut self, stream: std::os::unix::net::UnixStream) -> std::io::Result<Client> {
+        let client_data = WaylandSmokeClientState::with_disconnect_queue(
+            self.wayland_state.disconnected_clients.clone(),
+        );
         self.display
             .handle()
-            .insert_client(stream, Arc::new(WaylandSmokeClientState::default()))
+            .insert_client(stream, Arc::new(client_data))
     }
 
     fn dispatch_clients(&mut self) -> std::io::Result<usize> {
-        self.display.dispatch_clients(&mut self.wayland_state)
+        let dispatched = self.display.dispatch_clients(&mut self.wayland_state)?;
+        self.wayland_state.process_disconnected_selection_owners();
+        Ok(dispatched)
     }
 
     fn flush_clients(&mut self) -> std::io::Result<()> {
@@ -8921,12 +9065,25 @@ impl SelectionHandler for WaylandSmokeState {
     fn new_selection(
         &mut self,
         target: SelectionTarget,
-        _source: Option<SelectionSource>,
+        source: Option<SelectionSource>,
         _seat: Seat<Self>,
     ) {
+        let owner = source.as_ref().and_then(|_| {
+            self.seat
+                .get_keyboard()
+                .and_then(|keyboard| keyboard.current_focus())
+                .and_then(|surface| surface.client())
+                .map(|client| client.id())
+        });
         match target {
-            SelectionTarget::Clipboard => self.clipboard_selection_count += 1,
-            SelectionTarget::Primary => self.primary_selection_count += 1,
+            SelectionTarget::Clipboard => {
+                self.clipboard_selection_count += 1;
+                self.clipboard_selection_owner = owner;
+            }
+            SelectionTarget::Primary => {
+                self.primary_selection_count += 1;
+                self.primary_selection_owner = owner;
+            }
         }
     }
 }
@@ -8976,16 +9133,33 @@ delegate_shm!(WaylandSmokeState);
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 delegate_xdg_shell!(WaylandSmokeState);
 
-#[derive(Default)]
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 struct WaylandSmokeClientState {
     compositor_state: CompositorClientState,
+    disconnected_clients: Option<Arc<Mutex<Vec<ClientId>>>>,
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl WaylandSmokeClientState {
+    fn with_disconnect_queue(disconnected_clients: Arc<Mutex<Vec<ClientId>>>) -> Self {
+        Self {
+            compositor_state: CompositorClientState::default(),
+            disconnected_clients: Some(disconnected_clients),
+        }
+    }
+
     fn compositor_state(&self) -> &CompositorClientState {
         &self.compositor_state
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl Default for WaylandSmokeClientState {
+    fn default() -> Self {
+        Self {
+            compositor_state: CompositorClientState::default(),
+            disconnected_clients: None,
+        }
     }
 }
 
@@ -8993,7 +9167,11 @@ impl WaylandSmokeClientState {
 impl ClientData for WaylandSmokeClientState {
     fn initialized(&self, _client_id: ClientId) {}
 
-    fn disconnected(&self, _client_id: ClientId, _reason: DisconnectReason) {}
+    fn disconnected(&self, client_id: ClientId, _reason: DisconnectReason) {
+        if let Some(queue) = &self.disconnected_clients {
+            queue.lock().unwrap().push(client_id);
+        }
+    }
 }
 
 #[derive(Default)]
@@ -9013,16 +9191,37 @@ struct SelectionSmokeClientState {
     primary_source: Option<client_primary_selection_source::ZwpPrimarySelectionSourceV1>,
     clipboard_offer_received: bool,
     primary_offer_received: bool,
+    clipboard_offer_mimes: Vec<String>,
+    primary_offer_mimes: Vec<String>,
+    clipboard_requested_mimes: Vec<String>,
+    primary_requested_mimes: Vec<String>,
+    clipboard_receive_stream: Option<std::os::unix::net::UnixStream>,
+    primary_receive_stream: Option<std::os::unix::net::UnixStream>,
+    clipboard_payload: Vec<u8>,
+    primary_payload: Vec<u8>,
+    clipboard_selection_cleared: bool,
+    primary_selection_cleared: bool,
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl SelectionSmokeClientState {
     const MIME_TYPE: &'static str = "text/plain;charset=utf-8";
+    const UNSUPPORTED_MIME_TYPE: &'static str = "application/x-aqua-unsupported";
+    const TRANSFER_LIMIT_BYTES: usize = 4_096;
+
+    fn with_payloads(clipboard_payload: &[u8], primary_payload: &[u8]) -> Self {
+        Self {
+            clipboard_payload: clipboard_payload.to_vec(),
+            primary_payload: primary_payload.to_vec(),
+            ..Self::default()
+        }
+    }
 
     fn initialize_devices(&mut self, qh: &QueueHandle<Self>) {
         if self.data_device.is_none() {
             if let (Some(manager), Some(seat)) = (self.data_manager.clone(), self.seat.clone()) {
                 let source = manager.create_data_source(qh, ());
+                source.offer(Self::UNSUPPORTED_MIME_TYPE.to_string());
                 source.offer(Self::MIME_TYPE.to_string());
                 self.data_device = Some(manager.get_data_device(&seat, qh, ()));
                 self.data_source = Some(source);
@@ -9031,6 +9230,7 @@ impl SelectionSmokeClientState {
         if self.primary_device.is_none() {
             if let (Some(manager), Some(seat)) = (self.primary_manager.clone(), self.seat.clone()) {
                 let source = manager.create_source(qh, ());
+                source.offer(Self::UNSUPPORTED_MIME_TYPE.to_string());
                 source.offer(Self::MIME_TYPE.to_string());
                 self.primary_device = Some(manager.get_device(&seat, qh, ()));
                 self.primary_source = Some(source);
@@ -9058,6 +9258,80 @@ impl SelectionSmokeClientState {
             && self.data_device.is_some()
             && self.primary_device.is_some()
     }
+
+    fn request_clipboard_payload(&mut self, offer: &client_wl_data_offer::WlDataOffer) {
+        if !self
+            .clipboard_offer_mimes
+            .iter()
+            .any(|mime| mime == Self::MIME_TYPE)
+        {
+            return;
+        }
+        let Ok((read_stream, write_stream)) = std::os::unix::net::UnixStream::pair() else {
+            return;
+        };
+        let _ = read_stream.set_read_timeout(Some(Duration::from_secs(2)));
+        offer.receive(Self::MIME_TYPE.to_string(), write_stream.as_fd());
+        self.clipboard_requested_mimes
+            .push(Self::MIME_TYPE.to_string());
+        self.clipboard_receive_stream = Some(read_stream);
+    }
+
+    fn request_primary_payload(
+        &mut self,
+        offer: &client_primary_selection_offer::ZwpPrimarySelectionOfferV1,
+    ) {
+        if !self
+            .primary_offer_mimes
+            .iter()
+            .any(|mime| mime == Self::MIME_TYPE)
+        {
+            return;
+        }
+        let Ok((read_stream, write_stream)) = std::os::unix::net::UnixStream::pair() else {
+            return;
+        };
+        let _ = read_stream.set_read_timeout(Some(Duration::from_secs(2)));
+        offer.receive(Self::MIME_TYPE.to_string(), write_stream.as_fd());
+        self.primary_requested_mimes
+            .push(Self::MIME_TYPE.to_string());
+        self.primary_receive_stream = Some(read_stream);
+    }
+
+    fn read_clipboard_payload(&mut self) -> std::io::Result<Vec<u8>> {
+        read_bounded_selection_payload(
+            self.clipboard_receive_stream.take(),
+            Self::TRANSFER_LIMIT_BYTES,
+        )
+    }
+
+    fn read_primary_payload(&mut self) -> std::io::Result<Vec<u8>> {
+        read_bounded_selection_payload(
+            self.primary_receive_stream.take(),
+            Self::TRANSFER_LIMIT_BYTES,
+        )
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn read_bounded_selection_payload(
+    stream: Option<std::os::unix::net::UnixStream>,
+    limit: usize,
+) -> std::io::Result<Vec<u8>> {
+    let mut stream = stream.ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::NotConnected, "selection stream missing")
+    })?;
+    let mut payload = Vec::new();
+    Read::by_ref(&mut stream)
+        .take((limit + 1) as u64)
+        .read_to_end(&mut payload)?;
+    if payload.len() > limit {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "selection payload exceeds probe limit",
+        ));
+    }
+    Ok(payload)
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -9141,11 +9415,13 @@ impl ClientDispatch<client_wl_data_device::WlDataDevice, ()> for SelectionSmokeC
         _: &ClientConnection,
         _: &QueueHandle<Self>,
     ) {
-        if matches!(
-            event,
-            client_wl_data_device::Event::Selection { id: Some(_) }
-        ) {
-            state.clipboard_offer_received = true;
+        if let client_wl_data_device::Event::Selection { id } = event {
+            if let Some(offer) = id {
+                state.clipboard_offer_received = true;
+                state.request_clipboard_payload(&offer);
+            } else {
+                state.clipboard_selection_cleared = true;
+            }
         }
     }
 }
@@ -9166,11 +9442,85 @@ impl ClientDispatch<client_primary_selection_device::ZwpPrimarySelectionDeviceV1
         _: &ClientConnection,
         _: &QueueHandle<Self>,
     ) {
-        if matches!(
-            event,
-            client_primary_selection_device::Event::Selection { id: Some(_) }
-        ) {
-            state.primary_offer_received = true;
+        if let client_primary_selection_device::Event::Selection { id } = event {
+            if let Some(offer) = id {
+                state.primary_offer_received = true;
+                state.request_primary_payload(&offer);
+            } else {
+                state.primary_selection_cleared = true;
+            }
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_wl_data_offer::WlDataOffer, ()> for SelectionSmokeClientState {
+    fn event(
+        state: &mut Self,
+        _: &client_wl_data_offer::WlDataOffer,
+        event: client_wl_data_offer::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let client_wl_data_offer::Event::Offer { mime_type } = event {
+            state.clipboard_offer_mimes.push(mime_type);
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_primary_selection_offer::ZwpPrimarySelectionOfferV1, ()>
+    for SelectionSmokeClientState
+{
+    fn event(
+        state: &mut Self,
+        _: &client_primary_selection_offer::ZwpPrimarySelectionOfferV1,
+        event: client_primary_selection_offer::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let client_primary_selection_offer::Event::Offer { mime_type } = event {
+            state.primary_offer_mimes.push(mime_type);
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_wl_data_source::WlDataSource, ()> for SelectionSmokeClientState {
+    fn event(
+        state: &mut Self,
+        _: &client_wl_data_source::WlDataSource,
+        event: client_wl_data_source::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let client_wl_data_source::Event::Send { mime_type, fd } = event {
+            state.clipboard_requested_mimes.push(mime_type);
+            let mut file = std::fs::File::from(fd);
+            let _ = file.write_all(&state.clipboard_payload);
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_primary_selection_source::ZwpPrimarySelectionSourceV1, ()>
+    for SelectionSmokeClientState
+{
+    fn event(
+        state: &mut Self,
+        _: &client_primary_selection_source::ZwpPrimarySelectionSourceV1,
+        event: client_primary_selection_source::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let client_primary_selection_source::Event::Send { mime_type, fd } = event {
+            state.primary_requested_mimes.push(mime_type);
+            let mut file = std::fs::File::from(fd);
+            let _ = file.write_all(&state.primary_payload);
         }
     }
 }
@@ -9184,15 +9534,7 @@ delegate_noop!(SelectionSmokeClientState: ignore client_wl_seat::WlSeat);
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 delegate_noop!(SelectionSmokeClientState: ignore client_wl_data_device_manager::WlDataDeviceManager);
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
-delegate_noop!(SelectionSmokeClientState: ignore client_wl_data_source::WlDataSource);
-#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
-delegate_noop!(SelectionSmokeClientState: ignore client_wl_data_offer::WlDataOffer);
-#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 delegate_noop!(SelectionSmokeClientState: ignore client_primary_selection_manager::ZwpPrimarySelectionDeviceManagerV1);
-#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
-delegate_noop!(SelectionSmokeClientState: ignore client_primary_selection_source::ZwpPrimarySelectionSourceV1);
-#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
-delegate_noop!(SelectionSmokeClientState: ignore client_primary_selection_offer::ZwpPrimarySelectionOfferV1);
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl ClientDispatch<wl_registry::WlRegistry, ()> for XdgSmokeClientState {
@@ -10810,9 +11152,33 @@ mod tests {
         assert!(probe.focused_primary_accepted);
         assert!(probe.clipboard_offer_reaches_new_focus);
         assert!(probe.primary_offer_reaches_new_focus);
+        assert!(probe.clipboard_mime_negotiated);
+        assert!(probe.primary_mime_negotiated);
+        assert!(probe.unsupported_mime_not_requested);
+        assert!(probe.clipboard_payload_transferred);
+        assert!(probe.primary_payload_transferred);
+        assert_eq!(probe.clipboard_payload_bytes, 24);
+        assert_eq!(probe.primary_payload_bytes, 32);
+        assert_eq!(probe.transfer_limit_bytes, 4_096);
+        assert!(!probe.compositor_buffers_payload);
+        assert!(probe.owner_disconnect_clears_clipboard);
+        assert!(probe.owner_disconnect_clears_primary);
         assert!(probe.ownership_handoff_accepted);
         assert!(!probe.data_control_global_exposed);
         assert!(!probe.host_stub);
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn selection_payload_probe_rejects_bytes_beyond_limit() {
+        let (read_stream, mut write_stream) = std::os::unix::net::UnixStream::pair().unwrap();
+        write_stream.write_all(b"12345").unwrap();
+        drop(write_stream);
+
+        let error = read_bounded_selection_payload(Some(read_stream), 4)
+            .expect_err("payload above the probe limit must fail");
+
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
