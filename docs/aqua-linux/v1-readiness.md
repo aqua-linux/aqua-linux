@@ -81,6 +81,18 @@ Pass criteria:
   enforced by repeatable checks. QEMU TCG timings are tracked as regression
   evidence but are not used as a physical responsiveness claim.
 
+The first R2 baseline contract now lives in the renderer-independent
+`aqua-compositor` library. A bounded report requires exactly one production
+sample for idle, window interaction, animation, and multi-client workloads;
+checks GBM/KMS path identity, frame/page-flip accounting, frame callbacks,
+damage, settled-idle suppression, explicit timing and resource budgets, and
+dropped frames; and rejects CPU framebuffer copies or full-frame readback in
+production samples. Diagnostic readback has a separate evidence record and
+must show that it neither reads nor blocks a production frame. Deterministic
+host fixtures prove fail-closed evaluation, but `supports_release_claim`
+remains false. Live QEMU telemetry, fixed project budgets, soak evidence, and
+physical-target evidence are still required before R2 can pass.
+
 ### R3: Wayland Compatibility And Display Behavior
 
 Scope: support the protocol set required for a coherent desktop and its

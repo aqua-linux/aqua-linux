@@ -634,3 +634,11 @@ After M12, work is governed by the mandatory, evidence-based gates in
 A milestone may remain complete when its original bounded contract is proven,
 while a readiness gate stays open because it requires broader integration or a
 higher evidence level. V1.0 cannot be declared from milestone arithmetic alone.
+
+The R2 baseline now has a bounded acceptance model for the four required
+workloads. It separates production GBM/KMS samples from diagnostic readback and
+evaluates frame/page-flip accounting, callbacks, damage, idle suppression,
+timing, CPU, memory growth, and dropped frames against caller-supplied budgets.
+Host fixtures cover both acceptance and fail-closed cases without claiming
+runtime performance. Live QEMU instrumentation, project budget selection, soak
+evidence, and physical-target measurements remain open readiness work.
