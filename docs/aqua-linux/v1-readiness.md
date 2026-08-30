@@ -99,9 +99,18 @@ input-to-present timing, readback, CPU-copy, settled-idle, and final resource
 measurements; rejects presentation without an outstanding request, incomplete
 frame accounting, zero timing/window values, and more than 100,000 events; and
 builds the immutable sample consumed by the report. `LegacyCpuCopy` is a
-separate path and cannot satisfy production acceptance. This records the
-current virtio fallback honestly; the collector is not yet wired to packaged
-QEMU runtime events.
+separate path and cannot satisfy production acceptance.
+
+The live DRM-Wayland frame loop now has an opt-in event bridge controlled by
+`AQUA_R2_PRESENTATION_TELEMETRY=true` and an explicit
+`AQUA_R2_PRESENTATION_WORKLOAD`. It records every initial and repaint request
+before KMS submission, measures submit-to-page-flip completion, and identifies
+the native GBM/KMS and virtio CPU-copy fallback paths without conflating them.
+The bounded event snapshot is emitted only after clean CRTC restoration and is
+explicitly marked `r2_presentation_acceptance_complete=false`. Packaged QEMU
+runs still need to connect frame callbacks, damage, input latency, idle state,
+CPU, and memory observations, select fixed project budgets, cover all four
+workloads, and isolate diagnostic readback before R2 can pass.
 
 ### R3: Wayland Compatibility And Display Behavior
 

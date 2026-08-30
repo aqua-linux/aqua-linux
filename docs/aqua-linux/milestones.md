@@ -648,5 +648,9 @@ frame requests, page flips or drops, callbacks, damage, latency, readback,
 CPU-copy, idle, and resource events. It rejects out-of-order or incomplete
 accounting and caps each counter at 100,000 events. The existing virtio
 dumb-buffer fallback is represented separately as `LegacyCpuCopy` and is
-therefore unable to pass the production-path gate. Packaged QEMU wiring and
-measured evidence remain open.
+therefore unable to pass the production-path gate. The live DRM-Wayland loop
+now feeds opt-in initial and repaint request/page-flip events plus measured
+submit-to-event timing into this collector, preserves the runtime-selected path,
+and counts dumb-buffer copies separately. The emitted snapshot remains partial
+and cannot satisfy acceptance; packaged QEMU callback, damage, latency, idle,
+resource, four-workload, budget, and diagnostic-isolation evidence remain open.
