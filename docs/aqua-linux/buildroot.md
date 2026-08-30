@@ -223,8 +223,15 @@ the unprivileged session to capture 4,800 stereo S16LE frames whose peak remains
 zero. This controlled pattern proves stream establishment and unmodified sample
 delivery without requesting a host microphone or its permissions; it does not
 claim acoustic microphone quality. The WAV output run still records
-`input_stream=false` because that backend has no ADC. Non-silent injected input,
-multi-device route switching, and hotplug/error behavior remain open. The typed transport, native bridge,
+`input_stream=false` because that backend has no ADC.
+`scripts/check-audio-multi-route-qemu.sh` declares two independent Intel HDA
+controllers with `hda-output` codecs and separate WAV backends. It requires two
+ALSA playback devices and two authoritative PipeWire sinks, plays on the
+initial default, changes the configured default through `aqua-audio-native`,
+waits for an effective-route snapshot that acknowledges the alternate node,
+then plays again. Both host WAV files must contain non-silent 48 kHz stereo
+S16LE data, so a marker-only or unchanged-route result fails. Non-silent
+injected input and hotplug/error behavior remain open. The typed transport, native bridge,
 ordered per-user supervisor, dependency rehearsal, rootfs contract, and fail-closed
 `aqua-service-adapters` state/intent boundary are present, but none makes
 `/dev/snd` alone sufficient to enable Settings. No root-owned media daemon,

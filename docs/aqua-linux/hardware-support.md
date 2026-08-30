@@ -1,6 +1,6 @@
 # Aqua Linux Hardware Support Status
 
-Status date: 2026-08-28
+Status date: 2026-08-30
 
 Aqua Linux is an active prototype. QEMU x86_64 is the only validated machine
 target. MSI Sword 17 is the planned physical validation target, not a currently
@@ -31,7 +31,7 @@ change the support status recorded here.
 | UEFI installed boot | Validated | EDK2 loads GRUB from `EFI/BOOT/BOOTX64.EFI`, then boots `PARTLABEL=AQUA_ROOT` to recovery. | `scripts/check-installer-transaction-qemu.sh` |
 | Desktop and first-party windows | Validated | Applications, Search, Files, Settings, Terminal, workspaces, and session cleanup have QEMU acceptance paths. | `scripts/check-public-runtime-qemu.sh` and `scripts/check-terminal-qemu.sh` |
 | Network adapter | Present, unvalidated | The image includes `CONFIG_VIRTIO_NET`; an end-to-end connectivity, DNS, and network settings workflow is not yet accepted. | `br2-external/aqua/board/aqua/x86_64/linux.config` |
-| Audio | Not tested | No QEMU audio device or playback acceptance is claimed. | None |
+| Audio | Validated | Opt-in Intel HDA profiles prove duplex discovery, output and controlled zero-PCM input streams, volume/mute, service recovery, and acknowledged default switching across two independent output devices. This is virtual-device evidence only. | `scripts/check-audio-qemu.sh`, `scripts/check-audio-input-qemu.sh`, and `scripts/check-audio-multi-route-qemu.sh` |
 | Wi-Fi and Bluetooth | Not tested | No virtual radio workflow is claimed. | None |
 | Battery and power reporting | Not tested | QEMU is not used as evidence for laptop battery behavior. | None |
 | Suspend and resume | Deferred | Resume integrity and graphical restoration require a later dedicated test. | None |
