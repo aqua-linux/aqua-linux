@@ -14,6 +14,8 @@ VALIDATOR="${ROOT_DIR}/scripts/check-r2-presentation-log.py"
 MEMORY="${MEMORY:-1024M}"
 CPUS="${CPUS:-2}"
 SOAK_SECONDS="${SOAK_SECONDS:-300}"
+INPUT_CYCLES="${INPUT_CYCLES:-10}"
+INPUT_INTERVAL_MS="${INPUT_INTERVAL_MS:-24000}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-1320}"
 DISPLAY_DEVICE="${DISPLAY_DEVICE:-bochs-display}"
 
@@ -29,6 +31,11 @@ if test "${SOAK_SECONDS}" -lt 300 || test "${SOAK_SECONDS}" -gt 900; then
 fi
 if test -e "${EVIDENCE_DIR}"; then
     echo "R2 soak evidence directory already exists; choose a new EVIDENCE_DIR." >&2
+    exit 1
+fi
+MONITOR_SOCKET_BYTES="$(printf %s "${MONITOR_SOCKET}" | wc -c | tr -d ' ')"
+if test "${MONITOR_SOCKET_BYTES}" -ge 104; then
+    echo "R2 soak monitor socket path must be shorter than 104 bytes." >&2
     exit 1
 fi
 
@@ -59,7 +66,7 @@ mkdir -p "$(dirname "${EVIDENCE_DIR}")"
 mkdir "${EVIDENCE_DIR}"
 
 export KERNEL ROOTFS SERIAL_LOG MONITOR_SOCKET INPUT_HELPER MEMORY CPUS
-export SOAK_SECONDS TIMEOUT_SECONDS DISPLAY_DEVICE
+export SOAK_SECONDS INPUT_CYCLES INPUT_INTERVAL_MS TIMEOUT_SECONDS DISPLAY_DEVICE
 expect "${ROOT_DIR}/scripts/check-r2-presentation-soak-qemu.exp" >/dev/null
 PYTHONDONTWRITEBYTECODE=1 python3 "${VALIDATOR}" --summarize-soak \
     "${SERIAL_LOG}" >"${REPORT}"

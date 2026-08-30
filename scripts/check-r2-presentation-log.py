@@ -26,6 +26,16 @@ QEMU_SOAK_BUDGET = {
     "max_cpu_time_us": 720_000_000,
     "max_memory_growth_kib": 163_840,
 }
+QEMU_QUALIFICATION_BUDGET_PROFILE = "qemu-tcg-bochs-qualification-v1"
+QEMU_QUALIFICATION_MIN_OBSERVATION_WINDOW_MS = 900_000
+QEMU_QUALIFICATION_MIN_INPUT_SAMPLES = 15
+QEMU_QUALIFICATION_MIN_KEYBOARD_EVENTS = 45
+QEMU_QUALIFICATION_BUDGET = {
+    "max_frame_time_us": 50_000,
+    "max_input_to_present_us": 60_000_000,
+    "max_cpu_time_us": 2_160_000_000,
+    "max_memory_growth_kib": 163_840,
+}
 QEMU_BUDGET_FIELDS = {
     "max_frame_time_us": "max_frame_time_us",
     "max_input_to_present_us": "max_input_to_present_us",
@@ -268,26 +278,33 @@ def validate_evidence_log(
     return validate_log(text), validate_diagnostic_log(text)
 
 
-def validate_soak_log(
+def validate_bounded_soak_log(
     text: str,
+    *,
+    budget_profile: str,
+    budget: dict[str, int],
+    minimum_observation_window_ms: int,
+    minimum_input_samples: int,
+    minimum_keyboard_events: int,
+    label: str,
 ) -> tuple[dict[str, int | str | bool], dict[str, int | str | bool]]:
     records = parse_records(text)
     if len(records) != 1:
         raise ValueError("R2 soak log must contain exactly one presentation record")
     record = validate_record(
         records[0],
-        budget_profile=QEMU_SOAK_BUDGET_PROFILE,
-        budget=QEMU_SOAK_BUDGET,
+        budget_profile=budget_profile,
+        budget=budget,
     )
     if record["workload"] != "multi-client":
-        raise ValueError("R2 soak must use the multi-client workload")
-    if int(record["observation_window_ms"]) < QEMU_SOAK_MIN_OBSERVATION_WINDOW_MS:
-        raise ValueError("R2 soak observation window is shorter than five minutes")
-    if int(record["input_to_present_samples"]) < QEMU_SOAK_MIN_INPUT_SAMPLES:
-        raise ValueError("R2 soak has too few periodic input-to-present samples")
-    minimum_frames = QEMU_SOAK_MIN_INPUT_SAMPLES + 3
+        raise ValueError(f"{label} must use the multi-client workload")
+    if int(record["observation_window_ms"]) < minimum_observation_window_ms:
+        raise ValueError(f"{label} observation window is too short")
+    if int(record["input_to_present_samples"]) < minimum_input_samples:
+        raise ValueError(f"{label} has too few periodic input-to-present samples")
+    minimum_frames = minimum_input_samples + 3
     if int(record["frames_presented"]) < minimum_frames:
-        raise ValueError("R2 soak has too few presented frames")
+        raise ValueError(f"{label} has too few presented frames")
     required_markers = (
         "desktop_launch_surface_app_id=aqua.files",
         "desktop_launch_surface_app_id=aqua.settings",
@@ -298,9 +315,9 @@ def validate_soak_log(
     )
     for marker in required_markers:
         if marker not in text:
-            raise ValueError(f"R2 soak log is missing lifecycle marker: {marker}")
+            raise ValueError(f"{label} log is missing lifecycle marker: {marker}")
     if "[AQUA-COMPOSITOR] stage=drm-wayland-session status=error" in text:
-        raise ValueError("R2 soak compositor reported an error")
+        raise ValueError(f"{label} compositor reported an error")
     input_event_prefix = "drm_wayland_input_keyboard_events="
     input_event_values = [
         line.strip().removeprefix(input_event_prefix)
@@ -308,12 +325,40 @@ def validate_soak_log(
         if line.strip().startswith(input_event_prefix)
     ]
     if len(input_event_values) != 1:
-        raise ValueError("R2 soak log must contain one keyboard-event total")
+        raise ValueError(f"{label} log must contain one keyboard-event total")
     if not input_event_values[0].isascii() or not input_event_values[0].isdecimal():
-        raise ValueError("R2 soak keyboard-event total is malformed")
-    if int(input_event_values[0]) < 40:
-        raise ValueError("R2 soak did not dispatch enough periodic keyboard events")
+        raise ValueError(f"{label} keyboard-event total is malformed")
+    if int(input_event_values[0]) < minimum_keyboard_events:
+        raise ValueError(f"{label} did not dispatch enough periodic keyboard events")
     return record, validate_diagnostic_log(text)
+
+
+def validate_soak_log(
+    text: str,
+) -> tuple[dict[str, int | str | bool], dict[str, int | str | bool]]:
+    return validate_bounded_soak_log(
+        text,
+        budget_profile=QEMU_SOAK_BUDGET_PROFILE,
+        budget=QEMU_SOAK_BUDGET,
+        minimum_observation_window_ms=QEMU_SOAK_MIN_OBSERVATION_WINDOW_MS,
+        minimum_input_samples=QEMU_SOAK_MIN_INPUT_SAMPLES,
+        minimum_keyboard_events=40,
+        label="R2 soak",
+    )
+
+
+def validate_qualification_soak_log(
+    text: str,
+) -> tuple[dict[str, int | str | bool], dict[str, int | str | bool]]:
+    return validate_bounded_soak_log(
+        text,
+        budget_profile=QEMU_QUALIFICATION_BUDGET_PROFILE,
+        budget=QEMU_QUALIFICATION_BUDGET,
+        minimum_observation_window_ms=QEMU_QUALIFICATION_MIN_OBSERVATION_WINDOW_MS,
+        minimum_input_samples=QEMU_QUALIFICATION_MIN_INPUT_SAMPLES,
+        minimum_keyboard_events=QEMU_QUALIFICATION_MIN_KEYBOARD_EVENTS,
+        label="R2 qualification soak",
+    )
 
 
 def soak_report_lines(text: str) -> list[str]:
@@ -348,6 +393,43 @@ def soak_report_lines(text: str) -> list[str]:
         "r2_soak_diagnostic_isolation_recorded=true",
         "r2_soak_physical_evidence=false",
         "r2_soak_record_end=v1",
+    ]
+
+
+def qualification_soak_report_lines(text: str) -> list[str]:
+    record, _ = validate_qualification_soak_log(text)
+    keyboard_events = next(
+        int(line.strip().partition("=")[2])
+        for line in text.replace("\r", "").splitlines()
+        if line.strip().startswith("drm_wayland_input_keyboard_events=")
+    )
+    return [
+        "r2_qualification_soak_record_begin=v1",
+        "r2_qualification_soak_target=qemu-tcg",
+        f"r2_qualification_soak_budget_profile={QEMU_QUALIFICATION_BUDGET_PROFILE}",
+        f"r2_qualification_soak_min_observation_window_ms={QEMU_QUALIFICATION_MIN_OBSERVATION_WINDOW_MS}",
+        f"r2_qualification_soak_observation_window_ms={record['observation_window_ms']}",
+        f"r2_qualification_soak_min_input_to_present_samples={QEMU_QUALIFICATION_MIN_INPUT_SAMPLES}",
+        f"r2_qualification_soak_input_to_present_samples={record['input_to_present_samples']}",
+        f"r2_qualification_soak_min_keyboard_events={QEMU_QUALIFICATION_MIN_KEYBOARD_EVENTS}",
+        f"r2_qualification_soak_keyboard_events={keyboard_events}",
+        f"r2_qualification_soak_frames_presented={record['frames_presented']}",
+        f"r2_qualification_soak_max_frame_time_us={record['max_frame_time_us']}",
+        f"r2_qualification_soak_max_input_to_present_us={record['max_input_to_present_us']}",
+        f"r2_qualification_soak_cpu_time_us={record['cpu_time_us']}",
+        f"r2_qualification_soak_memory_growth_kib={record['memory_growth_kib']}",
+        f"r2_qualification_soak_budget_max_frame_time_us={QEMU_QUALIFICATION_BUDGET['max_frame_time_us']}",
+        f"r2_qualification_soak_budget_max_input_to_present_us={QEMU_QUALIFICATION_BUDGET['max_input_to_present_us']}",
+        f"r2_qualification_soak_budget_max_cpu_time_us={QEMU_QUALIFICATION_BUDGET['max_cpu_time_us']}",
+        f"r2_qualification_soak_budget_max_memory_growth_kib={QEMU_QUALIFICATION_BUDGET['max_memory_growth_kib']}",
+        "r2_qualification_soak_budget_max_dropped_frames=0",
+        "r2_qualification_soak_crash_budget=0",
+        "r2_qualification_soak_crashes=0",
+        "r2_qualification_soak_client_lifecycle_complete=true",
+        "r2_qualification_soak_diagnostic_isolation_recorded=true",
+        "r2_qualification_soak_physical_evidence=false",
+        "r2_qualification_soak_release_ready=false",
+        "r2_qualification_soak_record_end=v1",
     ]
 
 
@@ -597,6 +679,73 @@ def self_test() -> None:
         else:
             raise AssertionError(f"invalid R2 soak mutation unexpectedly passed: {rejected}")
 
+    qualification_fixture = soak_fixture
+    qualification_replacements = (
+        (
+            "r2_presentation_frames_requested=13",
+            "r2_presentation_frames_requested=18",
+        ),
+        (
+            "r2_presentation_frames_presented=13",
+            "r2_presentation_frames_presented=18",
+        ),
+        (
+            "r2_presentation_page_flip_events=13",
+            "r2_presentation_page_flip_events=18",
+        ),
+        (
+            f"r2_presentation_input_to_present_samples={QEMU_SOAK_MIN_INPUT_SAMPLES}",
+            f"r2_presentation_input_to_present_samples={QEMU_QUALIFICATION_MIN_INPUT_SAMPLES}",
+        ),
+        (
+            f"r2_presentation_observation_window_ms={QEMU_SOAK_MIN_OBSERVATION_WINDOW_MS}",
+            f"r2_presentation_observation_window_ms={QEMU_QUALIFICATION_MIN_OBSERVATION_WINDOW_MS}",
+        ),
+        ("r2_presentation_cpu_time_us=400000000", "r2_presentation_cpu_time_us=1200000000"),
+        (
+            "drm_wayland_input_keyboard_events=40",
+            f"drm_wayland_input_keyboard_events={QEMU_QUALIFICATION_MIN_KEYBOARD_EVENTS}",
+        ),
+    )
+    for accepted, replacement in qualification_replacements:
+        qualification_fixture = qualification_fixture.replace(accepted, replacement)
+    qualification_report = qualification_soak_report_lines(qualification_fixture)
+    assert (
+        f"r2_qualification_soak_budget_profile={QEMU_QUALIFICATION_BUDGET_PROFILE}"
+        in qualification_report
+    )
+    assert "r2_qualification_soak_crashes=0" in qualification_report
+    assert "r2_qualification_soak_release_ready=false" in qualification_report
+    qualification_failure_cases = (
+        (
+            f"r2_presentation_observation_window_ms={QEMU_QUALIFICATION_MIN_OBSERVATION_WINDOW_MS}",
+            f"r2_presentation_observation_window_ms={QEMU_QUALIFICATION_MIN_OBSERVATION_WINDOW_MS - 1}",
+        ),
+        (
+            f"r2_presentation_input_to_present_samples={QEMU_QUALIFICATION_MIN_INPUT_SAMPLES}",
+            f"r2_presentation_input_to_present_samples={QEMU_QUALIFICATION_MIN_INPUT_SAMPLES - 1}",
+        ),
+        (
+            f"drm_wayland_input_keyboard_events={QEMU_QUALIFICATION_MIN_KEYBOARD_EVENTS}",
+            f"drm_wayland_input_keyboard_events={QEMU_QUALIFICATION_MIN_KEYBOARD_EVENTS - 1}",
+        ),
+        (
+            "r2_presentation_cpu_time_us=1200000000",
+            "r2_presentation_cpu_time_us=2160000001",
+        ),
+    )
+    for accepted, rejected in qualification_failure_cases:
+        try:
+            qualification_soak_report_lines(
+                qualification_fixture.replace(accepted, rejected)
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(
+                f"invalid R2 qualification mutation unexpectedly passed: {rejected}"
+            )
+
 
 def read_bounded_log(path: pathlib.Path) -> str:
     max_bytes = 4 * 1024 * 1024
@@ -622,9 +771,13 @@ def main() -> int:
         log = read_bounded_log(pathlib.Path(sys.argv[2]))
         print("\n".join(soak_report_lines(log)))
         return 0
+    if len(sys.argv) == 3 and sys.argv[1] == "--summarize-qualification-soak":
+        log = read_bounded_log(pathlib.Path(sys.argv[2]))
+        print("\n".join(qualification_soak_report_lines(log)))
+        return 0
     if len(sys.argv) != 2:
         print(
-            f"Usage: {sys.argv[0]} SERIAL_LOG | --summarize-repeated SERIAL_LOG... | --summarize-soak SERIAL_LOG",
+            f"Usage: {sys.argv[0]} SERIAL_LOG | --summarize-repeated SERIAL_LOG... | --summarize-soak SERIAL_LOG | --summarize-qualification-soak SERIAL_LOG",
             file=sys.stderr,
         )
         return 2
