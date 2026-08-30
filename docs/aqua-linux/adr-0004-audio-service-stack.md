@@ -125,8 +125,10 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    PipeWire/WirePlumber discovers one sink and one source, volume and mute are
    exercised, 48,000 stereo S16LE frames are played into a non-silent 48 kHz
    WAV capture, and a forced WirePlumber failure recovers within the supervisor
-   budget. QEMU's WAV backend provides no ADC, so the source node is proven but
-   a controlled input stream is explicitly not claimed. Controlled input,
+   budget. A separate run uses QEMU's timer-backed `none` ADC and requires the
+   unprivileged session to capture 4,800 stereo S16LE frames with an exact
+   zero-PCM peak. This proves controlled stream establishment and sample
+   delivery without host microphone access. Non-silent injected input,
    multi-device default-route changes, and unplug/error behavior remain open.
 4. Settings and the top bar consume authoritative adapter state. Pointer and
    keyboard changes must be acknowledged by the service before the UI claims
@@ -165,9 +167,9 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
   without command-output parsing. The audio-only rootfs overlay enables the
   per-user supervisor and its final rootfs artifact passes the contract. An
   audio-only kernel fragment, ALSA-to-PipeWire default, and bounded test probe
-  now support declared Intel HDA QEMU output acceptance without changing the
-  sound-free default image. Controlled input, multi-device routing, and
-  hotplug/error evidence remain open.
+  now support declared Intel HDA QEMU output and controlled zero-PCM input
+  acceptance without changing the sound-free default image. Non-silent
+  injected input, multi-device routing, and hotplug/error evidence remain open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

@@ -149,11 +149,13 @@ that proves required configuration, modules, identity, compatibility-layer
 exclusions, and the absence of an automatic root service. The complete final
 rootfs artifact passes that checker. The opt-in Intel HDA QEMU baseline now
 proves sink/source-node discovery, output playback into a non-silent 48 kHz
-capture, volume/mute, and bounded WirePlumber restart recovery while the
-default kernel and rootfs stay sound-free. The WAV backend has no ADC, so
-controlled input streaming, multi-device route changes, hotplug/error behavior,
-and the remaining UI acknowledgement gate still block default-image enablement.
-Buildroot availability or output-only QEMU evidence is not a complete audio
+capture, volume/mute, bounded WirePlumber restart recovery, and a separate
+controlled 4,800-frame zero-PCM input stream while the default kernel and
+rootfs stay sound-free. The input profile avoids host microphone access and
+proves deterministic stream delivery, not acoustic quality. Non-silent
+injected input, multi-device route changes, hotplug/error behavior, and the
+remaining UI acknowledgement gate still block default-image enablement.
+Buildroot availability or these bounded QEMU profiles are not a complete audio
 integration decision.
 
 ### R5: Accessibility, Internationalization, And Input

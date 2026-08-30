@@ -212,13 +212,19 @@ configuration remains sound-free.
 
 Aqua has a locked unprivileged graphical-session identity, a private user-owned
 runtime directory, and explicit `video`, `audio`, and `input` group membership.
-The opt-in rootfs contract and declared Intel HDA QEMU output baseline are
-complete. `scripts/check-audio-qemu.sh` declares `ich9-intel-hda` with
-`hda-duplex`, proves sink/source-node discovery, volume and mute, writes 48,000
-stereo S16LE playback frames to a non-silent 48 kHz WAV capture, and forces
-WirePlumber restart recovery. QEMU's WAV backend has no ADC, so the evidence
-records `input_stream=false`; controlled input, multi-device route switching,
-and hotplug/error behavior remain open. The typed transport, native bridge,
+The opt-in rootfs contract and declared Intel HDA QEMU output and controlled
+input baselines are complete. `scripts/check-audio-qemu.sh` declares
+`ich9-intel-hda` with `hda-duplex`, proves sink/source-node discovery, volume
+and mute, writes 48,000 stereo S16LE playback frames to a non-silent 48 kHz WAV
+capture, and forces WirePlumber restart recovery. The separate
+`scripts/check-audio-input-qemu.sh` profile preserves that device declaration,
+uses QEMU's timer-backed `none` ADC as an exact zero-PCM source, and requires
+the unprivileged session to capture 4,800 stereo S16LE frames whose peak remains
+zero. This controlled pattern proves stream establishment and unmodified sample
+delivery without requesting a host microphone or its permissions; it does not
+claim acoustic microphone quality. The WAV output run still records
+`input_stream=false` because that backend has no ADC. Non-silent injected input,
+multi-device route switching, and hotplug/error behavior remain open. The typed transport, native bridge,
 ordered per-user supervisor, dependency rehearsal, rootfs contract, and fail-closed
 `aqua-service-adapters` state/intent boundary are present, but none makes
 `/dev/snd` alone sufficient to enable Settings. No root-owned media daemon,

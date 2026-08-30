@@ -51,7 +51,7 @@ grep -Fq 'show-info' "$REHEARSAL_SCRIPT"
 grep -Fq 'default_image_changed' "$REPORT_WRITER"
 grep -Fq 'release_cleared' "$REPORT_WRITER"
 grep -Fq '"aqua-audio-native": "1"' "$REPORT_WRITER"
-grep -Fq '"aqua-audio-probe": "1"' "$REPORT_WRITER"
+grep -Fq '"aqua-audio-probe": "2"' "$REPORT_WRITER"
 grep -Fq 'BR2_PACKAGE_AQUA_AUDIO_NATIVE' "$REHEARSAL_SCRIPT"
 grep -Fq 'BR2_PACKAGE_AQUA_AUDIO_PROBE' "$REHEARSAL_SCRIPT"
 grep -Fxq \
