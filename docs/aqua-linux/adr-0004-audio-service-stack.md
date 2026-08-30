@@ -128,8 +128,12 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    budget. A separate run uses QEMU's timer-backed `none` ADC and requires the
    unprivileged session to capture 4,800 stereo S16LE frames with an exact
    zero-PCM peak. This proves controlled stream establishment and sample
-   delivery without host microphone access. Non-silent injected input,
-   multi-device default-route changes, and unplug/error behavior remain open.
+   delivery without host microphone access. A third run declares two separate
+   Intel HDA controllers with output-only codecs and independent WAV backends,
+   requires two authoritative output nodes, changes the configured default
+   through the native WirePlumber API, waits for the effective route to
+   acknowledge that node, and proves non-silent playback in both captures.
+   Non-silent injected input and unplug/error behavior remain open.
 4. Settings and the top bar consume authoritative adapter state. Pointer and
    keyboard changes must be acknowledged by the service before the UI claims
    application; service failure must visibly degrade and recover.
@@ -168,8 +172,10 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
   per-user supervisor and its final rootfs artifact passes the contract. An
   audio-only kernel fragment, ALSA-to-PipeWire default, and bounded test probe
   now support declared Intel HDA QEMU output and controlled zero-PCM input
-  acceptance without changing the sound-free default image. Non-silent
-  injected input, multi-device routing, and hotplug/error evidence remain open.
+  acceptance without changing the sound-free default image. Two-controller
+  QEMU acceptance additionally proves acknowledged multi-device default-output
+  switching and playback on both routes. Non-silent injected input and
+  hotplug/error evidence remain open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

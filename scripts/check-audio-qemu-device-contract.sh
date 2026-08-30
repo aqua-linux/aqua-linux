@@ -7,6 +7,7 @@ AUDIO_CONFIG="${ROOT_DIR}/br2-external/aqua/configs/aqua_x86_64_audio_rehearsal_
 FRAGMENT="${ROOT_DIR}/br2-external/aqua/board/aqua/x86_64/linux-audio-qemu.config"
 RUNNER="${ROOT_DIR}/scripts/check-audio-qemu.sh"
 INPUT_RUNNER="${ROOT_DIR}/scripts/check-audio-input-qemu.sh"
+MULTI_ROUTE_RUNNER="${ROOT_DIR}/scripts/check-audio-multi-route-qemu.sh"
 EXPECT_SCRIPT="${ROOT_DIR}/scripts/check-audio-qemu.exp"
 PROBE_CONFIG="${ROOT_DIR}/br2-external/aqua/package/aqua-audio-probe/Config.in"
 PROBE_MAKE="${ROOT_DIR}/br2-external/aqua/package/aqua-audio-probe/aqua-audio-probe.mk"
@@ -59,4 +60,21 @@ do
     grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}"
 done
 
-echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codec=hda-duplex output_backend=wav input_backend=none controlled_input=zero-pcm default_image_audio=false'
+test -x "${MULTI_ROUTE_RUNNER}"
+grep -Fq 'AQUA_AUDIO_QEMU_CONTRACT=multi-route' "${MULTI_ROUTE_RUNNER}"
+for contract in \
+    'wav,id=aqua-route-primary' \
+    'wav,id=aqua-route-secondary' \
+    'ich9-intel-hda,id=aqua-hda-primary' \
+    'ich9-intel-hda,id=aqua-hda-secondary' \
+    'hda-output,bus=aqua-hda-primary.0,audiodev=aqua-route-primary' \
+    'hda-output,bus=aqua-hda-secondary.0,audiodev=aqua-route-secondary' \
+    'aqua-audio-probe routes' \
+    'stage=route-probe status=ok outputs=2' \
+    'stage=qemu-route-switch status=ok outputs=2 default_changed=true' \
+    'stage=qemu-multi-route status=ok controllers=2 codecs=2 backends=2'
+do
+    grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}"
+done
+
+echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backend=none controlled_input=zero-pcm multi_route=true default_image_audio=false'

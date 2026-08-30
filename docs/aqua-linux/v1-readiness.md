@@ -153,8 +153,11 @@ capture, volume/mute, bounded WirePlumber restart recovery, and a separate
 controlled 4,800-frame zero-PCM input stream while the default kernel and
 rootfs stay sound-free. The input profile avoids host microphone access and
 proves deterministic stream delivery, not acoustic quality. Non-silent
-injected input, multi-device route changes, hotplug/error behavior, and the
-remaining UI acknowledgement gate still block default-image enablement.
+injected input and hotplug/error behavior still remain open. A separate
+two-controller QEMU profile now proves two authoritative output nodes,
+configured-default submission through the native API, effective-route
+acknowledgement, and non-silent playback captures on both routes. The remaining
+UI acknowledgement gate still blocks default-image enablement.
 Buildroot availability or these bounded QEMU profiles are not a complete audio
 integration decision.
 

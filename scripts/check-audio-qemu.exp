@@ -29,16 +29,24 @@ set qemu_args [list qemu-system-x86_64 \
     -device virtio-vga]
 if {$audio_contract eq "output"} {
     lappend qemu_args -audiodev "wav,id=aqua-audio,path=$env(WAV_CAPTURE),out.frequency=48000,out.channels=2,out.format=s16"
+    lappend qemu_args -device ich9-intel-hda
+    lappend qemu_args -device hda-duplex,audiodev=aqua-audio
 } elseif {$audio_contract eq "input"} {
     lappend qemu_args -audiodev "none,id=aqua-audio,in.frequency=48000,in.channels=2,in.format=s16"
+    lappend qemu_args -device ich9-intel-hda
+    lappend qemu_args -device hda-duplex,audiodev=aqua-audio
+} elseif {$audio_contract eq "multi-route"} {
+    lappend qemu_args -audiodev "wav,id=aqua-route-primary,path=$env(WAV_ROUTE_PRIMARY),out.frequency=48000,out.channels=2,out.format=s16"
+    lappend qemu_args -audiodev "wav,id=aqua-route-secondary,path=$env(WAV_ROUTE_SECONDARY),out.frequency=48000,out.channels=2,out.format=s16"
+    lappend qemu_args -device ich9-intel-hda,id=aqua-hda-primary
+    lappend qemu_args -device hda-output,bus=aqua-hda-primary.0,audiodev=aqua-route-primary
+    lappend qemu_args -device ich9-intel-hda,id=aqua-hda-secondary
+    lappend qemu_args -device hda-output,bus=aqua-hda-secondary.0,audiodev=aqua-route-secondary
 } else {
     puts stderr "Unsupported audio QEMU contract: $audio_contract"
     exit 2
 }
-lappend qemu_args \
-    -device ich9-intel-hda \
-    -device hda-duplex,audiodev=aqua-audio \
-    -no-reboot
+lappend qemu_args -no-reboot
 spawn {*}$qemu_args
 
 expect {
@@ -69,25 +77,47 @@ expect {
 }
 expect -exact {# }
 
-shell {ok=1; /usr/bin/aqua-audio-rootfs-check || ok=0; test -d /proc/asound || ok=0; grep -Fq 'Intel' /proc/asound/cards || ok=0; test -c /dev/snd/pcmC0D0p || ok=0; test -c /dev/snd/pcmC0D0c || ok=0} {checking HDA duplex discovery}
-send -- {[ "$ok" = 1 ] && echo '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true'}
-send -- "\r"
-expect {
-    -exact {[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true} {}
-    timeout { puts stderr "HDA duplex device contract failed"; exit 1 }
-    eof { puts stderr "QEMU exited during device verification"; exit 1 }
+if {$audio_contract eq "multi-route"} {
+    shell {ok=1; /usr/bin/aqua-audio-rootfs-check || ok=0; test -d /proc/asound || ok=0; test "$(awk '/^ [0-9]+ / { count++ } END { print count+0 }' /proc/asound/cards)" -eq 2 || ok=0; test -c /dev/snd/pcmC0D0p || ok=0; test -c /dev/snd/pcmC1D0p || ok=0; test ! -e /dev/snd/pcmC0D0c || ok=0; test ! -e /dev/snd/pcmC1D0c || ok=0; [ "$ok" = 1 ] || { cat /proc/asound/cards; ls -l /dev/snd; }} {checking two HDA output devices}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-device'; [ "$ok" = 1 ] && echo "$marker status=ok driver=snd_hda_intel codec=hda-output outputs=2 capture_node=false"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-output outputs=2 capture_node=false} {}
+        timeout { puts stderr "Multi-device HDA output contract failed"; exit 1 }
+        eof { puts stderr "QEMU exited during multi-device verification"; exit 1 }
+    }
+} else {
+    shell {ok=1; /usr/bin/aqua-audio-rootfs-check || ok=0; test -d /proc/asound || ok=0; grep -Fq 'Intel' /proc/asound/cards || ok=0; test -c /dev/snd/pcmC0D0p || ok=0; test -c /dev/snd/pcmC0D0c || ok=0} {checking HDA duplex discovery}
+    send -- {[ "$ok" = 1 ] && echo '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true'}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true} {}
+        timeout { puts stderr "HDA duplex device contract failed"; exit 1 }
+        eof { puts stderr "QEMU exited during device verification"; exit 1 }
+    }
 }
 expect -exact {# }
 
 shell {AQUA_SESSION_ALLOWED_COMMAND=/usr/bin/aqua-media-service-supervisor /usr/bin/aqua-session-user-launch /usr/bin/aqua-media-service-supervisor >/run/aqua/audio-qemu-supervisor.log 2>&1 &} {starting per-user media services}
 shell {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'state=running' /run/aqua/media-service-supervisor.state 2>/dev/null; do sleep 1; i=$((i + 1)); done} {waiting for PipeWire and WirePlumber}
-shell {ok=1; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || ok=0; grep -Fq 'service_owner_uid=1000' /run/aqua/media-service-supervisor.state || ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/run/aqua/wpctl-status.txt 2>&1 || ok=0; grep -Fq 'Sinks:' /run/aqua/wpctl-status.txt || ok=0; grep -Fq 'Sources:' /run/aqua/wpctl-status.txt || ok=0} {checking per-user graph and duplex routes}
-send -- {[ "$ok" = 1 ] && echo '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true'}
-send -- "\r"
-expect {
-    -exact {[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true} {}
-    timeout { puts stderr "Per-user audio service contract failed"; exit 1 }
-    eof { puts stderr "QEMU exited during service verification"; exit 1 }
+if {$audio_contract eq "multi-route"} {
+    shell {ok=1; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || ok=0; grep -Fq 'service_owner_uid=1000' /run/aqua/media-service-supervisor.state || ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/run/aqua/wpctl-status.txt 2>&1 || ok=0; grep -Fq 'Sinks:' /run/aqua/wpctl-status.txt || ok=0} {checking per-user multi-output graph}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-service'; [ "$ok" = 1 ] && echo "$marker status=ok owner_uid=1000 pipewire=true wireplumber=true sinks=true route_profile=true"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sinks=true route_profile=true} {}
+        timeout { puts stderr "Per-user multi-output service contract failed"; exit 1 }
+        eof { puts stderr "QEMU exited during multi-output service verification"; exit 1 }
+    }
+} else {
+    shell {ok=1; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || ok=0; grep -Fq 'service_owner_uid=1000' /run/aqua/media-service-supervisor.state || ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/run/aqua/wpctl-status.txt 2>&1 || ok=0; grep -Fq 'Sinks:' /run/aqua/wpctl-status.txt || ok=0; grep -Fq 'Sources:' /run/aqua/wpctl-status.txt || ok=0} {checking per-user graph and duplex routes}
+    send -- {[ "$ok" = 1 ] && echo '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true'}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true} {}
+        timeout { puts stderr "Per-user audio service contract failed"; exit 1 }
+        eof { puts stderr "QEMU exited during service verification"; exit 1 }
+    }
 }
 expect -exact {# }
 
@@ -108,6 +138,32 @@ if {$audio_contract eq "input"} {
         -exact {[AQUA-AUDIO] stage=qemu-input status=ok declared_device=intel-hda codec=hda-duplex backend=none capture=true frames=4800 controlled_pattern=zero-pcm} {}
         timeout { puts stderr "Final QEMU input marker missing"; exit 1 }
         eof { puts stderr "QEMU exited before final input marker"; exit 1 }
+    }
+    expect -exact {# }
+    send -- "poweroff -f\r"
+    expect eof
+    exit 0
+}
+
+if {$audio_contract eq "multi-route"} {
+    shell {ok=1; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe playback' || ok=0} {playing on the initial default output}
+    shell {su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe routes' || ok=0} {switching the configured default output}
+    shell {[ "$ok" = 1 ] && su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe playback' || ok=0} {playing on the changed default output}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-route-switch'; [ "$ok" = 1 ] && echo "$marker status=ok outputs=2 default_changed=true playback_before=true playback_after=true"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-route-switch status=ok outputs=2 default_changed=true playback_before=true playback_after=true} {}
+        timeout { puts stderr "Multi-device default route switch failed"; exit 1 }
+        eof { puts stderr "QEMU exited during default route switching"; exit 1 }
+    }
+    expect -exact {# }
+    shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}
+    send -- {echo '[AQUA-AUDIO] stage=qemu-multi-route status=ok controllers=2 codecs=2 backends=2 default_changed=true captures=2'}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-multi-route status=ok controllers=2 codecs=2 backends=2 default_changed=true captures=2} {}
+        timeout { puts stderr "Final multi-device route marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited before the multi-device route marker"; exit 1 }
     }
     expect -exact {# }
     send -- "poweroff -f\r"

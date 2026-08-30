@@ -1,5 +1,6 @@
 #include <alsa/asoundlib.h>
 #include <aqua_audio_native.h>
+#include <poll.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,6 +30,15 @@ static int native_failure(struct aqua_audio_native *handle,
     const char *operation, int32_t status) {
   fprintf(stderr,
           "[AQUA-AUDIO] stage=control-probe status=failed "
+          "operation=%s code=%d detail=%s\n",
+          operation, status, aqua_audio_native_last_error(handle));
+  return 1;
+}
+
+static int route_failure(struct aqua_audio_native *handle,
+    const char *operation, int32_t status) {
+  fprintf(stderr,
+          "[AQUA-AUDIO] stage=route-probe status=failed "
           "operation=%s code=%d detail=%s\n",
           operation, status, aqua_audio_native_last_error(handle));
   return 1;
@@ -96,6 +106,95 @@ static int controls(void) {
   printf("[AQUA-AUDIO] stage=control-probe status=ok "
          "backend=aqua-audio-native default_sink=true volume=35 "
          "mute_cycle=true\n");
+  aqua_audio_native_close(handle);
+  return 0;
+}
+
+static uint32_t output_count(
+    const struct aqua_audio_native_snapshot *snapshot) {
+  uint32_t count = 0;
+  for (uint32_t index = 0; index < snapshot->node_count; ++index) {
+    if (snapshot->nodes[index].kind == AQUA_AUDIO_NATIVE_OUTPUT) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+static int routes(void) {
+  struct aqua_audio_native *handle = NULL;
+  int32_t status = aqua_audio_native_open(5000, &handle);
+  if (status != AQUA_AUDIO_NATIVE_OK) {
+    int result = route_failure(handle, "open", status);
+    aqua_audio_native_close(handle);
+    return result;
+  }
+
+  struct aqua_audio_native_snapshot snapshot;
+  status = aqua_audio_native_snapshot(handle, 5000, &snapshot);
+  if (status != AQUA_AUDIO_NATIVE_OK) {
+    int result = route_failure(handle, "initial-snapshot", status);
+    aqua_audio_native_close(handle);
+    return result;
+  }
+  if (!default_output(&snapshot) || output_count(&snapshot) != 2) {
+    int result = route_failure(handle, "two-output-topology",
+        AQUA_AUDIO_NATIVE_NODE_NOT_FOUND);
+    aqua_audio_native_close(handle);
+    return result;
+  }
+
+  char previous[AQUA_AUDIO_NATIVE_NODE_NAME_BYTES];
+  memcpy(previous, snapshot.default_output, sizeof(previous));
+  char requested[AQUA_AUDIO_NATIVE_NODE_NAME_BYTES] = {0};
+  for (uint32_t index = 0; index < snapshot.node_count; ++index) {
+    const struct aqua_audio_native_node *node = &snapshot.nodes[index];
+    if (node->kind == AQUA_AUDIO_NATIVE_OUTPUT &&
+        strcmp(node->name, previous) != 0) {
+      memcpy(requested, node->name, sizeof(requested));
+      break;
+    }
+  }
+  if (requested[0] == '\0') {
+    int result = route_failure(handle, "alternate-output",
+        AQUA_AUDIO_NATIVE_NODE_NOT_FOUND);
+    aqua_audio_native_close(handle);
+    return result;
+  }
+
+  status = aqua_audio_native_set_configured_default_output(
+      handle, requested, 5000);
+  if (status != AQUA_AUDIO_NATIVE_OK) {
+    int result = route_failure(handle, "set-default-output", status);
+    aqua_audio_native_close(handle);
+    return result;
+  }
+
+  int acknowledged = 0;
+  for (unsigned int attempt = 0; attempt < 50; ++attempt) {
+    status = aqua_audio_native_snapshot(handle, 5000, &snapshot);
+    if (status != AQUA_AUDIO_NATIVE_OK) {
+      break;
+    }
+    if (strcmp(snapshot.default_output, requested) == 0) {
+      acknowledged = 1;
+      break;
+    }
+    poll(NULL, 0, 100);
+  }
+  if (status != AQUA_AUDIO_NATIVE_OK || !acknowledged ||
+      output_count(&snapshot) != 2 ||
+      strcmp(snapshot.default_output, previous) == 0) {
+    if (status == AQUA_AUDIO_NATIVE_OK) {
+      status = AQUA_AUDIO_NATIVE_API_FAILED;
+    }
+    int result = route_failure(handle, "acknowledged-default", status);
+    aqua_audio_native_close(handle);
+    return result;
+  }
+
+  printf("[AQUA-AUDIO] stage=route-probe status=ok outputs=2 "
+         "previous_default=true requested_node=true default_changed=true\n");
   aqua_audio_native_close(handle);
   return 0;
 }
@@ -251,7 +350,7 @@ static int capture(int require_silence) {
 int main(int argc, char **argv) {
   if (argc != 2) {
     fprintf(stderr,
-            "usage: aqua-audio-probe playback|capture|capture-silence|controls\n");
+            "usage: aqua-audio-probe playback|capture|capture-silence|controls|routes\n");
     return 2;
   }
   if (strcmp(argv[1], "playback") == 0) {
@@ -266,7 +365,10 @@ int main(int argc, char **argv) {
   if (strcmp(argv[1], "controls") == 0) {
     return controls();
   }
+  if (strcmp(argv[1], "routes") == 0) {
+    return routes();
+  }
   fprintf(stderr,
-          "usage: aqua-audio-probe playback|capture|capture-silence|controls\n");
+          "usage: aqua-audio-probe playback|capture|capture-silence|controls|routes\n");
   return 2;
 }
