@@ -1165,6 +1165,7 @@ grep -Fq 'Accepted on 2026-08-29' docs/aqua-linux/adr-0004-audio-service-stack.m
 grep -Fq 'ADR 0004' docs/aqua-linux/v1-readiness.md
 test -x scripts/check-audio-service-architecture.sh
 scripts/check-audio-service-architecture.sh
+scripts/check-audio-buildroot-rehearsal.sh
 test -x scripts/check-buildroot-lts.sh
 scripts/check-buildroot-lts.sh
 grep -Fq 'Aqua Linux v1.0 readiness is governed separately by the mandatory gates in docs/aqua-linux/v1-readiness.md.' docs/aqua-linux/progress.json

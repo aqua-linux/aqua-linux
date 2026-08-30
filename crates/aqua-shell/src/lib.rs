@@ -8,8 +8,8 @@ use aqua_components::{
 };
 use aqua_scene::Rect;
 use aqua_service_adapters::{
-    AudioAdapterError, AudioAuthoritativeState, AudioRequest, AudioServiceAdapter,
-    AudioServiceHealth,
+    AudioAdapterError, AudioAuthoritativeState, AudioBackend, AudioBackendDriveError,
+    AudioBackendDriveOutcome, AudioRequest, AudioServiceAdapter, AudioServiceHealth,
 };
 use std::collections::VecDeque;
 use std::fs;
@@ -1352,6 +1352,13 @@ impl AudioVolumeModel {
         self.adapter.next_reconciliation_request()
     }
 
+    pub fn synchronize_backend<B: AudioBackend>(
+        &mut self,
+        backend: &mut B,
+    ) -> Result<AudioBackendDriveOutcome, AudioBackendDriveError<B::Error>> {
+        self.adapter.drive_backend_once(backend)
+    }
+
     pub fn set_volume_percent(&mut self, volume_percent: u8) -> bool {
         self.adapter
             .set_desired_volume(volume_percent)
@@ -1511,6 +1518,14 @@ impl SettingsWindowModel {
     ) -> Result<(), AudioAdapterError> {
         self.audio.reconcile(state)
     }
+
+    pub fn synchronize_audio_backend<B: AudioBackend>(
+        &mut self,
+        backend: &mut B,
+    ) -> Result<AudioBackendDriveOutcome, AudioBackendDriveError<B::Error>> {
+        self.audio.synchronize_backend(backend)
+    }
+
     pub fn load_or_default(path: &Path) -> Result<Self, SettingsConfigError> {
         match fs::symlink_metadata(path) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
