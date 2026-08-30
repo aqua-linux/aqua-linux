@@ -16,10 +16,12 @@ CONTROL_SERVICE_LOSS_RUNNER="${ROOT_DIR}/scripts/check-audio-control-service-los
 RESTART_EXHAUSTION_RUNNER="${ROOT_DIR}/scripts/check-audio-restart-exhaustion-qemu.sh"
 MULTI_ROUTE_RUNNER="${ROOT_DIR}/scripts/check-audio-multi-route-qemu.sh"
 HOTPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-hotplug-qemu.sh"
+REPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-output-replug-qemu.sh"
 NONDEFAULT_UNPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-nondefault-unplug-qemu.sh"
 ACTIVE_NONDEFAULT_UNPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-active-nondefault-unplug-qemu.sh"
 ACTIVE_DEFAULT_UNPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-active-default-unplug-qemu.sh"
 QMP_DELETE="${ROOT_DIR}/scripts/qmp-device-delete.py"
+QMP_AUDIO_OUTPUT_ADD="${ROOT_DIR}/scripts/qmp-audio-output-add.py"
 EXPECT_SCRIPT="${ROOT_DIR}/scripts/check-audio-qemu.exp"
 PROBE_CONFIG="${ROOT_DIR}/br2-external/aqua/package/aqua-audio-probe/Config.in"
 PROBE_MAKE="${ROOT_DIR}/br2-external/aqua/package/aqua-audio-probe/aqua-audio-probe.mk"
@@ -34,6 +36,25 @@ for assignment in \
     CONFIG_HOTPLUG_PCI_ACPI=y
 do
     grep -Fxq "${assignment}" "${FRAGMENT}"
+done
+
+test -x "${REPLUG_RUNNER}"
+test -x "${QMP_AUDIO_OUTPUT_ADD}"
+grep -Fq 'AQUA_AUDIO_QEMU_CONTRACT=replug' "${REPLUG_RUNNER}"
+for contract in \
+    '"execute": "device_add"' \
+    '"driver": "ich9-intel-hda"' \
+    '"driver": "hda-output"' \
+    '"execute": "device_del"' \
+    'does not support hotplugging' \
+    'aqua-audio-probe fallback' \
+    'aqua-audio-probe routes-secondary' \
+    'stage=qemu-device-replug status=blocked' \
+    'replug_supported=false false_restoration=false controller_rollback=true' \
+    'fallback_stable=true playback_after_rejection=true recovery_shell=true'
+do
+    grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}" \
+        "${REPLUG_RUNNER}" "${QMP_AUDIO_OUTPUT_ADD}"
 done
 
 test -x "${ACTIVE_INPUT_UNPLUG_RUNNER}"
@@ -248,4 +269,4 @@ do
     grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}"
 done
 
-echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backends=none,dbus controlled_inputs=zero-pcm,bipolar-signal,input-disconnect active_service_loss=true active_capture_loss=true active_input_device_loss=true control_service_loss=true restart_exhaustion=true multi_route=true selected_device_unplug=true active_selected_device_unplug=true nondefault_device_unplug=true active_nondefault_device_unplug=true fallback=true host_microphone=false default_image_audio=false'
+echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backends=none,dbus controlled_inputs=zero-pcm,bipolar-signal,input-disconnect active_service_loss=true active_capture_loss=true active_input_device_loss=true control_service_loss=true restart_exhaustion=true multi_route=true selected_device_unplug=true active_selected_device_unplug=true output_replug_supported=false output_replug_rollback=true nondefault_device_unplug=true active_nondefault_device_unplug=true fallback=true host_microphone=false default_image_audio=false'
