@@ -1168,6 +1168,7 @@ scripts/check-audio-service-architecture.sh
 scripts/check-audio-buildroot-rehearsal.sh
 scripts/check-audio-native-binding.sh
 scripts/check-audio-rootfs-contract.sh
+scripts/check-audio-qemu-device-contract.sh
 test -x scripts/check-buildroot-lts.sh
 scripts/check-buildroot-lts.sh
 grep -Fq 'Aqua Linux v1.0 readiness is governed separately by the mandatory gates in docs/aqua-linux/v1-readiness.md.' docs/aqua-linux/progress.json

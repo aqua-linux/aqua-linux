@@ -18,7 +18,8 @@ for symbol in \
     BR2_PACKAGE_PIPEWIRE \
     BR2_PACKAGE_LUA_5_4 \
     BR2_PACKAGE_WIREPLUMBER \
-    BR2_PACKAGE_AQUA_AUDIO_NATIVE
+    BR2_PACKAGE_AQUA_AUDIO_NATIVE \
+    BR2_PACKAGE_AQUA_AUDIO_PROBE
 do
     grep -Fxq "${symbol}=y" "$REHEARSAL_CONFIG"
     ! grep -Fxq "${symbol}=y" "$DEFAULT_CONFIG"
@@ -50,7 +51,9 @@ grep -Fq 'show-info' "$REHEARSAL_SCRIPT"
 grep -Fq 'default_image_changed' "$REPORT_WRITER"
 grep -Fq 'release_cleared' "$REPORT_WRITER"
 grep -Fq '"aqua-audio-native": "1"' "$REPORT_WRITER"
+grep -Fq '"aqua-audio-probe": "1"' "$REPORT_WRITER"
 grep -Fq 'BR2_PACKAGE_AQUA_AUDIO_NATIVE' "$REHEARSAL_SCRIPT"
+grep -Fq 'BR2_PACKAGE_AQUA_AUDIO_PROBE' "$REHEARSAL_SCRIPT"
 grep -Fxq \
     'BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_AQUA_PATH)/rootfs-overlay $(BR2_EXTERNAL_AQUA_PATH)/audio-rootfs-overlay"' \
     "$REHEARSAL_CONFIG"

@@ -1,5 +1,6 @@
-# This profile is for dependency and legal-info rehearsal only. The default
-# Aqua image remains aqua_x86_64_defconfig with audio packages disabled.
+# This profile is for opt-in audio dependency and declared-device QEMU
+# rehearsal only. The default Aqua image remains aqua_x86_64_defconfig with
+# audio packages and sound drivers disabled.
 BR2_x86_64=y
 BR2_JLEVEL=1
 BR2_TOOLCHAIN_BUILDROOT_MUSL=y
@@ -54,6 +55,7 @@ BR2_PACKAGE_LUA=y
 BR2_PACKAGE_LUA_5_4=y
 BR2_PACKAGE_WIREPLUMBER=y
 BR2_PACKAGE_AQUA_AUDIO_NATIVE=y
+BR2_PACKAGE_AQUA_AUDIO_PROBE=y
 BR2_PACKAGE_DBUS=n
 BR2_PACKAGE_BLUEZ5_UTILS=n
 BR2_PACKAGE_JACK2=n
@@ -72,6 +74,7 @@ BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.6.32"
 BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_6=y
 BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
 BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_AQUA_PATH)/board/aqua/x86_64/linux.config"
+BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_AQUA_PATH)/board/aqua/x86_64/linux-audio-qemu.config"
 BR2_TARGET_GRUB2=y
 BR2_TARGET_GRUB2_X86_64_EFI=y
 BR2_TARGET_GRUB2_BUILTIN_MODULES_EFI="boot linux ext2 fat part_gpt normal efi_gop search search_label"

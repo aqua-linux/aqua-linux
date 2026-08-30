@@ -1,0 +1,9 @@
+config BR2_PACKAGE_AQUA_AUDIO_PROBE
+    bool "Aqua ALSA media-path probe"
+    depends on BR2_PACKAGE_ALSA_LIB
+    depends on BR2_PACKAGE_AQUA_AUDIO_NATIVE
+    help
+      Installs Aqua's bounded playback and capture probe for declared-device
+      QEMU acceptance, including control acknowledgement through the
+      authoritative WirePlumber API bridge. This test-only binary does not
+      manage audio policy.

@@ -42,7 +42,8 @@ docker run --rm \
             BR2_PACKAGE_LUA_5_4 \
             BR2_PACKAGE_WIREPLUMBER \
             BR2_PACKAGE_LIBGLIB2 \
-            BR2_PACKAGE_AQUA_AUDIO_NATIVE
+            BR2_PACKAGE_AQUA_AUDIO_NATIVE \
+            BR2_PACKAGE_AQUA_AUDIO_PROBE
         do
             grep -Fxq "${symbol}=y" "${output_dir}/.config"
         done
@@ -63,7 +64,8 @@ docker run --rm \
         done
 
         make -C "${buildroot_dir}" O="${output_dir}" \
-            BR2_EXTERNAL="${external_dir}" aqua-audio-native
+            BR2_EXTERNAL="${external_dir}" \
+            aqua-audio-native aqua-audio-probe
 
         make -s -C "${buildroot_dir}" O=/work/build/buildroot-output \
             BR2_EXTERNAL="${external_dir}" show-info > "${evidence_dir}/base-show-info.json"

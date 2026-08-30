@@ -171,9 +171,12 @@ PipeWire, WirePlumber, alsa-lib, Lua, and GLib unselected. The separate
 changing that default. Its restricted ALSA plugin lists include `ioplug` and
 the `ext` control plugin, which PipeWire's ALSA compatibility modules require
 for their external PCM and control APIs; it does not enable the full plugin
-set. The profile also selects the project-authored MIT
-`aqua-audio-native` package, whose versioned bounded ABI connects the typed
-transport to WirePlumber's object-manager, mixer, and default-node APIs.
+set. The profile also selects the project-authored MIT `aqua-audio-native`
+package, whose versioned bounded ABI connects the typed transport to
+WirePlumber's object-manager, mixer, and default-node APIs, and the test-only
+MIT `aqua-audio-probe` used to submit bounded playback/capture streams through
+ALSA and verify acknowledged volume/mute changes through the native bridge. The
+probe is acceptance instrumentation, not a policy or product daemon.
 Because the pinned Buildroot WirePlumber package installs only to the target
 tree, the Aqua package first invokes its standard Meson staging install so the
 public headers, library, and pkg-config metadata are available to dependents.
@@ -188,8 +191,10 @@ The audio profile applies `rootfs-overlay` first and the dedicated
 `audio-rootfs-overlay` second. Only that second overlay changes
 `media-services.conf` to `enabled=true`; the default defconfig continues to use
 only the disabled base overlay and excludes every audio package. The opt-in
-rootfs records exact stack versions in `/etc/aqua/audio-stack.conf` and installs
-`/usr/bin/aqua-audio-rootfs-check`. The checker requires the `aqua` UID/GID
+rootfs records exact stack versions in `/etc/aqua/audio-stack.conf`, installs
+an ALSA default that targets PipeWire, and installs both
+`/usr/bin/aqua-audio-probe` and `/usr/bin/aqua-audio-rootfs-check`. The checker
+requires the `aqua` UID/GID
 1000 identity and its audio/video/input groups, exact PipeWire and WirePlumber
 configuration and module paths, the native bridge, regular executable service
 binaries, absent PulseAudio/JACK daemons, and no root init or inittab service.
@@ -200,13 +205,21 @@ positive and fail-closed fixtures, while
 runs the same checker against Buildroot's final `rootfs.tar` artifact after the
 fakeroot user and ownership stage. Its generated
 hashes, config, and result stay under `build/audio-rootfs-contract/` and remain
-untracked.
+untracked. The same profile applies
+`board/aqua/x86_64/linux-audio-qemu.config`, which enables the Intel HDA and
+generic codec kernel path only for this opt-in image. The default kernel
+configuration remains sound-free.
 
 Aqua has a locked unprivileged graphical-session identity, a private user-owned
 runtime directory, and explicit `video`, `audio`, and `input` group membership.
-The opt-in rootfs contract is complete; real declared-device QEMU media
-evidence remains open. The typed transport, native bridge, ordered per-user
-supervisor, dependency rehearsal, rootfs contract, and fail-closed
+The opt-in rootfs contract and declared Intel HDA QEMU output baseline are
+complete. `scripts/check-audio-qemu.sh` declares `ich9-intel-hda` with
+`hda-duplex`, proves sink/source-node discovery, volume and mute, writes 48,000
+stereo S16LE playback frames to a non-silent 48 kHz WAV capture, and forces
+WirePlumber restart recovery. QEMU's WAV backend has no ADC, so the evidence
+records `input_stream=false`; controlled input, multi-device route switching,
+and hotplug/error behavior remain open. The typed transport, native bridge,
+ordered per-user supervisor, dependency rehearsal, rootfs contract, and fail-closed
 `aqua-service-adapters` state/intent boundary are present, but none makes
 `/dev/snd` alone sufficient to enable Settings. No root-owned media daemon,
 command-output parser, or globally writable `/dev/snd` fallback is permitted.

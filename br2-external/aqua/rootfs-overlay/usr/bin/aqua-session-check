@@ -64,6 +64,30 @@ need_grep() {
     fi
 }
 
+need_group_member() {
+    stage="$1"
+    path="$2"
+    group="$3"
+    member="$4"
+    detail="$5"
+
+    if [ -f "${path}" ] && awk -F: -v group="${group}" -v member="${member}" '
+        $1 == group {
+            count = split($4, members, ",")
+            for (member_index = 1; member_index <= count; member_index++) {
+                if (members[member_index] == member) {
+                    found = 1
+                }
+            }
+        }
+        END { exit found ? 0 : 1 }
+    ' "${path}"; then
+        pass "${stage}" "${detail}"
+    else
+        fail "${stage}" "${detail}"
+    fi
+}
+
 run_probe() {
     stage="$1"
     log="$2"
@@ -95,9 +119,9 @@ need_grep graphics-session-env "$(root_path /etc/aqua/session-graphics.env)" '^e
 need_grep graphics-session-env "$(root_path /etc/aqua/session-graphics.env)" '^export AQUA_DRM_WAYLAND_SCENARIO=desktop-event-loop$' 'scenario=desktop-event-loop'
 
 need_grep session-user "$(root_path /etc/passwd)" '^aqua:x:1000:1000:.*:/home/aqua:/bin/false$' 'user=aqua uid=1000 gid=1000 login=locked'
-need_grep session-groups "$(root_path /etc/group)" '^video:.*:aqua$' 'group=video member=aqua'
-need_grep session-groups "$(root_path /etc/group)" '^audio:.*:aqua$' 'group=audio member=aqua'
-need_grep session-groups "$(root_path /etc/group)" '^input:.*:aqua$' 'group=input member=aqua'
+need_group_member session-groups "$(root_path /etc/group)" video aqua 'group=video member=aqua'
+need_group_member session-groups "$(root_path /etc/group)" audio aqua 'group=audio member=aqua'
+need_group_member session-groups "$(root_path /etc/group)" input aqua 'group=input member=aqua'
 
 runtime_owner="$(ls -nd "${SESSION_RUNTIME_DIR}" 2>/dev/null | awk '{print $3 ":" $4}')"
 runtime_permissions="$(LC_ALL=C ls -ld "${SESSION_RUNTIME_DIR}" 2>/dev/null | awk '{print substr($1, 1, 10)}')"

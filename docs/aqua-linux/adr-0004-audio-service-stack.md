@@ -98,8 +98,8 @@ conditions are met:
   `aqua-audio-native` package now implements that typed boundary against
   WirePlumber 0.5 with a versioned, fixed-size C ABI, bounded waits, and strict
   Rust-side validation. The opt-in rootfs now packages and enables it without
-  changing the default image; collecting packaged runtime behavior remains a
-  separate gate.
+  changing the default image; declared Intel HDA output behavior is covered by
+  the QEMU acceptance path described below.
 - `aqua_x86_64_audio_rehearsal_defconfig` resolves the exact package closure
   without changing the default image. The 2026-08-30 rehearsal verified
   PipeWire 1.2.8, WirePlumber 0.5.5, alsa-lib 1.2.13, eudev 3.2.14, Lua 5.4.8,
@@ -119,11 +119,15 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    ordered start, ready, bounded restart after one forced failure, state
    reporting, clean reverse-order stop, degradation, and retained graphical
    recovery behavior. Real media-device recovery remains part of gate 3.
-3. QEMU uses a declared emulated audio device and proves device discovery,
-   output playback to a captured sink, input from a controlled source, bounded
-   mute and volume, default-route changes, unplug/error behavior, and service
-   restart recovery. Logs must identify the virtual device and exact stack
-   versions.
+3. **Partially satisfied on 2026-08-30:** the opt-in kernel fragment enables
+   only the Intel HDA/generic codec path needed by QEMU, while the default
+   kernel stays sound-free. QEMU declares `ich9-intel-hda` plus `hda-duplex`;
+   PipeWire/WirePlumber discovers one sink and one source, volume and mute are
+   exercised, 48,000 stereo S16LE frames are played into a non-silent 48 kHz
+   WAV capture, and a forced WirePlumber failure recovers within the supervisor
+   budget. QEMU's WAV backend provides no ADC, so the source node is proven but
+   a controlled input stream is explicitly not claimed. Controlled input,
+   multi-device default-route changes, and unplug/error behavior remain open.
 4. Settings and the top bar consume authoritative adapter state. Pointer and
    keyboard changes must be acknowledged by the service before the UI claims
    application; service failure must visibly degrade and recover.
@@ -159,9 +163,11 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
   complete as an opt-in Buildroot package. The bridge uses the WirePlumber
   object manager, default-nodes API, mixer API, and synchronized acknowledgments
   without command-output parsing. The audio-only rootfs overlay enables the
-  per-user supervisor and its final rootfs artifact passes the contract. The
-  default image still excludes the entire stack; the next audio item is
-  declared-device QEMU media evidence.
+  per-user supervisor and its final rootfs artifact passes the contract. An
+  audio-only kernel fragment, ALSA-to-PipeWire default, and bounded test probe
+  now support declared Intel HDA QEMU output acceptance without changing the
+  sound-free default image. Controlled input, multi-device routing, and
+  hotplug/error evidence remain open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or
