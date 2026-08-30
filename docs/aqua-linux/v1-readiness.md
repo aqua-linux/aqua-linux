@@ -174,14 +174,36 @@ passes those limits independently. The review records
 `r2_review_budget_selected=true` and
 `r2_review_physical_budget_selected=false`.
 
+The separate `scripts/check-r2-presentation-soak-qemu.sh` runner keeps one
+production GBM/KMS compositor process active for at least five minutes. It maps
+Files and Settings together, sends ten bounded real virtio-input cycles, and
+requires at least five distinct input-to-present samples after normal repaint
+coalescing. The `qemu-tcg-bochs-soak-v1` profile retains the 50,000 us
+page-flip, 60,000,000 us input-latency, 163,840 KiB peak RSS-growth, and
+zero-drop limits while allowing at most 720,000,000 us process CPU time for the
+two-vCPU five-minute window. Its crash budget is zero. The runner stops through
+the compositor's graceful-stop file, requires client reap, CRTC restoration,
+GBM release, recovery return, and isolated diagnostic readback, and refuses to
+overwrite its raw log and report directory.
+
+The first packaged soak completed on 2026-08-30. It observed 338,040 ms, 42
+dispatched keyboard events, nine presented frames, five distinct
+input-to-present samples, 9,879 us maximum
+page-flip wait, 39,054,481 us maximum input-to-present latency, 128,457,628 us
+CPU time, and 130,252 KiB peak RSS growth. It recorded zero crashes, dropped
+frames, production readbacks, and CPU framebuffer copies, then returned cleanly
+to recovery. This is an initial QEMU regression soak, not release-qualification
+duration, physical responsiveness, or hardware stability evidence.
+
 The packaged kernel now enables Bochs DRM and the macOS QEMU runner defaults to
 `bochs-display`. This reaches Aqua's `production-gbm-kms` path with GLES
 software rendering and direct GBM dma-buf scanout, while emitting zero
 production full-frame readbacks and CPU framebuffer copies. The virtio target
-remains a separately identified `legacy-cpu-copy` fallback. Repeated collection
-and QEMU budget review are complete for this profile. Soak testing and a
-separately selected physical-target budget remain downstream; QEMU TCG
-measurements are not physical responsiveness evidence.
+remains a separately identified `legacy-cpu-copy` fallback. Repeated collection,
+QEMU budget review, and the initial bounded QEMU soak are complete for these
+profiles. Longer release-qualification soak and a separately selected
+physical-target budget remain downstream; QEMU TCG measurements are not
+physical responsiveness evidence.
 
 ### R3: Wayland Compatibility And Display Behavior
 

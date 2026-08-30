@@ -17,6 +17,15 @@ QEMU_BUDGET = {
     "max_cpu_time_us": 180_000_000,
     "max_memory_growth_kib": 163_840,
 }
+QEMU_SOAK_BUDGET_PROFILE = "qemu-tcg-bochs-soak-v1"
+QEMU_SOAK_MIN_OBSERVATION_WINDOW_MS = 300_000
+QEMU_SOAK_MIN_INPUT_SAMPLES = 5
+QEMU_SOAK_BUDGET = {
+    "max_frame_time_us": 50_000,
+    "max_input_to_present_us": 60_000_000,
+    "max_cpu_time_us": 720_000_000,
+    "max_memory_growth_kib": 163_840,
+}
 QEMU_BUDGET_FIELDS = {
     "max_frame_time_us": "max_frame_time_us",
     "max_input_to_present_us": "max_input_to_present_us",
@@ -143,7 +152,11 @@ def parse_integer(record: dict[str, str], field: str) -> int:
     return parsed
 
 
-def validate_record(record: dict[str, str]) -> dict[str, int | str | bool]:
+def validate_record(
+    record: dict[str, str],
+    budget_profile: str = QEMU_BUDGET_PROFILE,
+    budget: dict[str, int] = QEMU_BUDGET,
+) -> dict[str, int | str | bool]:
     missing = REQUIRED_FIELDS - record.keys()
     extra = record.keys() - REQUIRED_FIELDS
     if missing:
@@ -176,10 +189,10 @@ def validate_record(record: dict[str, str]) -> dict[str, int | str | bool]:
     if int(parsed["full_frame_readbacks"]) != 0:
         raise ValueError(f"full-frame GPU readback recorded for {workload}")
     for field, budget_field in QEMU_BUDGET_FIELDS.items():
-        limit = QEMU_BUDGET[budget_field]
+        limit = budget[budget_field]
         if int(parsed[field]) > limit:
             raise ValueError(
-                f"{QEMU_BUDGET_PROFILE} budget exceeded for {workload} {field}: "
+                f"{budget_profile} budget exceeded for {workload} {field}: "
                 f"{parsed[field]} > {limit}"
             )
 
@@ -253,6 +266,89 @@ def validate_evidence_log(
     text: str,
 ) -> tuple[list[dict[str, int | str | bool]], dict[str, int | str | bool]]:
     return validate_log(text), validate_diagnostic_log(text)
+
+
+def validate_soak_log(
+    text: str,
+) -> tuple[dict[str, int | str | bool], dict[str, int | str | bool]]:
+    records = parse_records(text)
+    if len(records) != 1:
+        raise ValueError("R2 soak log must contain exactly one presentation record")
+    record = validate_record(
+        records[0],
+        budget_profile=QEMU_SOAK_BUDGET_PROFILE,
+        budget=QEMU_SOAK_BUDGET,
+    )
+    if record["workload"] != "multi-client":
+        raise ValueError("R2 soak must use the multi-client workload")
+    if int(record["observation_window_ms"]) < QEMU_SOAK_MIN_OBSERVATION_WINDOW_MS:
+        raise ValueError("R2 soak observation window is shorter than five minutes")
+    if int(record["input_to_present_samples"]) < QEMU_SOAK_MIN_INPUT_SAMPLES:
+        raise ValueError("R2 soak has too few periodic input-to-present samples")
+    minimum_frames = QEMU_SOAK_MIN_INPUT_SAMPLES + 3
+    if int(record["frames_presented"]) < minimum_frames:
+        raise ValueError("R2 soak has too few presented frames")
+    required_markers = (
+        "desktop_launch_surface_app_id=aqua.files",
+        "desktop_launch_surface_app_id=aqua.settings",
+        "drm_wayland_input_dispatch_ready=true",
+        "drm_wayland_graceful_stop_requested=true",
+        "desktop_runtime_process_active_count=0",
+        "[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok",
+    )
+    for marker in required_markers:
+        if marker not in text:
+            raise ValueError(f"R2 soak log is missing lifecycle marker: {marker}")
+    if "[AQUA-COMPOSITOR] stage=drm-wayland-session status=error" in text:
+        raise ValueError("R2 soak compositor reported an error")
+    input_event_prefix = "drm_wayland_input_keyboard_events="
+    input_event_values = [
+        line.strip().removeprefix(input_event_prefix)
+        for line in text.replace("\r", "").splitlines()
+        if line.strip().startswith(input_event_prefix)
+    ]
+    if len(input_event_values) != 1:
+        raise ValueError("R2 soak log must contain one keyboard-event total")
+    if not input_event_values[0].isascii() or not input_event_values[0].isdecimal():
+        raise ValueError("R2 soak keyboard-event total is malformed")
+    if int(input_event_values[0]) < 40:
+        raise ValueError("R2 soak did not dispatch enough periodic keyboard events")
+    return record, validate_diagnostic_log(text)
+
+
+def soak_report_lines(text: str) -> list[str]:
+    record, _ = validate_soak_log(text)
+    keyboard_events = next(
+        int(line.strip().partition("=")[2])
+        for line in text.replace("\r", "").splitlines()
+        if line.strip().startswith("drm_wayland_input_keyboard_events=")
+    )
+    return [
+        "r2_soak_record_begin=v1",
+        "r2_soak_target=qemu-tcg",
+        f"r2_soak_budget_profile={QEMU_SOAK_BUDGET_PROFILE}",
+        f"r2_soak_min_observation_window_ms={QEMU_SOAK_MIN_OBSERVATION_WINDOW_MS}",
+        f"r2_soak_observation_window_ms={record['observation_window_ms']}",
+        f"r2_soak_min_input_to_present_samples={QEMU_SOAK_MIN_INPUT_SAMPLES}",
+        f"r2_soak_input_to_present_samples={record['input_to_present_samples']}",
+        f"r2_soak_keyboard_events={keyboard_events}",
+        f"r2_soak_frames_presented={record['frames_presented']}",
+        f"r2_soak_max_frame_time_us={record['max_frame_time_us']}",
+        f"r2_soak_max_input_to_present_us={record['max_input_to_present_us']}",
+        f"r2_soak_cpu_time_us={record['cpu_time_us']}",
+        f"r2_soak_memory_growth_kib={record['memory_growth_kib']}",
+        f"r2_soak_budget_max_frame_time_us={QEMU_SOAK_BUDGET['max_frame_time_us']}",
+        f"r2_soak_budget_max_input_to_present_us={QEMU_SOAK_BUDGET['max_input_to_present_us']}",
+        f"r2_soak_budget_max_cpu_time_us={QEMU_SOAK_BUDGET['max_cpu_time_us']}",
+        f"r2_soak_budget_max_memory_growth_kib={QEMU_SOAK_BUDGET['max_memory_growth_kib']}",
+        "r2_soak_budget_max_dropped_frames=0",
+        "r2_soak_crash_budget=0",
+        "r2_soak_crashes=0",
+        "r2_soak_client_lifecycle_complete=true",
+        "r2_soak_diagnostic_isolation_recorded=true",
+        "r2_soak_physical_evidence=false",
+        "r2_soak_record_end=v1",
+    ]
 
 
 def repeated_review_lines(logs: list[str]) -> list[str]:
@@ -422,6 +518,85 @@ def self_test() -> None:
     else:
         raise AssertionError("undersized repeated-run review unexpectedly passed")
 
+    soak_fixture = fixture_record("multi-client")
+    soak_overrides = {
+        "frames_requested": (3, 13),
+        "frames_presented": (3, 13),
+        "page_flip_events": (3, 13),
+        "input_to_present_samples": (1, QEMU_SOAK_MIN_INPUT_SAMPLES),
+        "observation_window_ms": (1_000, QEMU_SOAK_MIN_OBSERVATION_WINDOW_MS),
+        "cpu_time_us": (50_000, 400_000_000),
+    }
+    for field, (original, replacement) in soak_overrides.items():
+        soak_fixture = soak_fixture.replace(
+            f"r2_presentation_{field}={original}",
+            f"r2_presentation_{field}={replacement}",
+        )
+    soak_fixture = "\n".join(
+        (
+            soak_fixture,
+            "desktop_launch_surface_app_id=aqua.files",
+            "desktop_launch_surface_app_id=aqua.settings",
+            "drm_wayland_input_dispatch_ready=true",
+            "drm_wayland_input_keyboard_events=40",
+            "drm_wayland_graceful_stop_requested=true",
+            "desktop_runtime_process_active_count=0",
+            "[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok",
+            diagnostic_fixture(),
+        )
+    )
+    soak_report = soak_report_lines(soak_fixture)
+    assert f"r2_soak_budget_profile={QEMU_SOAK_BUDGET_PROFILE}" in soak_report
+    assert "r2_soak_crashes=0" in soak_report
+    assert "r2_soak_physical_evidence=false" in soak_report
+    try:
+        soak_report_lines(
+            soak_fixture.replace(
+                f"r2_presentation_observation_window_ms={QEMU_SOAK_MIN_OBSERVATION_WINDOW_MS}",
+                f"r2_presentation_observation_window_ms={QEMU_SOAK_MIN_OBSERVATION_WINDOW_MS - 1}",
+            )
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("undersized R2 soak fixture unexpectedly passed")
+    try:
+        soak_report_lines(
+            soak_fixture.replace(
+                "[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok",
+                "[AQUA-COMPOSITOR] stage=drm-wayland-session status=error",
+            )
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("crashed R2 soak fixture unexpectedly passed")
+    soak_failure_cases = (
+        (
+            "r2_presentation_input_to_present_samples=5",
+            "r2_presentation_input_to_present_samples=4",
+        ),
+        (
+            "r2_presentation_memory_growth_kib=128",
+            "r2_presentation_memory_growth_kib=163841",
+        ),
+        (
+            "desktop_launch_surface_app_id=aqua.files",
+            "desktop_launch_surface_app_id=aqua.unknown",
+        ),
+        (
+            "drm_wayland_input_keyboard_events=40",
+            "drm_wayland_input_keyboard_events=39",
+        ),
+    )
+    for accepted, rejected in soak_failure_cases:
+        try:
+            soak_report_lines(soak_fixture.replace(accepted, rejected))
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"invalid R2 soak mutation unexpectedly passed: {rejected}")
+
 
 def read_bounded_log(path: pathlib.Path) -> str:
     max_bytes = 4 * 1024 * 1024
@@ -443,9 +618,13 @@ def main() -> int:
         logs = [read_bounded_log(path) for path in paths]
         print("\n".join(repeated_review_lines(logs)))
         return 0
+    if len(sys.argv) == 3 and sys.argv[1] == "--summarize-soak":
+        log = read_bounded_log(pathlib.Path(sys.argv[2]))
+        print("\n".join(soak_report_lines(log)))
+        return 0
     if len(sys.argv) != 2:
         print(
-            f"Usage: {sys.argv[0]} SERIAL_LOG | --summarize-repeated SERIAL_LOG...",
+            f"Usage: {sys.argv[0]} SERIAL_LOG | --summarize-repeated SERIAL_LOG... | --summarize-soak SERIAL_LOG",
             file=sys.stderr,
         )
         return 2
