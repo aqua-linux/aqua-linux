@@ -48,7 +48,8 @@ is outside this audit.
   GLib only in the opt-in audio profile; the default image does not select it.
 - The project-authored `aqua-audio-probe` is MIT licensed, links to alsa-lib
   and the project-authored native bridge, and exists solely for bounded opt-in
-  audio acceptance. The default image does not select it.
+  audio acceptance, including explicit active-stream interruption reporting.
+  The default image does not select it.
 - The project-authored QEMU D-Bus audio-input injector is MIT licensed under
   the root project license. It is compiled and run only on the development
   host, dynamically links to the host GLib/GIO installation, and supports both

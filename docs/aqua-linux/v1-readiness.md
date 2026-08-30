@@ -170,8 +170,12 @@ acknowledgement, and non-silent playback captures on both routes. A bounded QMP
 profile then selects the second virtual PCI output as default, removes it,
 requires the asynchronous deletion event and one-device ALSA topology, observes
 one authoritative fallback default through the native adapter, and proves
-non-silent playback resumes on the remaining output. Other media error matrices
-remain open. The remaining
+non-silent playback resumes on the remaining output. A separate active-stream
+profile kills PipeWire after the client has written 480 frames, requires an
+explicit `Broken pipe` interruption with no false completion, observes the
+supervisor's second ordered service attempt, and proves a new 48,000-frame
+playback produces non-silent output while recovery remains live. Other media
+error matrices remain open. The remaining
 UI acknowledgement gate still blocks default-image enablement.
 Buildroot availability or these bounded QEMU profiles are not a complete audio
 integration decision.
