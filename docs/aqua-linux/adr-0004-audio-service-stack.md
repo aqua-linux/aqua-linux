@@ -98,7 +98,11 @@ conditions are met:
   fixed three-attempt budget per authoritative graph generation. Exhaustion
   preserves the desired preference, blocks further submission, and exposes a
   degraded Settings state until a newer synchronized generation reopens the
-  acknowledgement cycle. The opt-in
+  acknowledgement cycle. Native snapshot generations advance only when the
+  canonical authoritative graph payload changes; polling an unchanged graph
+  cannot silently reset the attempt budget. The packaged QEMU probe verifies
+  three rejected submissions, a bridge-blocked fourth call, a real graph
+  generation change, and final authoritative acknowledgement. The opt-in
   `aqua-audio-native` package now implements that typed boundary against
   WirePlumber 0.5 with a versioned, fixed-size C ABI, bounded waits, and strict
   Rust-side validation. The opt-in rootfs now packages and enables it without
@@ -262,7 +266,10 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    stream at 480 frames, exposes zero available inputs, and blocks a new
    capture without stopping the media services. This remains virtual-device
    evidence without host microphone or physical hotplug claims. Other error
-   evidence remains open.
+   evidence now also includes the production adapter's packaged-QEMU submission
+   budget: three failed calls retain one graph generation, the fourth is blocked,
+   and only a real graph change permits the acknowledged recovery call. Physical
+   hardware behavior and other error evidence remain open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

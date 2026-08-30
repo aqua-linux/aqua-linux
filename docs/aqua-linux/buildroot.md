@@ -192,8 +192,10 @@ The audio profile applies `rootfs-overlay` first and the dedicated
 `media-services.conf` to `enabled=true`; the default defconfig continues to use
 only the disabled base overlay and excludes every audio package. The opt-in
 rootfs records exact stack versions in `/etc/aqua/audio-stack.conf`, installs
-an ALSA default that targets PipeWire, and installs both
-`/usr/bin/aqua-audio-probe` and `/usr/bin/aqua-audio-rootfs-check`. The checker
+an ALSA default that targets PipeWire, and installs
+`/usr/bin/aqua-audio-probe`, `/usr/bin/aqua-audio-rootfs-check`, and the
+production-adapter acceptance binary at
+`/usr/libexec/aqua-tests/aqua-audio-adapter-probe`. The checker
 requires the `aqua` UID/GID
 1000 identity and its audio/video/input groups, exact PipeWire and WirePlumber
 configuration and module paths, the native bridge, regular executable service
@@ -427,6 +429,16 @@ the private socket to disappear. The control probe must then fail at native
 releases the unchanged supervisor policy; a different PipeWire PID,
 `attempts=2`, and a second successful control cycle prove recovery. This does
 not make submission equivalent to acknowledgement or enable audio by default.
+
+`scripts/check-audio-control-submission-budget-qemu.sh` runs the packaged Rust
+adapter against the production `aqua-audio-native` bridge. Its deterministic
+fault boundary rejects the first three native control calls while repeated
+snapshots of the unchanged canonical graph retain one generation. The adapter
+must block the fourth call before it reaches the bridge. A direct real native
+volume change then advances the authoritative graph generation, reopens one
+adapter submission, and requires a later snapshot to acknowledge the desired
+value. This is opt-in virtual runtime evidence; the default image stays
+sound-free and physical hardware is not claimed.
 
 `scripts/check-audio-control-policy-service-loss-qemu.sh` proves the matching
 WirePlumber boundary. After one acknowledged volume/mute cycle, it terminates

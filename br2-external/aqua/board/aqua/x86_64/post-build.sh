@@ -86,6 +86,7 @@ AQUA_INSTALLER_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua
 AQUA_TYPOGRAPHY_ACCEPTANCE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-typography-acceptance"
 AQUA_COMPONENT_ACCEPTANCE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-component-acceptance"
 AQUA_INSTALLER_PROBE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-installer-probe"
+AQUA_AUDIO_ADAPTER_PROBE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-audio-adapter-probe"
 mkdir -p "${TARGET_DIR}/usr/bin" "${TARGET_DIR}/usr/libexec/aqua-tests" "${TARGET_DIR}/usr/share/doc/aqua"
 if [ -f "${AQUA_COMPOSITOR_BINARY}" ]; then
     cp "${AQUA_COMPOSITOR_BINARY}" "${TARGET_DIR}/usr/bin/aqua-compositor"
@@ -104,6 +105,13 @@ autostart=false
 boot_graphics=false
 build_hint=scripts/build-compositor-linux-docker.sh
 EOF
+fi
+
+if [ -f "${AQUA_AUDIO_ADAPTER_PROBE_BINARY}" ] &&
+   [ -f "${TARGET_DIR}/etc/aqua/audio-stack.conf" ]; then
+    cp "${AQUA_AUDIO_ADAPTER_PROBE_BINARY}" \
+        "${TARGET_DIR}/usr/libexec/aqua-tests/aqua-audio-adapter-probe"
+    chmod +x "${TARGET_DIR}/usr/libexec/aqua-tests/aqua-audio-adapter-probe"
 fi
 
 if [ -f "${AQUA_INSTALLER_BINARY}" ]; then

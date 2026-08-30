@@ -24,7 +24,7 @@ TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-output}"
 
 case "${AQUA_AUDIO_QEMU_CONTRACT}" in
-    output|input|input-signal|input-disconnect|active-input-unplug|service-loss|policy-service-loss|capture-service-loss|capture-policy-service-loss|control-service-loss|control-policy-service-loss|restart-exhaustion|control-restart-exhaustion|capture-restart-exhaustion|policy-restart-exhaustion|control-policy-restart-exhaustion|capture-policy-restart-exhaustion|multi-route|hotplug|replug|nondefault-unplug|active-nondefault-unplug|active-default-unplug) ;;
+    output|input|input-signal|input-disconnect|active-input-unplug|service-loss|policy-service-loss|capture-service-loss|capture-policy-service-loss|control-submission-budget|control-service-loss|control-policy-service-loss|restart-exhaustion|control-restart-exhaustion|capture-restart-exhaustion|policy-restart-exhaustion|control-policy-restart-exhaustion|capture-policy-restart-exhaustion|multi-route|hotplug|replug|nondefault-unplug|active-nondefault-unplug|active-default-unplug) ;;
     *)
         echo "Unsupported audio QEMU contract: ${AQUA_AUDIO_QEMU_CONTRACT}" >&2
         exit 2
@@ -228,6 +228,17 @@ elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = capture-policy-service-loss; then
     test "$(grep -Fc '[AQUA-MEDIA] stage=media-service-supervisor status=restarting failed_service=wireplumber' "${SERIAL_LOG}")" -eq 1
     test "$(grep -Fc '[AQUA-AUDIO] stage=media-probe status=ok direction=capture frames=4800 rate=48000 channels=2 format=s16le peak_abs=0 pattern=silence' "${SERIAL_LOG}")" -eq 1
     echo 'Aqua Linux active audio capture policy-service loss recovery check passed.'
+elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = control-submission-budget; then
+    for marker in \
+        '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \
+        '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true' \
+        '[AQUA-AUDIO] stage=adapter-submission-budget status=ok backend=aqua-audio-native generation_stable=true failed_submissions=3 fourth_submission_blocked=true recovery_generation_advanced=true control_after=true authoritative_ack=true' \
+        '[AQUA-AUDIO] stage=qemu-control-submission-budget status=ok failed_submissions=3 fourth_submission_blocked=true generation_stable=true recovery_generation_advanced=true authoritative_ack=true services_running=true recovery_shell=true'
+    do
+        grep -Fq "${marker}" "${SERIAL_LOG}"
+    done
+    test "$(grep -Fc '[AQUA-AUDIO] stage=adapter-submission-budget status=ok' "${SERIAL_LOG}")" -eq 1
+    echo 'Aqua Linux native audio adapter submission-budget check passed.'
 elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = control-service-loss; then
     for marker in \
         '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \

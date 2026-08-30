@@ -6,8 +6,8 @@ from pathlib import Path
 
 
 REQUIRED = {
-    "aqua-audio-native": "1",
-    "aqua-audio-probe": "10",
+    "aqua-audio-native": "2",
+    "aqua-audio-probe": "14",
     "alsa-lib": "1.2.13",
     "eudev": "3.2.14",
     "libglib2": "2.82.5",

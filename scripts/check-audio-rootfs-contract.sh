@@ -31,7 +31,7 @@ for assignment in \
     'eudev_version=3.2.14' \
     'lua_version=5.4.8' \
     'glib_version=2.82.5' \
-    'aqua_audio_native_version=1' \
+    'aqua_audio_native_version=2' \
     'aqua_audio_probe_version=1'
 do
     grep -Fxq "$assignment" "$AUDIO_OVERLAY/etc/aqua/audio-stack.conf"
@@ -50,6 +50,7 @@ cp -R "$BASE_OVERLAY/." "$FIXTURE/"
 cp -R "$AUDIO_OVERLAY/." "$FIXTURE/"
 mkdir -p \
     "$FIXTURE/usr/lib/pipewire-0.3" \
+    "$FIXTURE/usr/libexec/aqua-tests" \
     "$FIXTURE/usr/lib/wireplumber-0.5" \
     "$FIXTURE/usr/share/pipewire" \
     "$FIXTURE/usr/share/wireplumber"
@@ -57,6 +58,8 @@ for executable in pipewire wireplumber wpctl aqua-audio-probe; do
     : > "$FIXTURE/usr/bin/$executable"
     chmod 755 "$FIXTURE/usr/bin/$executable"
 done
+: > "$FIXTURE/usr/libexec/aqua-tests/aqua-audio-adapter-probe"
+chmod 755 "$FIXTURE/usr/libexec/aqua-tests/aqua-audio-adapter-probe"
 for runtime_file in \
     usr/lib/libaqua-audio-native.so.1 \
     usr/lib/pipewire-0.3/libpipewire-module-protocol-native.so \

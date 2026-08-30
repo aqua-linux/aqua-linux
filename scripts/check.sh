@@ -1214,6 +1214,14 @@ scripts/check-audio-buildroot-rehearsal.sh
 scripts/check-audio-native-binding.sh
 scripts/check-audio-rootfs-contract.sh
 scripts/check-audio-qemu-device-contract.sh
+test -x scripts/build-audio-adapter-probe-linux-docker.sh
+test -x scripts/audio-buildroot-linker.sh
+test -x scripts/check-audio-control-submission-budget-qemu.sh
+grep -Fq 'control-submission-budget' scripts/check-audio-qemu.sh
+grep -Fq 'stage=qemu-control-submission-budget status=ok' scripts/check-audio-qemu.exp
+grep -Fq 'has_snapshot' br2-external/aqua/package/aqua-audio-native/src/aqua_audio_native.c
+grep -Fq 'snapshot_payload_equal' br2-external/aqua/package/aqua-audio-native/src/aqua_audio_native.c
+grep -Fq 'aqua-audio-adapter-probe' br2-external/aqua/audio-rootfs-overlay/usr/bin/aqua-audio-rootfs-check
 test -x scripts/check-buildroot-lts.sh
 scripts/check-buildroot-lts.sh
 grep -Fq 'Aqua Linux v1.0 readiness is governed separately by the mandatory gates in docs/aqua-linux/v1-readiness.md.' docs/aqua-linux/progress.json

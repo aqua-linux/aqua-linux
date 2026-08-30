@@ -494,8 +494,12 @@ also bounds native control submission to three failed attempts for one graph
 generation, then exposes degraded and waits for a newer synchronized generation
 before retrying. Deterministic adapter and Settings tests prove the retained
 preference, blocked fourth submission, generation-gated recovery, and final
-acknowledgement. This does not add packaged QEMU or hardware evidence and
-deliberately does not claim physical hardware support. The typed PipeWire/WirePlumber
+acknowledgement. A packaged QEMU probe now verifies the same boundary through
+the production native bridge: one unchanged authoritative graph keeps a stable
+generation across three rejected calls, the fourth call never reaches the
+bridge, and a real graph change advances the generation before a final
+acknowledgement. This is virtual runtime evidence and deliberately does not
+claim physical hardware support. The typed PipeWire/WirePlumber
 transport maps synchronized graph snapshots and typed control calls into the
 same acknowledgement gate. The non-default Buildroot profile now packages the
 bounded native WirePlumber 0.5 bridge and proves its dependency and legal-info
@@ -575,7 +579,9 @@ four PipeWire losses and rejects control open without false acknowledgement
 after the cleaned attempt 4/restart 3 degraded state. Its WirePlumber counterpart
 proves the same healthy precondition, three complete media-pair renewals, and
 fail-closed control rejection after the fourth policy loss reaches
-`failed_service=wireplumber` degradation. Other error behavior remains open R4
+`failed_service=wireplumber` degradation. The packaged production adapter also
+proves its three-attempt per-generation submission budget, blocked fourth call,
+and recovery only after a real native graph generation change. Other error behavior remains open R4
 work; physical hardware support is not claimed.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
