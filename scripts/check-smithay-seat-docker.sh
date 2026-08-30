@@ -24,6 +24,20 @@ docker run --rm --platform linux/amd64 \
         printf "%s\n" "$output" | grep -Fq "selected_category=settings"
         printf "%s\n" "$output" | grep -Fq "host_stub=false"
         printf "%s\n" "$output" | grep -Fq "[AQUA-COMPOSITOR] stage=smithay-launcher-seat status=ok"
+        selection_output="$(cargo run --quiet -p aqua-compositor --features smithay-smoke -- probe-selection-ownership)"
+        printf "%s\n" "$selection_output"
+        printf "%s\n" "$selection_output" | grep -Fq "client_count=2"
+        printf "%s\n" "$selection_output" | grep -Fq "globals_visible_to_both_clients=true"
+        printf "%s\n" "$selection_output" | grep -Fq "unfocused_clipboard_rejected=true"
+        printf "%s\n" "$selection_output" | grep -Fq "unfocused_primary_rejected=true"
+        printf "%s\n" "$selection_output" | grep -Fq "focused_clipboard_accepted=true"
+        printf "%s\n" "$selection_output" | grep -Fq "focused_primary_accepted=true"
+        printf "%s\n" "$selection_output" | grep -Fq "clipboard_offer_reaches_new_focus=true"
+        printf "%s\n" "$selection_output" | grep -Fq "primary_offer_reaches_new_focus=true"
+        printf "%s\n" "$selection_output" | grep -Fq "ownership_handoff_accepted=true"
+        printf "%s\n" "$selection_output" | grep -Fq "data_control_global_exposed=false"
+        printf "%s\n" "$selection_output" | grep -Fq "host_stub=false"
+        printf "%s\n" "$selection_output" | grep -Fq "[AQUA-COMPOSITOR] stage=selection-ownership status=ok"
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_launcher_keyboard_is_compositor_owned
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
@@ -32,4 +46,6 @@ docker run --rm --platform linux/amd64 \
             smithay_first_party_surfaces_raise_and_move_between_workspaces
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             first_party_runtime_theme_transition_is_idempotent
+        cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
+            smithay_selection_ownership_is_keyboard_focus_bound
     '

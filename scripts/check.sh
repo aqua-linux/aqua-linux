@@ -1548,6 +1548,10 @@ grep -Fq '("scene_contract", "manual_nested_preview_backend")' scripts/check-ima
 grep -Fq '("scene_contract", "manual_nested_preview_backend_no_start")' scripts/check-image-manifest.sh
 grep -Fq 'probe-xdg-shell-binding' scripts/check-compositor.sh
 grep -Fq 'probe-xdg-toplevel-client' scripts/check-compositor.sh
+grep -Fq 'probe-selection-ownership' scripts/check-compositor.sh
+grep -Fq 'unfocused_clipboard_rejected=true' scripts/check-smithay-seat-docker.sh
+grep -Fq 'unfocused_primary_rejected=true' scripts/check-smithay-seat-docker.sh
+grep -Fq 'data_control_global_exposed=false' scripts/check-smithay-seat-docker.sh
 grep -Fq 'server_shm_buffer_sampled=ok' scripts/check-compositor.sh
 grep -Fq 'probe-xdg-toplevel-window-model' scripts/check-compositor.sh
 grep -Fq 'probe-launcher-model' scripts/check-compositor.sh
@@ -1779,6 +1783,8 @@ grep -Fq 'probe-renderer-surface-sources' docs/aqua-linux/compositor.md
 grep -Fq 'probe-client-layer-pipeline' docs/aqua-linux/compositor.md
 grep -Fq 'probe-xdg-shell-binding' docs/aqua-linux/compositor.md
 grep -Fq 'probe-xdg-toplevel-client' docs/aqua-linux/compositor.md
+grep -Fq 'wl_data_device_manager' docs/aqua-linux/compositor.md
+grep -Fq 'selection_ownership' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'probe-xdg-toplevel-window-model' docs/aqua-linux/compositor.md
 grep -Fq 'probe-launcher-model' docs/aqua-linux/compositor.md
 grep -Fq 'probe-launcher-input-scene' docs/aqua-linux/compositor.md

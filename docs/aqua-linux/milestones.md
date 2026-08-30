@@ -184,6 +184,9 @@ Tasks:
 
 - Launch and display a simple Wayland client.
 - Handle keyboard and pointer focus.
+- Bind standard clipboard and primary-selection ownership to keyboard focus;
+  reject replacement attempts from unfocused clients without exposing a
+  privileged data-control protocol.
 - Support move, resize, close, and basic stacking.
 - Add Aqua window chrome.
 - Keep compositor stable when a client exits.
@@ -197,6 +200,13 @@ Done when:
 - At least one standard Wayland client can open.
 - The user can focus, move, resize, and close it.
 - Crash or client exit does not take down the compositor.
+
+Current compatibility extension:
+
+- Two independent Linux Wayland clients now prove clipboard and primary
+  ownership rejection, acceptance, focus handoff, and offer visibility through
+  the packaged compositor contract. Actual payload transfer, MIME negotiation,
+  owner-disconnect cleanup, and drag-and-drop remain in R3.
 
 ## Milestone 6: Boot Aqua Compositor In QEMU
 

@@ -33,6 +33,8 @@ if data.get("base") != "Buildroot":
     errors.append("base must be Buildroot")
 if data.get("graphicsTarget") != "custom Wayland compositor":
     errors.append("graphicsTarget must stay custom Wayland compositor")
+if not data.get("r3SelectionBoundary"):
+    errors.append("r3SelectionBoundary must describe the active compatibility work")
 if not isinstance(data.get("overallPercent"), int):
     errors.append("overallPercent must be an integer")
 elif not 0 <= data["overallPercent"] <= 100:
@@ -77,6 +79,7 @@ for needle in [
     "# Aqua Linux v1.0 Progress Report",
     f"**Roadmap implementation progress: {data.get('overallPercent')}%**",
     "## Product Readiness",
+    "Standard clipboard and primary-selection ownership follows Aqua Seat keyboard focus.",
     "| Classification | packaged-QEMU-proven prototype |",
     "| Daily-use ready | No |",
     "| Hardware-proven | No |",

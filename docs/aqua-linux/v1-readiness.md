@@ -252,6 +252,15 @@ Pass criteria:
   unavailable to arbitrary clients unless an explicit authorization policy
   permits them.
 
+Current R3 evidence establishes the first selection boundary. The compositor
+publishes only the standard clipboard and primary-selection managers, makes
+their focus follow Aqua Seat keyboard focus, rejects ownership changes from an
+unfocused client, and transfers existing offers when focus moves between two
+independent clients. The Linux Smithay probe and packaged-rootfs contract also
+verify that no data-control manager is advertised. This is not yet full
+clipboard acceptance: byte transfer, MIME negotiation, cancellation after
+source exit, large-payload bounds, and drag-and-drop remain open.
+
 XWayland is not automatically required for v1. If it remains excluded, the
 supported application model and incompatibility boundary must be public.
 
