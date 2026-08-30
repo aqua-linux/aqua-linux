@@ -2,6 +2,7 @@
 
 set timeout $env(TIMEOUT_SECONDS)
 log_file -noappend $env(SERIAL_LOG)
+set audio_contract $env(AQUA_AUDIO_QEMU_CONTRACT)
 
 proc shell {command description} {
     send -- "$command\r"
@@ -12,7 +13,7 @@ proc shell {command description} {
     }
 }
 
-spawn qemu-system-x86_64 \
+set qemu_args [list qemu-system-x86_64 \
     -machine accel=tcg \
     -cpu max \
     -smp $env(CPUS) \
@@ -25,11 +26,20 @@ spawn qemu-system-x86_64 \
     -monitor none \
     -display none \
     -vga none \
-    -device virtio-vga \
-    -audiodev wav,id=aqua-audio,path=$env(WAV_CAPTURE),out.frequency=48000,out.channels=2,out.format=s16 \
+    -device virtio-vga]
+if {$audio_contract eq "output"} {
+    lappend qemu_args -audiodev "wav,id=aqua-audio,path=$env(WAV_CAPTURE),out.frequency=48000,out.channels=2,out.format=s16"
+} elseif {$audio_contract eq "input"} {
+    lappend qemu_args -audiodev "none,id=aqua-audio,in.frequency=48000,in.channels=2,in.format=s16"
+} else {
+    puts stderr "Unsupported audio QEMU contract: $audio_contract"
+    exit 2
+}
+lappend qemu_args \
     -device ich9-intel-hda \
     -device hda-duplex,audiodev=aqua-audio \
     -no-reboot
+spawn {*}$qemu_args
 
 expect {
     -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh} {}
@@ -80,6 +90,30 @@ expect {
     eof { puts stderr "QEMU exited during service verification"; exit 1 }
 }
 expect -exact {# }
+
+if {$audio_contract eq "input"} {
+    shell {ok=1; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe capture-silence' || ok=0} {capturing bounded controlled zero PCM}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-capture'; [ "$ok" = 1 ] && echo "$marker status=ok pattern=zero-pcm"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-capture status=ok pattern=zero-pcm} {}
+        timeout { puts stderr "Controlled QEMU input result missing"; exit 1 }
+        eof { puts stderr "QEMU exited during controlled input verification"; exit 1 }
+    }
+    expect -exact {# }
+    shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}
+    send -- {echo '[AQUA-AUDIO] stage=qemu-input status=ok declared_device=intel-hda codec=hda-duplex backend=none capture=true frames=4800 controlled_pattern=zero-pcm'}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-input status=ok declared_device=intel-hda codec=hda-duplex backend=none capture=true frames=4800 controlled_pattern=zero-pcm} {}
+        timeout { puts stderr "Final QEMU input marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited before final input marker"; exit 1 }
+    }
+    expect -exact {# }
+    send -- "poweroff -f\r"
+    expect eof
+    exit 0
+}
 
 shell {ok=1; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe controls' || ok=0} {checking acknowledged default-route volume and mute through the native bridge}
 send -- {[ "$ok" = 1 ] && echo '[AQUA-AUDIO] stage=qemu-route status=ok default_sink=true requested_volume=0.35 mute_cycle=true' || echo '[AQUA-AUDIO] stage=qemu-route status=failed'}

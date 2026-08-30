@@ -495,9 +495,10 @@ the exact stack manifest, and passes a fail-closed checker against the complete
 Buildroot rootfs artifact without changing the default image. The audio-only
 Intel HDA kernel fragment and declared QEMU device now prove sink/source-node
 discovery, 48 kHz stereo S16LE output into a non-silent WAV capture,
-volume/mute, and bounded WirePlumber recovery. Controlled input streaming,
-multi-device routing, and hotplug/error evidence remain open R4 work; physical
-hardware support is not claimed.
+volume/mute, bounded WirePlumber recovery, and a separate controlled
+4,800-frame zero-PCM input stream. Non-silent injected input, multi-device
+routing, and hotplug/error evidence remain open R4 work; physical hardware
+support is not claimed.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
 to recovery after each bounded session.

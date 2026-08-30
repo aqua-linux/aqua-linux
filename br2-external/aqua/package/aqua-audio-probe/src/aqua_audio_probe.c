@@ -173,7 +173,7 @@ static int playback(void) {
   return 0;
 }
 
-static int capture(void) {
+static int capture(int require_silence) {
   snd_pcm_t *pcm = NULL;
   int status = snd_pcm_open(&pcm, "default", SND_PCM_STREAM_CAPTURE, 0);
   if (status < 0) {
@@ -186,9 +186,18 @@ static int capture(void) {
     snd_pcm_close(pcm);
     return 1;
   }
+  status = snd_pcm_start(pcm);
+  if (status < 0) {
+    fprintf(stderr, "[AQUA-AUDIO] stage=media-probe status=failed "
+                    "reason=start-capture detail=%s\n",
+            snd_strerror(status));
+    snd_pcm_close(pcm);
+    return 1;
+  }
 
   int16_t samples[PERIOD_FRAMES * CHANNELS];
   uint64_t frames = 0;
+  uint32_t peak_abs = 0;
   for (unsigned int period = 0; period < CAPTURE_PERIODS; ++period) {
     status = snd_pcm_wait(pcm, 5000);
     if (status <= 0) {
@@ -206,6 +215,15 @@ static int capture(void) {
       --period;
       continue;
     }
+    for (snd_pcm_sframes_t frame = 0; frame < read_frames; ++frame) {
+      for (unsigned int channel = 0; channel < CHANNELS; ++channel) {
+        int32_t sample = samples[frame * CHANNELS + channel];
+        uint32_t magnitude = (uint32_t)(sample < 0 ? -sample : sample);
+        if (magnitude > peak_abs) {
+          peak_abs = magnitude;
+        }
+      }
+    }
     frames += (uint64_t)read_frames;
   }
   snd_pcm_drop(pcm);
@@ -216,26 +234,39 @@ static int capture(void) {
             (unsigned long long)frames);
     return 1;
   }
+  if (require_silence && peak_abs != 0) {
+    fprintf(stderr, "[AQUA-AUDIO] stage=media-probe status=failed "
+                    "reason=unexpected-capture-data peak_abs=%u\n",
+            peak_abs);
+    return 1;
+  }
   printf("[AQUA-AUDIO] stage=media-probe status=ok direction=capture "
-         "frames=%llu rate=%d channels=%d format=s16le\n",
-         (unsigned long long)frames, SAMPLE_RATE, CHANNELS);
+         "frames=%llu rate=%d channels=%d format=s16le peak_abs=%u "
+         "pattern=%s\n",
+         (unsigned long long)frames, SAMPLE_RATE, CHANNELS, peak_abs,
+         require_silence ? "silence" : "observed");
   return 0;
 }
 
 int main(int argc, char **argv) {
   if (argc != 2) {
-    fprintf(stderr, "usage: aqua-audio-probe playback|capture|controls\n");
+    fprintf(stderr,
+            "usage: aqua-audio-probe playback|capture|capture-silence|controls\n");
     return 2;
   }
   if (strcmp(argv[1], "playback") == 0) {
     return playback();
   }
   if (strcmp(argv[1], "capture") == 0) {
-    return capture();
+    return capture(0);
+  }
+  if (strcmp(argv[1], "capture-silence") == 0) {
+    return capture(1);
   }
   if (strcmp(argv[1], "controls") == 0) {
     return controls();
   }
-  fprintf(stderr, "usage: aqua-audio-probe playback|capture|controls\n");
+  fprintf(stderr,
+          "usage: aqua-audio-probe playback|capture|capture-silence|controls\n");
   return 2;
 }
