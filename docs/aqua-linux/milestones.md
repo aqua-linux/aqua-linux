@@ -485,8 +485,12 @@ Settings Audio now supplies the real bounded slider consumer: a persistent
 0–100 output-volume preference and mute state backed by the fail-closed
 `aqua-service-adapters` contract. Controls require a ready authoritative state
 with a valid output route; `/dev/snd` alone is insufficient, and desired values
-are not reported as applied before reconciliation. It deliberately does not
-claim physical hardware support. The typed PipeWire/WirePlumber
+are not reported as applied before reconciliation. Settings now exposes explicit
+unavailable, starting, degraded, applying, and applied control states. Slider and
+mute input are enabled only in the applied state; applying renders the last
+authoritative value while retaining the desired preference separately, and a
+degraded transition blocks further input without discarding that preference. It
+deliberately does not claim physical hardware support. The typed PipeWire/WirePlumber
 transport maps synchronized graph snapshots and typed control calls into the
 same acknowledgement gate. The non-default Buildroot profile now packages the
 bounded native WirePlumber 0.5 bridge and proves its dependency and legal-info

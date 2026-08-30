@@ -7692,6 +7692,14 @@ pub fn run_aqua_settings_client(
             "aqua_settings_audio_backend_applied={}",
             model.audio.backend_applied()
         );
+        println!(
+            "aqua_settings_audio_control_status={}",
+            model.audio.control_status().id()
+        );
+        println!(
+            "aqua_settings_audio_controls_enabled={}",
+            model.audio.controls_enabled()
+        );
     }
     println!(
         "aqua_settings_network_status_available={}",
