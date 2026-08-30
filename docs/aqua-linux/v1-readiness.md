@@ -174,8 +174,12 @@ non-silent playback resumes on the remaining output. A separate active-stream
 profile kills PipeWire after the client has written 480 frames, requires an
 explicit `Broken pipe` interruption with no false completion, observes the
 supervisor's second ordered service attempt, and proves a new 48,000-frame
-playback produces non-silent output while recovery remains live. Other media
-error matrices remain open. The remaining
+playback produces non-silent output while recovery remains live. A separate
+real-service exhaustion profile kills four successive PipeWire processes,
+requires exactly three restart transitions before the configured budget leaves
+the graph degraded, confirms process/socket cleanup, rejects new playback and
+`wpctl` access, and preserves the recovery shell. Other media error matrices
+remain open. The remaining
 UI acknowledgement gate still blocks default-image enablement.
 Buildroot availability or these bounded QEMU profiles are not a complete audio
 integration decision.

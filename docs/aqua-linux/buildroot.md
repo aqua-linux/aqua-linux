@@ -278,6 +278,16 @@ PID, `attempts=2`, a running authoritative graph, and a successful new
 and the recovery shell to remain responsive. This does not prove every client
 policy or physical-device failure mode.
 
+`scripts/check-audio-restart-exhaustion-qemu.sh` exercises the opt-in profile's
+real `max_restarts=3` policy rather than a fixture. It terminates four distinct
+supervisor-owned PipeWire processes, requires exactly three ordered full-stack
+restarts, and then requires `state=degraded`, `attempts=4`, `restarts=3`, and
+`failed_service=pipewire`. The supervisor PID file, both recorded service PIDs,
+and `/run/user/1000/pipewire-0` must be gone. `wpctl` and a new playback probe
+must fail closed while the recovery shell remains responsive. This is bounded
+QEMU service-exhaustion evidence; it does not enable audio by default or prove
+physical-device behavior.
+
 `/usr/bin/aqua-session-check` is the recovery-safe aggregate checker for the same contract. Boot writes its output to `/run/aqua-session-check.log`, and users can run it manually from the recovery shell.
 
 ## Current Boot Choice

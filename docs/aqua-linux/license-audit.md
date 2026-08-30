@@ -49,7 +49,9 @@ is outside this audit.
 - The project-authored `aqua-audio-probe` is MIT licensed, links to alsa-lib
   and the project-authored native bridge, and exists solely for bounded opt-in
   audio acceptance, including explicit active-stream interruption reporting.
-  The default image does not select it.
+  The restart-exhaustion profile reuses the same probe and packaged services;
+  it introduces no package, runtime dependency, or license-closure change. The
+  default image does not select it.
 - The project-authored QEMU D-Bus audio-input injector is MIT licensed under
   the root project license. It is compiled and run only on the development
   host, dynamically links to the host GLib/GIO installation, and supports both
