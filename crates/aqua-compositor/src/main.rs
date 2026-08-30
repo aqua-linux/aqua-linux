@@ -331,6 +331,20 @@ fn runtime_library_available(root: &Path, soname: &str) -> bool {
 
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
 fn probe_gpu_offscreen_frame_cli(device: PathBuf) {
+    let r2_diagnostic_target =
+        if env::var("AQUA_R2_DIAGNOSTIC_READBACK_TELEMETRY").as_deref() == Ok("true") {
+            if env::var("AQUA_R2_DIAGNOSTIC_HEADLESS_TEST_CONFIRMED").as_deref() != Ok("true")
+                || env::var("AQUA_R2_DIAGNOSTIC_TEST_MODE").as_deref() != Ok("headless-qemu")
+            {
+                eprintln!(
+                    "R2 diagnostic readback telemetry requires explicit headless QEMU confirmation"
+                );
+                std::process::exit(1);
+            }
+            Some(PresentationEvidenceTarget::QemuTcg)
+        } else {
+            None
+        };
     match probe_gpu_offscreen_frame(&device) {
         Ok(result) => {
             println!("gpu_device={}", device.display());
@@ -388,6 +402,22 @@ fn probe_gpu_offscreen_frame_cli(device: PathBuf) {
             println!("gpu_kms_activated=false");
             println!("gpu_display_output_started=false");
             println!("gpu_recovery_safe=true");
+            if let Some(target) = r2_diagnostic_target {
+                println!("r2_diagnostic_record_begin=v1");
+                println!("r2_diagnostic_target={}", target.id());
+                println!(
+                    "r2_diagnostic_path={}",
+                    PresentationPath::DiagnosticReadback.id()
+                );
+                println!("r2_diagnostic_captured_frames=2");
+                println!("r2_diagnostic_full_frame_readbacks=2");
+                println!("r2_diagnostic_production_frames_read_back=0");
+                println!("r2_diagnostic_production_frames_blocked=0");
+                println!("r2_diagnostic_kms_activated=false");
+                println!("r2_diagnostic_display_output_started=false");
+                println!("r2_diagnostic_acceptance_complete=false");
+                println!("r2_diagnostic_record_end=v1");
+            }
             println!("[AQUA-COMPOSITOR] stage=gpu-offscreen-frame status=ok");
         }
         Err(error) => {

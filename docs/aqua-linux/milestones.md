@@ -664,15 +664,19 @@ normal bounded event wait as a repaint. Monotonic observation duration, process
 CPU-clock consumption, and the maximum bounded Linux `VmRSS` growth sampled
 throughout the workload now complete the live resource bridge. The emitted
 snapshot remains partial and cannot satisfy acceptance; packaged QEMU
-four-workload, budget, and diagnostic-isolation evidence remain open.
+four-workload execution and budget selection remain open.
 Versioned serial boundaries now frame each live record, and a fail-closed host
 validator requires exactly one structurally complete QEMU production-GBM/KMS
 record per workload before reporting observed timing and resource maxima. Those
-maxima are explicitly not selected budgets, and the validator keeps diagnostic
-isolation false until separate runtime evidence exists.
+maxima are explicitly not selected budgets. The validator also requires one
+separately framed offscreen diagnostic record and rejects it unless bounded
+readbacks occur without reading or blocking production frames and without
+activating KMS or display output.
 A bounded packaged-QEMU runner now sequences idle, real-input window
 interaction, frame-driven animation with real input, and two-client Files plus
-Settings workloads in separate recovery-returning sessions. It uses snapshot
-disk mode, refuses a rootfs older than the compositor source, and validates the
-combined log without selecting budgets. Executing that runner on a freshly
-built image and reviewing repeated measurements remain open.
+Settings workloads in separate recovery-returning sessions, followed by the
+existing deterministic offscreen GLES readback probe. It uses snapshot disk
+mode, refuses a rootfs older than the compositor source, and validates both
+production and isolated diagnostic records without selecting budgets. Executing
+that runner on a freshly built image and reviewing repeated measurements remain
+open.

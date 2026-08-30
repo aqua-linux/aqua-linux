@@ -97,5 +97,22 @@ expect {
 }
 expect_session_end multi-client
 
+send -- "AQUA_R2_DIAGNOSTIC_READBACK_TELEMETRY=true AQUA_R2_DIAGNOSTIC_HEADLESS_TEST_CONFIRMED=true AQUA_R2_DIAGNOSTIC_TEST_MODE=headless-qemu /usr/bin/aqua-compositor probe-gpu-offscreen-frame /dev/dri/card0\r"
+expect {
+    -exact {r2_diagnostic_record_end=v1} {}
+    timeout { puts stderr "Timed out waiting for R2 diagnostic readback record"; exit 1 }
+    eof { puts stderr "QEMU exited before R2 diagnostic readback record"; exit 1 }
+}
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=gpu-offscreen-frame status=ok} {}
+    timeout { puts stderr "Timed out waiting for R2 diagnostic readback cleanup"; exit 1 }
+    eof { puts stderr "QEMU exited before R2 diagnostic readback cleanup"; exit 1 }
+}
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Recovery shell did not return after R2 diagnostic readback"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery after R2 diagnostic readback"; exit 1 }
+}
+
 send -- "poweroff -f\r"
 expect eof
