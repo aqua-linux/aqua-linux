@@ -17,6 +17,7 @@ MULTI_ROUTE_RUNNER="${ROOT_DIR}/scripts/check-audio-multi-route-qemu.sh"
 HOTPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-hotplug-qemu.sh"
 NONDEFAULT_UNPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-nondefault-unplug-qemu.sh"
 ACTIVE_NONDEFAULT_UNPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-active-nondefault-unplug-qemu.sh"
+ACTIVE_DEFAULT_UNPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-active-default-unplug-qemu.sh"
 QMP_DELETE="${ROOT_DIR}/scripts/qmp-device-delete.py"
 EXPECT_SCRIPT="${ROOT_DIR}/scripts/check-audio-qemu.exp"
 PROBE_CONFIG="${ROOT_DIR}/br2-external/aqua/package/aqua-audio-probe/Config.in"
@@ -32,6 +33,20 @@ for assignment in \
     CONFIG_HOTPLUG_PCI_ACPI=y
 do
     grep -Fxq "${assignment}" "${FRAGMENT}"
+done
+
+test -x "${ACTIVE_DEFAULT_UNPLUG_RUNNER}"
+grep -Fq 'AQUA_AUDIO_QEMU_CONTRACT=active-default-unplug' \
+    "${ACTIVE_DEFAULT_UNPLUG_RUNNER}"
+for contract in \
+    'aqua-audio-probe routes-secondary' \
+    'aqua-audio-probe playback-expect-route-loss' \
+    'status=interrupted direction=playback reason=route-loss frames=480' \
+    'removed_default=true active_stream_aborted=true false_success=false' \
+    'fallback_output=true playback_after=true recovery_shell=true'
+do
+    grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}" \
+        "${ACTIVE_DEFAULT_UNPLUG_RUNNER}"
 done
 
 test -x "${ACTIVE_NONDEFAULT_UNPLUG_RUNNER}"
@@ -216,4 +231,4 @@ do
     grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}"
 done
 
-echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backends=none,dbus controlled_inputs=zero-pcm,bipolar-signal,input-disconnect active_service_loss=true active_capture_loss=true control_service_loss=true restart_exhaustion=true multi_route=true selected_device_unplug=true nondefault_device_unplug=true active_nondefault_device_unplug=true fallback=true host_microphone=false default_image_audio=false'
+echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backends=none,dbus controlled_inputs=zero-pcm,bipolar-signal,input-disconnect active_service_loss=true active_capture_loss=true control_service_loss=true restart_exhaustion=true multi_route=true selected_device_unplug=true active_selected_device_unplug=true nondefault_device_unplug=true active_nondefault_device_unplug=true fallback=true host_microphone=false default_image_audio=false'

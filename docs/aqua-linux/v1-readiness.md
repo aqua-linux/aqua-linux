@@ -176,7 +176,11 @@ route does not change while the topology shrinks, and captures non-silent
 playback on that same route before and after removal. Its active-stream variant
 removes the non-default controller after 480 frames and requires the same
 default-route client to complete 48,000 frames without interruption or hidden
-PCM recovery. A separate active-stream
+PCM recovery. Its selected-route counterpart removes authoritative PCI 05.0
+after the same checkpoint, detects the resulting default change through the
+native graph because buffered PCM writes are not authoritative, requires an
+explicit `route-loss` interruption with no false completion, and proves a new
+client can deliver 48,000 non-silent frames on fallback PCI 04.0. A separate active-stream
 profile kills PipeWire after the client has written 480 frames, requires an
 explicit `Broken pipe` interruption with no false completion, observes the
 supervisor's second ordered service attempt, and proves a new 48,000-frame

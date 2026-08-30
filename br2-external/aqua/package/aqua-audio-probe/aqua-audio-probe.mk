@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-AQUA_AUDIO_PROBE_VERSION = 12
+AQUA_AUDIO_PROBE_VERSION = 13
 AQUA_AUDIO_PROBE_SITE = $(BR2_EXTERNAL_AQUA_PATH)/package/aqua-audio-probe/src
 AQUA_AUDIO_PROBE_SITE_METHOD = local
 AQUA_AUDIO_PROBE_LICENSE = MIT

@@ -284,6 +284,18 @@ The native graph must still converge to one authoritative PCI 04.0 output, the
 primary WAV must remain non-silent, and no interruption marker is accepted.
 This proves only the declared virtual non-default-removal boundary.
 
+`scripts/check-audio-active-default-unplug-qemu.sh` covers the selected-route
+counterpart. It first makes PCI 05.0 authoritative, starts route-aware playback,
+and removes that controller through QMP after the 480-frame active marker. The
+ALSA compatibility PCM can continue accepting buffered writes after device
+deletion, so PCM write success is not treated as route survival. The probe
+instead watches the authoritative native topology, requires convergence to the
+sole PCI 04.0 default, emits `reason=route-loss`, exits with the dedicated
+interrupted status, and emits no playback-success marker. A new client must then
+complete 48,000 frames into the non-silent fallback WAV backend. The removed
+backend's short buffered prefix is not used as host transport evidence. This is
+bounded QEMU virtual-topology evidence, not physical hotplug support.
+
 `scripts/check-audio-active-service-loss-qemu.sh` adds an active-client service
 failure boundary. The acceptance probe first writes 480 frames to the declared
 HDA/WAV path and publishes an active marker, after which the test terminates
