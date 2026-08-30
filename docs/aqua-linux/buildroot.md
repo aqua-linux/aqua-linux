@@ -368,6 +368,15 @@ media PIDs, the supervisor PID file, and the PipeWire socket must be gone.
 responsive. This is bounded virtual policy-exhaustion evidence, not default
 audio enablement or physical-device support.
 
+`scripts/check-audio-control-policy-restart-exhaustion-qemu.sh` applies that
+WirePlumber budget to native volume/mute acknowledgement. One bounded healthy
+control cycle must succeed before four successive policy-service losses. The
+first three losses renew both media processes; the fourth must reach the cleaned
+`failed_service=wireplumber` degraded state at attempt 4/restart 3. A new native
+control open must fail without false acknowledgement after every retired media
+PID, the supervisor PID file, and the PipeWire socket are gone. Recovery remains
+responsive; this is opt-in virtual policy-exhaustion evidence only.
+
 `scripts/check-audio-capture-policy-restart-exhaustion-qemu.sh` closes the
 matching controlled-input policy boundary. One exact 4,800-frame zero-PCM
 capture establishes the healthy precondition before the test terminates four

@@ -225,8 +225,11 @@ media processes, rejects control acknowledgement during that bounded outage,
 and succeeds again only on the replacement attempt 2/restart 1 graph. A
 restart-budget control profile separately proves one healthy acknowledgement
 before four PipeWire losses, then rejects control open without false
-acknowledgement after the cleaned attempt 4/restart 3 degraded state. Other
-control and UI failure matrices remain open. The remaining
+acknowledgement after the cleaned attempt 4/restart 3 degraded state. Its
+WirePlumber counterpart proves the same healthy precondition, three complete
+media-pair renewals, and fail-closed control rejection after the fourth policy
+loss reaches `failed_service=wireplumber` degradation. Other control and UI
+failure matrices remain open. The remaining
 UI acknowledgement gate still blocks default-image enablement.
 Buildroot availability or these bounded QEMU profiles are not a complete audio
 integration decision.

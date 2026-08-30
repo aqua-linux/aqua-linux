@@ -563,8 +563,11 @@ full-stack outage to reject acknowledgement, retires both old media processes,
 and succeeds again only after attempt 2/restart 1 restores the complete graph.
 A restart-budget control profile also proves one healthy acknowledgement before
 four PipeWire losses and rejects control open without false acknowledgement
-after the cleaned attempt 4/restart 3 degraded state. Other error behavior
-remains open R4 work; physical hardware support is not claimed.
+after the cleaned attempt 4/restart 3 degraded state. Its WirePlumber counterpart
+proves the same healthy precondition, three complete media-pair renewals, and
+fail-closed control rejection after the fourth policy loss reaches
+`failed_service=wireplumber` degradation. Other error behavior remains open R4
+work; physical hardware support is not claimed.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
 to recovery after each bounded session.
