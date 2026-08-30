@@ -144,7 +144,14 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    removal. A further active-stream variant removes 05.0 after the retained
    default client has written 480 frames; that same client must complete all
    48,000 frames without an interruption marker while the authoritative default
-   remains 04.0. A fifth run attaches a private peer-to-peer
+   remains 04.0. The selected-route counterpart starts on authoritative PCI
+   05.0, removes that controller after 480 frames, and observes the native graph
+   rather than trusting the ALSA compatibility write result. It must report a
+   dedicated `route-loss` interruption with no playback-success marker, then a
+   new client must complete 48,000 frames on fallback PCI 04.0. This distinction
+   is required because the compatibility PCM accepted buffered writes after the
+   removed route disappeared and therefore could otherwise report false
+   completion. A fifth run attaches a private peer-to-peer
    QEMU D-Bus audio listener and injects a bounded 1 kHz bipolar square wave
    without host microphone access. The guest captures exactly 4,800 stereo
    S16LE frames through HDA, ALSA, and PipeWire; all 9,600 samples are non-zero,
@@ -236,8 +243,11 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    also bounded: the native topology proves the surviving selected route remains
    unchanged and playable rather than entering an unnecessary fallback
    transition. The same boundary now holds during an active 48,000-frame stream
-   without hidden ALSA recovery or client replacement. Other error evidence
-   remains open.
+   without hidden ALSA recovery or client replacement. Conversely, removal of
+   the actively selected route is detected from the authoritative native
+   topology at the 480-frame checkpoint, aborts explicitly without false
+   completion, and permits only a new client to prove full playback on the
+   fallback output. Other error evidence remains open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

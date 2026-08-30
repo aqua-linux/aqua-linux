@@ -509,6 +509,11 @@ before and after removal.
 An active variant publishes a 480-frame checkpoint on PCI 04.0 before removing
 the non-default controller and requires that same client to finish 48,000 frames
 without interruption or recovery while the authoritative route stays unchanged.
+A selected-route active variant instead removes authoritative PCI 05.0 after
+480 frames. Because compatibility PCM writes alone can remain successful after
+the route disappears, the probe uses the native topology to report explicit
+`route-loss`, forbids false playback completion, and requires a new client to
+complete 48,000 non-silent frames on fallback PCI 04.0.
 A private QEMU D-Bus input profile additionally injects a deterministic 1 kHz
 bipolar signal without host microphone access and proves an exact 4,800-frame
 capture through HDA, ALSA, and PipeWire with a 4,096 peak and balanced sample
