@@ -10,6 +10,19 @@ import sys
 WORKLOADS = {"idle", "window-interaction", "animation", "multi-client"}
 MIN_REVIEW_RUNS = 3
 MAX_REVIEW_RUNS = 10
+QEMU_BUDGET_PROFILE = "qemu-tcg-bochs-v1"
+QEMU_BUDGET = {
+    "max_frame_time_us": 50_000,
+    "max_input_to_present_us": 60_000_000,
+    "max_cpu_time_us": 180_000_000,
+    "max_memory_growth_kib": 163_840,
+}
+QEMU_BUDGET_FIELDS = {
+    "max_frame_time_us": "max_frame_time_us",
+    "max_input_to_present_us": "max_input_to_present_us",
+    "cpu_time_us": "max_cpu_time_us",
+    "memory_growth_kib": "max_memory_growth_kib",
+}
 INTEGER_FIELDS = {
     "frames_requested",
     "frames_presented",
@@ -162,6 +175,13 @@ def validate_record(record: dict[str, str]) -> dict[str, int | str | bool]:
         raise ValueError(f"CPU framebuffer copy recorded for {workload}")
     if int(parsed["full_frame_readbacks"]) != 0:
         raise ValueError(f"full-frame GPU readback recorded for {workload}")
+    for field, budget_field in QEMU_BUDGET_FIELDS.items():
+        limit = QEMU_BUDGET[budget_field]
+        if int(parsed[field]) > limit:
+            raise ValueError(
+                f"{QEMU_BUDGET_PROFILE} budget exceeded for {workload} {field}: "
+                f"{parsed[field]} > {limit}"
+            )
 
     if workload == "idle":
         if requested != 1 or int(parsed["damage_commits"]) > 1:
@@ -264,7 +284,14 @@ def repeated_review_lines(logs: list[str]) -> list[str]:
         (
             "r2_review_minimum_runs_met=true",
             "r2_review_diagnostic_isolation_recorded=true",
-            "r2_review_budget_selected=false",
+            f"r2_review_budget_profile={QEMU_BUDGET_PROFILE}",
+            f"r2_review_budget_max_frame_time_us={QEMU_BUDGET['max_frame_time_us']}",
+            f"r2_review_budget_max_input_to_present_us={QEMU_BUDGET['max_input_to_present_us']}",
+            f"r2_review_budget_max_cpu_time_us={QEMU_BUDGET['max_cpu_time_us']}",
+            f"r2_review_budget_max_memory_growth_kib={QEMU_BUDGET['max_memory_growth_kib']}",
+            "r2_review_budget_max_dropped_frames=0",
+            "r2_review_budget_selected=true",
+            "r2_review_physical_budget_selected=false",
             "r2_review_record_end=v1",
         )
     )
@@ -328,9 +355,17 @@ def self_test() -> None:
     assert diagnostic["full_frame_readbacks"] == 2
     review = repeated_review_lines([fixture] * MIN_REVIEW_RUNS)
     assert f"r2_review_qemu_runs={MIN_REVIEW_RUNS}" in review
-    assert "r2_review_budget_selected=false" in review
+    assert f"r2_review_budget_profile={QEMU_BUDGET_PROFILE}" in review
+    assert "r2_review_budget_selected=true" in review
+    assert "r2_review_physical_budget_selected=false" in review
     try:
-        validate_log(fixture.replace("r2_presentation_path=production-gbm-kms", "r2_presentation_path=legacy-cpu-copy", 1))
+        validate_log(
+            fixture.replace(
+                "r2_presentation_path=production-gbm-kms",
+                "r2_presentation_path=legacy-cpu-copy",
+                1,
+            )
+        )
     except ValueError:
         pass
     else:
@@ -347,6 +382,25 @@ def self_test() -> None:
         pass
     else:
         raise AssertionError("production readback fixture unexpectedly passed")
+    over_budget_cases = {
+        "max_frame_time_us": (17_000, 50_001),
+        "max_input_to_present_us": (25_000, 60_000_001),
+        "cpu_time_us": (50_000, 180_000_001),
+        "memory_growth_kib": (128, 163_841),
+    }
+    for field, (accepted, rejected) in over_budget_cases.items():
+        try:
+            validate_log(
+                fixture.replace(
+                    f"r2_presentation_{field}={accepted}",
+                    f"r2_presentation_{field}={rejected}",
+                    1,
+                )
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"over-budget {field} fixture unexpectedly passed")
     try:
         validate_log(f"r2_presentation_workload=idle\n{fixture}")
     except ValueError:
@@ -402,7 +456,20 @@ def main() -> int:
     print(f"r2_recorded_max_input_to_present_us={max(int(record['max_input_to_present_us']) for record in records)}")
     print(f"r2_recorded_max_cpu_time_us={max(int(record['cpu_time_us']) for record in records)}")
     print(f"r2_recorded_max_memory_growth_kib={max(int(record['memory_growth_kib']) for record in records)}")
-    print("r2_budget_selected=false")
+    print(f"r2_budget_profile={QEMU_BUDGET_PROFILE}")
+    print(f"r2_budget_max_frame_time_us={QEMU_BUDGET['max_frame_time_us']}")
+    print(
+        "r2_budget_max_input_to_present_us="
+        f"{QEMU_BUDGET['max_input_to_present_us']}"
+    )
+    print(f"r2_budget_max_cpu_time_us={QEMU_BUDGET['max_cpu_time_us']}")
+    print(
+        "r2_budget_max_memory_growth_kib="
+        f"{QEMU_BUDGET['max_memory_growth_kib']}"
+    )
+    print("r2_budget_max_dropped_frames=0")
+    print("r2_budget_selected=true")
+    print("r2_physical_budget_selected=false")
     print("r2_diagnostic_isolation_recorded=true")
     return 0
 

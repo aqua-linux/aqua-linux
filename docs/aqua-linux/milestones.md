@@ -640,8 +640,9 @@ workloads. It separates production GBM/KMS samples from diagnostic readback and
 evaluates frame/page-flip accounting, callbacks, damage, idle suppression,
 timing, CPU, memory growth, and dropped frames against caller-supplied budgets.
 Host fixtures cover both acceptance and fail-closed cases without claiming
-runtime performance. Live QEMU instrumentation, project budget selection, soak
-evidence, and physical-target measurements remain open readiness work.
+runtime performance. Live QEMU instrumentation and a fixed QEMU regression
+budget now exist; soak evidence and physical-target measurements and budgets
+remain open readiness work.
 
 An ordered, bounded telemetry collector now constructs those samples from
 frame requests, page flips or drops, callbacks, damage, latency, readback,
@@ -664,11 +665,12 @@ normal bounded event wait as a repaint. Monotonic observation duration, process
 CPU-clock consumption, and the maximum bounded Linux `VmRSS` growth sampled
 throughout the workload now complete the live resource bridge. The emitted
 snapshot remains partial and cannot satisfy acceptance; packaged QEMU
-four-workload execution and budget selection remain open.
+measurements cannot satisfy physical or release acceptance.
 Versioned serial boundaries now frame each live record, and a fail-closed host
 validator requires exactly one structurally complete QEMU production-GBM/KMS
-record per workload before reporting observed timing and resource maxima. Those
-maxima are explicitly not selected budgets. The validator also requires one
+record per workload before reporting observed timing and resource maxima. The
+validator compares those observations with a separately reviewed fixed profile
+rather than deriving a moving limit from each run. It also requires one
 separately framed offscreen diagnostic record and rejects it unless bounded
 readbacks occur without reading or blocking production frames and without
 activating KMS or display output.
@@ -677,22 +679,25 @@ interaction, frame-driven animation with real input, and two-client Files plus
 Settings workloads in separate recovery-returning sessions, followed by the
 existing deterministic offscreen GLES readback probe. It uses snapshot disk
 mode, refuses a rootfs older than the compositor source, and validates both
-production and isolated diagnostic records without selecting budgets. Executing
-that runner on a freshly built image and reviewing repeated measurements remain
-open.
+production and isolated diagnostic records against the selected QEMU budget.
 
 A bounded repeated-run wrapper now requires three through ten independent QEMU
 boots, refuses to overwrite prior evidence, and revalidates every constituent
 log before emitting a versioned review record. The review preserves per-workload
-frame-time, input-latency, CPU, and memory maxima while explicitly leaving
-budget selection false. This closes the repeat-collection tooling gap, not the
-runtime evidence or reviewed-budget gates.
+frame-time, input-latency, CPU, and memory maxima. The 2026-08-30 review contains
+three independent packaged boots, 12 workload records, and three isolated
+diagnostic records. Its overall maxima are 22,681 us page-flip wait, 46,522,278
+us input-to-present latency, 147,346,897 us CPU time, and 130,476 KiB peak RSS
+growth.
 
 The packaged kernel now enables Bochs DRM and the R2 runner defaults to QEMU
 `bochs-display`. A fresh image completed all four workloads at 1280x800 through
 the `production-gbm-kms` path with direct GBM dma-buf scanout, zero production
 full-frame readbacks and CPU copies, Files plus Settings client callbacks and
 damage, clean recovery return, and a separately isolated diagnostic readback.
-The virtio target remains the recorded `legacy-cpu-copy` fallback. Repeated R2
-collection and explicit budget review remain open, and TCG timings must not be
-used as physical responsiveness evidence.
+The reviewed `qemu-tcg-bochs-v1` profile enforces 50,000 us page-flip wait,
+60,000,000 us input-to-present latency, 180,000,000 us CPU time, 163,840 KiB
+peak RSS growth, and zero dropped frames. The virtio target remains the recorded
+`legacy-cpu-copy` fallback. Repeated R2 collection and explicit QEMU budget
+review are complete for this profile. Soak and physical-target budgets remain
+open, and TCG timings must not be used as physical responsiveness evidence.

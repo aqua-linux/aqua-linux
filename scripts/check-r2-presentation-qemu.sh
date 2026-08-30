@@ -46,7 +46,9 @@ expect "${ROOT_DIR}/scripts/check-r2-presentation-qemu.exp" >/dev/null
 PYTHONDONTWRITEBYTECODE=1 python3 "${VALIDATOR}" "${SERIAL_LOG}" >"${REPORT}"
 
 grep -Fq 'r2_qemu_workload_records=4' "${REPORT}"
-grep -Fq 'r2_budget_selected=false' "${REPORT}"
+grep -Fq 'r2_budget_profile=qemu-tcg-bochs-v1' "${REPORT}"
+grep -Fq 'r2_budget_selected=true' "${REPORT}"
+grep -Fq 'r2_physical_budget_selected=false' "${REPORT}"
 grep -Fq 'r2_diagnostic_isolation_recorded=true' "${REPORT}"
 test "$(grep -Fc 'r2_presentation_record_begin=v1' "${SERIAL_LOG}")" -eq 4
 test "$(grep -Fc 'r2_presentation_record_end=v1' "${SERIAL_LOG}")" -eq 4

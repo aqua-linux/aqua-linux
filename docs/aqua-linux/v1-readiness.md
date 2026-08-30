@@ -85,13 +85,14 @@ The first R2 baseline contract now lives in the renderer-independent
 `aqua-compositor` library. A bounded report requires exactly one production
 sample for idle, window interaction, animation, and multi-client workloads;
 checks GBM/KMS path identity, frame/page-flip accounting, client callbacks and
-damage for the multi-client workload, settled-idle suppression, explicit timing and resource budgets, and
-dropped frames; and rejects CPU framebuffer copies or full-frame readback in
+damage for the multi-client workload, settled-idle suppression, explicit timing
+and resource budgets, and dropped frames; and rejects CPU framebuffer copies or full-frame readback in
 production samples. Diagnostic readback has a separate evidence record and
 must show that it neither reads nor blocks a production frame. Deterministic
 host fixtures prove fail-closed evaluation, but `supports_release_claim`
-remains false. Live QEMU telemetry, fixed project budgets, soak evidence, and
-physical-target evidence are still required before R2 can pass.
+remains false. Live QEMU telemetry and a fixed QEMU regression budget now exist;
+soak evidence and physical-target measurements and budgets are still required
+before R2 can pass.
 
 The model now also owns a bounded `PresentationTelemetry` collector. It accepts
 ordered frame requests, page flips or explicit drops, callbacks, damage,
@@ -127,9 +128,8 @@ set observed during the workload so a transient increase is not hidden by a
 lower final reading. CPU time and peak RSS growth are attached to the same event
 snapshot. The bounded event snapshot is emitted only after clean CRTC
 restoration and is explicitly marked
-`r2_presentation_acceptance_complete=false`. Packaged QEMU runs still need to
-execute all four workloads on a current image and select fixed project budgets
-before R2 can pass.
+`r2_presentation_acceptance_complete=false`. This marker remains false because
+the QEMU regression profile is not a physical responsiveness or release claim.
 
 Each live run now encloses its fields in a versioned `v1` serial-record boundary.
 The host-side `scripts/check-r2-presentation-log.py` validator rejects missing,
@@ -141,9 +141,12 @@ evidence. The same validator requires exactly one separately framed QEMU
 diagnostic-readback record. That record must identify the offscreen diagnostic
 path, account for bounded captures and readbacks, show zero production frames
 read or blocked, and show that neither KMS nor display output started. It then
-emits `r2_diagnostic_isolation_recorded=true` while retaining
-`r2_budget_selected=false`. Its deterministic self-test proves the log contract,
-not packaged runtime performance.
+emits `r2_diagnostic_isolation_recorded=true` and enforces the named
+`qemu-tcg-bochs-v1` regression profile. The profile limits maximum page-flip
+wait to 50,000 us, input-to-present latency to 60,000,000 us, process CPU time
+to 180,000,000 us, peak RSS growth to 163,840 KiB, and dropped frames to zero.
+Its deterministic self-test rejects each over-budget metric. This profile is
+QEMU-only, and `r2_physical_budget_selected=false` remains explicit.
 
 The bounded `scripts/check-r2-presentation-qemu.sh` runner now defines one
 recovery-safe QEMU boot with four isolated compositor sessions. Idle receives no
@@ -153,29 +156,32 @@ and multi-client launches packaged Files and Settings through the launcher. The
 runner refuses a rootfs older than the compositor source, uses snapshot disk
 mode, returns through recovery between workloads, and then executes the existing
 deterministic two-frame offscreen GLES probe under explicit QEMU evidence gates.
-The combined validator records diagnostic isolation but deliberately leaves
-budget selection false. The runner contract alone is not runtime evidence; a
-current image must still execute it successfully and repeated observations must
-be reviewed before budgets are recorded.
+The combined validator records diagnostic isolation and enforces the selected
+QEMU regression profile. The runner contract alone is not runtime evidence.
 
 `scripts/check-r2-presentation-repeated-qemu.sh` now makes that review input
 repeatable. It accepts only three through ten independent boots, refuses to
 overwrite an existing evidence directory, preserves every serial log and
 single-run report, and revalidates each complete workload plus diagnostic set.
 The resulting versioned review record reports workload-specific observed maxima
-for frame time, input-to-present latency, CPU time, and memory growth. It records
-that the minimum run count and diagnostic isolation are present while keeping
-`r2_review_budget_selected=false`; observed maxima are not silently promoted to
-project budgets. A fresh packaged image still has to execute the runner before
-this contract produces runtime evidence.
+for frame time, input-to-present latency, CPU time, and memory growth. Three
+independent packaged Bochs boots completed on 2026-08-30, producing 12 workload
+records and three isolated diagnostic records. The reviewed maxima were 22,681
+us page-flip wait, 46,522,278 us input-to-present latency, 147,346,897 us CPU
+time, and 130,476 KiB peak RSS growth. These observations informed the explicit
+`qemu-tcg-bochs-v1` limits above with bounded headroom; every original log also
+passes those limits independently. The review records
+`r2_review_budget_selected=true` and
+`r2_review_physical_budget_selected=false`.
 
 The packaged kernel now enables Bochs DRM and the macOS QEMU runner defaults to
 `bochs-display`. This reaches Aqua's `production-gbm-kms` path with GLES
 software rendering and direct GBM dma-buf scanout, while emitting zero
 production full-frame readbacks and CPU framebuffer copies. The virtio target
 remains a separately identified `legacy-cpu-copy` fallback. Repeated collection
-and budget review remain downstream; QEMU TCG measurements are not physical
-responsiveness evidence.
+and QEMU budget review are complete for this profile. Soak testing and a
+separately selected physical-target budget remain downstream; QEMU TCG
+measurements are not physical responsiveness evidence.
 
 ### R3: Wayland Compatibility And Display Behavior
 
