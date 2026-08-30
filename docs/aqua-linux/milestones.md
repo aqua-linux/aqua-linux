@@ -523,8 +523,13 @@ as a valid bipolar signal while the media services and recovery shell stay
 responsive. An active playback failure profile additionally writes 480 frames,
 terminates the owning PipeWire process, requires the client to report
 `Broken pipe` without false completion, proves bounded ordered service restart,
-and verifies a new 48,000-frame non-silent playback. A separate restart-budget
-profile terminates four successive real PipeWire processes, requires exactly
+and verifies a new 48,000-frame non-silent playback. A complementary active
+policy-service profile terminates WirePlumber after the active 480-frame
+checkpoint. The client must report explicit interruption, the supervisor must
+retire both old media processes and restart the complete ordered pair at
+attempt 2/restart 1, and a new client must complete 48,000 non-silent frames. A
+separate restart-budget profile terminates four successive real PipeWire
+processes, requires exactly
 three restarts before `degraded` with attempts=4/restarts=3, proves media
 process and socket cleanup, blocks new playback, and retains recovery-shell
 access. An active capture profile additionally reads 480 controlled zero-PCM
