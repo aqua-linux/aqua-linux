@@ -106,11 +106,16 @@ The live DRM-Wayland frame loop now has an opt-in event bridge controlled by
 `AQUA_R2_PRESENTATION_WORKLOAD`. It records every initial and repaint request
 before KMS submission, measures submit-to-page-flip completion, and identifies
 the native GBM/KMS and virtio CPU-copy fallback paths without conflating them.
-The bounded event snapshot is emitted only after clean CRTC restoration and is
-explicitly marked `r2_presentation_acceptance_complete=false`. Packaged QEMU
-runs still need to connect frame callbacks, damage, input latency, idle state,
-CPU, and memory observations, select fixed project budgets, cover all four
-workloads, and isolate diagnostic readback before R2 can pass.
+The same stream baselines aggregate Smithay damage and frame-callback counters,
+records only monotonic deltas at DRM event boundaries, rejects counter
+regression, and performs a final synchronization after the last presentation.
+This avoids multiplying session-wide counters by the number of mapped surfaces
+and captures callbacks emitted after the last page flip. The bounded event
+snapshot is emitted only after clean CRTC restoration and is explicitly marked
+`r2_presentation_acceptance_complete=false`. Packaged QEMU runs still need to
+connect input latency, idle state, CPU, and memory observations, select fixed
+project budgets, cover all four workloads, and isolate diagnostic readback
+before R2 can pass.
 
 ### R3: Wayland Compatibility And Display Behavior
 

@@ -3727,6 +3727,53 @@ fn record_drm_presentation_event(
     result.map_err(|error| format!("cannot record DRM presentation telemetry: {error}"))
 }
 
+#[cfg(any(all(target_os = "linux", feature = "smithay-smoke"), test))]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct WaylandPresentationCounters {
+    damage_commits: u32,
+    frame_callbacks_sent: u32,
+}
+
+#[cfg(any(all(target_os = "linux", feature = "smithay-smoke"), test))]
+fn record_wayland_presentation_counters(
+    telemetry: &mut Option<PresentationTelemetry>,
+    previous: &mut WaylandPresentationCounters,
+    current: WaylandPresentationCounters,
+) -> Result<(), String> {
+    let damage_commits = current
+        .damage_commits
+        .checked_sub(previous.damage_commits)
+        .ok_or_else(|| "Wayland presentation damage counter regressed".to_string())?;
+    let frame_callbacks_sent = current
+        .frame_callbacks_sent
+        .checked_sub(previous.frame_callbacks_sent)
+        .ok_or_else(|| "Wayland presentation callback counter regressed".to_string())?;
+    let telemetry = telemetry
+        .as_mut()
+        .ok_or_else(|| "Wayland counters arrived before DRM presentation telemetry".to_string())?;
+    telemetry
+        .record_damage_commits(damage_commits)
+        .map_err(|error| format!("cannot record Wayland damage telemetry: {error}"))?;
+    telemetry
+        .record_frame_callbacks(frame_callbacks_sent)
+        .map_err(|error| format!("cannot record Wayland callback telemetry: {error}"))?;
+    *previous = current;
+    Ok(())
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn smithay_presentation_counters(
+    session: &SmithayDrmSession,
+) -> Result<WaylandPresentationCounters, String> {
+    let snapshot = session.client_surface_snapshot();
+    Ok(WaylandPresentationCounters {
+        damage_commits: u32::try_from(snapshot.damage_commit_count)
+            .map_err(|_| "Wayland damage counter exceeds telemetry range".to_string())?,
+        frame_callbacks_sent: u32::try_from(snapshot.frame_callbacks_sent)
+            .map_err(|_| "Wayland callback counter exceeds telemetry range".to_string())?,
+    })
+}
+
 #[cfg(target_os = "linux")]
 fn elapsed_micros_bounded(started_at: std::time::Instant) -> u32 {
     u32::try_from(started_at.elapsed().as_micros())
@@ -4610,6 +4657,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
         PresentationEvidenceTarget::Physical
     };
     let r2_presentation_telemetry = RefCell::new(None);
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let r2_wayland_counters = RefCell::new(WaylandPresentationCounters::default());
 
     let result = present_drm_wayland_page_flip!(
         &device,
@@ -4748,6 +4797,12 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     r2_presentation_target,
                     workload,
                     event,
+                )?;
+                #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+                record_wayland_presentation_counters(
+                    &mut r2_presentation_telemetry.borrow_mut(),
+                    &mut r2_wayland_counters.borrow_mut(),
+                    smithay_presentation_counters(&smithay_session.borrow())?,
                 )?;
             }
             Ok(())
@@ -7025,6 +7080,23 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
 
     match result {
         Ok(final_state) => {
+            #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+            if r2_presentation_enabled {
+                record_wayland_presentation_counters(
+                    &mut r2_presentation_telemetry.borrow_mut(),
+                    &mut r2_wayland_counters.borrow_mut(),
+                    smithay_presentation_counters(&smithay_session.borrow()).unwrap_or_else(
+                        |error| {
+                            eprintln!("cannot finalize R2 Wayland counters: {error}");
+                            std::process::exit(1);
+                        },
+                    ),
+                )
+                .unwrap_or_else(|error| {
+                    eprintln!("cannot finalize R2 Wayland telemetry: {error}");
+                    std::process::exit(1);
+                });
+            }
             if let Some(telemetry) = r2_presentation_telemetry.borrow().as_ref() {
                 let snapshot = telemetry.event_snapshot();
                 println!("r2_presentation_live_events=true");
@@ -7043,6 +7115,11 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     "r2_presentation_page_flip_events={}",
                     snapshot.page_flip_events
                 );
+                println!(
+                    "r2_presentation_frame_callbacks_sent={}",
+                    snapshot.frame_callbacks_sent
+                );
+                println!("r2_presentation_damage_commits={}", snapshot.damage_commits);
                 println!(
                     "r2_presentation_cpu_framebuffer_copies={}",
                     snapshot.cpu_framebuffer_copies
@@ -10093,7 +10170,8 @@ mod fbdev_tests {
         drm_kms_confirmation_source, drm_wayland_hold_seconds, fbdev_confirmation_source,
         opaque_layer_covers_reference_output, pack_rgba_frame, parse_virtual_size,
         probe_drm_device, r2_presentation_workload, record_drm_presentation_event,
-        render_fbdev_frame, with_stride, DrmPresentationEvent,
+        record_wayland_presentation_counters, render_fbdev_frame, with_stride,
+        DrmPresentationEvent, WaylandPresentationCounters,
     };
     use aqua_compositor::{PresentationEvidenceTarget, PresentationPath, PresentationWorkload};
     use std::fs;
@@ -10142,6 +10220,60 @@ mod fbdev_tests {
         assert_eq!(snapshot.page_flip_events, 1);
         assert_eq!(snapshot.cpu_framebuffer_copies, 1);
         assert_eq!(snapshot.max_frame_time_us, Some(16_000));
+    }
+
+    #[test]
+    fn live_wayland_counters_record_only_monotonic_deltas() {
+        let mut telemetry = Some(aqua_compositor::PresentationTelemetry::new(
+            PresentationEvidenceTarget::QemuTcg,
+            PresentationPath::ProductionGbmKms,
+            PresentationWorkload::MultiClient,
+        ));
+        let mut previous = WaylandPresentationCounters {
+            damage_commits: 4,
+            frame_callbacks_sent: 2,
+        };
+        record_wayland_presentation_counters(
+            &mut telemetry,
+            &mut previous,
+            WaylandPresentationCounters {
+                damage_commits: 7,
+                frame_callbacks_sent: 6,
+            },
+        )
+        .unwrap();
+        let unchanged = previous;
+        record_wayland_presentation_counters(&mut telemetry, &mut previous, unchanged).unwrap();
+
+        let snapshot = telemetry.unwrap().event_snapshot();
+        assert_eq!(snapshot.damage_commits, 3);
+        assert_eq!(snapshot.frame_callbacks_sent, 4);
+    }
+
+    #[test]
+    fn live_wayland_counters_reject_regression_without_moving_the_baseline() {
+        let mut telemetry = Some(aqua_compositor::PresentationTelemetry::new(
+            PresentationEvidenceTarget::QemuTcg,
+            PresentationPath::ProductionGbmKms,
+            PresentationWorkload::MultiClient,
+        ));
+        let mut previous = WaylandPresentationCounters {
+            damage_commits: 4,
+            frame_callbacks_sent: 2,
+        };
+        let error = record_wayland_presentation_counters(
+            &mut telemetry,
+            &mut previous,
+            WaylandPresentationCounters {
+                damage_commits: 3,
+                frame_callbacks_sent: 2,
+            },
+        )
+        .unwrap_err();
+
+        assert!(error.contains("damage counter regressed"));
+        assert_eq!(previous.damage_commits, 4);
+        assert_eq!(telemetry.unwrap().event_snapshot().damage_commits, 0);
     }
 
     #[test]
