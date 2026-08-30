@@ -84,7 +84,7 @@ use input::{
     event::{
         device::DeviceEvent,
         keyboard::{KeyState, KeyboardEvent, KeyboardEventTrait},
-        pointer::{ButtonState, PointerEvent},
+        pointer::{ButtonState, PointerEvent, PointerEventTrait},
         EventTrait,
     },
     DeviceCapability, Libinput, LibinputInterface,
@@ -3781,6 +3781,41 @@ fn elapsed_micros_bounded(started_at: std::time::Instant) -> u32 {
         .max(1)
 }
 
+#[cfg(any(all(target_os = "linux", feature = "smithay-smoke"), test))]
+fn input_to_present_latency_us(event_time_us: u64, presented_time_us: u64) -> Result<u32, String> {
+    let elapsed = presented_time_us
+        .checked_sub(event_time_us)
+        .ok_or_else(|| "input event time is later than presentation time".to_string())?
+        .max(1);
+    u32::try_from(elapsed)
+        .map_err(|_| "input-to-present latency exceeds telemetry range".to_string())
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn monotonic_time_us() -> Result<u64, String> {
+    let mut time = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    if unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut time) } != 0 {
+        return Err(format!(
+            "cannot read monotonic clock: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    let seconds = u64::try_from(time.tv_sec)
+        .map_err(|_| "monotonic clock returned negative seconds".to_string())?;
+    let nanoseconds = u64::try_from(time.tv_nsec)
+        .map_err(|_| "monotonic clock returned negative nanoseconds".to_string())?;
+    if nanoseconds >= 1_000_000_000 {
+        return Err("monotonic clock returned invalid nanoseconds".to_string());
+    }
+    seconds
+        .checked_mul(1_000_000)
+        .and_then(|value| value.checked_add(nanoseconds / 1_000))
+        .ok_or_else(|| "monotonic clock exceeds telemetry range".to_string())
+}
+
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
 macro_rules! present_drm_wayland_page_flip {
     ($device:expr, $frames:expr, $timeout:expr, $hold:expr, $waiter:expr, $render:expr, $scanout:expr, $event:expr, $presentation:expr, $active:expr, $during_hold:expr $(,)?) => {
@@ -4659,6 +4694,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     let r2_presentation_telemetry = RefCell::new(None);
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let r2_wayland_counters = RefCell::new(WaylandPresentationCounters::default());
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let r2_pending_input_time_us = Cell::new(None::<u64>);
 
     let result = present_drm_wayland_page_flip!(
         &device,
@@ -4792,12 +4829,33 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
         },
         |event| {
             if let Some(workload) = r2_presentation_workload {
+                #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+                let page_flip_presented =
+                    matches!(event, DrmPresentationEvent::PageFlipPresented { .. });
                 record_drm_presentation_event(
                     &mut r2_presentation_telemetry.borrow_mut(),
                     r2_presentation_target,
                     workload,
                     event,
                 )?;
+                #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+                if page_flip_presented {
+                    if let Some(event_time_us) = r2_pending_input_time_us.take() {
+                        let latency_us =
+                            input_to_present_latency_us(event_time_us, monotonic_time_us()?)?;
+                        r2_presentation_telemetry
+                            .borrow_mut()
+                            .as_mut()
+                            .ok_or_else(|| {
+                                "input latency arrived before DRM presentation telemetry"
+                                    .to_string()
+                            })?
+                            .record_input_to_present(latency_us)
+                            .map_err(|error| {
+                                format!("cannot record input-to-present telemetry: {error}")
+                            })?;
+                    }
+                }
                 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
                 record_wayland_presentation_counters(
                     &mut r2_presentation_telemetry.borrow_mut(),
@@ -4991,8 +5049,19 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                             .map(|deadline| deadline - now)
                             .unwrap_or(maximum_dispatch_timeout)
                             .min(maximum_dispatch_timeout);
-                        source
+                        let input_event_time_us = source
                             .dispatch_until(&mut smithay_session.borrow_mut(), dispatch_timeout)?;
+                        if r2_presentation_enabled {
+                            if let Some(input_event_time_us) = input_event_time_us {
+                                r2_pending_input_time_us.set(Some(
+                                    r2_pending_input_time_us
+                                        .get()
+                                        .map_or(input_event_time_us, |pending| {
+                                            pending.min(input_event_time_us)
+                                        }),
+                                ));
+                            }
+                        }
                         if smithay_session.borrow().has_session_action_request() {
                             println!("desktop_input_action_yield=desktop-event-loop");
                         }
@@ -7121,6 +7190,14 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                 );
                 println!("r2_presentation_damage_commits={}", snapshot.damage_commits);
                 println!(
+                    "r2_presentation_input_to_present_samples={}",
+                    snapshot.input_to_present_samples
+                );
+                println!(
+                    "r2_presentation_max_input_to_present_us={}",
+                    snapshot.max_input_to_present_us.unwrap_or_default()
+                );
+                println!(
                     "r2_presentation_cpu_framebuffer_copies={}",
                     snapshot.cpu_framebuffer_copies
                 );
@@ -7386,9 +7463,10 @@ impl LibinputAquaSeatSource {
         &mut self,
         session: &mut SmithayDrmSession,
         timeout: Duration,
-    ) -> Result<(), String> {
+    ) -> Result<Option<u64>, String> {
         let deadline = std::time::Instant::now() + timeout;
         let mut events = PollEvents::new();
+        let mut first_input_event_time_us = None;
         while std::time::Instant::now() < deadline {
             self.context
                 .dispatch()
@@ -7415,6 +7493,11 @@ impl LibinputAquaSeatSource {
                         }
                     }
                     input::Event::Keyboard(KeyboardEvent::Key(event)) => {
+                        first_input_event_time_us = Some(
+                            first_input_event_time_us.map_or(event.time_usec(), |current: u64| {
+                                current.min(event.time_usec())
+                            }),
+                        );
                         session.dispatch_keyboard_key(
                             event.key(),
                             event.key_state() == KeyState::Pressed,
@@ -7422,9 +7505,19 @@ impl LibinputAquaSeatSource {
                         );
                     }
                     input::Event::Pointer(PointerEvent::Motion(event)) => {
+                        first_input_event_time_us = Some(
+                            first_input_event_time_us.map_or(event.time_usec(), |current: u64| {
+                                current.min(event.time_usec())
+                            }),
+                        );
                         session.dispatch_pointer_motion(event.dx(), event.dy(), self.serial);
                     }
                     input::Event::Pointer(PointerEvent::Button(event)) => {
+                        first_input_event_time_us = Some(
+                            first_input_event_time_us.map_or(event.time_usec(), |current: u64| {
+                                current.min(event.time_usec())
+                            }),
+                        );
                         session.dispatch_pointer_button(
                             event.button(),
                             event.button_state() == ButtonState::Pressed,
@@ -7440,7 +7533,7 @@ impl LibinputAquaSeatSource {
             }
             if session.has_session_action_request() {
                 println!("desktop_input_action_yield=dispatch-until-return");
-                return Ok(());
+                return Ok(first_input_event_time_us);
             }
             events.clear();
             let remaining = deadline.saturating_duration_since(std::time::Instant::now());
@@ -7453,7 +7546,7 @@ impl LibinputAquaSeatSource {
                 break;
             }
         }
-        Ok(())
+        Ok(first_input_event_time_us)
     }
 }
 
@@ -10168,10 +10261,10 @@ mod fbdev_tests {
     use super::{
         bytes_per_pixel, checksum_frame_bytes, client_shadow_damage_rects, decode_png_rgba,
         drm_kms_confirmation_source, drm_wayland_hold_seconds, fbdev_confirmation_source,
-        opaque_layer_covers_reference_output, pack_rgba_frame, parse_virtual_size,
-        probe_drm_device, r2_presentation_workload, record_drm_presentation_event,
-        record_wayland_presentation_counters, render_fbdev_frame, with_stride,
-        DrmPresentationEvent, WaylandPresentationCounters,
+        input_to_present_latency_us, opaque_layer_covers_reference_output, pack_rgba_frame,
+        parse_virtual_size, probe_drm_device, r2_presentation_workload,
+        record_drm_presentation_event, record_wayland_presentation_counters, render_fbdev_frame,
+        with_stride, DrmPresentationEvent, WaylandPresentationCounters,
     };
     use aqua_compositor::{PresentationEvidenceTarget, PresentationPath, PresentationWorkload};
     use std::fs;
@@ -10274,6 +10367,14 @@ mod fbdev_tests {
         assert!(error.contains("damage counter regressed"));
         assert_eq!(previous.damage_commits, 4);
         assert_eq!(telemetry.unwrap().event_snapshot().damage_commits, 0);
+    }
+
+    #[test]
+    fn input_latency_uses_monotonic_microseconds_and_is_bounded() {
+        assert_eq!(input_to_present_latency_us(10_000, 26_500).unwrap(), 16_500);
+        assert_eq!(input_to_present_latency_us(10_000, 10_000).unwrap(), 1);
+        assert!(input_to_present_latency_us(10_001, 10_000).is_err());
+        assert!(input_to_present_latency_us(0, u64::from(u32::MAX) + 1).is_err());
     }
 
     #[test]

@@ -108,8 +108,10 @@ pub struct PresentationEventSnapshot {
     pub page_flip_events: u32,
     pub frame_callbacks_sent: u32,
     pub damage_commits: u32,
+    pub input_to_present_samples: u32,
     pub cpu_framebuffer_copies: u32,
     pub max_frame_time_us: Option<u32>,
+    pub max_input_to_present_us: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -165,6 +167,7 @@ pub struct PresentationTelemetry {
     repeating_repaint_timer_after_settle: bool,
     max_frame_time_us: Option<u32>,
     max_input_to_present_us: Option<u32>,
+    input_to_present_samples: u32,
 }
 
 impl PresentationTelemetry {
@@ -189,6 +192,7 @@ impl PresentationTelemetry {
             repeating_repaint_timer_after_settle: false,
             max_frame_time_us: None,
             max_input_to_present_us: None,
+            input_to_present_samples: 0,
         }
     }
 
@@ -249,6 +253,10 @@ impl PresentationTelemetry {
         if latency_us == 0 {
             return Err(PresentationTelemetryError::InvalidInputToPresentTime);
         }
+        increment_event(
+            &mut self.input_to_present_samples,
+            "input-to-present-sample",
+        )?;
         self.max_input_to_present_us = Some(
             self.max_input_to_present_us
                 .map_or(latency_us, |current| current.max(latency_us)),
@@ -302,8 +310,10 @@ impl PresentationTelemetry {
             page_flip_events: self.page_flip_events,
             frame_callbacks_sent: self.frame_callbacks_sent,
             damage_commits: self.damage_commits,
+            input_to_present_samples: self.input_to_present_samples,
             cpu_framebuffer_copies: self.cpu_framebuffer_copies,
             max_frame_time_us: self.max_frame_time_us,
+            max_input_to_present_us: self.max_input_to_present_us,
         }
     }
 
@@ -573,6 +583,8 @@ mod tests {
         assert_eq!(event_snapshot.frame_callbacks_sent, 2);
         assert_eq!(event_snapshot.damage_commits, 1);
         assert_eq!(event_snapshot.max_frame_time_us, Some(14_000));
+        assert_eq!(event_snapshot.input_to_present_samples, 1);
+        assert_eq!(event_snapshot.max_input_to_present_us, Some(24_000));
         telemetry.record_frame_requested().unwrap();
         telemetry.record_dropped_frame().unwrap();
 

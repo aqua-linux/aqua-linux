@@ -654,6 +654,9 @@ submit-to-event timing into this collector, preserves the runtime-selected path,
 and counts dumb-buffer copies separately. Aggregate Smithay frame-callback and
 damage counters are baselined once, recorded as monotonic deltas without
 per-surface multiplication, and synchronized once more after the final flip.
-The emitted snapshot remains partial and cannot satisfy acceptance; packaged
-QEMU latency, idle, resource, four-workload, budget, and diagnostic-isolation
-evidence remain open.
+Real libinput keyboard, pointer-motion, and pointer-button timestamps are
+retained from the earliest unpresented event and measured at the next real
+page-flip boundary; the snapshot reports both a bounded sample count and maximum
+input-to-present latency. The emitted snapshot remains partial and cannot
+satisfy acceptance; packaged QEMU idle, resource, four-workload, budget, and
+diagnostic-isolation evidence remain open.
