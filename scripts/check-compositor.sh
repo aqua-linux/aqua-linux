@@ -392,6 +392,14 @@ check_output_contains "unfocused_clipboard_rejected=true" cargo run -p aqua-comp
 check_output_contains "unfocused_primary_rejected=true" cargo run -p aqua-compositor -- probe-selection-ownership
 check_output_contains "clipboard_offer_reaches_new_focus=true" cargo run -p aqua-compositor -- probe-selection-ownership
 check_output_contains "primary_offer_reaches_new_focus=true" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "clipboard_mime_negotiated=true" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "primary_mime_negotiated=true" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "unsupported_mime_not_requested=true" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "clipboard_payload_transferred=true" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "primary_payload_transferred=true" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "compositor_buffers_payload=false" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "owner_disconnect_clears_clipboard=true" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "owner_disconnect_clears_primary=true" cargo run -p aqua-compositor -- probe-selection-ownership
 check_output_contains "data_control_global_exposed=false" cargo run -p aqua-compositor -- probe-selection-ownership
 check_output_contains "[AQUA-COMPOSITOR] stage=xdg-toplevel-window-model status=ok" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model
 check_output_contains "window_model_status=xdg-toplevel-window-model" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model

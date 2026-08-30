@@ -10375,6 +10375,38 @@ fn probe_selection_ownership_cli() {
                 probe.primary_offer_reaches_new_focus
             );
             println!(
+                "clipboard_mime_negotiated={}",
+                probe.clipboard_mime_negotiated
+            );
+            println!("primary_mime_negotiated={}", probe.primary_mime_negotiated);
+            println!(
+                "unsupported_mime_not_requested={}",
+                probe.unsupported_mime_not_requested
+            );
+            println!(
+                "clipboard_payload_transferred={}",
+                probe.clipboard_payload_transferred
+            );
+            println!(
+                "primary_payload_transferred={}",
+                probe.primary_payload_transferred
+            );
+            println!("clipboard_payload_bytes={}", probe.clipboard_payload_bytes);
+            println!("primary_payload_bytes={}", probe.primary_payload_bytes);
+            println!("transfer_limit_bytes={}", probe.transfer_limit_bytes);
+            println!(
+                "compositor_buffers_payload={}",
+                probe.compositor_buffers_payload
+            );
+            println!(
+                "owner_disconnect_clears_clipboard={}",
+                probe.owner_disconnect_clears_clipboard
+            );
+            println!(
+                "owner_disconnect_clears_primary={}",
+                probe.owner_disconnect_clears_primary
+            );
+            println!(
                 "ownership_handoff_accepted={}",
                 probe.ownership_handoff_accepted
             );

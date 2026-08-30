@@ -79,7 +79,7 @@ for needle in [
     "# Aqua Linux v1.0 Progress Report",
     f"**Roadmap implementation progress: {data.get('overallPercent')}%**",
     "## Product Readiness",
-    "Standard clipboard and primary-selection ownership follows Aqua Seat keyboard focus.",
+    "exact direct-FD payload transfer",
     "| Classification | packaged-QEMU-proven prototype |",
     "| Daily-use ready | No |",
     "| Hardware-proven | No |",
