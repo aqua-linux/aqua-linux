@@ -24,7 +24,7 @@ TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-output}"
 
 case "${AQUA_AUDIO_QEMU_CONTRACT}" in
-    output|input|input-signal|input-disconnect|active-input-unplug|service-loss|policy-service-loss|capture-service-loss|capture-policy-service-loss|control-service-loss|control-policy-service-loss|restart-exhaustion|capture-restart-exhaustion|policy-restart-exhaustion|capture-policy-restart-exhaustion|multi-route|hotplug|replug|nondefault-unplug|active-nondefault-unplug|active-default-unplug) ;;
+    output|input|input-signal|input-disconnect|active-input-unplug|service-loss|policy-service-loss|capture-service-loss|capture-policy-service-loss|control-service-loss|control-policy-service-loss|restart-exhaustion|control-restart-exhaustion|capture-restart-exhaustion|policy-restart-exhaustion|capture-policy-restart-exhaustion|multi-route|hotplug|replug|nondefault-unplug|active-nondefault-unplug|active-default-unplug) ;;
     *)
         echo "Unsupported audio QEMU contract: ${AQUA_AUDIO_QEMU_CONTRACT}" >&2
         exit 2
@@ -264,6 +264,19 @@ elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = restart-exhaustion; then
     done
     test "$(grep -Fc '[AQUA-MEDIA] stage=media-service-supervisor status=restarting failed_service=pipewire' "${SERIAL_LOG}")" -eq 3
     echo 'Aqua Linux QEMU audio restart-exhaustion check passed.'
+elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = control-restart-exhaustion; then
+    for marker in \
+        '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \
+        '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true' \
+        '[AQUA-MEDIA] stage=media-service-supervisor status=degraded reason=restart-limit failed_service=pipewire attempts=4 restarts=3' \
+        '[AQUA-AUDIO] stage=qemu-control-restart-exhaustion status=ok failed_service=pipewire attempts=4 restarts=3 restart_limit=true full_stack_retired=true services_stopped=true control_before=true control_blocked=true false_acknowledgement=false recovery_shell=true'
+    do
+        grep -Fq "${marker}" "${SERIAL_LOG}"
+    done
+    test "$(grep -Fc '[AQUA-MEDIA] stage=media-service-supervisor status=restarting failed_service=pipewire' "${SERIAL_LOG}")" -eq 3
+    test "$(grep -Fc '[AQUA-AUDIO] stage=control-probe status=ok backend=aqua-audio-native default_sink=true volume=35 mute_cycle=true' "${SERIAL_LOG}")" -eq 1
+    test "$(grep -Fc '[AQUA-AUDIO] stage=control-probe status=failed operation=open code=-2 detail=Unable to connect to PipeWire' "${SERIAL_LOG}")" -eq 1
+    echo 'Aqua Linux QEMU audio control restart-exhaustion check passed.'
 elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = capture-restart-exhaustion; then
     for marker in \
         '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \

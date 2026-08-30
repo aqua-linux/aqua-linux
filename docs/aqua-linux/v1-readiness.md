@@ -222,7 +222,10 @@ while the real PipeWire socket is absent and to succeed again only after the
 supervisor restores a new authoritative graph. The complementary policy-loss
 profile terminates WirePlumber, proves its full-stack response retires both old
 media processes, rejects control acknowledgement during that bounded outage,
-and succeeds again only on the replacement attempt 2/restart 1 graph. Other
+and succeeds again only on the replacement attempt 2/restart 1 graph. A
+restart-budget control profile separately proves one healthy acknowledgement
+before four PipeWire losses, then rejects control open without false
+acknowledgement after the cleaned attempt 4/restart 3 degraded state. Other
 control and UI failure matrices remain open. The remaining
 UI acknowledgement gate still blocks default-image enablement.
 Buildroot availability or these bounded QEMU profiles are not a complete audio
