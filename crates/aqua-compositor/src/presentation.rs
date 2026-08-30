@@ -72,9 +72,20 @@ pub struct PresentationBudget {
 
 impl PresentationBudget {
     pub const fn is_bounded(self) -> bool {
-        self.max_frame_time_us > 0 && self.max_input_to_present_us > 0 && self.max_cpu_time_us > 0
+        self.max_frame_time_us > 0
+            && self.max_input_to_present_us > 0
+            && self.max_cpu_time_us > 0
+            && self.max_memory_growth_kib > 0
     }
 }
+
+pub const QEMU_TCG_BOCHS_V1_BUDGET: PresentationBudget = PresentationBudget {
+    max_frame_time_us: 50_000,
+    max_input_to_present_us: 60_000_000,
+    max_dropped_frames: 0,
+    max_cpu_time_us: 180_000_000,
+    max_memory_growth_kib: 163_840,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PresentationSample {
@@ -739,6 +750,24 @@ mod tests {
             diagnostic(),
         );
 
+        assert!(report.is_baseline_ready());
+        assert!(!report.supports_release_claim());
+    }
+
+    #[test]
+    fn qemu_tcg_bochs_v1_budget_is_bounded_and_not_a_release_claim() {
+        assert!(QEMU_TCG_BOCHS_V1_BUDGET.is_bounded());
+        assert_eq!(QEMU_TCG_BOCHS_V1_BUDGET.max_frame_time_us, 50_000);
+        assert_eq!(QEMU_TCG_BOCHS_V1_BUDGET.max_input_to_present_us, 60_000_000);
+        assert_eq!(QEMU_TCG_BOCHS_V1_BUDGET.max_dropped_frames, 0);
+        assert_eq!(QEMU_TCG_BOCHS_V1_BUDGET.max_cpu_time_us, 180_000_000);
+        assert_eq!(QEMU_TCG_BOCHS_V1_BUDGET.max_memory_growth_kib, 163_840);
+        let report = R2PresentationReport::evaluate(
+            PresentationEvidenceTarget::HostFixture,
+            QEMU_TCG_BOCHS_V1_BUDGET,
+            &samples(),
+            diagnostic(),
+        );
         assert!(report.is_baseline_ready());
         assert!(!report.supports_release_claim());
     }

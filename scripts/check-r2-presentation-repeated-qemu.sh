@@ -41,7 +41,9 @@ PYTHONDONTWRITEBYTECODE=1 python3 "${VALIDATOR}" --summarize-repeated \
 grep -Fq "r2_review_qemu_runs=${RUNS}" "${EVIDENCE_DIR}/review.txt"
 grep -Fq 'r2_review_minimum_runs_met=true' "${EVIDENCE_DIR}/review.txt"
 grep -Fq 'r2_review_diagnostic_isolation_recorded=true' "${EVIDENCE_DIR}/review.txt"
-grep -Fq 'r2_review_budget_selected=false' "${EVIDENCE_DIR}/review.txt"
+grep -Fq 'r2_review_budget_profile=qemu-tcg-bochs-v1' "${EVIDENCE_DIR}/review.txt"
+grep -Fq 'r2_review_budget_selected=true' "${EVIDENCE_DIR}/review.txt"
+grep -Fq 'r2_review_physical_budget_selected=false' "${EVIDENCE_DIR}/review.txt"
 
 echo "Aqua Linux repeated R2 presentation collection passed."
 echo "Evidence directory: ${EVIDENCE_DIR}"

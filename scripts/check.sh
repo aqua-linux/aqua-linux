@@ -496,12 +496,17 @@ grep -Fq 'drm_wayland_gpu_frame_readback={cpu_scanout_compat}' crates/aqua-compo
 grep -Fq 'render-submission-token' crates/aqua-compositor/src/main.rs
 grep -Fq 'AQUA_R2_DIAGNOSTIC_READBACK_TELEMETRY=true' scripts/check-r2-presentation-qemu.exp
 grep -Fq 'r2_diagnostic_record_end=v1' scripts/check-r2-presentation-qemu.exp
-grep -Fq 'r2_budget_selected=false' scripts/check-r2-presentation-qemu.sh
+grep -Fq 'r2_budget_profile=qemu-tcg-bochs-v1' scripts/check-r2-presentation-qemu.sh
+grep -Fq 'r2_budget_selected=true' scripts/check-r2-presentation-qemu.sh
+grep -Fq 'r2_physical_budget_selected=false' scripts/check-r2-presentation-qemu.sh
 grep -Fq 'r2_diagnostic_isolation_recorded=true' scripts/check-r2-presentation-qemu.sh
 grep -Fq 'RUNS="${RUNS:-3}"' scripts/check-r2-presentation-repeated-qemu.sh
 grep -Fq 'R2 evidence directory already exists' scripts/check-r2-presentation-repeated-qemu.sh
 grep -Fq -- '--summarize-repeated' scripts/check-r2-presentation-repeated-qemu.sh
-grep -Fq 'r2_review_budget_selected=false' scripts/check-r2-presentation-repeated-qemu.sh
+grep -Fq 'r2_review_budget_profile=qemu-tcg-bochs-v1' scripts/check-r2-presentation-repeated-qemu.sh
+grep -Fq 'r2_review_budget_selected=true' scripts/check-r2-presentation-repeated-qemu.sh
+grep -Fq 'r2_review_physical_budget_selected=false' scripts/check-r2-presentation-repeated-qemu.sh
+grep -Fq 'pub const QEMU_TCG_BOCHS_V1_BUDGET' crates/aqua-compositor/src/presentation.rs
 grep -Fq -- '--serve' scripts/send-qemu-monitor-input.py
 grep -Fq 'AQUA_QEMU_INPUT_CONTROL_SOCKET' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'request_input_daemon' scripts/capture-qemu-monitor-screendump.py
