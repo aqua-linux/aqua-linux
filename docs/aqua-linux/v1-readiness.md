@@ -178,8 +178,12 @@ playback produces non-silent output while recovery remains live. A separate
 real-service exhaustion profile kills four successive PipeWire processes,
 requires exactly three restart transitions before the configured budget leaves
 the graph degraded, confirms process/socket cleanup, rejects new playback and
-`wpctl` access, and preserves the recovery shell. Other media error matrices
-remain open. The remaining
+`wpctl` access, and preserves the recovery shell. A separate controlled
+active-capture profile kills PipeWire after
+480 zero-PCM frames, requires an explicit interrupted result without false
+capture success, observes ordered recovery, and captures a new exact 4,800
+frames without host-microphone access. Other media error matrices remain open.
+The remaining
 UI acknowledgement gate still blocks default-image enablement.
 Buildroot availability or these bounded QEMU profiles are not a complete audio
 integration decision.

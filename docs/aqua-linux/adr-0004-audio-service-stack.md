@@ -157,8 +157,13 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    It requires exactly three restart markers followed by `state=degraded`,
    `attempts=4`, and `restarts=3`; both service PIDs and the PipeWire socket
    must be gone, new playback and `wpctl` access must fail closed, and the
-   recovery shell must remain responsive. Other media error behavior remains
-   open.
+   recovery shell must remain responsive. A ninth run opens a controlled
+   zero-PCM capture, publishes an active marker after 480 frames, and then
+   terminates its owning PipeWire process. The client must report `Broken pipe`
+   with a dedicated interrupted status and no false capture success; after the
+   ordered restart, a new client must capture exactly 4,800 zero-PCM frames.
+   The profile never requests a host microphone and keeps recovery responsive.
+   Other media error behavior remains open.
 4. Settings and the top bar consume authoritative adapter state. Pointer and
    keyboard changes must be acknowledged by the service before the UI claims
    application; service failure must visibly degrade and recover.
@@ -210,7 +215,9 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    verified non-silent playback from a new client. Repeated real PipeWire loss
    now additionally proves the configured restart budget is finite, leaves no
    media processes or socket after degradation, and blocks new playback while
-   recovery remains available. Other error evidence remains open.
+   recovery remains available. Active controlled capture now also fails
+   explicitly on PipeWire loss and succeeds from a new client after ordered
+   recovery without host-microphone access. Other error evidence remains open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

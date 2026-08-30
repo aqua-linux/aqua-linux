@@ -288,6 +288,16 @@ must fail closed while the recovery shell remains responsive. This is bounded
 QEMU service-exhaustion evidence; it does not enable audio by default or prove
 physical-device behavior.
 
+`scripts/check-audio-active-capture-loss-qemu.sh` adds the matching active-input
+service boundary without requesting a host microphone. QEMU's timer-backed
+`none` ADC supplies controlled zero PCM; the probe publishes an active marker
+after 480 frames, then the test terminates its exact supervisor-owned PipeWire
+PID. The client must exit with status 3 and `Broken pipe` from capture I/O,
+without any capture-success marker. A different PipeWire PID and `attempts=2`
+must restore the graph before a new client captures exactly 4,800 zero-PCM
+frames. This is virtual service-loss evidence, not physical microphone or
+device-disconnect support.
+
 `/usr/bin/aqua-session-check` is the recovery-safe aggregate checker for the same contract. Boot writes its output to `/run/aqua-session-check.log`, and users can run it manually from the recovery shell.
 
 ## Current Boot Choice
