@@ -51,5 +51,8 @@ grep -Fq 'default_image_changed' "$REPORT_WRITER"
 grep -Fq 'release_cleared' "$REPORT_WRITER"
 grep -Fq '"aqua-audio-native": "1"' "$REPORT_WRITER"
 grep -Fq 'BR2_PACKAGE_AQUA_AUDIO_NATIVE' "$REHEARSAL_SCRIPT"
+grep -Fxq \
+    'BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_AQUA_PATH)/rootfs-overlay $(BR2_EXTERNAL_AQUA_PATH)/audio-rootfs-overlay"' \
+    "$REHEARSAL_CONFIG"
 
 echo 'Aqua Linux audio Buildroot rehearsal checks passed.'

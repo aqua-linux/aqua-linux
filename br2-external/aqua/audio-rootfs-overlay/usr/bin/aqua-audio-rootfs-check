@@ -1,0 +1,132 @@
+#!/bin/sh
+
+set -eu
+
+ROOT="${AQUA_AUDIO_ROOT:-}"
+CONFIG="${ROOT}/etc/aqua/media-services.conf"
+STACK_CONFIG="${ROOT}/etc/aqua/audio-stack.conf"
+
+fail() {
+    echo "[AQUA-AUDIO] stage=rootfs-contract status=failed reason=$1" >&2
+    exit 1
+}
+
+require_regular() {
+    candidate="${ROOT}$1"
+    [ -f "${candidate}" ] && [ ! -L "${candidate}" ] || fail "invalid-regular-file path=$1"
+}
+
+require_executable() {
+    require_regular "$1"
+    [ -x "${ROOT}$1" ] || fail "non-executable-file path=$1"
+}
+
+require_value() {
+    key="$1"
+    expected="$2"
+    count="$(awk -F= -v key="${key}" -v expected="${expected}" '
+        $1 == key && substr($0, length(key) + 2) == expected { count++ }
+        END { print count + 0 }
+    ' "${CONFIG}")"
+    [ "${count}" -eq 1 ] || fail "invalid-config-value key=${key}"
+    total="$(awk -F= -v key="${key}" '$1 == key { count++ } END { print count + 0 }' "${CONFIG}")"
+    [ "${total}" -eq 1 ] || fail "duplicate-config-key key=${key}"
+}
+
+require_regular /etc/aqua/media-services.conf
+for assignment in \
+    'enabled=true' \
+    'profile=audio-rootfs-opt-in' \
+    'pipewire_binary=/usr/bin/pipewire' \
+    'wireplumber_binary=/usr/bin/wireplumber' \
+    'max_restarts=3' \
+    'restart_delay_seconds=2' \
+    'readiness_timeout_seconds=10' \
+    'wireplumber_stable_seconds=1' \
+    'stable_runtime_seconds=30' \
+    'monitor_interval_seconds=1' \
+    'service_owner=aqua' \
+    'service_uid=1000' \
+    'runtime_dir=/run/user/1000' \
+    'automatic_root_service=false' \
+    'native_library=/usr/lib/libaqua-audio-native.so.1'
+do
+    require_value "${assignment%%=*}" "${assignment#*=}"
+done
+
+require_regular /etc/aqua/audio-stack.conf
+CONFIG="${STACK_CONFIG}"
+for assignment in \
+    'buildroot_version=2025.02.17' \
+    'alsa_lib_version=1.2.13' \
+    'pipewire_version=1.2.8' \
+    'wireplumber_version=0.5.5' \
+    'eudev_version=3.2.14' \
+    'lua_version=5.4.8' \
+    'glib_version=2.82.5' \
+    'aqua_audio_native_version=1'
+do
+    require_value "${assignment%%=*}" "${assignment#*=}"
+done
+CONFIG="${ROOT}/etc/aqua/media-services.conf"
+
+for executable in \
+    /usr/bin/aqua-audio-rootfs-check \
+    /usr/bin/aqua-media-service-supervisor \
+    /usr/bin/aqua-media-service-stop \
+    /usr/bin/pipewire \
+    /usr/bin/wireplumber \
+    /usr/bin/wpctl
+do
+    require_executable "${executable}"
+done
+
+for runtime_file in \
+    /usr/lib/libaqua-audio-native.so.1 \
+    /usr/lib/pipewire-0.3/libpipewire-module-protocol-native.so \
+    /usr/lib/wireplumber-0.5/libwireplumber-module-default-nodes-api.so \
+    /usr/lib/wireplumber-0.5/libwireplumber-module-mixer-api.so \
+    /usr/share/pipewire/pipewire.conf \
+    /usr/share/wireplumber/wireplumber.conf
+do
+    require_regular "${runtime_file}"
+done
+
+awk -F: '$1 == "aqua" && $3 == 1000 && $4 == 1000 { found = 1 } END { exit !found }' \
+    "${ROOT}/etc/passwd" || fail "invalid-aqua-identity"
+for group in audio video input; do
+    awk -F: -v group="${group}" '
+        $1 == group {
+            count = split($4, members, ",")
+            for (member_index = 1; member_index <= count; member_index++) {
+                if (members[member_index] == "aqua") found = 1
+            }
+        }
+        END { exit !found }
+    ' "${ROOT}/etc/group" || fail "missing-session-group group=${group}"
+done
+
+if [ -d "${ROOT}/etc/init.d" ] &&
+   grep -ERiq '(^|[^[:alnum:]_-])(pipewire|wireplumber|aqua-media-service-supervisor)([^[:alnum:]_-]|$)' \
+       "${ROOT}/etc/init.d"; then
+    fail "automatic-root-service location=/etc/init.d"
+fi
+if [ -f "${ROOT}/etc/inittab" ] &&
+   grep -Eiq '(pipewire|wireplumber|aqua-media-service-supervisor)' "${ROOT}/etc/inittab"; then
+    fail "automatic-root-service location=/etc/inittab"
+fi
+
+for excluded in /usr/bin/pulseaudio /usr/bin/jackd /usr/bin/jackdbus; do
+    [ ! -e "${ROOT}${excluded}" ] && [ ! -L "${ROOT}${excluded}" ] || \
+        fail "unexpected-compatibility-layer path=${excluded}"
+done
+
+if [ -z "${AQUA_AUDIO_ROOT:-}" ]; then
+    [ -d /run/user/1000 ] && [ ! -L /run/user/1000 ] || fail "missing-session-runtime"
+    owner="$(ls -nd /run/user/1000 | awk '{print $3 ":" $4}')"
+    mode="$(LC_ALL=C ls -ld /run/user/1000 | awk '{print substr($1, 1, 10)}')"
+    [ "${owner}" = "1000:1000" ] && [ "${mode}" = "drwx------" ] || \
+        fail "unsafe-session-runtime"
+fi
+
+echo '[AQUA-AUDIO] stage=rootfs-contract status=ok profile=audio-rootfs-opt-in owner_uid=1000 runtime_dir=/run/user/1000 automatic_root_service=false compatibility_layers=false'

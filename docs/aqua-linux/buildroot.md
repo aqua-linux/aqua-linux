@@ -182,15 +182,34 @@ public headers, library, and pkg-config metadata are available to dependents.
 under `build/audio-rehearsal/`; the 2026-08-30 run verified the recorded stack
 and bridge versions and kept D-Bus, Bluetooth, JACK, PulseAudio, FFmpeg,
 GStreamer, and V4L2 disabled. Generated evidence remains untracked and is not
-release clearance. eudev is already packaged for general device discovery. Aqua has a locked unprivileged
-graphical-session identity, a private user-owned runtime directory, and
-explicit `video`, `audio`, and `input` group membership. Audio work must still
-add an opt-in rootfs contract and real QEMU media evidence. The typed transport,
-native bridge, ordered per-user supervisor, dependency rehearsal, and
-fail-closed `aqua-service-adapters` state/intent boundary are present, but none
-makes `/dev/snd` alone sufficient to enable Settings. No
-root-owned media daemon, command-output parser, or globally writable `/dev/snd`
-fallback is permitted.
+release clearance. eudev is already packaged for general device discovery.
+
+The audio profile applies `rootfs-overlay` first and the dedicated
+`audio-rootfs-overlay` second. Only that second overlay changes
+`media-services.conf` to `enabled=true`; the default defconfig continues to use
+only the disabled base overlay and excludes every audio package. The opt-in
+rootfs records exact stack versions in `/etc/aqua/audio-stack.conf` and installs
+`/usr/bin/aqua-audio-rootfs-check`. The checker requires the `aqua` UID/GID
+1000 identity and its audio/video/input groups, exact PipeWire and WirePlumber
+configuration and module paths, the native bridge, regular executable service
+binaries, absent PulseAudio/JACK daemons, and no root init or inittab service.
+On a live system it additionally requires the private 1000:1000 mode-0700
+`/run/user/1000` directory. `scripts/check-audio-rootfs-contract.sh` exercises
+positive and fail-closed fixtures, while
+`scripts/rehearse-audio-rootfs-contract.sh` builds the complete opt-in image and
+runs the same checker against Buildroot's final `rootfs.tar` artifact after the
+fakeroot user and ownership stage. Its generated
+hashes, config, and result stay under `build/audio-rootfs-contract/` and remain
+untracked.
+
+Aqua has a locked unprivileged graphical-session identity, a private user-owned
+runtime directory, and explicit `video`, `audio`, and `input` group membership.
+The opt-in rootfs contract is complete; real declared-device QEMU media
+evidence remains open. The typed transport, native bridge, ordered per-user
+supervisor, dependency rehearsal, rootfs contract, and fail-closed
+`aqua-service-adapters` state/intent boundary are present, but none makes
+`/dev/snd` alone sufficient to enable Settings. No root-owned media daemon,
+command-output parser, or globally writable `/dev/snd` fallback is permitted.
 
 `/usr/bin/aqua-session-check` is the recovery-safe aggregate checker for the same contract. Boot writes its output to `/run/aqua-session-check.log`, and users can run it manually from the recovery shell.
 

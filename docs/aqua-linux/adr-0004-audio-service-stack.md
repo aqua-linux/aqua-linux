@@ -97,8 +97,9 @@ conditions are met:
   default-output calls into that contract. The opt-in
   `aqua-audio-native` package now implements that typed boundary against
   WirePlumber 0.5 with a versioned, fixed-size C ABI, bounded waits, and strict
-  Rust-side validation. Enabling it in a bootable image and collecting
-  packaged runtime evidence remain separate gates.
+  Rust-side validation. The opt-in rootfs now packages and enables it without
+  changing the default image; collecting packaged runtime behavior remains a
+  separate gate.
 - `aqua_x86_64_audio_rehearsal_defconfig` resolves the exact package closure
   without changing the default image. The 2026-08-30 rehearsal verified
   PipeWire 1.2.8, WirePlumber 0.5.5, alsa-lib 1.2.13, eudev 3.2.14, Lua 5.4.8,
@@ -110,12 +111,14 @@ conditions are met:
 
 Packaging is only the beginning of R4 audio work. Acceptance requires:
 
-1. A rootfs contract proves exact package versions, configuration paths,
-   disabled unneeded compatibility layers, user ownership, and no automatic
-   root service.
-2. A service lifecycle probe proves ordered start, ready, bounded restart after
-   one forced failure, state reconciliation, clean stop, and retained recovery
-   access.
+1. **Satisfied on 2026-08-30:** the opt-in rootfs contract records exact package
+   versions, checks configuration and module paths, rejects unneeded
+   compatibility daemons, proves the fixed session identity, and rejects an
+   automatic root service. The default rootfs stays disabled and package-free.
+2. **Satisfied for deterministic lifecycle fixtures:** the service probe proves
+   ordered start, ready, bounded restart after one forced failure, state
+   reporting, clean reverse-order stop, degradation, and retained graphical
+   recovery behavior. Real media-device recovery remains part of gate 3.
 3. QEMU uses a declared emulated audio device and proves device discovery,
    output playback to a captured sink, input from a controlled source, bounded
    mute and volume, default-route changes, unplug/error behavior, and service
@@ -155,8 +158,9 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
 - The typed PipeWire/WirePlumber transport and native library binding are
   complete as an opt-in Buildroot package. The bridge uses the WirePlumber
   object manager, default-nodes API, mixer API, and synchronized acknowledgments
-  without command-output parsing. The default image still excludes the entire
-  stack; the next audio item is an opt-in rootfs contract followed by
+  without command-output parsing. The audio-only rootfs overlay enables the
+  per-user supervisor and its final rootfs artifact passes the contract. The
+  default image still excludes the entire stack; the next audio item is
   declared-device QEMU media evidence.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
