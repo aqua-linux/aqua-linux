@@ -13,9 +13,10 @@ use std::time::Duration;
 
 mod presentation;
 pub use presentation::{
-    DiagnosticReadbackEvidence, PresentationBudget, PresentationEvidenceTarget, PresentationPath,
-    PresentationSample, PresentationTelemetry, PresentationTelemetryError, PresentationWorkload,
-    R2PresentationReport, MAX_PRESENTATION_EVENTS, MAX_PRESENTATION_SAMPLES,
+    DiagnosticReadbackEvidence, PresentationBudget, PresentationEventSnapshot,
+    PresentationEvidenceTarget, PresentationPath, PresentationSample, PresentationTelemetry,
+    PresentationTelemetryError, PresentationWorkload, R2PresentationReport,
+    MAX_PRESENTATION_EVENTS, MAX_PRESENTATION_SAMPLES,
 };
 
 use aqua_components::{NotificationToast, WindowControl, WindowFrame};

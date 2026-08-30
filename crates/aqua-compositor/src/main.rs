@@ -1,5 +1,7 @@
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
+#[cfg(target_os = "linux")]
+use std::cell::RefCell;
 use std::fs::{File, OpenOptions};
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use std::io::Read;
@@ -59,6 +61,10 @@ use aqua_compositor::{
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_compositor::{
     run_external_wayland_test_client, SmithayClientSurfaceSnapshot, SmithayDrmSession,
+};
+#[cfg(any(target_os = "linux", test))]
+use aqua_compositor::{
+    PresentationEvidenceTarget, PresentationPath, PresentationTelemetry, PresentationWorkload,
 };
 
 #[cfg(target_os = "linux")]
@@ -2690,6 +2696,7 @@ fn present_drm_gpu_surface_cli(device: PathBuf) {
             Ok((packed, gpu_checksum, true))
         },
         |_| Ok(()),
+        |_| Ok(()),
         |active| {
             println!("product=Aqua Linux");
             println!("backend=drm-kms-gpu-surface");
@@ -3445,6 +3452,17 @@ fn drm_wayland_hold_seconds(value: Option<&str>, persistent: bool) -> Option<u64
     }
 }
 
+#[cfg(any(target_os = "linux", test))]
+fn r2_presentation_workload(value: Option<&str>) -> Option<PresentationWorkload> {
+    match value {
+        Some("idle") => Some(PresentationWorkload::Idle),
+        Some("window-interaction") => Some(PresentationWorkload::WindowInteraction),
+        Some("animation") => Some(PresentationWorkload::Animation),
+        Some("multi-client") => Some(PresentationWorkload::MultiClient),
+        _ => None,
+    }
+}
+
 #[cfg(target_os = "linux")]
 fn present_drm_kms_cli(device: PathBuf) {
     let confirmation_source = drm_kms_confirmation_source(
@@ -3667,9 +3685,58 @@ enum DrmEventWaiter {
     Calloop,
 }
 
+#[cfg(any(target_os = "linux", test))]
+#[derive(Clone, Copy)]
+enum DrmPresentationEvent {
+    CpuFramebufferCopy {
+        path: PresentationPath,
+    },
+    FrameRequested {
+        path: PresentationPath,
+    },
+    PageFlipPresented {
+        path: PresentationPath,
+        frame_time_us: u32,
+    },
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn record_drm_presentation_event(
+    telemetry: &mut Option<PresentationTelemetry>,
+    target: PresentationEvidenceTarget,
+    workload: PresentationWorkload,
+    event: DrmPresentationEvent,
+) -> Result<(), String> {
+    let path = match event {
+        DrmPresentationEvent::CpuFramebufferCopy { path }
+        | DrmPresentationEvent::FrameRequested { path }
+        | DrmPresentationEvent::PageFlipPresented { path, .. } => path,
+    };
+    let telemetry =
+        telemetry.get_or_insert_with(|| PresentationTelemetry::new(target, path, workload));
+    if telemetry.event_snapshot().path != path {
+        return Err("DRM presentation path changed during one telemetry stream".to_string());
+    }
+    let result = match event {
+        DrmPresentationEvent::CpuFramebufferCopy { .. } => telemetry.record_cpu_framebuffer_copy(),
+        DrmPresentationEvent::FrameRequested { .. } => telemetry.record_frame_requested(),
+        DrmPresentationEvent::PageFlipPresented { frame_time_us, .. } => {
+            telemetry.record_page_flip(frame_time_us)
+        }
+    };
+    result.map_err(|error| format!("cannot record DRM presentation telemetry: {error}"))
+}
+
+#[cfg(target_os = "linux")]
+fn elapsed_micros_bounded(started_at: std::time::Instant) -> u32 {
+    u32::try_from(started_at.elapsed().as_micros())
+        .unwrap_or(u32::MAX)
+        .max(1)
+}
+
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
 macro_rules! present_drm_wayland_page_flip {
-    ($device:expr, $frames:expr, $timeout:expr, $hold:expr, $waiter:expr, $render:expr, $scanout:expr, $event:expr, $active:expr, $during_hold:expr $(,)?) => {
+    ($device:expr, $frames:expr, $timeout:expr, $hold:expr, $waiter:expr, $render:expr, $scanout:expr, $event:expr, $presentation:expr, $active:expr, $during_hold:expr $(,)?) => {
         present_drm_gbm_page_flip(
             $device,
             $frames,
@@ -3679,6 +3746,7 @@ macro_rules! present_drm_wayland_page_flip {
             $render,
             $scanout,
             $event,
+            $presentation,
             $active,
             $during_hold,
         )
@@ -3687,7 +3755,7 @@ macro_rules! present_drm_wayland_page_flip {
 
 #[cfg(all(target_os = "linux", not(feature = "smithay-gpu")))]
 macro_rules! present_drm_wayland_page_flip {
-    ($device:expr, $frames:expr, $timeout:expr, $hold:expr, $waiter:expr, $render:expr, $scanout:expr, $event:expr, $active:expr, $during_hold:expr $(,)?) => {
+    ($device:expr, $frames:expr, $timeout:expr, $hold:expr, $waiter:expr, $render:expr, $scanout:expr, $event:expr, $presentation:expr, $active:expr, $during_hold:expr $(,)?) => {
         present_drm_page_flip(
             $device,
             $frames,
@@ -3696,6 +3764,7 @@ macro_rules! present_drm_wayland_page_flip {
             $waiter,
             $render,
             $event,
+            $presentation,
             $active,
             $during_hold,
         )
@@ -3732,6 +3801,7 @@ fn present_drm_page_flip_cli(device: PathBuf) {
         hold_seconds,
         DrmEventWaiter::Polling,
         |width, height| render_fbdev_frame(width, height, 32),
+        |_| Ok(()),
         |_| Ok(()),
         |active| {
             println!("product=Aqua Linux");
@@ -3838,6 +3908,7 @@ fn run_drm_frame_loop_cli(device: PathBuf) {
         hold_seconds,
         DrmEventWaiter::Polling,
         |width, height| render_fbdev_frame(width, height, 32),
+        |_| Ok(()),
         |_| Ok(()),
         |active| {
             let event_frames = active
@@ -3955,6 +4026,7 @@ fn run_drm_session_loop_cli(device: PathBuf) {
         hold_seconds,
         DrmEventWaiter::Calloop,
         |width, height| render_fbdev_frame(width, height, 32),
+        |_| Ok(()),
         |_| Ok(()),
         |active| {
             println!("product=Aqua Linux");
@@ -4516,6 +4588,28 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     let runtime_reduced_motion = Cell::new(configured_reduced_motion());
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let motion_scenario_phase = Cell::new(0_u8);
+    let r2_presentation_enabled =
+        env::var("AQUA_R2_PRESENTATION_TELEMETRY").as_deref() == Ok("true");
+    let r2_presentation_workload = if r2_presentation_enabled {
+        r2_presentation_workload(
+            env::var("AQUA_R2_PRESENTATION_WORKLOAD").ok().as_deref(),
+        )
+        .unwrap_or_else(|| {
+            eprintln!(
+                "R2 presentation telemetry requires idle, window-interaction, animation, or multi-client workload"
+            );
+            std::process::exit(1);
+        })
+        .into()
+    } else {
+        None
+    };
+    let r2_presentation_target = if confirmation_source == "headless-qemu-test" {
+        PresentationEvidenceTarget::QemuTcg
+    } else {
+        PresentationEvidenceTarget::Physical
+    };
+    let r2_presentation_telemetry = RefCell::new(None);
 
     let result = present_drm_wayland_page_flip!(
         &device,
@@ -4645,6 +4739,17 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
             }
             wayland_dispatch_passes += 1;
             wayland_flush_passes += 1;
+            Ok(())
+        },
+        |event| {
+            if let Some(workload) = r2_presentation_workload {
+                record_drm_presentation_event(
+                    &mut r2_presentation_telemetry.borrow_mut(),
+                    r2_presentation_target,
+                    workload,
+                    event,
+                )?;
+            }
             Ok(())
         },
         |active| {
@@ -6920,6 +7025,34 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
 
     match result {
         Ok(final_state) => {
+            if let Some(telemetry) = r2_presentation_telemetry.borrow().as_ref() {
+                let snapshot = telemetry.event_snapshot();
+                println!("r2_presentation_live_events=true");
+                println!("r2_presentation_target={}", snapshot.target.id());
+                println!("r2_presentation_path={}", snapshot.path.id());
+                println!("r2_presentation_workload={}", snapshot.workload.id());
+                println!(
+                    "r2_presentation_frames_requested={}",
+                    snapshot.frames_requested
+                );
+                println!(
+                    "r2_presentation_frames_presented={}",
+                    snapshot.frames_presented
+                );
+                println!(
+                    "r2_presentation_page_flip_events={}",
+                    snapshot.page_flip_events
+                );
+                println!(
+                    "r2_presentation_cpu_framebuffer_copies={}",
+                    snapshot.cpu_framebuffer_copies
+                );
+                println!(
+                    "r2_presentation_max_frame_time_us={}",
+                    snapshot.max_frame_time_us.unwrap_or_default()
+                );
+                println!("r2_presentation_acceptance_complete=false");
+            }
             #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
             {
                 if motion_scenario {
@@ -7450,6 +7583,7 @@ fn present_drm_page_flip(
     event_waiter: DrmEventWaiter,
     render_frame: impl FnOnce(u32, u32) -> Result<(Vec<u8>, u64, bool), String>,
     mut on_event: impl FnMut(u32) -> Result<(), String>,
+    mut on_presentation: impl FnMut(DrmPresentationEvent) -> Result<(), String>,
     on_active: impl FnOnce(&DrmPageFlipActiveFrame),
     on_hold: impl FnOnce(Duration, &mut dyn FnMut(Vec<u8>) -> Result<u64, String>) -> Result<(), String>,
 ) -> Result<DrmPageFlipFinalState, String> {
@@ -7512,6 +7646,9 @@ fn present_drm_page_flip(
             return Err("mapped DRM page-flip buffer is smaller than the frame".to_string());
         }
         mapping[..pitched_frame.len()].copy_from_slice(&pitched_frame);
+        on_presentation(DrmPresentationEvent::CpuFramebufferCopy {
+            path: PresentationPath::LegacyCpuCopy,
+        })?;
     }
     let front_framebuffer = card
         .add_framebuffer(&front_buffer, 24, 32)
@@ -7535,6 +7672,10 @@ fn present_drm_page_flip(
         } else {
             front_framebuffer
         };
+        on_presentation(DrmPresentationEvent::FrameRequested {
+            path: PresentationPath::LegacyCpuCopy,
+        })?;
+        let flip_started_at = std::time::Instant::now();
         card.page_flip(crtc_handle, target_framebuffer, PageFlipFlags::EVENT, None)
             .map_err(|error| format!("cannot submit DRM page flip {}: {error}", frame_index + 1))?;
         let event_frame = wait_for_drm_page_flip(
@@ -7544,6 +7685,10 @@ fn present_drm_page_flip(
             frame_index + 1,
             event_waiter,
         )?;
+        on_presentation(DrmPresentationEvent::PageFlipPresented {
+            path: PresentationPath::LegacyCpuCopy,
+            frame_time_us: elapsed_micros_bounded(flip_started_at),
+        })?;
         on_event(frame_index + 1)?;
         event_frames.push(event_frame);
     }
@@ -7558,6 +7703,7 @@ fn present_drm_page_flip(
         event_frames,
     });
     let mut active_is_back = frame_count % 2 == 1;
+    let mut next_frame_number = frame_count + 1;
     let mut repaint = |packed_frame: Vec<u8>| -> Result<u64, String> {
         if packed_frame.len() != width as usize * height as usize * 4 {
             return Err(format!(
@@ -7585,6 +7731,9 @@ fn present_drm_page_flip(
         }
         mapping[..pitched_repaint.len()].copy_from_slice(&pitched_repaint);
         drop(mapping);
+        on_presentation(DrmPresentationEvent::CpuFramebufferCopy {
+            path: PresentationPath::LegacyCpuCopy,
+        })?;
         let damage_width = u16::try_from(width)
             .map_err(|_| format!("repaint width exceeds DRM damage limits: {width}"))?;
         let damage_height = u16::try_from(height)
@@ -7601,15 +7750,24 @@ fn present_drm_page_flip(
                 ))
             }
         }
+        on_presentation(DrmPresentationEvent::FrameRequested {
+            path: PresentationPath::LegacyCpuCopy,
+        })?;
+        let flip_started_at = std::time::Instant::now();
         card.page_flip(crtc_handle, target_framebuffer, PageFlipFlags::EVENT, None)
             .map_err(|error| format!("cannot submit DRM repaint page flip: {error}"))?;
         wait_for_drm_page_flip(
             &card,
             crtc_handle,
             timeout_ms,
-            frame_count + 1,
+            next_frame_number,
             event_waiter,
         )?;
+        on_presentation(DrmPresentationEvent::PageFlipPresented {
+            path: PresentationPath::LegacyCpuCopy,
+            frame_time_us: elapsed_micros_bounded(flip_started_at),
+        })?;
+        next_frame_number = next_frame_number.saturating_add(1);
         active_is_back = !active_is_back;
         Ok(checksum_bytes(&pitched_repaint))
     };
@@ -7657,6 +7815,7 @@ fn present_drm_gbm_page_flip(
     render_frame: impl FnOnce(u32, u32) -> Result<(Vec<u8>, u64, bool), String>,
     mut render_scanout: impl FnMut(&mut Dmabuf, u32, u32) -> Result<(), String>,
     mut on_event: impl FnMut(u32) -> Result<(), String>,
+    mut on_presentation: impl FnMut(DrmPresentationEvent) -> Result<(), String>,
     on_active: impl FnOnce(&DrmPageFlipActiveFrame),
     on_hold: impl FnOnce(Duration, &mut dyn FnMut(Vec<u8>) -> Result<u64, String>) -> Result<(), String>,
 ) -> Result<DrmPageFlipFinalState, String> {
@@ -7683,6 +7842,7 @@ fn present_drm_gbm_page_flip(
             event_waiter,
             render_frame,
             on_event,
+            on_presentation,
             on_active,
             on_hold,
         );
@@ -7762,6 +7922,10 @@ fn present_drm_gbm_page_flip(
         } else {
             front_framebuffer
         };
+        on_presentation(DrmPresentationEvent::FrameRequested {
+            path: PresentationPath::ProductionGbmKms,
+        })?;
+        let flip_started_at = std::time::Instant::now();
         card.page_flip(crtc_handle, target_framebuffer, PageFlipFlags::EVENT, None)
             .map_err(|error| format!("cannot submit native Wayland page flip: {error}"))?;
         event_frames.push(wait_for_drm_page_flip(
@@ -7771,6 +7935,10 @@ fn present_drm_gbm_page_flip(
             frame_index + 1,
             event_waiter,
         )?);
+        on_presentation(DrmPresentationEvent::PageFlipPresented {
+            path: PresentationPath::ProductionGbmKms,
+            frame_time_us: elapsed_micros_bounded(flip_started_at),
+        })?;
         on_event(frame_index + 1)?;
     }
 
@@ -7785,6 +7953,7 @@ fn present_drm_gbm_page_flip(
         event_frames,
     });
     let mut active_is_back = frame_count % 2 == 1;
+    let mut next_frame_number = frame_count + 1;
     let mut repaint = |verification_frame: Vec<u8>| -> Result<u64, String> {
         let (target, target_framebuffer) = if active_is_back {
             (&mut front_dmabuf, front_framebuffer)
@@ -7808,15 +7977,24 @@ fn present_drm_gbm_page_flip(
                 ));
             }
         }
+        on_presentation(DrmPresentationEvent::FrameRequested {
+            path: PresentationPath::ProductionGbmKms,
+        })?;
+        let flip_started_at = std::time::Instant::now();
         card.page_flip(crtc_handle, target_framebuffer, PageFlipFlags::EVENT, None)
             .map_err(|error| format!("cannot submit native Wayland repaint: {error}"))?;
         wait_for_drm_page_flip(
             &card,
             crtc_handle,
             timeout_ms,
-            frame_count + 1,
+            next_frame_number,
             event_waiter,
         )?;
+        on_presentation(DrmPresentationEvent::PageFlipPresented {
+            path: PresentationPath::ProductionGbmKms,
+            frame_time_us: elapsed_micros_bounded(flip_started_at),
+        })?;
+        next_frame_number = next_frame_number.saturating_add(1);
         active_is_back = !active_is_back;
         Ok(if verification_frame.len() == 8 {
             u64::from_le_bytes(
@@ -9914,11 +10092,57 @@ mod fbdev_tests {
         bytes_per_pixel, checksum_frame_bytes, client_shadow_damage_rects, decode_png_rgba,
         drm_kms_confirmation_source, drm_wayland_hold_seconds, fbdev_confirmation_source,
         opaque_layer_covers_reference_output, pack_rgba_frame, parse_virtual_size,
-        probe_drm_device, render_fbdev_frame, with_stride,
+        probe_drm_device, r2_presentation_workload, record_drm_presentation_event,
+        render_fbdev_frame, with_stride, DrmPresentationEvent,
     };
+    use aqua_compositor::{PresentationEvidenceTarget, PresentationPath, PresentationWorkload};
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn live_drm_events_feed_the_bounded_presentation_collector_in_order() {
+        let mut telemetry = None;
+        let target = PresentationEvidenceTarget::QemuTcg;
+        let workload = r2_presentation_workload(Some("window-interaction")).unwrap();
+        record_drm_presentation_event(
+            &mut telemetry,
+            target,
+            workload,
+            DrmPresentationEvent::CpuFramebufferCopy {
+                path: PresentationPath::LegacyCpuCopy,
+            },
+        )
+        .unwrap();
+        record_drm_presentation_event(
+            &mut telemetry,
+            target,
+            workload,
+            DrmPresentationEvent::FrameRequested {
+                path: PresentationPath::LegacyCpuCopy,
+            },
+        )
+        .unwrap();
+        record_drm_presentation_event(
+            &mut telemetry,
+            target,
+            workload,
+            DrmPresentationEvent::PageFlipPresented {
+                path: PresentationPath::LegacyCpuCopy,
+                frame_time_us: 16_000,
+            },
+        )
+        .unwrap();
+
+        let snapshot = telemetry.unwrap().event_snapshot();
+        assert_eq!(snapshot.target, target);
+        assert_eq!(snapshot.workload, PresentationWorkload::WindowInteraction);
+        assert_eq!(snapshot.frames_requested, 1);
+        assert_eq!(snapshot.frames_presented, 1);
+        assert_eq!(snapshot.page_flip_events, 1);
+        assert_eq!(snapshot.cpu_framebuffer_copies, 1);
+        assert_eq!(snapshot.max_frame_time_us, Some(16_000));
+    }
 
     #[test]
     fn drm_probe_discovers_connected_connector_without_activating_kms() {

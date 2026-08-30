@@ -25,6 +25,16 @@ pub enum PresentationPath {
     LegacyCpuCopy,
 }
 
+impl PresentationPath {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::ProductionGbmKms => "production-gbm-kms",
+            Self::DiagnosticReadback => "diagnostic-readback",
+            Self::LegacyCpuCopy => "legacy-cpu-copy",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PresentationWorkload {
     Idle,
@@ -40,6 +50,15 @@ impl PresentationWorkload {
         Self::Animation,
         Self::MultiClient,
     ];
+
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Idle => "idle",
+            Self::WindowInteraction => "window-interaction",
+            Self::Animation => "animation",
+            Self::MultiClient => "multi-client",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,6 +96,18 @@ pub struct PresentationSample {
     pub max_input_to_present_us: Option<u32>,
     pub cpu_time_us: Option<u64>,
     pub memory_growth_kib: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PresentationEventSnapshot {
+    pub target: PresentationEvidenceTarget,
+    pub path: PresentationPath,
+    pub workload: PresentationWorkload,
+    pub frames_requested: u32,
+    pub frames_presented: u32,
+    pub page_flip_events: u32,
+    pub cpu_framebuffer_copies: u32,
+    pub max_frame_time_us: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -257,6 +288,19 @@ impl PresentationTelemetry {
             cpu_time_us: Some(cpu_time_us),
             memory_growth_kib: Some(memory_growth_kib),
         })
+    }
+
+    pub const fn event_snapshot(&self) -> PresentationEventSnapshot {
+        PresentationEventSnapshot {
+            target: self.target,
+            path: self.path,
+            workload: self.workload,
+            frames_requested: self.frames_requested,
+            frames_presented: self.frames_presented,
+            page_flip_events: self.page_flip_events,
+            cpu_framebuffer_copies: self.cpu_framebuffer_copies,
+            max_frame_time_us: self.max_frame_time_us,
+        }
     }
 
     fn require_outstanding_frame(&self) -> Result<(), PresentationTelemetryError> {
@@ -518,6 +562,11 @@ mod tests {
         telemetry.record_frame_callbacks(2).unwrap();
         telemetry.record_page_flip(14_000).unwrap();
         telemetry.record_input_to_present(24_000).unwrap();
+        let event_snapshot = telemetry.event_snapshot();
+        assert_eq!(event_snapshot.frames_requested, 1);
+        assert_eq!(event_snapshot.frames_presented, 1);
+        assert_eq!(event_snapshot.page_flip_events, 1);
+        assert_eq!(event_snapshot.max_frame_time_us, Some(14_000));
         telemetry.record_frame_requested().unwrap();
         telemetry.record_dropped_frame().unwrap();
 
