@@ -421,6 +421,13 @@ check_output_contains "turkish_commit_delivered=true" cargo run -p aqua-composit
 check_output_contains "serial_synchronized=true" cargo run -p aqua-compositor -- probe-text-input
 check_output_contains "focus_handoff_deactivates_input_method=true" cargo run -p aqua-compositor -- probe-text-input
 check_output_contains "popup_repositioned=true" cargo run -p aqua-compositor -- probe-text-input
+check_output_contains "[AQUA-COMPOSITOR] stage=wayland-output-matrix status=ok" cargo run -p aqua-compositor -- probe-wayland-output-matrix
+check_output_contains "outputs_visible_to_both_clients=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
+check_output_contains "modes_match_supported_matrix=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
+check_output_contains "logical_coordinates_match=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
+check_output_contains "fractional_scale_120ths=150" cargo run -p aqua-compositor -- probe-wayland-output-matrix
+check_output_contains "viewport_destination_applied=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
+check_output_contains "hotplug_remove_reaches_both_clients=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
 check_output_contains "[AQUA-COMPOSITOR] stage=xdg-toplevel-window-model status=ok" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model
 check_output_contains "window_model_status=xdg-toplevel-window-model" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model
 check_output_contains "source_client_ready=ok" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model

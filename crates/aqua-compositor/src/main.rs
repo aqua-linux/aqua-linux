@@ -46,12 +46,13 @@ use aqua_compositor::{
     probe_smithay_launcher_seat, probe_static_frame_buffer, probe_static_frame_plan,
     probe_static_paint_plan, probe_static_raster_export, probe_static_raster_png_export,
     probe_static_render_plan, probe_static_shell_scene, probe_static_software_raster,
-    probe_text_input, probe_visible_preview_plan, probe_xdg_shell_binding,
-    probe_xdg_toplevel_client, probe_xdg_toplevel_window_model, read_session_config,
-    run_calloop_socket_smoke, run_event_loop_smoke, run_manual_display_output_smoke,
-    run_manual_nested_preview_execution, run_nested_output_surface_lifecycle,
-    run_nested_preview_frame_loop, run_session_loop_smoke, run_session_once_smoke,
-    run_wayland_display_smoke, run_wayland_socket_smoke, status_lines, Viewport,
+    probe_text_input, probe_visible_preview_plan, probe_wayland_output_matrix,
+    probe_xdg_shell_binding, probe_xdg_toplevel_client, probe_xdg_toplevel_window_model,
+    read_session_config, run_calloop_socket_smoke, run_event_loop_smoke,
+    run_manual_display_output_smoke, run_manual_nested_preview_execution,
+    run_nested_output_surface_lifecycle, run_nested_preview_frame_loop, run_session_loop_smoke,
+    run_session_once_smoke, run_wayland_display_smoke, run_wayland_socket_smoke, status_lines,
+    Viewport,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_compositor::{
@@ -235,6 +236,7 @@ fn main() {
         "probe-selection-ownership" => probe_selection_ownership_cli(),
         "probe-drag-and-drop" => probe_drag_and_drop_cli(),
         "probe-text-input" => probe_text_input_cli(),
+        "probe-wayland-output-matrix" => probe_wayland_output_matrix_cli(),
         "probe-xdg-toplevel-window-model" => probe_xdg_toplevel_window_model_cli(),
         "probe-launcher-model" => probe_launcher_model_cli(),
         "probe-launcher-input-scene" => probe_launcher_input_scene_cli(),
@@ -272,7 +274,7 @@ fn main() {
         _ => {
             eprintln!("unknown command: {command}");
             eprintln!(
-                "usage: aqua-compositor [status|probe-assets <runtime-asset-root>|probe-renderer-backend [auto|gpu|software]|probe-gpu-offscreen-frame [device]|smoke-loop|smoke-wayland|smoke-socket|smoke-calloop-socket|probe-session-config|probe-session-env|probe-session-bootstrap <config-path> <prepared-runtime-dir>|probe-session|probe-output-plan|dump-output-plan|probe-display-output-handoff|probe-display-activation-plan|probe-drm-device [device]|probe-drm-dumb-buffer [device]|probe-drm-gbm-scanout-buffer [device]|present-drm-gbm-scanout [device]|present-drm-kms [device]|present-drm-page-flip [device]|run-drm-frame-loop [device]|run-drm-session-loop [device]|run-drm-wayland-session [device]|run-wayland-test-client [socket]|smoke-display-output|smoke-nested-output-surface|probe-visible-preview-plan|probe-visible-preview-export|export-visible-preview-html <path>|probe-fbdev-frame <width> <height> <bits-per-pixel>|present-fbdev [device]|smoke-nested-preview-loop|probe-manual-nested-preview-backend|run-manual-nested-preview-execution|probe-client-window-model|probe-client-surface-lifecycle|probe-client-surface-registry|probe-xdg-shell-binding|probe-xdg-toplevel-client|probe-selection-ownership|probe-xdg-toplevel-window-model|probe-launcher-model|probe-launcher-input-scene|probe-smithay-launcher-seat|probe-evdev-aqua-seat <keyboard-event> <pointer-event>|probe-scene|dump-scene|probe-render-plan|dump-render-plan|probe-renderer-surface-sources|probe-client-layer-pipeline|probe-paint-plan|dump-paint-plan|probe-frame-plan|dump-frame-plan|probe-frame-buffer|dump-frame-buffer|probe-raster|dump-raster|probe-raster-export|dump-raster-export|export-raster-ppm <path>|probe-raster-png-export|dump-raster-png-export|export-raster-png <path>|smoke-run-once|smoke-session-loop]"
+                "usage: aqua-compositor [status|probe-assets <runtime-asset-root>|probe-renderer-backend [auto|gpu|software]|probe-gpu-offscreen-frame [device]|smoke-loop|smoke-wayland|smoke-socket|smoke-calloop-socket|probe-session-config|probe-session-env|probe-session-bootstrap <config-path> <prepared-runtime-dir>|probe-session|probe-output-plan|dump-output-plan|probe-display-output-handoff|probe-display-activation-plan|probe-drm-device [device]|probe-drm-dumb-buffer [device]|probe-drm-gbm-scanout-buffer [device]|present-drm-gbm-scanout [device]|present-drm-kms [device]|present-drm-page-flip [device]|run-drm-frame-loop [device]|run-drm-session-loop [device]|run-wayland-test-client [socket]|smoke-display-output|smoke-nested-output-surface|probe-visible-preview-plan|probe-visible-preview-export|export-visible-preview-html <path>|probe-fbdev-frame <width> <height> <bits-per-pixel>|present-fbdev [device]|smoke-nested-preview-loop|probe-manual-nested-preview-backend|run-manual-nested-preview-execution|probe-client-window-model|probe-client-surface-lifecycle|probe-client-surface-registry|probe-xdg-shell-binding|probe-xdg-toplevel-client|probe-selection-ownership|probe-drag-and-drop|probe-text-input|probe-wayland-output-matrix|probe-xdg-toplevel-window-model|probe-launcher-model|probe-launcher-input-scene|probe-smithay-launcher-seat|probe-evdev-aqua-seat <keyboard-event> <pointer-event>|probe-scene|dump-scene|probe-render-plan|dump-render-plan|probe-renderer-surface-sources|probe-client-layer-pipeline|probe-paint-plan|dump-paint-plan|probe-frame-plan|dump-frame-plan|probe-frame-buffer|dump-frame-buffer|probe-raster|dump-raster|probe-raster-export|dump-raster-export|export-raster-ppm <path>|probe-raster-png-export|dump-raster-png-export|export-raster-png <path>|smoke-run-once|smoke-session-loop]"
             );
             std::process::exit(2);
         }
@@ -10561,6 +10563,54 @@ fn probe_text_input_cli() {
         Err(error) => {
             eprintln!("text-input probe failed: {error}");
             finish_stage("text-input", false);
+        }
+    }
+}
+
+fn probe_wayland_output_matrix_cli() {
+    match probe_wayland_output_matrix() {
+        Ok(probe) => {
+            println!("[AQUA-COMPOSITOR] stage=wayland-output-matrix status=running");
+            println!("output_matrix_status={}", probe.status);
+            println!("client_count={}", probe.client_count);
+            println!(
+                "outputs_visible_to_both_clients={}",
+                probe.outputs_visible_to_both_clients
+            );
+            println!(
+                "modes_match_supported_matrix={}",
+                probe.modes_match_supported_matrix
+            );
+            println!(
+                "preferred_modes_advertised={}",
+                probe.preferred_modes_advertised
+            );
+            println!(
+                "logical_coordinates_match={}",
+                probe.logical_coordinates_match
+            );
+            println!("integer_scales_match={}", probe.integer_scales_match);
+            println!(
+                "fractional_scale_advertised={}",
+                probe.fractional_scale_advertised
+            );
+            println!("fractional_scale_120ths={}", probe.fractional_scale_120ths);
+            println!("viewport_source_applied={}", probe.viewport_source_applied);
+            println!(
+                "viewport_destination_applied={}",
+                probe.viewport_destination_applied
+            );
+            println!(
+                "hotplug_remove_reaches_both_clients={}",
+                probe.hotplug_remove_reaches_both_clients
+            );
+            println!("remaining_output_usable={}", probe.remaining_output_usable);
+            println!("host_stub={}", probe.host_stub);
+            finish_stage("wayland-output-matrix", probe.is_ready());
+        }
+        Err(error) => {
+            eprintln!("wayland output matrix probe failed: {error}");
+            finish_stage("wayland-output-matrix", false);
         }
     }
 }
