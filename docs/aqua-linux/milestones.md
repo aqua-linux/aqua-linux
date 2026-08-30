@@ -536,6 +536,10 @@ access. An active capture profile additionally reads 480 controlled zero-PCM
 frames, terminates PipeWire, requires explicit `Broken pipe` interruption with
 no false capture completion, then proves ordered recovery and a new exact
 4,800-frame zero-PCM capture without host-microphone access. An active
+capture policy-service profile terminates WirePlumber after the same 480-frame
+checkpoint, rejects false capture completion, requires both old media processes
+to retire before the ordered attempt 2/restart 1 pair becomes authoritative,
+and proves a new exact 4,800-frame zero-PCM capture. An active
 input-device-loss profile additionally proves one full deterministic bipolar
 capture, removes the sole duplex HDA controller at a second client's 480-frame
 checkpoint, and requires native topology to expose zero inputs, explicit

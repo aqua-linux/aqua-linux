@@ -30,7 +30,7 @@ if {$audio_contract eq "output" || $audio_contract eq "service-loss" || $audio_c
     lappend qemu_args -audiodev "wav,id=aqua-audio,path=$env(WAV_CAPTURE),out.frequency=48000,out.channels=2,out.format=s16"
     lappend qemu_args -device ich9-intel-hda
     lappend qemu_args -device hda-duplex,audiodev=aqua-audio
-} elseif {$audio_contract eq "input" || $audio_contract eq "capture-service-loss"} {
+} elseif {$audio_contract eq "input" || $audio_contract eq "capture-service-loss" || $audio_contract eq "capture-policy-service-loss"} {
     lappend qemu_args -audiodev "none,id=aqua-audio,in.frequency=48000,in.channels=2,in.format=s16"
     lappend qemu_args -device ich9-intel-hda
     lappend qemu_args -device hda-duplex,audiodev=aqua-audio
@@ -182,6 +182,37 @@ if {$audio_contract eq "capture-service-loss"} {
         -exact {[AQUA-AUDIO] stage=qemu-capture-service-loss status=failed} { puts stderr "Active capture service-loss contract failed"; exit 1 }
         timeout { puts stderr "Active capture service-loss marker missing"; exit 1 }
         eof { puts stderr "QEMU exited during active capture recovery"; exit 1 }
+    }
+    expect -exact {# }
+    shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}
+    send -- "poweroff -f\r"
+    expect eof
+    exit 0
+}
+
+if {$audio_contract eq "capture-policy-service-loss"} {
+    shell {rm -f /run/aqua/audio-active-capture-policy-loss.log; capture_status=0; old_pipewire="$(sed -n 's/^pipewire_pid=//p' /run/aqua/media-service-supervisor.state)"; old_wireplumber="$(sed -n 's/^wireplumber_pid=//p' /run/aqua/media-service-supervisor.state)"; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe capture-expect-interruption' >/run/aqua/audio-active-capture-policy-loss.log 2>&1 & capture_pid=$!; i=0; while [ "$i" -lt 10 ] && ! grep -Fq '[AQUA-AUDIO] stage=media-probe status=active direction=capture frames=480' /run/aqua/audio-active-capture-policy-loss.log 2>/dev/null; do sleep 1; i=$((i + 1)); done; capture_started=0; [ -n "$old_pipewire" ] && [ -n "$old_wireplumber" ] && grep -Fq '[AQUA-AUDIO] stage=media-probe status=active direction=capture frames=480' /run/aqua/audio-active-capture-policy-loss.log && capture_started=1} {starting capture under the active policy service}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-capture-policy-loss-precondition'; [ "$capture_started" = 1 ] && echo "$marker status=ok active_stream=true frames=480 pipewire_pid=true wireplumber_pid=true controlled_pattern=zero-pcm host_microphone=false" || echo "$marker status=failed"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-capture-policy-loss-precondition status=ok active_stream=true frames=480 pipewire_pid=true wireplumber_pid=true controlled_pattern=zero-pcm host_microphone=false} {}
+        -exact {[AQUA-AUDIO] stage=qemu-capture-policy-loss-precondition status=failed} { puts stderr "Active capture policy-service loss precondition failed"; exit 1 }
+        timeout { puts stderr "Active capture policy-service loss precondition marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited before active capture policy-service loss"; exit 1 }
+    }
+    expect -exact {# }
+    shell {kill "$old_wireplumber"; wait "$capture_pid" || capture_status=$?} {interrupting active capture through WirePlumber loss}
+    shell {cat /run/aqua/audio-active-capture-policy-loss.log; capture_policy_loss_ok=1; [ "$capture_status" -eq 3 ] || capture_policy_loss_ok=0; grep -Fq '[AQUA-AUDIO] stage=media-probe status=interrupted direction=capture reason=pcm-io' /run/aqua/audio-active-capture-policy-loss.log || capture_policy_loss_ok=0; if grep -Fq '[AQUA-AUDIO] stage=media-probe status=ok direction=capture' /run/aqua/audio-active-capture-policy-loss.log; then capture_policy_loss_ok=0; fi} {checking interrupted capture after policy-service loss}
+    shell {i=0; while [ "$i" -lt 30 ]; do new_pipewire="$(sed -n 's/^pipewire_pid=//p' /run/aqua/media-service-supervisor.state 2>/dev/null)"; new_wireplumber="$(sed -n 's/^wireplumber_pid=//p' /run/aqua/media-service-supervisor.state 2>/dev/null)"; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state 2>/dev/null && [ -n "$new_pipewire" ] && [ -n "$new_wireplumber" ] && [ "$new_pipewire" != "$old_pipewire" ] && [ "$new_wireplumber" != "$old_wireplumber" ] && break; sleep 1; i=$((i + 1)); done; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || capture_policy_loss_ok=0; grep -Fq 'attempts=2' /run/aqua/media-service-supervisor.state || capture_policy_loss_ok=0; grep -Fq 'restarts=1' /run/aqua/media-service-supervisor.state || capture_policy_loss_ok=0} {waiting for replacement media processes after capture interruption}
+    shell {kill -0 "$old_pipewire" 2>/dev/null && capture_policy_loss_ok=0; kill -0 "$old_wireplumber" 2>/dev/null && capture_policy_loss_ok=0; grep -Fq '[AQUA-MEDIA] stage=media-service-supervisor status=restarting failed_service=wireplumber' /run/aqua/audio-qemu-supervisor.log || capture_policy_loss_ok=0; grep -Fq '[AQUA-MEDIA] stage=media-service-supervisor status=stopping service=pipewire' /run/aqua/audio-qemu-supervisor.log || capture_policy_loss_ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/dev/null || capture_policy_loss_ok=0; cat /run/aqua/audio-qemu-supervisor.log} {checking ordered full-stack policy recovery after capture interruption}
+    shell {[ "$capture_policy_loss_ok" = 1 ] && su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe capture-silence' || capture_policy_loss_ok=0} {capturing controlled zero PCM after policy-service recovery}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-capture-policy-service-loss'; [ "$capture_policy_loss_ok" = 1 ] && echo "$marker status=ok failed_service=wireplumber active_stream_aborted=true false_success=false full_stack_restart=true old_processes_retired=true restart_recovery=true capture_after=true controlled_pattern=zero-pcm host_microphone=false recovery_shell=true" || echo "$marker status=failed"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-capture-policy-service-loss status=ok failed_service=wireplumber active_stream_aborted=true false_success=false full_stack_restart=true old_processes_retired=true restart_recovery=true capture_after=true controlled_pattern=zero-pcm host_microphone=false recovery_shell=true} {}
+        -exact {[AQUA-AUDIO] stage=qemu-capture-policy-service-loss status=failed} { puts stderr "Active capture policy-service loss contract failed"; exit 1 }
+        timeout { puts stderr "Active capture policy-service loss marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited during capture policy-service recovery"; exit 1 }
     }
     expect -exact {# }
     shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}
