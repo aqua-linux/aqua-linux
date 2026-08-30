@@ -276,6 +276,14 @@ before and after removal is captured only on that stable primary WAV backend.
 This is bounded virtual non-default-device loss evidence, not general hotplug or
 physical hardware support.
 
+`scripts/check-audio-active-nondefault-unplug-qemu.sh` moves that removal into
+an active default-route stream. The probe publishes an active marker after 480
+frames, fails on any subsequent PCM error instead of recovering it, and must
+complete the same client at exactly 48,000 frames after QMP removes PCI 05.0.
+The native graph must still converge to one authoritative PCI 04.0 output, the
+primary WAV must remain non-silent, and no interruption marker is accepted.
+This proves only the declared virtual non-default-removal boundary.
+
 `scripts/check-audio-active-service-loss-qemu.sh` adds an active-client service
 failure boundary. The acceptance probe first writes 480 frames to the declared
 HDA/WAV path and publishes an active marker, after which the test terminates

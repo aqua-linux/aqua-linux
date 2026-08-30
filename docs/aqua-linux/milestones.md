@@ -506,6 +506,9 @@ A complementary non-default removal profile proves PCI 04.0 is authoritative
 before PCI 05.0 is removed, requires acknowledged QMP and one-device ALSA/native
 topology convergence, and preserves the same default with non-silent playback
 before and after removal.
+An active variant publishes a 480-frame checkpoint on PCI 04.0 before removing
+the non-default controller and requires that same client to finish 48,000 frames
+without interruption or recovery while the authoritative route stays unchanged.
 A private QEMU D-Bus input profile additionally injects a deterministic 1 kHz
 bipolar signal without host microphone access and proves an exact 4,800-frame
 capture through HDA, ALSA, and PipeWire with a 4,096 peak and balanced sample

@@ -38,7 +38,7 @@ if {$audio_contract eq "output" || $audio_contract eq "service-loss" || $audio_c
     lappend qemu_args -audiodev "dbus,id=aqua-audio,nsamples=480,in.frequency=48000,in.channels=2,in.format=s16"
     lappend qemu_args -device ich9-intel-hda
     lappend qemu_args -device hda-duplex,audiodev=aqua-audio
-} elseif {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug"} {
+} elseif {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug"} {
     lappend qemu_args -audiodev "wav,id=aqua-route-primary,path=$env(WAV_ROUTE_PRIMARY),out.frequency=48000,out.channels=2,out.format=s16"
     lappend qemu_args -audiodev "wav,id=aqua-route-secondary,path=$env(WAV_ROUTE_SECONDARY),out.frequency=48000,out.channels=2,out.format=s16"
     lappend qemu_args -device ich9-intel-hda,id=aqua-hda-primary,addr=04.0
@@ -54,7 +54,7 @@ if {$audio_contract eq "input-signal" || $audio_contract eq "input-disconnect"} 
 } else {
     lappend qemu_args -display none
 }
-if {$audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "input-signal" || $audio_contract eq "input-disconnect"} {
+if {$audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "input-signal" || $audio_contract eq "input-disconnect"} {
     lappend qemu_args -qmp "unix:$env(QMP_SOCKET),server=on,wait=off"
 }
 lappend qemu_args -no-reboot
@@ -88,7 +88,7 @@ expect {
 }
 expect -exact {# }
 
-if {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug"} {
+if {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug"} {
     shell {ok=1; /usr/bin/aqua-audio-rootfs-check || ok=0; test -d /proc/asound || ok=0; test "$(awk '/^ [0-9]+ / { count++ } END { print count+0 }' /proc/asound/cards)" -eq 2 || ok=0; test -c /dev/snd/pcmC0D0p || ok=0; test -c /dev/snd/pcmC1D0p || ok=0; test ! -e /dev/snd/pcmC0D0c || ok=0; test ! -e /dev/snd/pcmC1D0c || ok=0; [ "$ok" = 1 ] || { cat /proc/asound/cards; ls -l /dev/snd; }} {checking two HDA output devices}
     send -- {marker='[AQUA-AUDIO] stage=qemu-device'; [ "$ok" = 1 ] && echo "$marker status=ok driver=snd_hda_intel codec=hda-output outputs=2 capture_node=false"}
     send -- "\r"
@@ -111,7 +111,7 @@ expect -exact {# }
 
 shell {AQUA_SESSION_ALLOWED_COMMAND=/usr/bin/aqua-media-service-supervisor /usr/bin/aqua-session-user-launch /usr/bin/aqua-media-service-supervisor >/run/aqua/audio-qemu-supervisor.log 2>&1 &} {starting per-user media services}
 shell {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'state=running' /run/aqua/media-service-supervisor.state 2>/dev/null; do sleep 1; i=$((i + 1)); done} {waiting for PipeWire and WirePlumber}
-if {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug"} {
+if {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug"} {
     shell {ok=1; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || ok=0; grep -Fq 'service_owner_uid=1000' /run/aqua/media-service-supervisor.state || ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/run/aqua/wpctl-status.txt 2>&1 || ok=0; grep -Fq 'Sinks:' /run/aqua/wpctl-status.txt || ok=0} {checking per-user multi-output graph}
     send -- {marker='[AQUA-AUDIO] stage=qemu-service'; [ "$ok" = 1 ] && echo "$marker status=ok owner_uid=1000 pipewire=true wireplumber=true sinks=true route_profile=true"}
     send -- "\r"
@@ -450,6 +450,47 @@ if {$audio_contract eq "nondefault-unplug"} {
         -exact {[AQUA-AUDIO] stage=qemu-nondefault-unplug status=failed} { puts stderr "Non-default audio unplug contract failed"; exit 1 }
         timeout { puts stderr "Final non-default audio unplug marker missing"; exit 1 }
         eof { puts stderr "QEMU exited before the non-default audio unplug marker"; exit 1 }
+    }
+    expect -exact {# }
+    send -- "poweroff -f\r"
+    expect eof
+    exit 0
+}
+
+if {$audio_contract eq "active-nondefault-unplug"} {
+    shell {ok=1; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe primary-two' || ok=0} {checking the active-stream primary default precondition}
+    shell {rm -f /run/aqua/audio-active-nondefault-unplug.log; playback_status=0; [ "$ok" = 1 ] && su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe playback-active-stable' >/run/aqua/audio-active-nondefault-unplug.log 2>&1 & playback_pid=$!; i=0; while [ "$i" -lt 10 ] && ! grep -Fq '[AQUA-AUDIO] stage=media-probe status=active direction=playback frames=480' /run/aqua/audio-active-nondefault-unplug.log 2>/dev/null; do sleep 1; i=$((i + 1)); done; playback_started=0; grep -Fq '[AQUA-AUDIO] stage=media-probe status=active direction=playback frames=480' /run/aqua/audio-active-nondefault-unplug.log && playback_started=1} {starting active playback on the retained default output}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-active-nondefault-unplug-precondition'; [ "$playback_started" = 1 ] && echo "$marker status=ok default_slot=04.0 removed_slot=05.0 active_stream=true frames=480" || echo "$marker status=failed"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-active-nondefault-unplug-precondition status=ok default_slot=04.0 removed_slot=05.0 active_stream=true frames=480} {}
+        -exact {[AQUA-AUDIO] stage=qemu-active-nondefault-unplug-precondition status=failed} { puts stderr "Active non-default removal precondition failed"; exit 1 }
+        timeout { puts stderr "Active non-default removal precondition marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited before active non-default removal"; exit 1 }
+    }
+    expect -exact {# }
+    if {[catch {exec python3 $env(QMP_DEVICE_DELETE) $env(QMP_SOCKET) aqua-hda-secondary} delete_result]} {
+        puts stderr $delete_result
+        exit 1
+    }
+    shell {ok=1; i=0; while [ "$i" -lt 30 ] && [ "$(awk '/^ [0-9]+ / { count++ } END { print count+0 }' /proc/asound/cards)" -ne 1 ]; do sleep 1; i=$((i + 1)); done; test "$(awk '/^ [0-9]+ / { count++ } END { print count+0 }' /proc/asound/cards)" -eq 1 || ok=0; wait "$playback_pid" || playback_status=$?; cat /run/aqua/audio-active-nondefault-unplug.log; [ "$playback_status" -eq 0 ] || ok=0; grep -Fq '[AQUA-AUDIO] stage=media-probe status=ok direction=playback frames=48000 rate=48000 channels=2 format=s16le' /run/aqua/audio-active-nondefault-unplug.log || ok=0; if grep -Fq '[AQUA-AUDIO] stage=media-probe status=interrupted direction=playback' /run/aqua/audio-active-nondefault-unplug.log; then ok=0; fi} {requiring the active default stream to survive non-default removal}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-device-unplug'; [ "$ok" = 1 ] && echo "$marker status=ok device=aqua-hda-secondary event=DEVICE_DELETED alsa_outputs=1"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-device-unplug status=ok device=aqua-hda-secondary event=DEVICE_DELETED alsa_outputs=1} {}
+        timeout { puts stderr "Active-stream non-default removal was not acknowledged"; exit 1 }
+        eof { puts stderr "QEMU exited during active-stream non-default removal"; exit 1 }
+    }
+    expect -exact {# }
+    shell {[ "$ok" = 1 ] && su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe primary-one' || ok=0} {checking the retained authoritative route after active playback}
+    shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-active-nondefault-unplug'; [ "$ok" = 1 ] && echo "$marker status=ok removed_default=false active_stream_survived=true false_interruption=true default_unchanged=true recovery_shell=true" || echo "$marker status=failed"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-active-nondefault-unplug status=ok removed_default=false active_stream_survived=true false_interruption=true default_unchanged=true recovery_shell=true} {}
+        -exact {[AQUA-AUDIO] stage=qemu-active-nondefault-unplug status=failed} { puts stderr "Active non-default audio unplug contract failed"; exit 1 }
+        timeout { puts stderr "Final active non-default audio unplug marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited before the active non-default audio unplug marker"; exit 1 }
     }
     expect -exact {# }
     send -- "poweroff -f\r"
