@@ -680,3 +680,17 @@ mode, refuses a rootfs older than the compositor source, and validates both
 production and isolated diagnostic records without selecting budgets. Executing
 that runner on a freshly built image and reviewing repeated measurements remain
 open.
+
+A bounded repeated-run wrapper now requires three through ten independent QEMU
+boots, refuses to overwrite prior evidence, and revalidates every constituent
+log before emitting a versioned review record. The review preserves per-workload
+frame-time, input-latency, CPU, and memory maxima while explicitly leaving
+budget selection false. This closes the repeat-collection tooling gap, not the
+runtime evidence or reviewed-budget gates.
+
+A fresh packaged-image rehearsal also confirmed that the current macOS QEMU
+device is `virtio_gpu` and therefore takes the separately recorded
+`legacy-cpu-copy` fallback. The production-path validator rejects all four
+records as intended. Integrating and proving a QEMU display target that can run
+the native GBM/KMS scanout path is now an explicit prerequisite to repeated R2
+collection; legacy timings must not be relabeled or used to choose budgets.
