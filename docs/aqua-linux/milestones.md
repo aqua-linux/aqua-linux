@@ -699,5 +699,19 @@ The reviewed `qemu-tcg-bochs-v1` profile enforces 50,000 us page-flip wait,
 60,000,000 us input-to-present latency, 180,000,000 us CPU time, 163,840 KiB
 peak RSS growth, and zero dropped frames. The virtio target remains the recorded
 `legacy-cpu-copy` fallback. Repeated R2 collection and explicit QEMU budget
-review are complete for this profile. Soak and physical-target budgets remain
-open, and TCG timings must not be used as physical responsiveness evidence.
+review are complete for this profile. Longer qualification soak and
+physical-target budgets remain open, and TCG timings must not be used as
+physical responsiveness evidence.
+
+An initial `qemu-tcg-bochs-soak-v1` profile now holds one compositor process for
+at least five minutes with Files and Settings mapped and ten bounded real-input
+cycles. It requires five distinct input-to-present samples after repaint
+coalescing, zero crashes and dropped frames, no production readback or CPU copy,
+bounded timing and resource growth, graceful client/process cleanup, CRTC and
+GBM release, recovery return, and isolated diagnostic readback. The first run
+observed 338,040 ms, 42 dispatched keyboard events, nine presented frames, five
+input samples, 9,879 us maximum page-flip wait, 39,054,481 us maximum input
+latency, 128,457,628 us CPU time, and 130,252 KiB peak RSS growth. The evidence
+directory is local, bounded, and
+never overwritten. This closes the initial QEMU soak gap, not longer
+release-qualification soak or physical stability evidence.

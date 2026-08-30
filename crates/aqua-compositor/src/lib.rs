@@ -16,7 +16,8 @@ pub use presentation::{
     DiagnosticReadbackEvidence, PresentationBudget, PresentationEventSnapshot,
     PresentationEvidenceTarget, PresentationPath, PresentationSample, PresentationTelemetry,
     PresentationTelemetryError, PresentationWorkload, R2PresentationReport,
-    MAX_PRESENTATION_EVENTS, MAX_PRESENTATION_SAMPLES, QEMU_TCG_BOCHS_V1_BUDGET,
+    MAX_PRESENTATION_EVENTS, MAX_PRESENTATION_SAMPLES, QEMU_TCG_BOCHS_SOAK_V1_BUDGET,
+    QEMU_TCG_BOCHS_V1_BUDGET,
 };
 
 use aqua_components::{NotificationToast, WindowControl, WindowFrame};

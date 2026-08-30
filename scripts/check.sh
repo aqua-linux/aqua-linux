@@ -474,6 +474,8 @@ test -x scripts/check-r2-presentation-log.py
 test -x scripts/check-r2-presentation-qemu.sh
 test -x scripts/check-r2-presentation-qemu.exp
 test -x scripts/check-r2-presentation-repeated-qemu.sh
+test -x scripts/check-r2-presentation-soak-qemu.sh
+test -x scripts/check-r2-presentation-soak-qemu.exp
 PYTHONPYCACHEPREFIX="${CHECK_TEMP_ROOT}/python-cache" \
     python3 -m py_compile \
     scripts/send-qemu-monitor-input.py \
@@ -507,6 +509,17 @@ grep -Fq 'r2_review_budget_profile=qemu-tcg-bochs-v1' scripts/check-r2-presentat
 grep -Fq 'r2_review_budget_selected=true' scripts/check-r2-presentation-repeated-qemu.sh
 grep -Fq 'r2_review_physical_budget_selected=false' scripts/check-r2-presentation-repeated-qemu.sh
 grep -Fq 'pub const QEMU_TCG_BOCHS_V1_BUDGET' crates/aqua-compositor/src/presentation.rs
+grep -Fq 'pub const QEMU_TCG_BOCHS_SOAK_V1_BUDGET' crates/aqua-compositor/src/presentation.rs
+grep -Fq 'SOAK_SECONDS="${SOAK_SECONDS:-300}"' scripts/check-r2-presentation-soak-qemu.sh
+grep -Fq 'R2 soak evidence directory already exists' scripts/check-r2-presentation-soak-qemu.sh
+grep -Fq -- '--summarize-soak' scripts/check-r2-presentation-soak-qemu.sh
+grep -Fq 'r2_soak_budget_profile=qemu-tcg-bochs-soak-v1' scripts/check-r2-presentation-soak-qemu.sh
+grep -Fq 'r2_soak_physical_evidence=false' scripts/check-r2-presentation-soak-qemu.sh
+grep -Fq 'AQUA_DRM_WAYLAND_SESSION_PERSISTENT=true' scripts/check-r2-presentation-soak-qemu.exp
+grep -Fq 'AQUA_DRM_WAYLAND_STOP_FILE=/run/aqua/r2-presentation-soak.stop' scripts/check-r2-presentation-soak-qemu.exp
+grep -Fq 'for {set cycle 1} {$cycle <= 10} {incr cycle}' scripts/check-r2-presentation-soak-qemu.exp
+grep -Fq 'QEMU_SOAK_MIN_OBSERVATION_WINDOW_MS = 300_000' scripts/check-r2-presentation-log.py
+grep -Fq 'QEMU_SOAK_MIN_INPUT_SAMPLES = 5' scripts/check-r2-presentation-log.py
 grep -Fq -- '--serve' scripts/send-qemu-monitor-input.py
 grep -Fq 'AQUA_QEMU_INPUT_CONTROL_SOCKET' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'request_input_daemon' scripts/capture-qemu-monitor-screendump.py

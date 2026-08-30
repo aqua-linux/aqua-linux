@@ -1,0 +1,107 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+proc inject_input {mode description} {
+    global env
+    if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) $mode} input_error]} {
+        puts stderr "$description failed: $input_error"
+        exit 1
+    }
+}
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp $env(CPUS) \
+    -m $env(MEMORY) \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1} \
+    -serial stdio \
+    -monitor unix:$env(MONITOR_SOCKET),server=on,wait=off \
+    -display none \
+    -vga none \
+    -device $env(DISPLAY_DEVICE) \
+    -device virtio-keyboard-pci \
+    -device virtio-mouse-pci \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh} {}
+    timeout { puts stderr "Timed out waiting for recovery-ready"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery-ready"; exit 1 }
+}
+expect -exact {aqua-linux login: }
+send -- "root\r"
+expect -exact {# }
+
+send -- {rm -f /run/aqua/r2-presentation-soak.stop; AQUA_R2_PRESENTATION_TELEMETRY=true AQUA_R2_PRESENTATION_WORKLOAD=multi-client AQUA_DRM_WAYLAND_SESSION_PERSISTENT=true AQUA_DRM_WAYLAND_STOP_FILE=/run/aqua/r2-presentation-soak.stop AQUA_DRM_WAYLAND_SESSION_HEADLESS_TEST_CONFIRMED=true AQUA_DRM_WAYLAND_SESSION_TEST_MODE=headless-qemu AQUA_DRM_WAYLAND_SCENARIO=desktop-event-loop /usr/bin/aqua-compositor run-drm-wayland-session /dev/dri/card0 & soak_pid=$!}
+send -- "\r"
+set soak_started_ms [clock milliseconds]
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-wayland-session status=active} {}
+    timeout { puts stderr "Timed out starting R2 soak session"; exit 1 }
+    eof { puts stderr "QEMU exited while starting R2 soak session"; exit 1 }
+}
+
+inject_input files-launch-fast "R2 soak Files launch"
+expect {
+    -exact {desktop_launch_surface_app_id=aqua.files} {}
+    timeout { puts stderr "Timed out waiting for Files during R2 soak"; exit 1 }
+    eof { puts stderr "QEMU exited before Files mapped during R2 soak"; exit 1 }
+}
+inject_input settings-launch-fast "R2 soak Settings launch"
+expect {
+    -exact {desktop_launch_surface_app_id=aqua.settings} {}
+    timeout { puts stderr "Timed out waiting for Settings during R2 soak"; exit 1 }
+    eof { puts stderr "QEMU exited before Settings mapped during R2 soak"; exit 1 }
+}
+
+for {set cycle 1} {$cycle <= 10} {incr cycle} {
+    inject_input public-applications "R2 soak Applications cycle $cycle"
+    after 750
+    inject_input public-launcher-dismiss "R2 soak dismiss cycle $cycle"
+    after 24000
+}
+
+set minimum_end_ms [expr {$soak_started_ms + ($env(SOAK_SECONDS) * 1000) + 5000}]
+set remaining_ms [expr {$minimum_end_ms - [clock milliseconds]}]
+if {$remaining_ms > 0} {
+    after $remaining_ms
+}
+send -- {touch /run/aqua/r2-presentation-soak.stop; wait "$soak_pid"}
+send -- "\r"
+
+expect {
+    -exact {r2_presentation_record_end=v1} {}
+    timeout { puts stderr "Timed out waiting for R2 soak presentation record"; exit 1 }
+    eof { puts stderr "QEMU exited before R2 soak presentation record"; exit 1 }
+}
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok} {}
+    timeout { puts stderr "Timed out waiting for R2 soak cleanup"; exit 1 }
+    eof { puts stderr "QEMU exited before R2 soak cleanup"; exit 1 }
+}
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Recovery shell did not return after R2 soak"; exit 1 }
+    eof { puts stderr "QEMU exited before recovery after R2 soak"; exit 1 }
+}
+
+send -- "AQUA_R2_DIAGNOSTIC_READBACK_TELEMETRY=true AQUA_R2_DIAGNOSTIC_HEADLESS_TEST_CONFIRMED=true AQUA_R2_DIAGNOSTIC_TEST_MODE=headless-qemu /usr/bin/aqua-compositor probe-gpu-offscreen-frame /dev/dri/card0\r"
+expect {
+    -exact {r2_diagnostic_record_end=v1} {}
+    timeout { puts stderr "Timed out waiting for R2 soak diagnostic record"; exit 1 }
+    eof { puts stderr "QEMU exited before R2 soak diagnostic record"; exit 1 }
+}
+expect {
+    -exact {[AQUA-COMPOSITOR] stage=gpu-offscreen-frame status=ok} {}
+    timeout { puts stderr "Timed out waiting for R2 soak diagnostic cleanup"; exit 1 }
+    eof { puts stderr "QEMU exited before R2 soak diagnostic cleanup"; exit 1 }
+}
+expect -exact {# }
+
+send -- "poweroff -f\r"
+expect eof
