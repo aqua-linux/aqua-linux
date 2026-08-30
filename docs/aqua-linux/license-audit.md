@@ -52,8 +52,10 @@ is outside this audit.
   reporting.
   The restart-exhaustion profile reuses the same probe and packaged services;
   the control-service-loss profile likewise reuses the existing native bridge,
-  probe, and supervisor. Neither introduces a package, runtime dependency, or
-  license-closure change. The default image does not select them.
+  probe, and supervisor. Probe version 11 adds only project-authored native
+  topology assertions for non-default virtual-output removal. These profiles
+  introduce no package, runtime dependency, or license-closure change. The
+  default image does not select them.
 - The project-authored QEMU D-Bus audio-input injector is MIT licensed under
   the root project license. It is compiled and run only on the development
   host, dynamically links to the host GLib/GIO installation, and supports both

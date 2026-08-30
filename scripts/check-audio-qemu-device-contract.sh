@@ -15,6 +15,7 @@ CONTROL_SERVICE_LOSS_RUNNER="${ROOT_DIR}/scripts/check-audio-control-service-los
 RESTART_EXHAUSTION_RUNNER="${ROOT_DIR}/scripts/check-audio-restart-exhaustion-qemu.sh"
 MULTI_ROUTE_RUNNER="${ROOT_DIR}/scripts/check-audio-multi-route-qemu.sh"
 HOTPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-hotplug-qemu.sh"
+NONDEFAULT_UNPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-nondefault-unplug-qemu.sh"
 QMP_DELETE="${ROOT_DIR}/scripts/qmp-device-delete.py"
 EXPECT_SCRIPT="${ROOT_DIR}/scripts/check-audio-qemu.exp"
 PROBE_CONFIG="${ROOT_DIR}/br2-external/aqua/package/aqua-audio-probe/Config.in"
@@ -129,6 +130,20 @@ do
     grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}" "${QMP_DELETE}"
 done
 
+test -x "${NONDEFAULT_UNPLUG_RUNNER}"
+grep -Fq 'AQUA_AUDIO_QEMU_CONTRACT=nondefault-unplug' "${NONDEFAULT_UNPLUG_RUNNER}"
+for contract in \
+    'aqua-audio-probe primary-two' \
+    'aqua-audio-probe primary-one' \
+    'stage=topology-probe status=ok outputs=2 default_slot=04.0' \
+    'stage=topology-probe status=ok outputs=1 default_slot=04.0' \
+    'removed_default=false default_unchanged=true' \
+    'playback_before=true playback_after=true recovery_shell=true'
+do
+    grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}" \
+        "${NONDEFAULT_UNPLUG_RUNNER}" "${PROBE_MAKE%/*}/src/aqua_audio_probe.c"
+done
+
 grep -Fxq \
     'BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_AQUA_PATH)/board/aqua/x86_64/linux-audio-qemu.config"' \
     "${AUDIO_CONFIG}"
@@ -185,4 +200,4 @@ do
     grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}"
 done
 
-echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backends=none,dbus controlled_inputs=zero-pcm,bipolar-signal,input-disconnect active_service_loss=true active_capture_loss=true control_service_loss=true restart_exhaustion=true multi_route=true selected_device_unplug=true fallback=true host_microphone=false default_image_audio=false'
+echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backends=none,dbus controlled_inputs=zero-pcm,bipolar-signal,input-disconnect active_service_loss=true active_capture_loss=true control_service_loss=true restart_exhaustion=true multi_route=true selected_device_unplug=true nondefault_device_unplug=true fallback=true host_microphone=false default_image_audio=false'

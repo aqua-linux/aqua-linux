@@ -137,7 +137,11 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    playback, removes its HDA controller through QMP, requires the matching
    asynchronous deletion event and a one-card ALSA topology, then requires the
    native snapshot to expose the sole remaining output as default and proves
-   non-silent fallback playback. A fifth run attaches a private peer-to-peer
+   non-silent fallback playback. A separate inverse profile first proves PCI
+   output 04.0 is the authoritative default, removes the non-default PCI 05.0
+   controller, requires the same QMP and one-card topology evidence, and then
+   proves 04.0 remains authoritative with non-silent playback before and after
+   removal. A fifth run attaches a private peer-to-peer
    QEMU D-Bus audio listener and injects a bounded 1 kHz bipolar square wave
    without host microphone access. The guest captures exactly 4,800 stereo
    S16LE frames through HDA, ALSA, and PipeWire; all 9,600 samples are non-zero,
@@ -225,8 +229,10 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    explicitly on PipeWire loss and succeeds from a new client after ordered
    recovery without host-microphone access. Native volume/mute controls now
    additionally fail closed during a bounded real graph outage and regain
-   acknowledgement only after ordered recovery. Other error evidence remains
-   open.
+   acknowledgement only after ordered recovery. Non-default output removal is
+   also bounded: the native topology proves the surviving selected route remains
+   unchanged and playable rather than entering an unnecessary fallback
+   transition. Other error evidence remains open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

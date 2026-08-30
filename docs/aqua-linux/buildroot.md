@@ -267,6 +267,15 @@ are present, but none makes
 `/dev/snd` alone sufficient to enable Settings. No root-owned media daemon,
 command-output parser, or globally writable `/dev/snd` fallback is permitted.
 
+`scripts/check-audio-nondefault-unplug-qemu.sh` covers the inverse topology
+boundary without changing the declared devices. The native probe first requires
+two outputs with PCI 04.0 authoritative, QMP removes the non-default PCI 05.0
+controller and acknowledges `DEVICE_DELETED`, and ALSA plus the native graph
+must converge to one output while 04.0 remains the default. Non-silent playback
+before and after removal is captured only on that stable primary WAV backend.
+This is bounded virtual non-default-device loss evidence, not general hotplug or
+physical hardware support.
+
 `scripts/check-audio-active-service-loss-qemu.sh` adds an active-client service
 failure boundary. The acceptance probe first writes 480 frames to the declared
 HDA/WAV path and publishes an active marker, after which the test terminates
