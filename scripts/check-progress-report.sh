@@ -80,6 +80,7 @@ for needle in [
     f"**Roadmap implementation progress: {data.get('overallPercent')}%**",
     "## Product Readiness",
     "exact direct-FD payload transfer",
+    "separate two-client drag-and-drop probe",
     "| Classification | packaged-QEMU-proven prototype |",
     "| Daily-use ready | No |",
     "| Hardware-proven | No |",
