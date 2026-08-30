@@ -226,14 +226,24 @@ zero. This controlled pattern proves stream establishment and unmodified sample
 delivery without requesting a host microphone or its permissions; it does not
 claim acoustic microphone quality. The WAV output run still records
 `input_stream=false` because that backend has no ADC.
+`scripts/check-audio-signal-input-qemu.sh` adds a separate non-silent input
+profile. It compiles the repository's bounded GLib/GIO helper, attaches it to
+QEMU's private peer-to-peer D-Bus display through QMP, and registers an
+`AudioInListener` that serves a fixed-amplitude 1 kHz bipolar square wave. The
+guest must capture exactly 4,800 stereo S16LE frames through HDA, ALSA, and
+PipeWire with all 9,600 samples non-zero, a 4,096 peak, and balanced positive
+and negative counts. The host separately requires the injector to report at
+least 19,200 served bytes and the exact declared format. No session bus, host
+microphone, or physical input permission is used. This is deterministic
+virtual-device transport evidence, not acoustic quality or physical microphone
+support.
 `scripts/check-audio-multi-route-qemu.sh` declares two independent Intel HDA
 controllers with `hda-output` codecs and separate WAV backends. It requires two
 ALSA playback devices and two authoritative PipeWire sinks, plays on the
 initial default, changes the configured default through `aqua-audio-native`,
 waits for an effective-route snapshot that acknowledges the alternate node,
 then plays again. Both host WAV files must contain non-silent 48 kHz stereo
-S16LE data, so a marker-only or unchanged-route result fails. Non-silent
-injected input remains open.
+S16LE data, so a marker-only or unchanged-route result fails.
 `scripts/check-audio-hotplug-qemu.sh` fixes those controllers at PCI slots 04.0
 and 05.0, explicitly selects 05.0 as the configured default, proves playback
 there, and removes that controller through a bounded QMP `device_del` request.

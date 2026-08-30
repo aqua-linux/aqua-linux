@@ -502,7 +502,10 @@ and non-silent playback on both independent WAV backends. A selected-output
 removal profile additionally requires QMP deletion acknowledgement, the ALSA
 topology to shrink from two devices to one, the native graph to expose the
 remaining output as authoritative default, and non-silent fallback playback.
-Non-silent injected input and broader error evidence remain open R4 work; physical hardware
+A private QEMU D-Bus input profile additionally injects a deterministic 1 kHz
+bipolar signal without host microphone access and proves an exact 4,800-frame
+capture through HDA, ALSA, and PipeWire with a 4,096 peak and balanced sample
+polarity. Broader error evidence remains open R4 work; physical hardware
 support is not claimed.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
