@@ -46,6 +46,8 @@ grep -Fq 'r2_presentation_observation_window_ms=' "${COMPOSITOR_MAIN}"
 grep -Fq 'r2_presentation_cpu_time_us=' "${COMPOSITOR_MAIN}"
 grep -Fq 'r2_presentation_memory_growth_kib=' "${COMPOSITOR_MAIN}"
 grep -Fq 'r2_presentation_acceptance_complete=false' "${COMPOSITOR_MAIN}"
+grep -Fq 'r2_presentation_record_begin=v1' "${COMPOSITOR_MAIN}"
+grep -Fq 'r2_presentation_record_end=v1' "${COMPOSITOR_MAIN}"
 
 mkdir -p "${TEMP_ROOT}/etc/init.d" "${TEMP_ROOT}/usr/bin" "${TEMP_COMMAND_CACHE}"
 touch "${TEMP_ROOT}/etc/init.d/rcS" "${TEMP_ROOT}/usr/bin/aqua-recovery"
