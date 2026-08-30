@@ -237,6 +237,14 @@ least 19,200 served bytes and the exact declared format. No session bus, host
 microphone, or physical input permission is used. This is deterministic
 virtual-device transport evidence, not acoustic quality or physical microphone
 support.
+`scripts/check-audio-input-disconnect-qemu.sh` reuses that private listener in
+a fail-closed profile. It serves exactly 9,600 bytes of positive 4,096-amplitude
+PCM, then rejects subsequent D-Bus reads. The guest must reject QEMU's retained
+one-polarity buffer as `invalid-injected-signal`, must not emit the successful
+bipolar marker, and must still prove PipeWire, WirePlumber, and the recovery
+shell are responsive. The host independently requires the exact injected
+failure reason and byte boundary. This is a bounded virtual input-source
+failure, not physical cable, USB, or microphone failure evidence.
 `scripts/check-audio-multi-route-qemu.sh` declares two independent Intel HDA
 controllers with `hda-output` codecs and separate WAV backends. It requires two
 ALSA playback devices and two authoritative PipeWire sinks, plays on the
@@ -252,9 +260,10 @@ requires ALSA to shrink to one playback device, the native adapter to report
 one authoritative default output, and playback to resume into the remaining
 non-silent WAV backend. This is selected-device loss and fallback evidence for
 the declared virtual topology, not general USB, Bluetooth, or physical-device
-hotplug support. Additional media error matrices remain open. The typed transport, native bridge,
-ordered per-user supervisor, dependency rehearsal, rootfs contract, and fail-closed
-`aqua-service-adapters` state/intent boundary are present, but none makes
+hotplug support. Additional media error matrices remain open. The typed
+transport, native bridge, ordered per-user supervisor, dependency rehearsal,
+rootfs contract, and fail-closed `aqua-service-adapters` state/intent boundary
+are present, but none makes
 `/dev/snd` alone sufficient to enable Settings. No root-owned media daemon,
 command-output parser, or globally writable `/dev/snd` fallback is permitted.
 

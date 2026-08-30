@@ -8,6 +8,7 @@ FRAGMENT="${ROOT_DIR}/br2-external/aqua/board/aqua/x86_64/linux-audio-qemu.confi
 RUNNER="${ROOT_DIR}/scripts/check-audio-qemu.sh"
 INPUT_RUNNER="${ROOT_DIR}/scripts/check-audio-input-qemu.sh"
 SIGNAL_INPUT_RUNNER="${ROOT_DIR}/scripts/check-audio-signal-input-qemu.sh"
+DISCONNECT_INPUT_RUNNER="${ROOT_DIR}/scripts/check-audio-input-disconnect-qemu.sh"
 MULTI_ROUTE_RUNNER="${ROOT_DIR}/scripts/check-audio-multi-route-qemu.sh"
 HOTPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-hotplug-qemu.sh"
 QMP_DELETE="${ROOT_DIR}/scripts/qmp-device-delete.py"
@@ -27,8 +28,21 @@ do
     grep -Fxq "${assignment}" "${FRAGMENT}"
 done
 
+test -x "${DISCONNECT_INPUT_RUNNER}"
+grep -Fq 'AQUA_AUDIO_QEMU_CONTRACT=input-disconnect' "${DISCONNECT_INPUT_RUNNER}"
+for contract in \
+    'AUDIO_INPUT_DISCONNECT_BYTES' \
+    'status=disconnected' \
+    'reason=injected-read-failure' \
+    'expected_failure=true false_success=false services_running=true recovery_shell=true' \
+    'bytes_before_failure=9600 host_microphone=false'
+do
+    grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}" \
+        "${DISCONNECT_INPUT_RUNNER}" "${DBUS_INPUT_SOURCE}"
+done
+
 test -x "${SIGNAL_INPUT_RUNNER}"
-grep -Fq 'AQUA_AUDIO_QEMU_CONTRACT=input-signal' "${SIGNAL_INPUT_RUNNER}"
+grep -Fq 'AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-input-signal}"' "${SIGNAL_INPUT_RUNNER}"
 for contract in \
     'dbus,id=aqua-audio,nsamples=480' \
     'dbus,p2p=on,audiodev=aqua-audio' \
@@ -115,4 +129,4 @@ do
     grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}"
 done
 
-echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backends=none,dbus controlled_inputs=zero-pcm,bipolar-signal multi_route=true selected_device_unplug=true fallback=true host_microphone=false default_image_audio=false'
+echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backends=none,dbus controlled_inputs=zero-pcm,bipolar-signal,input-disconnect multi_route=true selected_device_unplug=true fallback=true host_microphone=false default_image_audio=false'

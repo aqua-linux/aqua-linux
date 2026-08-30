@@ -48,6 +48,8 @@ struct injector {
   gboolean format_valid;
   uint64_t bytes_served;
   uint64_t sample_index;
+  uint64_t disconnect_after_bytes;
+  gboolean disconnect_reported;
 };
 
 static int connect_unix_socket(const char *path) {
@@ -171,6 +173,29 @@ static void write_result(struct injector *injector) {
   }
 }
 
+static void write_disconnect_result(struct injector *injector) {
+  if (injector->disconnect_reported || injector->disconnect_after_bytes == 0 ||
+      injector->bytes_served < injector->disconnect_after_bytes) {
+    return;
+  }
+  char result[160];
+  int length = snprintf(result, sizeof(result),
+                        "status=disconnected\nreason=injected-read-failure\n"
+                        "bytes_served=%llu\n",
+                        (unsigned long long)injector->bytes_served);
+  if (length <= 0 || (size_t)length >= sizeof(result)) {
+    return;
+  }
+  GError *error = NULL;
+  if (!g_file_set_contents(injector->result_path, result, length, &error)) {
+    fprintf(stderr, "Unable to write injector disconnect result: %s\n",
+            error->message);
+    g_error_free(error);
+    return;
+  }
+  injector->disconnect_reported = TRUE;
+}
+
 static void handle_method_call(GDBusConnection *connection,
                                const gchar *sender,
                                const gchar *object_path,
@@ -224,13 +249,27 @@ static void handle_method_call(GDBusConnection *connection,
           "Audio read request exceeds the bounded injector limit");
       return;
     }
+    if (injector->disconnect_after_bytes > 0 &&
+        injector->bytes_served >= injector->disconnect_after_bytes) {
+      write_disconnect_result(injector);
+      g_dbus_method_invocation_return_dbus_error(
+          invocation, "org.qemu.Display1.Error.Disconnected",
+          "Injected bounded audio input transport failure");
+      return;
+    }
     gsize size = (gsize)requested;
+    if (injector->disconnect_after_bytes > 0 &&
+        injector->bytes_served + size > injector->disconnect_after_bytes) {
+      size = (gsize)(injector->disconnect_after_bytes - injector->bytes_served);
+    }
     guint8 *data = g_malloc(size);
     for (gsize offset = 0; offset + 1 < size; offset += 2) {
       uint64_t frame = injector->sample_index / EXPECTED_CHANNELS;
-      int16_t sample = ((frame / HALF_PERIOD_FRAMES) % 2 == 0)
+      int16_t sample = injector->disconnect_after_bytes > 0
                            ? SIGNAL_AMPLITUDE
-                           : -SIGNAL_AMPLITUDE;
+                           : (((frame / HALF_PERIOD_FRAMES) % 2 == 0)
+                                  ? SIGNAL_AMPLITUDE
+                                  : -SIGNAL_AMPLITUDE);
       data[offset] = (guint8)((uint16_t)sample & 0xff);
       data[offset + 1] = (guint8)(((uint16_t)sample >> 8) & 0xff);
       ++injector->sample_index;
@@ -239,7 +278,11 @@ static void handle_method_call(GDBusConnection *connection,
       data[size - 1] = 0;
     }
     injector->bytes_served += size;
-    write_result(injector);
+    if (injector->disconnect_after_bytes > 0) {
+      write_disconnect_result(injector);
+    } else {
+      write_result(injector);
+    }
     GVariant *bytes = g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, data,
                                                 size, sizeof(guint8));
     g_dbus_method_invocation_return_value(invocation,
@@ -337,8 +380,10 @@ static GDBusConnection *open_display_connection(int fd, GError **error) {
 }
 
 int main(int argc, char **argv) {
-  if (argc != 4) {
-    fprintf(stderr, "usage: qemu-dbus-audio-input QMP_SOCKET READY_FILE RESULT_FILE\n");
+  if (argc != 4 && argc != 5) {
+    fprintf(stderr,
+            "usage: qemu-dbus-audio-input QMP_SOCKET READY_FILE RESULT_FILE "
+            "[DISCONNECT_AFTER_BYTES]\n");
     return 2;
   }
   unlink(argv[2]);
@@ -374,6 +419,19 @@ int main(int argc, char **argv) {
       .listener_fd = listener_pair[0],
       .result_path = argv[3],
   };
+  if (argc == 5) {
+    char *end = NULL;
+    errno = 0;
+    unsigned long long value = strtoull(argv[4], &end, 10);
+    if (errno != 0 || end == argv[4] || *end != '\0' || value == 0) {
+      fprintf(stderr, "Invalid disconnect byte limit: %s\n", argv[4]);
+      g_object_unref(display);
+      close(listener_pair[0]);
+      close(listener_pair[1]);
+      return 2;
+    }
+    injector.disconnect_after_bytes = (uint64_t)value;
+  }
   g_mutex_init(&injector.mutex);
   g_cond_init(&injector.condition);
   GThread *listener_thread = g_thread_new("audio-input", run_listener, &injector);
