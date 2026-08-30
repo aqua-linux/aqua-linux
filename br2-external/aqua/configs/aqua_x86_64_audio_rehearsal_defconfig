@@ -38,8 +38,8 @@ BR2_PACKAGE_MESA3D_OPENGL_ES=y
 # R4 audio dependency closure. Optional compatibility and remote-device stacks
 # stay unselected until their own product and evidence gates exist.
 BR2_PACKAGE_ALSA_LIB=y
-BR2_PACKAGE_ALSA_LIB_PCM_PLUGINS="hw plug rate route softvol null"
-BR2_PACKAGE_ALSA_LIB_CTL_PLUGINS="hw"
+BR2_PACKAGE_ALSA_LIB_PCM_PLUGINS="hw plug rate route softvol null ioplug"
+BR2_PACKAGE_ALSA_LIB_CTL_PLUGINS="hw ext"
 BR2_PACKAGE_ALSA_LIB_ALOAD=n
 BR2_PACKAGE_ALSA_LIB_HWDEP=n
 BR2_PACKAGE_ALSA_LIB_ALISP=n
@@ -53,6 +53,7 @@ BR2_PACKAGE_PIPEWIRE_V4L2=n
 BR2_PACKAGE_LUA=y
 BR2_PACKAGE_LUA_5_4=y
 BR2_PACKAGE_WIREPLUMBER=y
+BR2_PACKAGE_AQUA_AUDIO_NATIVE=y
 BR2_PACKAGE_DBUS=n
 BR2_PACKAGE_BLUEZ5_UTILS=n
 BR2_PACKAGE_JACK2=n

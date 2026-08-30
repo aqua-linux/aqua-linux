@@ -17,11 +17,17 @@ for symbol in \
     BR2_PACKAGE_ALSA_LIB \
     BR2_PACKAGE_PIPEWIRE \
     BR2_PACKAGE_LUA_5_4 \
-    BR2_PACKAGE_WIREPLUMBER
+    BR2_PACKAGE_WIREPLUMBER \
+    BR2_PACKAGE_AQUA_AUDIO_NATIVE
 do
     grep -Fxq "${symbol}=y" "$REHEARSAL_CONFIG"
     ! grep -Fxq "${symbol}=y" "$DEFAULT_CONFIG"
 done
+
+grep -Fxq \
+    'BR2_PACKAGE_ALSA_LIB_PCM_PLUGINS="hw plug rate route softvol null ioplug"' \
+    "$REHEARSAL_CONFIG"
+grep -Fxq 'BR2_PACKAGE_ALSA_LIB_CTL_PLUGINS="hw ext"' "$REHEARSAL_CONFIG"
 
 for symbol in \
     BR2_PACKAGE_DBUS \
@@ -38,9 +44,12 @@ do
 done
 
 grep -Fq 'aqua_x86_64_audio_rehearsal_defconfig' "$REHEARSAL_SCRIPT"
+grep -Fq 'aqua-audio-native' "$REHEARSAL_SCRIPT"
 grep -Fq 'legal-info' "$REHEARSAL_SCRIPT"
 grep -Fq 'show-info' "$REHEARSAL_SCRIPT"
 grep -Fq 'default_image_changed' "$REPORT_WRITER"
 grep -Fq 'release_cleared' "$REPORT_WRITER"
+grep -Fq '"aqua-audio-native": "1"' "$REPORT_WRITER"
+grep -Fq 'BR2_PACKAGE_AQUA_AUDIO_NATIVE' "$REHEARSAL_SCRIPT"
 
 echo 'Aqua Linux audio Buildroot rehearsal checks passed.'

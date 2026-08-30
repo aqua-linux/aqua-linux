@@ -213,11 +213,12 @@ shared switch for mute. Availability is derived only from a ready authoritative
 `aqua-service-adapters` snapshot with a valid default output route; `/dev/snd`
 alone cannot enable the controls. Desired values persist across unavailable or
 degraded service state, while the displayed value and `backend_applied` status
-remain bound to reconciliation. This is still a UI and control-plane model:
-no playback backend, native PipeWire/WirePlumber library binding, mixer
-application, or physical-hardware support is claimed. The typed transport core
-can drive the same acknowledgement-gated model, while its native binding and
-packaged runtime remain separate R4 gates. Their
+remain bound to reconciliation. This is still a UI and control-plane model: no
+playback or physical-hardware support is claimed. The typed transport now has
+an opt-in bounded native WirePlumber binding for graph snapshots, mixer
+requests, and configured default output. It is not enabled in the default
+image and has no packaged runtime or QEMU media evidence yet. Those remain
+separate R4 gates. The
 four-theme, three-viewport deterministic matrix is recorded in
 `component-fixtures.txt`.
 
