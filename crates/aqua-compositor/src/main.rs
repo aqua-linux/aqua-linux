@@ -40,7 +40,7 @@ use aqua_compositor::{
     design_tokens_include_scene_materials, export_visible_preview_html, parse_session_config,
     probe_client_layer_pipeline, probe_client_surface_lifecycle, probe_client_surface_registry,
     probe_client_window_model, probe_display_activation_plan, probe_display_output_handoff,
-    probe_display_output_plan, probe_launcher_input_scene_binding,
+    probe_display_output_plan, probe_drag_and_drop, probe_launcher_input_scene_binding,
     probe_manual_nested_preview_backend, probe_renderer_surface_sources, probe_runtime_assets,
     probe_selection_ownership, probe_session_bootstrap, probe_session_skeleton,
     probe_smithay_launcher_seat, probe_static_frame_buffer, probe_static_frame_plan,
@@ -233,6 +233,7 @@ fn main() {
         "probe-xdg-shell-binding" => probe_xdg_shell_binding_cli(),
         "probe-xdg-toplevel-client" => probe_xdg_toplevel_client_cli(),
         "probe-selection-ownership" => probe_selection_ownership_cli(),
+        "probe-drag-and-drop" => probe_drag_and_drop_cli(),
         "probe-xdg-toplevel-window-model" => probe_xdg_toplevel_window_model_cli(),
         "probe-launcher-model" => probe_launcher_model_cli(),
         "probe-launcher-input-scene" => probe_launcher_input_scene_cli(),
@@ -10420,6 +10421,69 @@ fn probe_selection_ownership_cli() {
         Err(error) => {
             eprintln!("selection ownership probe failed: {error}");
             finish_stage("selection-ownership", false);
+        }
+    }
+}
+
+fn probe_drag_and_drop_cli() {
+    match probe_drag_and_drop() {
+        Ok(probe) => {
+            println!("[AQUA-COMPOSITOR] stage=drag-and-drop status=running");
+            println!("dnd_status={}", probe.status);
+            println!("protocol={}", probe.protocol);
+            println!("client_count={}", probe.client_count);
+            println!(
+                "globals_visible_to_both_clients={}",
+                probe.globals_visible_to_both_clients
+            );
+            println!(
+                "start_without_implicit_grab_rejected={}",
+                probe.start_without_implicit_grab_rejected
+            );
+            println!("pointer_grab_started={}", probe.pointer_grab_started);
+            println!("source_client_owns_drag={}", probe.source_client_owns_drag);
+            println!(
+                "enter_reaches_pointer_focus_only={}",
+                probe.enter_reaches_pointer_focus_only
+            );
+            println!(
+                "keyboard_focus_unchanged={}",
+                probe.keyboard_focus_unchanged
+            );
+            println!("mime_negotiated={}", probe.mime_negotiated);
+            println!(
+                "unsupported_mime_not_accepted={}",
+                probe.unsupported_mime_not_accepted
+            );
+            println!("copy_action_negotiated={}", probe.copy_action_negotiated);
+            println!("payload_transferred={}", probe.payload_transferred);
+            println!("payload_bytes={}", probe.payload_bytes);
+            println!("transfer_limit_bytes={}", probe.transfer_limit_bytes);
+            println!(
+                "compositor_buffers_payload={}",
+                probe.compositor_buffers_payload
+            );
+            println!(
+                "drop_delivered_to_target={}",
+                probe.drop_delivered_to_target
+            );
+            println!("source_drop_performed={}", probe.source_drop_performed);
+            println!("source_finished={}", probe.source_finished);
+            println!("rejected_drop_cancelled={}", probe.rejected_drop_cancelled);
+            println!(
+                "rejected_drop_not_delivered={}",
+                probe.rejected_drop_not_delivered
+            );
+            println!(
+                "data_control_global_exposed={}",
+                probe.data_control_global_exposed
+            );
+            println!("host_stub={}", probe.host_stub);
+            finish_stage("drag-and-drop", probe.is_ready());
+        }
+        Err(error) => {
+            eprintln!("drag-and-drop probe failed: {error}");
+            finish_stage("drag-and-drop", false);
         }
     }
 }

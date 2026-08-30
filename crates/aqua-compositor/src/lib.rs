@@ -383,7 +383,10 @@ use smithay::{
     },
     reexports::wayland_server::{
         backend::{ClientData, ClientId, DisconnectReason},
-        protocol::{wl_buffer, wl_callback, wl_seat, wl_surface::WlSurface},
+        protocol::{
+            wl_buffer, wl_callback, wl_data_device_manager::DndAction as ServerDndAction, wl_seat,
+            wl_surface::WlSurface,
+        },
         Client, Display, DisplayHandle, ListeningSocket, Resource,
     },
     utils::Serial,
@@ -957,6 +960,62 @@ impl SelectionOwnershipProbe {
             && self.owner_disconnect_clears_clipboard
             && self.owner_disconnect_clears_primary
             && self.ownership_handoff_accepted
+            && !self.data_control_global_exposed
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DragAndDropProbe {
+    pub product: &'static str,
+    pub status: &'static str,
+    pub protocol: &'static str,
+    pub client_count: usize,
+    pub globals_visible_to_both_clients: bool,
+    pub start_without_implicit_grab_rejected: bool,
+    pub pointer_grab_started: bool,
+    pub source_client_owns_drag: bool,
+    pub enter_reaches_pointer_focus_only: bool,
+    pub keyboard_focus_unchanged: bool,
+    pub mime_negotiated: bool,
+    pub unsupported_mime_not_accepted: bool,
+    pub copy_action_negotiated: bool,
+    pub payload_transferred: bool,
+    pub payload_bytes: usize,
+    pub transfer_limit_bytes: usize,
+    pub compositor_buffers_payload: bool,
+    pub drop_delivered_to_target: bool,
+    pub source_drop_performed: bool,
+    pub source_finished: bool,
+    pub rejected_drop_cancelled: bool,
+    pub rejected_drop_not_delivered: bool,
+    pub data_control_global_exposed: bool,
+    pub host_stub: bool,
+}
+
+impl DragAndDropProbe {
+    pub fn is_ready(&self) -> bool {
+        self.product == PRODUCT
+            && self.status == "drag-and-drop"
+            && self.protocol == "wl_data_device_manager"
+            && self.client_count == 2
+            && self.globals_visible_to_both_clients
+            && self.start_without_implicit_grab_rejected
+            && self.pointer_grab_started
+            && self.source_client_owns_drag
+            && self.enter_reaches_pointer_focus_only
+            && self.keyboard_focus_unchanged
+            && self.mime_negotiated
+            && self.unsupported_mime_not_accepted
+            && self.copy_action_negotiated
+            && self.payload_transferred
+            && self.payload_bytes > 0
+            && self.payload_bytes <= self.transfer_limit_bytes
+            && !self.compositor_buffers_payload
+            && self.drop_delivered_to_target
+            && self.source_drop_performed
+            && self.source_finished
+            && self.rejected_drop_cancelled
+            && self.rejected_drop_not_delivered
             && !self.data_control_global_exposed
     }
 }
@@ -2452,6 +2511,10 @@ pub fn probe_xdg_toplevel_client() -> Result<XdgToplevelClientProbe, Box<dyn std
 
 pub fn probe_selection_ownership() -> Result<SelectionOwnershipProbe, Box<dyn std::error::Error>> {
     probe_selection_ownership_impl()
+}
+
+pub fn probe_drag_and_drop() -> Result<DragAndDropProbe, Box<dyn std::error::Error>> {
+    probe_drag_and_drop_impl()
 }
 
 pub fn probe_xdg_toplevel_window_model(
@@ -4239,6 +4302,290 @@ fn probe_selection_ownership_impl() -> Result<SelectionOwnershipProbe, Box<dyn s
     })
 }
 
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn probe_drag_and_drop_impl() -> Result<DragAndDropProbe, Box<dyn std::error::Error>> {
+    const PAYLOAD: &[u8] = b"Aqua drag-and-drop transfer\n";
+
+    let mut session = AquaCompositorSession::new()?;
+    let (server_stream_one, client_stream_one) = std::os::unix::net::UnixStream::pair()?;
+    let (server_stream_two, client_stream_two) = std::os::unix::net::UnixStream::pair()?;
+    let server_client_one = session.insert_client(server_stream_one)?;
+    let server_client_two = session.insert_client(server_stream_two)?;
+
+    let client_one_conn = ClientConnection::from_socket(client_stream_one)?;
+    let client_two_conn = ClientConnection::from_socket(client_stream_two)?;
+    let mut event_queue_one = client_one_conn.new_event_queue();
+    let mut event_queue_two = client_two_conn.new_event_queue();
+    let qh_one = event_queue_one.handle();
+    let qh_two = event_queue_two.handle();
+    client_one_conn.display().get_registry(&qh_one, ());
+    client_two_conn.display().get_registry(&qh_two, ());
+    client_one_conn.flush()?;
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+
+    let mut client_one = DndSmokeClientState::with_payload(PAYLOAD);
+    let mut client_two = DndSmokeClientState {
+        accept_drop: true,
+        ..DndSmokeClientState::default()
+    };
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    client_one_conn.flush()?;
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+
+    let surface_one = session
+        .wayland_state
+        .committed_surfaces
+        .iter()
+        .find(|surface| surface.client().as_ref() == Some(&server_client_one))
+        .cloned()
+        .ok_or("first drag-and-drop client did not commit an origin surface")?;
+    let surface_two = session
+        .wayland_state
+        .committed_surfaces
+        .iter()
+        .find(|surface| surface.client().as_ref() == Some(&server_client_two))
+        .cloned()
+        .ok_or("second drag-and-drop client did not commit a target surface")?;
+    let pointer = session
+        .wayland_state
+        .seat
+        .get_pointer()
+        .ok_or("Aqua Seat pointer is required for drag-and-drop")?;
+    let keyboard = session
+        .wayland_state
+        .seat
+        .get_keyboard()
+        .ok_or("Aqua Seat keyboard is required for drag-and-drop focus isolation")?;
+    keyboard.set_focus(
+        &mut session.wayland_state,
+        Some(surface_one.clone()),
+        Serial::from(1),
+    );
+
+    client_one.start_drag(&qh_one, 2);
+    client_one_conn.flush()?;
+    session.dispatch_clients()?;
+    let start_without_implicit_grab_rejected = session.wayland_state.dnd_started_count == 0;
+
+    pointer.motion(
+        &mut session.wayland_state,
+        Some((surface_one.clone(), (0.0, 0.0).into())),
+        &MotionEvent {
+            location: (16.0, 16.0).into(),
+            serial: Serial::from(3),
+            time: 3,
+        },
+    );
+    pointer.button(
+        &mut session.wayland_state,
+        &ButtonEvent {
+            serial: Serial::from(4),
+            time: 4,
+            button: 0x110,
+            state: ButtonState::Pressed,
+        },
+    );
+    client_one.start_drag(&qh_one, 4);
+    client_one_conn.flush()?;
+    session.dispatch_clients()?;
+    let pointer_grab_started = session.wayland_state.dnd_started_count == 1;
+    let source_client_owns_drag =
+        session.wayland_state.dnd_source_owner == Some(server_client_one.id());
+
+    pointer.motion(
+        &mut session.wayland_state,
+        Some((surface_two.clone(), (100.0, 100.0).into())),
+        &MotionEvent {
+            location: (132.0, 140.0).into(),
+            serial: Serial::from(5),
+            time: 5,
+        },
+    );
+    session.flush_clients()?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    let payload = client_two.read_payload()?;
+
+    let enter_reaches_pointer_focus_only = client_two.enter_count == 1
+        && client_two.enter_matches_own_surface
+        && client_one.enter_count == 0;
+    let mime_negotiated = client_two
+        .offered_mimes
+        .iter()
+        .any(|mime| mime == DndSmokeClientState::MIME_TYPE)
+        && client_two
+            .requested_mimes
+            .iter()
+            .any(|mime| mime == DndSmokeClientState::MIME_TYPE)
+        && client_one
+            .requested_mimes
+            .iter()
+            .any(|mime| mime == DndSmokeClientState::MIME_TYPE);
+    let unsupported_mime_not_accepted = client_one.source_target_mime.as_deref()
+        != Some(DndSmokeClientState::UNSUPPORTED_MIME_TYPE)
+        && !client_one
+            .requested_mimes
+            .iter()
+            .chain(client_two.requested_mimes.iter())
+            .any(|mime| mime == DndSmokeClientState::UNSUPPORTED_MIME_TYPE);
+    let copy_action_negotiated = client_two.source_actions
+        == Some(
+            client_wl_data_device_manager::DndAction::Copy
+                | client_wl_data_device_manager::DndAction::Move,
+        )
+        && client_two.chosen_action == Some(client_wl_data_device_manager::DndAction::Copy)
+        && client_one.source_chosen_action == Some(client_wl_data_device_manager::DndAction::Copy);
+    let payload_transferred = payload == PAYLOAD;
+    let payload_bytes = payload.len();
+
+    pointer.button(
+        &mut session.wayland_state,
+        &ButtonEvent {
+            serial: Serial::from(6),
+            time: 6,
+            button: 0x110,
+            state: ButtonState::Released,
+        },
+    );
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+
+    let drop_delivered_to_target = client_two.drop_count == 1
+        && session.wayland_state.dnd_validated_drop_count == 1
+        && session.wayland_state.dnd_drop_target == Some(server_client_two.id());
+    let source_drop_performed = client_one.source_drop_performed;
+    let source_finished = client_one.source_finished;
+    let accepted_drop_count = client_two.drop_count;
+
+    pointer.motion(
+        &mut session.wayland_state,
+        Some((surface_one.clone(), (0.0, 0.0).into())),
+        &MotionEvent {
+            location: (20.0, 20.0).into(),
+            serial: Serial::from(7),
+            time: 7,
+        },
+    );
+    pointer.button(
+        &mut session.wayland_state,
+        &ButtonEvent {
+            serial: Serial::from(8),
+            time: 8,
+            button: 0x110,
+            state: ButtonState::Pressed,
+        },
+    );
+    client_two.reset_target_for_rejected_drop();
+    client_one.start_drag(&qh_one, 8);
+    client_one_conn.flush()?;
+    session.dispatch_clients()?;
+    pointer.motion(
+        &mut session.wayland_state,
+        Some((surface_two.clone(), (100.0, 100.0).into())),
+        &MotionEvent {
+            location: (136.0, 144.0).into(),
+            serial: Serial::from(9),
+            time: 9,
+        },
+    );
+    session.flush_clients()?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    pointer.button(
+        &mut session.wayland_state,
+        &ButtonEvent {
+            serial: Serial::from(10),
+            time: 10,
+            button: 0x110,
+            state: ButtonState::Released,
+        },
+    );
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+
+    let rejected_drop_cancelled = client_one.source_cancelled
+        && session.wayland_state.dnd_started_count == 2
+        && session.wayland_state.dnd_cancelled_drop_count == 1;
+    let rejected_drop_not_delivered = client_two.drop_count == accepted_drop_count;
+    let keyboard_focus_unchanged = keyboard.current_focus().as_ref() == Some(&surface_one);
+
+    Ok(DragAndDropProbe {
+        product: PRODUCT,
+        status: "drag-and-drop",
+        protocol: "wl_data_device_manager",
+        client_count: 2,
+        globals_visible_to_both_clients: client_one.globals_ready() && client_two.globals_ready(),
+        start_without_implicit_grab_rejected,
+        pointer_grab_started,
+        source_client_owns_drag,
+        enter_reaches_pointer_focus_only,
+        keyboard_focus_unchanged,
+        mime_negotiated,
+        unsupported_mime_not_accepted,
+        copy_action_negotiated,
+        payload_transferred,
+        payload_bytes,
+        transfer_limit_bytes: DndSmokeClientState::TRANSFER_LIMIT_BYTES,
+        compositor_buffers_payload: false,
+        drop_delivered_to_target,
+        source_drop_performed,
+        source_finished,
+        rejected_drop_cancelled,
+        rejected_drop_not_delivered,
+        data_control_global_exposed: client_one.data_control_global_seen
+            || client_two.data_control_global_seen,
+        host_stub: false,
+    })
+}
+
+#[cfg(not(all(target_os = "linux", feature = "smithay-smoke")))]
+fn probe_drag_and_drop_impl() -> Result<DragAndDropProbe, Box<dyn std::error::Error>> {
+    Ok(DragAndDropProbe {
+        product: PRODUCT,
+        status: "drag-and-drop",
+        protocol: "wl_data_device_manager",
+        client_count: 2,
+        globals_visible_to_both_clients: true,
+        start_without_implicit_grab_rejected: true,
+        pointer_grab_started: true,
+        source_client_owns_drag: true,
+        enter_reaches_pointer_focus_only: true,
+        keyboard_focus_unchanged: true,
+        mime_negotiated: true,
+        unsupported_mime_not_accepted: true,
+        copy_action_negotiated: true,
+        payload_transferred: true,
+        payload_bytes: 28,
+        transfer_limit_bytes: 4_096,
+        compositor_buffers_payload: false,
+        drop_delivered_to_target: true,
+        source_drop_performed: true,
+        source_finished: true,
+        rejected_drop_cancelled: true,
+        rejected_drop_not_delivered: true,
+        data_control_global_exposed: false,
+        host_stub: true,
+    })
+}
+
 #[cfg(not(all(target_os = "linux", feature = "smithay-smoke")))]
 fn probe_selection_ownership_impl() -> Result<SelectionOwnershipProbe, Box<dyn std::error::Error>> {
     Ok(SelectionOwnershipProbe {
@@ -4770,6 +5117,11 @@ struct WaylandSmokeState {
     primary_selection_count: usize,
     clipboard_selection_owner: Option<ClientId>,
     primary_selection_owner: Option<ClientId>,
+    dnd_started_count: usize,
+    dnd_validated_drop_count: usize,
+    dnd_cancelled_drop_count: usize,
+    dnd_source_owner: Option<ClientId>,
+    dnd_drop_target: Option<ClientId>,
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -4897,6 +5249,11 @@ impl WaylandSmokeState {
             primary_selection_count: 0,
             clipboard_selection_owner: None,
             primary_selection_owner: None,
+            dnd_started_count: 0,
+            dnd_validated_drop_count: 0,
+            dnd_cancelled_drop_count: 0,
+            dnd_source_owner: None,
+            dnd_drop_target: None,
         })
     }
 
@@ -9089,7 +9446,30 @@ impl SelectionHandler for WaylandSmokeState {
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
-impl ClientDndGrabHandler for WaylandSmokeState {}
+impl ClientDndGrabHandler for WaylandSmokeState {
+    fn started(
+        &mut self,
+        source: Option<smithay::reexports::wayland_server::protocol::wl_data_source::WlDataSource>,
+        _icon: Option<WlSurface>,
+        _seat: Seat<Self>,
+    ) {
+        self.dnd_started_count += 1;
+        self.dnd_source_owner = source
+            .and_then(|source| source.client())
+            .map(|client| client.id());
+    }
+
+    fn dropped(&mut self, target: Option<WlSurface>, validated: bool, _seat: Seat<Self>) {
+        self.dnd_drop_target = target
+            .and_then(|surface| surface.client())
+            .map(|client| client.id());
+        if validated {
+            self.dnd_validated_drop_count += 1;
+        } else {
+            self.dnd_cancelled_drop_count += 1;
+        }
+    }
+}
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl ServerDndGrabHandler for WaylandSmokeState {}
@@ -9098,6 +9478,18 @@ impl ServerDndGrabHandler for WaylandSmokeState {}
 impl DataDeviceHandler for WaylandSmokeState {
     fn data_device_state(&self) -> &DataDeviceState {
         &self.data_device_state
+    }
+
+    fn action_choice(
+        &mut self,
+        available: ServerDndAction,
+        preferred: ServerDndAction,
+    ) -> ServerDndAction {
+        if preferred == ServerDndAction::Copy && available.contains(ServerDndAction::Copy) {
+            ServerDndAction::Copy
+        } else {
+            ServerDndAction::None
+        }
     }
 }
 
@@ -9524,6 +9916,296 @@ impl ClientDispatch<client_primary_selection_source::ZwpPrimarySelectionSourceV1
         }
     }
 }
+
+#[derive(Default)]
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+struct DndSmokeClientState {
+    registry_bound: bool,
+    data_device_global_seen: bool,
+    data_control_global_seen: bool,
+    surface: Option<wl_surface::WlSurface>,
+    seat: Option<client_wl_seat::WlSeat>,
+    data_manager: Option<client_wl_data_device_manager::WlDataDeviceManager>,
+    data_device: Option<client_wl_data_device::WlDataDevice>,
+    data_source: Option<client_wl_data_source::WlDataSource>,
+    current_offer: Option<client_wl_data_offer::WlDataOffer>,
+    offered_mimes: Vec<String>,
+    source_actions: Option<client_wl_data_device_manager::DndAction>,
+    chosen_action: Option<client_wl_data_device_manager::DndAction>,
+    source_target_mime: Option<String>,
+    source_chosen_action: Option<client_wl_data_device_manager::DndAction>,
+    requested_mimes: Vec<String>,
+    receive_stream: Option<std::os::unix::net::UnixStream>,
+    payload: Vec<u8>,
+    accept_drop: bool,
+    enter_count: usize,
+    drop_count: usize,
+    enter_matches_own_surface: bool,
+    source_cancelled: bool,
+    source_drop_performed: bool,
+    source_finished: bool,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl DndSmokeClientState {
+    const MIME_TYPE: &'static str = "text/plain;charset=utf-8";
+    const UNSUPPORTED_MIME_TYPE: &'static str = "application/x-aqua-dnd-unsupported";
+    const TRANSFER_LIMIT_BYTES: usize = 4_096;
+
+    fn with_payload(payload: &[u8]) -> Self {
+        Self {
+            payload: payload.to_vec(),
+            ..Self::default()
+        }
+    }
+
+    fn initialize_device(&mut self, qh: &QueueHandle<Self>) {
+        if self.data_device.is_none() {
+            if let (Some(manager), Some(seat)) = (self.data_manager.clone(), self.seat.clone()) {
+                self.data_device = Some(manager.get_data_device(&seat, qh, ()));
+            }
+        }
+    }
+
+    fn globals_ready(&self) -> bool {
+        self.registry_bound
+            && self.data_device_global_seen
+            && self.surface.is_some()
+            && self.data_device.is_some()
+    }
+
+    fn start_drag(&mut self, qh: &QueueHandle<Self>, serial: u32) {
+        let (Some(manager), Some(device), Some(surface)) = (
+            self.data_manager.clone(),
+            self.data_device.clone(),
+            self.surface.clone(),
+        ) else {
+            return;
+        };
+        if let Some(source) = self.data_source.take() {
+            source.destroy();
+        }
+        self.source_target_mime = None;
+        self.source_chosen_action = None;
+        self.source_cancelled = false;
+        self.source_drop_performed = false;
+        self.source_finished = false;
+        let source = manager.create_data_source(qh, ());
+        source.offer(Self::UNSUPPORTED_MIME_TYPE.to_string());
+        source.offer(Self::MIME_TYPE.to_string());
+        source.set_actions(
+            client_wl_data_device_manager::DndAction::Copy
+                | client_wl_data_device_manager::DndAction::Move,
+        );
+        device.start_drag(Some(&source), &surface, None, serial);
+        self.data_source = Some(source);
+    }
+
+    fn reset_target_for_rejected_drop(&mut self) {
+        self.accept_drop = false;
+        self.current_offer = None;
+        self.offered_mimes.clear();
+        self.source_actions = None;
+        self.chosen_action = None;
+        self.receive_stream = None;
+    }
+
+    fn accept_offer(&mut self, offer: &client_wl_data_offer::WlDataOffer, serial: u32) {
+        if !self.accept_drop
+            || !self
+                .offered_mimes
+                .iter()
+                .any(|mime| mime == Self::MIME_TYPE)
+        {
+            offer.accept(serial, None);
+            return;
+        }
+        offer.accept(serial, Some(Self::MIME_TYPE.to_string()));
+        offer.set_actions(
+            client_wl_data_device_manager::DndAction::Copy,
+            client_wl_data_device_manager::DndAction::Copy,
+        );
+        let Ok((read_stream, write_stream)) = std::os::unix::net::UnixStream::pair() else {
+            return;
+        };
+        let _ = read_stream.set_read_timeout(Some(Duration::from_secs(2)));
+        offer.receive(Self::MIME_TYPE.to_string(), write_stream.as_fd());
+        self.requested_mimes.push(Self::MIME_TYPE.to_string());
+        self.receive_stream = Some(read_stream);
+    }
+
+    fn read_payload(&mut self) -> std::io::Result<Vec<u8>> {
+        read_bounded_selection_payload(self.receive_stream.take(), Self::TRANSFER_LIMIT_BYTES)
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<wl_registry::WlRegistry, ()> for DndSmokeClientState {
+    fn event(
+        state: &mut Self,
+        registry: &wl_registry::WlRegistry,
+        event: wl_registry::Event,
+        _: &(),
+        _: &ClientConnection,
+        qh: &QueueHandle<Self>,
+    ) {
+        state.registry_bound = true;
+        let wl_registry::Event::Global {
+            name,
+            interface,
+            version,
+        } = event
+        else {
+            return;
+        };
+        match interface.as_str() {
+            "wl_compositor" => {
+                let compositor = registry.bind::<wl_compositor::WlCompositor, _, _>(
+                    name,
+                    version.min(1),
+                    qh,
+                    (),
+                );
+                let surface = compositor.create_surface(qh, ());
+                surface.commit();
+                state.surface = Some(surface);
+            }
+            "wl_seat" => {
+                state.seat = Some(registry.bind::<client_wl_seat::WlSeat, _, _>(
+                    name,
+                    version.min(1),
+                    qh,
+                    (),
+                ));
+            }
+            "wl_data_device_manager" => {
+                state.data_manager = Some(
+                    registry.bind::<client_wl_data_device_manager::WlDataDeviceManager, _, _>(
+                        name,
+                        version.min(3),
+                        qh,
+                        (),
+                    ),
+                );
+                state.data_device_global_seen = true;
+            }
+            "zwlr_data_control_manager_v1" | "ext_data_control_manager_v1" => {
+                state.data_control_global_seen = true;
+            }
+            _ => {}
+        }
+        state.initialize_device(qh);
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_wl_data_device::WlDataDevice, ()> for DndSmokeClientState {
+    wayland_client::event_created_child!(DndSmokeClientState, client_wl_data_device::WlDataDevice, [
+        0 => (client_wl_data_offer::WlDataOffer, ())
+    ]);
+
+    fn event(
+        state: &mut Self,
+        _: &client_wl_data_device::WlDataDevice,
+        event: client_wl_data_device::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            client_wl_data_device::Event::Enter {
+                serial,
+                surface,
+                id,
+                ..
+            } => {
+                state.enter_count += 1;
+                state.enter_matches_own_surface = state.surface.as_ref() == Some(&surface);
+                if let Some(offer) = id {
+                    state.accept_offer(&offer, serial);
+                    state.current_offer = Some(offer);
+                }
+            }
+            client_wl_data_device::Event::Drop => {
+                state.drop_count += 1;
+                if state.accept_drop {
+                    if let Some(offer) = &state.current_offer {
+                        offer.finish();
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_wl_data_offer::WlDataOffer, ()> for DndSmokeClientState {
+    fn event(
+        state: &mut Self,
+        _: &client_wl_data_offer::WlDataOffer,
+        event: client_wl_data_offer::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            client_wl_data_offer::Event::Offer { mime_type } => state.offered_mimes.push(mime_type),
+            client_wl_data_offer::Event::SourceActions { source_actions } => {
+                if let WEnum::Value(actions) = source_actions {
+                    state.source_actions = Some(actions);
+                }
+            }
+            client_wl_data_offer::Event::Action { dnd_action } => {
+                if let WEnum::Value(action) = dnd_action {
+                    state.chosen_action = Some(action);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_wl_data_source::WlDataSource, ()> for DndSmokeClientState {
+    fn event(
+        state: &mut Self,
+        _: &client_wl_data_source::WlDataSource,
+        event: client_wl_data_source::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            client_wl_data_source::Event::Target { mime_type } => {
+                state.source_target_mime = mime_type
+            }
+            client_wl_data_source::Event::Send { mime_type, fd } => {
+                state.requested_mimes.push(mime_type);
+                let mut file = std::fs::File::from(fd);
+                let _ = file.write_all(&state.payload);
+            }
+            client_wl_data_source::Event::Cancelled => state.source_cancelled = true,
+            client_wl_data_source::Event::DndDropPerformed => state.source_drop_performed = true,
+            client_wl_data_source::Event::DndFinished => state.source_finished = true,
+            client_wl_data_source::Event::Action { dnd_action } => {
+                if let WEnum::Value(action) = dnd_action {
+                    state.source_chosen_action = Some(action);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(DndSmokeClientState: ignore wl_compositor::WlCompositor);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(DndSmokeClientState: ignore wl_surface::WlSurface);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(DndSmokeClientState: ignore client_wl_seat::WlSeat);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(DndSmokeClientState: ignore client_wl_data_device_manager::WlDataDeviceManager);
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 delegate_noop!(SelectionSmokeClientState: ignore wl_compositor::WlCompositor);
@@ -11164,6 +11846,34 @@ mod tests {
         assert!(probe.owner_disconnect_clears_clipboard);
         assert!(probe.owner_disconnect_clears_primary);
         assert!(probe.ownership_handoff_accepted);
+        assert!(!probe.data_control_global_exposed);
+        assert!(!probe.host_stub);
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn smithay_drag_and_drop_is_focus_safe_and_bounded() {
+        let probe = probe_drag_and_drop().expect("drag-and-drop probe");
+
+        assert!(probe.is_ready());
+        assert_eq!(probe.client_count, 2);
+        assert!(probe.start_without_implicit_grab_rejected);
+        assert!(probe.pointer_grab_started);
+        assert!(probe.source_client_owns_drag);
+        assert!(probe.enter_reaches_pointer_focus_only);
+        assert!(probe.keyboard_focus_unchanged);
+        assert!(probe.mime_negotiated);
+        assert!(probe.unsupported_mime_not_accepted);
+        assert!(probe.copy_action_negotiated);
+        assert!(probe.payload_transferred);
+        assert_eq!(probe.payload_bytes, 28);
+        assert_eq!(probe.transfer_limit_bytes, 4_096);
+        assert!(!probe.compositor_buffers_payload);
+        assert!(probe.drop_delivered_to_target);
+        assert!(probe.source_drop_performed);
+        assert!(probe.source_finished);
+        assert!(probe.rejected_drop_cancelled);
+        assert!(probe.rejected_drop_not_delivered);
         assert!(!probe.data_control_global_exposed);
         assert!(!probe.host_stub);
     }

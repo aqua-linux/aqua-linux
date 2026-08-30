@@ -252,16 +252,23 @@ Pass criteria:
   unavailable to arbitrary clients unless an explicit authorization policy
   permits them.
 
-Current R3 evidence establishes the clipboard and primary-selection boundary. The compositor
-publishes only the standard clipboard and primary-selection managers, makes
-their focus follow Aqua Seat keyboard focus, rejects ownership changes from an
-unfocused client, and transfers existing offers when focus moves between two
-independent clients. The Linux Smithay probe and packaged-rootfs contract also
+Current R3 evidence establishes the standard data-transfer boundary. The
+compositor publishes only the standard clipboard, primary-selection, and
+data-device managers, makes their focus follow Aqua Seat keyboard focus,
+rejects ownership changes from an unfocused client, and transfers existing
+offers when focus moves between two independent clients. The Linux Smithay
+probe and packaged-rootfs contract also
 verify UTF-8 MIME negotiation, rejection of an unsupported type, exact byte
 transfer through protocol file descriptors, owner-disconnect cleanup, a
 4096-byte and two-second probe bound, and the absence of compositor payload
-buffering. No data-control manager is advertised. Drag-and-drop remains open;
-broader application interoperability is still part of R3 acceptance.
+buffering. No data-control manager is advertised. The separate two-client
+drag-and-drop probe rejects a start without an implicit
+pointer grab, routes enter/drop only to the pointer-focused target without
+changing keyboard focus, negotiates UTF-8 text and the copy action, transfers
+an exact bounded payload directly, finishes an accepted drop, and cancels a
+rejected drop without target delivery. Broader application interoperability,
+dma-buf import, display behavior, and text-input support remain part of R3
+acceptance.
 
 XWayland is not automatically required for v1. If it remains excluded, the
 supported application model and incompatibility boundary must be public.

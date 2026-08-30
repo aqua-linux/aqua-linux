@@ -401,6 +401,17 @@ check_output_contains "compositor_buffers_payload=false" cargo run -p aqua-compo
 check_output_contains "owner_disconnect_clears_clipboard=true" cargo run -p aqua-compositor -- probe-selection-ownership
 check_output_contains "owner_disconnect_clears_primary=true" cargo run -p aqua-compositor -- probe-selection-ownership
 check_output_contains "data_control_global_exposed=false" cargo run -p aqua-compositor -- probe-selection-ownership
+check_output_contains "[AQUA-COMPOSITOR] stage=drag-and-drop status=ok" cargo run -p aqua-compositor -- probe-drag-and-drop
+check_output_contains "start_without_implicit_grab_rejected=true" cargo run -p aqua-compositor -- probe-drag-and-drop
+check_output_contains "enter_reaches_pointer_focus_only=true" cargo run -p aqua-compositor -- probe-drag-and-drop
+check_output_contains "keyboard_focus_unchanged=true" cargo run -p aqua-compositor -- probe-drag-and-drop
+check_output_contains "mime_negotiated=true" cargo run -p aqua-compositor -- probe-drag-and-drop
+check_output_contains "copy_action_negotiated=true" cargo run -p aqua-compositor -- probe-drag-and-drop
+check_output_contains "payload_transferred=true" cargo run -p aqua-compositor -- probe-drag-and-drop
+check_output_contains "drop_delivered_to_target=true" cargo run -p aqua-compositor -- probe-drag-and-drop
+check_output_contains "source_finished=true" cargo run -p aqua-compositor -- probe-drag-and-drop
+check_output_contains "rejected_drop_cancelled=true" cargo run -p aqua-compositor -- probe-drag-and-drop
+check_output_contains "rejected_drop_not_delivered=true" cargo run -p aqua-compositor -- probe-drag-and-drop
 check_output_contains "[AQUA-COMPOSITOR] stage=xdg-toplevel-window-model status=ok" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model
 check_output_contains "window_model_status=xdg-toplevel-window-model" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model
 check_output_contains "source_client_ready=ok" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model

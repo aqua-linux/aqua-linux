@@ -1549,6 +1549,7 @@ grep -Fq '("scene_contract", "manual_nested_preview_backend_no_start")' scripts/
 grep -Fq 'probe-xdg-shell-binding' scripts/check-compositor.sh
 grep -Fq 'probe-xdg-toplevel-client' scripts/check-compositor.sh
 grep -Fq 'probe-selection-ownership' scripts/check-compositor.sh
+grep -Fq 'probe-drag-and-drop' scripts/check-compositor.sh
 grep -Fq 'unfocused_clipboard_rejected=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'unfocused_primary_rejected=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'data_control_global_exposed=false' scripts/check-smithay-seat-docker.sh
@@ -1556,6 +1557,10 @@ grep -Fq 'clipboard_payload_transferred=true' scripts/check-smithay-seat-docker.
 grep -Fq 'primary_payload_transferred=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'owner_disconnect_clears_clipboard=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'owner_disconnect_clears_primary=true' scripts/check-smithay-seat-docker.sh
+grep -Fq 'start_without_implicit_grab_rejected=true' scripts/check-smithay-seat-docker.sh
+grep -Fq 'enter_reaches_pointer_focus_only=true' scripts/check-smithay-seat-docker.sh
+grep -Fq 'copy_action_negotiated=true' scripts/check-smithay-seat-docker.sh
+grep -Fq 'rejected_drop_cancelled=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'server_shm_buffer_sampled=ok' scripts/check-compositor.sh
 grep -Fq 'probe-xdg-toplevel-window-model' scripts/check-compositor.sh
 grep -Fq 'probe-launcher-model' scripts/check-compositor.sh

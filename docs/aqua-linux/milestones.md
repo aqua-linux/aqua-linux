@@ -190,6 +190,9 @@ Tasks:
 - Transfer clipboard and primary-selection payloads directly between clients
   through the negotiated standard MIME type, clear dead owners, and keep the
   compositor out of the payload data plane.
+- Route standard drag-and-drop through an implicit pointer grab with bounded
+  MIME/action negotiation, direct client transfer, target-only drop, and
+  cancellation.
 - Support move, resize, close, and basic stacking.
 - Add Aqua window chrome.
 - Keep compositor stable when a client exits.
@@ -211,7 +214,13 @@ Current compatibility extension:
   the packaged compositor contract. The same clients negotiate UTF-8 text,
   reject an unsupported MIME choice, transfer exact clipboard and primary
   bytes through file descriptors, and receive cleared selections after the
-  owner disconnects. Drag-and-drop remains in R3.
+  owner disconnects.
+- A separate two-client Linux probe rejects drag start without an implicit
+  pointer grab, routes enter/drop only to the pointer-focused target while
+  preserving keyboard focus, negotiates UTF-8 text and `copy`, transfers an
+  exact bounded 28-byte payload directly, completes the accepted source, and
+  cancels a rejected second drop without target delivery. The packaged rootfs
+  runs the same feature-enabled probe with `host_stub=false`.
 
 ## Milestone 6: Boot Aqua Compositor In QEMU
 
