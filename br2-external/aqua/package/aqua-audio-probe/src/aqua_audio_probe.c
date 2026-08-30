@@ -256,6 +256,40 @@ static int fallback(void) {
   return 0;
 }
 
+static int primary_topology(uint32_t expected_outputs) {
+  struct aqua_audio_native *handle = NULL;
+  int32_t status = aqua_audio_native_open(5000, &handle);
+  if (status != AQUA_AUDIO_NATIVE_OK) {
+    int result = hotplug_failure(handle, "open", status);
+    aqua_audio_native_close(handle);
+    return result;
+  }
+
+  struct aqua_audio_native_snapshot snapshot;
+  status = aqua_audio_native_snapshot(handle, 5000, &snapshot);
+  if (status != AQUA_AUDIO_NATIVE_OK) {
+    int result = hotplug_failure(handle, "snapshot", status);
+    aqua_audio_native_close(handle);
+    return result;
+  }
+  struct aqua_audio_native_node *output = default_output(&snapshot);
+  if (!output || output_count(&snapshot) != expected_outputs ||
+      strstr(output->name, "pci-0000_00_04.0") == NULL) {
+    if (status == AQUA_AUDIO_NATIVE_OK) {
+      status = AQUA_AUDIO_NATIVE_NODE_NOT_FOUND;
+    }
+    int result = hotplug_failure(handle, "primary-default", status);
+    aqua_audio_native_close(handle);
+    return result;
+  }
+
+  printf("[AQUA-AUDIO] stage=topology-probe status=ok outputs=%u "
+         "default_slot=04.0 graph_ready=true\n",
+         expected_outputs);
+  aqua_audio_native_close(handle);
+  return 0;
+}
+
 static int configure(snd_pcm_t *pcm, snd_pcm_stream_t stream) {
   int status = snd_pcm_set_params(
       pcm, SND_PCM_FORMAT_S16_LE, SND_PCM_ACCESS_RW_INTERLEAVED, CHANNELS,
@@ -489,7 +523,7 @@ static int capture(enum capture_requirement requirement,
 int main(int argc, char **argv) {
   if (argc != 2) {
     fprintf(stderr,
-            "usage: aqua-audio-probe playback|playback-expect-interruption|capture|capture-silence|capture-signal|capture-expect-interruption|controls|routes|routes-secondary|fallback\n");
+            "usage: aqua-audio-probe playback|playback-expect-interruption|capture|capture-silence|capture-signal|capture-expect-interruption|controls|routes|routes-secondary|fallback|primary-two|primary-one\n");
     return 2;
   }
   if (strcmp(argv[1], "playback") == 0) {
@@ -522,7 +556,13 @@ int main(int argc, char **argv) {
   if (strcmp(argv[1], "fallback") == 0) {
     return fallback();
   }
+  if (strcmp(argv[1], "primary-two") == 0) {
+    return primary_topology(2);
+  }
+  if (strcmp(argv[1], "primary-one") == 0) {
+    return primary_topology(1);
+  }
   fprintf(stderr,
-          "usage: aqua-audio-probe playback|playback-expect-interruption|capture|capture-silence|capture-signal|capture-expect-interruption|controls|routes|routes-secondary|fallback\n");
+          "usage: aqua-audio-probe playback|playback-expect-interruption|capture|capture-silence|capture-signal|capture-expect-interruption|controls|routes|routes-secondary|fallback|primary-two|primary-one\n");
   return 2;
 }

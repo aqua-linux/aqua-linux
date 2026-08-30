@@ -23,7 +23,7 @@ TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-output}"
 
 case "${AQUA_AUDIO_QEMU_CONTRACT}" in
-    output|input|input-signal|input-disconnect|service-loss|capture-service-loss|control-service-loss|restart-exhaustion|multi-route|hotplug) ;;
+    output|input|input-signal|input-disconnect|service-loss|capture-service-loss|control-service-loss|restart-exhaustion|multi-route|hotplug|nondefault-unplug) ;;
     *)
         echo "Unsupported audio QEMU contract: ${AQUA_AUDIO_QEMU_CONTRACT}" >&2
         exit 2
@@ -206,7 +206,7 @@ elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = multi-route; then
     echo 'Aqua Linux multi-device QEMU audio route check passed.'
     echo "Primary route capture: ${WAV_ROUTE_PRIMARY}"
     echo "Secondary route capture: ${WAV_ROUTE_SECONDARY}"
-else
+elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = hotplug; then
     for marker in \
         '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-output outputs=2 capture_node=false' \
         '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sinks=true route_profile=true' \
@@ -223,5 +223,20 @@ else
     echo 'Aqua Linux QEMU audio default-device unplug fallback check passed.'
     echo "Remaining route capture: ${WAV_ROUTE_PRIMARY}"
     echo "Removed route capture: ${WAV_ROUTE_SECONDARY}"
+else
+    for marker in \
+        '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-output outputs=2 capture_node=false' \
+        '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sinks=true route_profile=true' \
+        '[AQUA-AUDIO] stage=topology-probe status=ok outputs=2 default_slot=04.0 graph_ready=true' \
+        '[AQUA-AUDIO] stage=qemu-device-unplug status=ok device=aqua-hda-secondary event=DEVICE_DELETED alsa_outputs=1' \
+        '[AQUA-AUDIO] stage=topology-probe status=ok outputs=1 default_slot=04.0 graph_ready=true' \
+        '[AQUA-AUDIO] stage=qemu-nondefault-unplug status=ok removed_default=false default_unchanged=true playback_before=true playback_after=true recovery_shell=true'
+    do
+        grep -Fq "${marker}" "${SERIAL_LOG}"
+    done
+    test "$(grep -Fc '[AQUA-AUDIO] stage=media-probe status=ok direction=playback frames=48000 rate=48000 channels=2 format=s16le' "${SERIAL_LOG}")" -eq 2
+    python3 "${ROOT_DIR}/scripts/check-qemu-audio-wave.py" "${WAV_ROUTE_PRIMARY}"
+    echo 'Aqua Linux QEMU non-default audio device unplug check passed.'
+    echo "Stable default route capture: ${WAV_ROUTE_PRIMARY}"
 fi
 echo "Serial log: ${SERIAL_LOG}"

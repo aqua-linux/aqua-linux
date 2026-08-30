@@ -170,7 +170,10 @@ acknowledgement, and non-silent playback captures on both routes. A bounded QMP
 profile then selects the second virtual PCI output as default, removes it,
 requires the asynchronous deletion event and one-device ALSA topology, observes
 one authoritative fallback default through the native adapter, and proves
-non-silent playback resumes on the remaining output. A separate active-stream
+non-silent playback resumes on the remaining output. A complementary profile
+removes the non-default PCI output instead, proves the authoritative PCI 04.0
+route does not change while the topology shrinks, and captures non-silent
+playback on that same route before and after removal. A separate active-stream
 profile kills PipeWire after the client has written 480 frames, requires an
 explicit `Broken pipe` interruption with no false completion, observes the
 supervisor's second ordered service attempt, and proves a new 48,000-frame

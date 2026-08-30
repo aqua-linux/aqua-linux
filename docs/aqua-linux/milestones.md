@@ -502,6 +502,10 @@ and non-silent playback on both independent WAV backends. A selected-output
 removal profile additionally requires QMP deletion acknowledgement, the ALSA
 topology to shrink from two devices to one, the native graph to expose the
 remaining output as authoritative default, and non-silent fallback playback.
+A complementary non-default removal profile proves PCI 04.0 is authoritative
+before PCI 05.0 is removed, requires acknowledged QMP and one-device ALSA/native
+topology convergence, and preserves the same default with non-silent playback
+before and after removal.
 A private QEMU D-Bus input profile additionally injects a deterministic 1 kHz
 bipolar signal without host microphone access and proves an exact 4,800-frame
 capture through HDA, ALSA, and PipeWire with a 4,096 peak and balanced sample
