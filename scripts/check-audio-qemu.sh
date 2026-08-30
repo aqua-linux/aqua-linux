@@ -12,6 +12,7 @@ WAV_ROUTE_SECONDARY="${WAV_ROUTE_SECONDARY:-${EVIDENCE_DIR}/route-secondary.wav}
 QEMU_PID_FILE="${QEMU_PID_FILE:-${EVIDENCE_DIR}/qemu.pid}"
 QMP_SOCKET="${QMP_SOCKET:-${EVIDENCE_DIR}/qmp.sock}"
 QMP_DEVICE_DELETE="${QMP_DEVICE_DELETE:-${ROOT_DIR}/scripts/qmp-device-delete.py}"
+QMP_AUDIO_OUTPUT_ADD="${QMP_AUDIO_OUTPUT_ADD:-${ROOT_DIR}/scripts/qmp-audio-output-add.py}"
 AUDIO_INPUT_INJECTOR="${AUDIO_INPUT_INJECTOR:-${EVIDENCE_DIR}/qemu-dbus-audio-input}"
 AUDIO_INPUT_READY="${AUDIO_INPUT_READY:-${EVIDENCE_DIR}/input-injector.ready}"
 AUDIO_INPUT_RESULT="${AUDIO_INPUT_RESULT:-${EVIDENCE_DIR}/input-injector.result}"
@@ -23,7 +24,7 @@ TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-output}"
 
 case "${AQUA_AUDIO_QEMU_CONTRACT}" in
-    output|input|input-signal|input-disconnect|active-input-unplug|service-loss|capture-service-loss|control-service-loss|restart-exhaustion|multi-route|hotplug|nondefault-unplug|active-nondefault-unplug|active-default-unplug) ;;
+    output|input|input-signal|input-disconnect|active-input-unplug|service-loss|capture-service-loss|control-service-loss|restart-exhaustion|multi-route|hotplug|replug|nondefault-unplug|active-nondefault-unplug|active-default-unplug) ;;
     *)
         echo "Unsupported audio QEMU contract: ${AQUA_AUDIO_QEMU_CONTRACT}" >&2
         exit 2
@@ -63,6 +64,7 @@ trap cleanup EXIT INT TERM
 export ROOT_DIR KERNEL ROOTFS SERIAL_LOG WAV_CAPTURE QEMU_PID_FILE MEMORY CPUS TIMEOUT_SECONDS
 export WAV_ROUTE_PRIMARY WAV_ROUTE_SECONDARY
 export QMP_SOCKET QMP_DEVICE_DELETE
+export QMP_AUDIO_OUTPUT_ADD
 export AUDIO_INPUT_INJECTOR AUDIO_INPUT_READY AUDIO_INPUT_RESULT AUDIO_INPUT_LOG
 export AUDIO_INPUT_DISCONNECT_BYTES
 export AQUA_AUDIO_QEMU_CONTRACT
@@ -254,6 +256,23 @@ elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = hotplug; then
     echo 'Aqua Linux QEMU audio default-device unplug fallback check passed.'
     echo "Remaining route capture: ${WAV_ROUTE_PRIMARY}"
     echo "Removed route capture: ${WAV_ROUTE_SECONDARY}"
+elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = replug; then
+    for marker in \
+        '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-output outputs=2 capture_node=false' \
+        '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sinks=true route_profile=true' \
+        '[AQUA-AUDIO] stage=qemu-replug-precondition status=ok selected_slot=05.0 outputs=2' \
+        '[AQUA-AUDIO] stage=qemu-device-unplug status=ok device=aqua-hda-secondary event=DEVICE_DELETED alsa_outputs=1' \
+        '[AQUA-AUDIO] stage=qemu-device-replug status=blocked reason=hda-codec-bus-not-hotpluggable controller_rollback=true alsa_outputs=1 native_outputs=1 false_restoration=false' \
+        '[AQUA-AUDIO] stage=qemu-output-replug status=ok removed_default=true fallback_output=true playback_before_rejection=true replug_supported=false false_restoration=false controller_rollback=true fallback_stable=true playback_after_rejection=true recovery_shell=true'
+    do
+        grep -Fq "${marker}" "${SERIAL_LOG}"
+    done
+    test "$(grep -Fc '[AQUA-AUDIO] stage=route-probe status=ok outputs=2 previous_default=true requested_node=true default_changed=true requested_slot=05.0' "${SERIAL_LOG}")" -eq 1
+    test "$(grep -Fc '[AQUA-AUDIO] stage=hotplug-probe status=ok outputs=1 default_output=true graph_ready=true' "${SERIAL_LOG}")" -eq 2
+    test "$(grep -Fc '[AQUA-AUDIO] stage=media-probe status=ok direction=playback frames=48000 rate=48000 channels=2 format=s16le' "${SERIAL_LOG}")" -eq 2
+    python3 "${ROOT_DIR}/scripts/check-qemu-audio-wave.py" "${WAV_ROUTE_PRIMARY}"
+    echo 'Aqua Linux QEMU audio output replug rejection and rollback check passed.'
+    echo "Stable fallback route capture: ${WAV_ROUTE_PRIMARY}"
 elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = nondefault-unplug; then
     for marker in \
         '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-output outputs=2 capture_node=false' \

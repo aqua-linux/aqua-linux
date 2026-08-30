@@ -267,6 +267,18 @@ are present, but none makes
 `/dev/snd` alone sufficient to enable Settings. No root-owned media daemon,
 command-output parser, or globally writable `/dev/snd` fallback is permitted.
 
+`scripts/check-audio-output-replug-qemu.sh` records the restoration boundary
+of this declared HDA model instead of claiming unsupported recovery. After the
+selected PCI 05.0 controller is removed and fallback playback succeeds, QMP
+can add a replacement HDA controller but QEMU rejects runtime insertion of its
+`hda-output` codec because that child bus is not hotpluggable. The bounded QMP
+helper requires that specific rejection, deletes the incomplete controller,
+waits for `DEVICE_DELETED`, and the guest then requires exactly one ALSA and
+one authoritative native output plus a second non-silent playback on PCI 04.0.
+This proves fail-closed rollback and stable fallback, not output restoration;
+positive replug remains open for a future hotpluggable virtual audio model and
+for separately authorized physical-hardware evidence.
+
 `scripts/check-audio-nondefault-unplug-qemu.sh` covers the inverse topology
 boundary without changing the declared devices. The native probe first requires
 two outputs with PCI 04.0 authoritative, QMP removes the non-default PCI 05.0

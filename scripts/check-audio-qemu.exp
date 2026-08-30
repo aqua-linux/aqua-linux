@@ -42,7 +42,7 @@ if {$audio_contract eq "output" || $audio_contract eq "service-loss" || $audio_c
     lappend qemu_args -audiodev "dbus,id=aqua-audio,nsamples=480,in.frequency=48000,in.channels=2,in.format=s16"
     lappend qemu_args -device ich9-intel-hda,id=aqua-hda-input,addr=04.0
     lappend qemu_args -device hda-duplex,bus=aqua-hda-input.0,audiodev=aqua-audio
-} elseif {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug"} {
+} elseif {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "replug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug"} {
     lappend qemu_args -audiodev "wav,id=aqua-route-primary,path=$env(WAV_ROUTE_PRIMARY),out.frequency=48000,out.channels=2,out.format=s16"
     lappend qemu_args -audiodev "wav,id=aqua-route-secondary,path=$env(WAV_ROUTE_SECONDARY),out.frequency=48000,out.channels=2,out.format=s16"
     lappend qemu_args -device ich9-intel-hda,id=aqua-hda-primary,addr=04.0
@@ -58,7 +58,7 @@ if {$audio_contract eq "input-signal" || $audio_contract eq "input-disconnect" |
 } else {
     lappend qemu_args -display none
 }
-if {$audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug" || $audio_contract eq "input-signal" || $audio_contract eq "input-disconnect" || $audio_contract eq "active-input-unplug"} {
+if {$audio_contract eq "hotplug" || $audio_contract eq "replug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug" || $audio_contract eq "input-signal" || $audio_contract eq "input-disconnect" || $audio_contract eq "active-input-unplug"} {
     lappend qemu_args -qmp "unix:$env(QMP_SOCKET),server=on,wait=off"
 }
 lappend qemu_args -no-reboot
@@ -92,7 +92,7 @@ expect {
 }
 expect -exact {# }
 
-if {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug"} {
+if {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "replug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug"} {
     shell {ok=1; /usr/bin/aqua-audio-rootfs-check || ok=0; test -d /proc/asound || ok=0; test "$(awk '/^ [0-9]+ / { count++ } END { print count+0 }' /proc/asound/cards)" -eq 2 || ok=0; test -c /dev/snd/pcmC0D0p || ok=0; test -c /dev/snd/pcmC1D0p || ok=0; test ! -e /dev/snd/pcmC0D0c || ok=0; test ! -e /dev/snd/pcmC1D0c || ok=0; [ "$ok" = 1 ] || { cat /proc/asound/cards; ls -l /dev/snd; }} {checking two HDA output devices}
     send -- {marker='[AQUA-AUDIO] stage=qemu-device'; [ "$ok" = 1 ] && echo "$marker status=ok driver=snd_hda_intel codec=hda-output outputs=2 capture_node=false"}
     send -- "\r"
@@ -115,7 +115,7 @@ expect -exact {# }
 
 shell {AQUA_SESSION_ALLOWED_COMMAND=/usr/bin/aqua-media-service-supervisor /usr/bin/aqua-session-user-launch /usr/bin/aqua-media-service-supervisor >/run/aqua/audio-qemu-supervisor.log 2>&1 &} {starting per-user media services}
 shell {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'state=running' /run/aqua/media-service-supervisor.state 2>/dev/null; do sleep 1; i=$((i + 1)); done} {waiting for PipeWire and WirePlumber}
-if {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug"} {
+if {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "replug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug"} {
     shell {ok=1; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || ok=0; grep -Fq 'service_owner_uid=1000' /run/aqua/media-service-supervisor.state || ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/run/aqua/wpctl-status.txt 2>&1 || ok=0; grep -Fq 'Sinks:' /run/aqua/wpctl-status.txt || ok=0} {checking per-user multi-output graph}
     send -- {marker='[AQUA-AUDIO] stage=qemu-service'; [ "$ok" = 1 ] && echo "$marker status=ok owner_uid=1000 pipewire=true wireplumber=true sinks=true route_profile=true"}
     send -- "\r"
@@ -452,6 +452,65 @@ if {$audio_contract eq "hotplug"} {
         -exact {[AQUA-AUDIO] stage=qemu-hotplug status=ok removed_default=true fallback_output=true playback_after=true} {}
         timeout { puts stderr "Final audio hotplug marker missing"; exit 1 }
         eof { puts stderr "QEMU exited before the audio hotplug marker"; exit 1 }
+    }
+    expect -exact {# }
+    send -- "poweroff -f\r"
+    expect eof
+    exit 0
+}
+
+if {$audio_contract eq "replug"} {
+    shell {replug_ok=1; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe routes-secondary' || replug_ok=0} {selecting the secondary output before removal}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-replug-precondition'; [ "$replug_ok" = 1 ] && echo "$marker status=ok selected_slot=05.0 outputs=2" || echo "$marker status=failed"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-replug-precondition status=ok selected_slot=05.0 outputs=2} {}
+        -exact {[AQUA-AUDIO] stage=qemu-replug-precondition status=failed} { puts stderr "Unable to establish the output replug precondition"; exit 1 }
+        timeout { puts stderr "Output replug precondition marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited before output replug"; exit 1 }
+    }
+    expect -exact {# }
+    if {[catch {exec python3 $env(QMP_DEVICE_DELETE) $env(QMP_SOCKET) aqua-hda-secondary} delete_result]} {
+        puts stderr $delete_result
+        exit 1
+    }
+    shell {i=0; while [ "$i" -lt 30 ] && [ "$(awk '/^ [0-9]+ / { count++ } END { print count+0 }' /proc/asound/cards)" -ne 1 ]; do sleep 1; i=$((i + 1)); done; test "$(awk '/^ [0-9]+ / { count++ } END { print count+0 }' /proc/asound/cards)" -eq 1 || replug_ok=0} {waiting for selected output removal}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-device-unplug'; [ "$replug_ok" = 1 ] && echo "$marker status=ok device=aqua-hda-secondary event=DEVICE_DELETED alsa_outputs=1"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-device-unplug status=ok device=aqua-hda-secondary event=DEVICE_DELETED alsa_outputs=1} {}
+        timeout { puts stderr "Output removal was not acknowledged before replug"; exit 1 }
+        eof { puts stderr "QEMU exited during output removal before replug"; exit 1 }
+    }
+    expect -exact {# }
+    shell {[ "$replug_ok" = 1 ] && su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe fallback' || replug_ok=0} {checking authoritative fallback after removal}
+    shell {[ "$replug_ok" = 1 ] && su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe playback' || replug_ok=0} {playing on the fallback output}
+    if {[catch {exec python3 $env(QMP_AUDIO_OUTPUT_ADD) $env(QMP_SOCKET) aqua-hda-secondary aqua-codec-secondary aqua-route-secondary 05.0} add_result]} {
+        puts stderr $add_result
+        exit 1
+    }
+    if {![string match {*status=blocked reason=hda-codec-bus-not-hotpluggable*controller_rollback=true} $add_result]} {
+        puts stderr "Unexpected HDA output restoration result: $add_result"
+        exit 1
+    }
+    shell {i=0; while [ "$i" -lt 30 ] && [ "$(awk '/^ [0-9]+ / { count++ } END { print count+0 }' /proc/asound/cards)" -ne 1 ]; do sleep 1; i=$((i + 1)); done; test "$(awk '/^ [0-9]+ / { count++ } END { print count+0 }' /proc/asound/cards)" -eq 1 || replug_ok=0; [ "$replug_ok" = 1 ] && su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe fallback' || replug_ok=0} {checking topology after rejected restoration rollback}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-device-replug'; [ "$replug_ok" = 1 ] && echo "$marker status=blocked reason=hda-codec-bus-not-hotpluggable controller_rollback=true alsa_outputs=1 native_outputs=1 false_restoration=false"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-device-replug status=blocked reason=hda-codec-bus-not-hotpluggable controller_rollback=true alsa_outputs=1 native_outputs=1 false_restoration=false} {}
+        timeout { puts stderr "Rejected output restoration rollback was not acknowledged"; exit 1 }
+        eof { puts stderr "QEMU exited during rejected output restoration rollback"; exit 1 }
+    }
+    expect -exact {# }
+    shell {[ "$replug_ok" = 1 ] && su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe playback' || replug_ok=0} {playing again through the stable fallback output}
+    shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-output-replug'; [ "$replug_ok" = 1 ] && echo "$marker status=ok removed_default=true fallback_output=true playback_before_rejection=true replug_supported=false false_restoration=false controller_rollback=true fallback_stable=true playback_after_rejection=true recovery_shell=true" || echo "$marker status=failed"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-output-replug status=ok removed_default=true fallback_output=true playback_before_rejection=true replug_supported=false false_restoration=false controller_rollback=true fallback_stable=true playback_after_rejection=true recovery_shell=true} {}
+        -exact {[AQUA-AUDIO] stage=qemu-output-replug status=failed} { puts stderr "Output replug contract failed"; exit 1 }
+        timeout { puts stderr "Final output replug marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited before the output replug marker"; exit 1 }
     }
     expect -exact {# }
     send -- "poweroff -f\r"
