@@ -219,8 +219,11 @@ host microphone and proves no physical-device behavior. Other media error
 matrices remain open.
 Native volume/mute controls are now separately proven to reject acknowledgement
 while the real PipeWire socket is absent and to succeed again only after the
-supervisor restores a new authoritative graph. Other control and UI failure
-matrices remain open. The remaining
+supervisor restores a new authoritative graph. The complementary policy-loss
+profile terminates WirePlumber, proves its full-stack response retires both old
+media processes, rejects control acknowledgement during that bounded outage,
+and succeeds again only on the replacement attempt 2/restart 1 graph. Other
+control and UI failure matrices remain open. The remaining
 UI acknowledgement gate still blocks default-image enablement.
 Buildroot availability or these bounded QEMU profiles are not a complete audio
 integration decision.
