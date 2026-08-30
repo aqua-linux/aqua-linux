@@ -579,4 +579,39 @@ mod tests {
         );
         assert_eq!(transport.api().calls, ["volume:alsa_output.pci:80"]);
     }
+
+    #[test]
+    fn repeated_submission_failure_is_bounded_until_a_new_snapshot_generation() {
+        let mut adapter = AudioServiceAdapter::with_preferences(80, false).unwrap();
+        let mut transport = PipeWireApiTransport::new(FakeApi::ready(1, 40, false));
+
+        for expected_failures in 1..=crate::MAX_AUDIO_CONTROL_SUBMISSION_ATTEMPTS {
+            transport.api_mut().reject_next = true;
+            assert!(matches!(
+                adapter.drive_backend_once(&mut transport),
+                Err(AudioBackendDriveError::Backend(
+                    PipeWireTransportError::Api(FakeError::Rejected)
+                ))
+            ));
+            assert_eq!(adapter.consecutive_submission_failures(), expected_failures);
+            assert_eq!(
+                adapter.submission_retry_exhausted(),
+                expected_failures == crate::MAX_AUDIO_CONTROL_SUBMISSION_ATTEMPTS
+            );
+            assert!(!adapter.backend_applied());
+        }
+
+        let blocked = adapter.drive_backend_once(&mut transport).unwrap();
+        assert_eq!(blocked.submitted_request_id, None);
+        assert!(transport.api().calls.is_empty());
+        assert_eq!(adapter.desired_volume_percent(), 80);
+
+        transport.api_mut().snapshot = ready_snapshot(2, 40, false);
+        let resumed = adapter.drive_backend_once(&mut transport).unwrap();
+        assert_eq!(resumed.submitted_request_id, Some(4));
+        assert!(!adapter.submission_retry_exhausted());
+        assert_eq!(adapter.consecutive_submission_failures(), 0);
+        assert_eq!(transport.api().calls, ["volume:alsa_output.pci:80"]);
+        assert!(!adapter.backend_applied());
+    }
 }

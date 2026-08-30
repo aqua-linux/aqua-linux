@@ -17,6 +17,7 @@ pub use wireplumber_native::WirePlumberNativeError;
 pub const MAX_AUDIO_DEVICES: usize = 32;
 pub const MAX_AUDIO_DEVICE_ID_BYTES: usize = 64;
 pub const MAX_AUDIO_DEVICE_NAME_BYTES: usize = 96;
+pub const MAX_AUDIO_CONTROL_SUBMISSION_ATTEMPTS: u8 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AudioServiceHealth {
@@ -291,6 +292,8 @@ pub struct AudioServiceAdapter {
     desired_output: Option<String>,
     pending_request: Option<AudioRequest>,
     next_request_id: u64,
+    consecutive_submission_failures: u8,
+    submission_blocked_generation: Option<u64>,
 }
 
 impl Default for AudioServiceAdapter {
@@ -315,6 +318,8 @@ impl AudioServiceAdapter {
             desired_output: None,
             pending_request: None,
             next_request_id: 1,
+            consecutive_submission_failures: 0,
+            submission_blocked_generation: None,
         })
     }
 
@@ -336,6 +341,14 @@ impl AudioServiceAdapter {
 
     pub const fn pending_request(&self) -> Option<&AudioRequest> {
         self.pending_request.as_ref()
+    }
+
+    pub const fn consecutive_submission_failures(&self) -> u8 {
+        self.consecutive_submission_failures
+    }
+
+    pub fn submission_retry_exhausted(&self) -> bool {
+        self.submission_blocked_generation == Some(self.state.generation)
     }
 
     pub fn controls_enabled(&self) -> bool {
@@ -404,6 +417,9 @@ impl AudioServiceAdapter {
             return Err(AudioAdapterError::ConflictingGeneration(next.generation));
         }
 
+        self.consecutive_submission_failures = 0;
+        self.submission_blocked_generation = None;
+
         let mut request_confirmed = false;
         let mut request_rejected_or_lost = false;
         if let Some(request) = self.pending_request.take() {
@@ -422,7 +438,10 @@ impl AudioServiceAdapter {
     pub fn next_reconciliation_request(
         &mut self,
     ) -> Result<Option<AudioRequest>, AudioAdapterError> {
-        if self.pending_request.is_some() || !self.controls_enabled() {
+        if self.pending_request.is_some()
+            || !self.controls_enabled()
+            || self.submission_retry_exhausted()
+        {
             return Ok(None);
         }
         let intent = if self.state.output_volume_percent != self.desired_volume_percent {
@@ -487,8 +506,15 @@ impl AudioServiceAdapter {
         };
         if let Err(error) = backend.submit(&request) {
             self.cancel_pending_request(request.id);
+            self.consecutive_submission_failures =
+                self.consecutive_submission_failures.saturating_add(1);
+            if self.consecutive_submission_failures >= MAX_AUDIO_CONTROL_SUBMISSION_ATTEMPTS {
+                self.submission_blocked_generation = Some(request.expected_generation);
+            }
             return Err(AudioBackendDriveError::Backend(error));
         }
+        self.consecutive_submission_failures = 0;
+        self.submission_blocked_generation = None;
         Ok(AudioBackendDriveOutcome {
             reconcile,
             submitted_request_id: Some(request.id),

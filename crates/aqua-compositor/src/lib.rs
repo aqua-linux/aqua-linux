@@ -7700,6 +7700,14 @@ pub fn run_aqua_settings_client(
             "aqua_settings_audio_controls_enabled={}",
             model.audio.controls_enabled()
         );
+        println!(
+            "aqua_settings_audio_submission_attempts={}",
+            model.audio.submission_attempts()
+        );
+        println!(
+            "aqua_settings_audio_submission_retry_exhausted={}",
+            model.audio.submission_retry_exhausted()
+        );
     }
     println!(
         "aqua_settings_network_status_available={}",

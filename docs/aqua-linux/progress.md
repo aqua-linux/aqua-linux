@@ -60,7 +60,7 @@ Phases are ordered by their most recent update.
 
 ## Next Developments
 
-1. Add the next bounded media error scenario without enabling audio in the default image.
+1. Add the next packaged-QEMU media error scenario after the host-proven control-submission budget, without enabling audio in the default image.
 2. Baseline the R2 presentation path and enforce production no-readback, frame scheduling, damage, latency, resource, and dropped-frame acceptance while keeping diagnostic readback isolated.
 3. Implement the R3-R6 Wayland compatibility, unprivileged session, system service, accessibility, internationalization, signed update, rollback, and security gates.
 4. After core desktop functionality supplies real consumers, consolidate the proven typography, component, layout, focus, accessibility, lifecycle, and renderer contracts into the internal Aqua UI framework defined by ADR 0003.
