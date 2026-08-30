@@ -530,8 +530,13 @@ process and socket cleanup, blocks new playback, and retains recovery-shell
 access. An active capture profile additionally reads 480 controlled zero-PCM
 frames, terminates PipeWire, requires explicit `Broken pipe` interruption with
 no false capture completion, then proves ordered recovery and a new exact
-4,800-frame zero-PCM capture without host-microphone access. Other error
-evidence now also includes a bounded native-control outage: volume/mute succeeds
+4,800-frame zero-PCM capture without host-microphone access. An active
+input-device-loss profile additionally proves one full deterministic bipolar
+capture, removes the sole duplex HDA controller at a second client's 480-frame
+checkpoint, and requires native topology to expose zero inputs, explicit
+`input-route-loss`, no false completion, and blocked new capture while services
+remain responsive. Other error evidence now also includes a bounded
+native-control outage: volume/mute succeeds
 before loss, fails at bridge open with no false acknowledgement while PipeWire
 is absent, and succeeds again only after a new authoritative graph is running.
 Other error behavior remains open R4 work; physical hardware support is not

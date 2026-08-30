@@ -161,7 +161,13 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    retained input buffer cannot create a false success because the guest
    requires bipolar data: the probe reports `invalid-injected-signal` with
    9,600 positive and zero negative samples, while PipeWire, WirePlumber, and
-   the recovery shell remain responsive. A seventh run writes 480 playback
+   the recovery shell remain responsive. An active device-loss counterpart
+   first proves a full 4,800-frame bipolar capture, starts a second capture,
+   and removes the sole duplex HDA controller after its 480-frame checkpoint.
+   The native graph must lose its default input and converge to zero inputs;
+   the client must report `input-route-loss` without false completion, while a
+   new capture is blocked and the media services and recovery shell remain
+   responsive. A seventh run writes 480 playback
    frames, marks the stream active, and then kills its owning PipeWire process.
    The client reports `Broken pipe` and exits with the dedicated interrupted
    status instead of claiming completion; the supervisor performs its bounded
@@ -247,7 +253,12 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    the actively selected route is detected from the authoritative native
    topology at the 480-frame checkpoint, aborts explicitly without false
    completion, and permits only a new client to prove full playback on the
-   fallback output. Other error evidence remains open.
+   fallback output. Controlled active input-device removal is also bounded:
+   authoritative native topology, rather than PCM behavior alone, aborts the
+   stream at 480 frames, exposes zero available inputs, and blocks a new
+   capture without stopping the media services. This remains virtual-device
+   evidence without host microphone or physical hotplug claims. Other error
+   evidence remains open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

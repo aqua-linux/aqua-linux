@@ -23,7 +23,7 @@ TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-output}"
 
 case "${AQUA_AUDIO_QEMU_CONTRACT}" in
-    output|input|input-signal|input-disconnect|service-loss|capture-service-loss|control-service-loss|restart-exhaustion|multi-route|hotplug|nondefault-unplug|active-nondefault-unplug|active-default-unplug) ;;
+    output|input|input-signal|input-disconnect|active-input-unplug|service-loss|capture-service-loss|control-service-loss|restart-exhaustion|multi-route|hotplug|nondefault-unplug|active-nondefault-unplug|active-default-unplug) ;;
     *)
         echo "Unsupported audio QEMU contract: ${AQUA_AUDIO_QEMU_CONTRACT}" >&2
         exit 2
@@ -140,6 +140,37 @@ elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = input-disconnect; then
     grep -Fxq 'reason=injected-read-failure' "${AUDIO_INPUT_RESULT}"
     grep -Fxq 'bytes_served=9600' "${AUDIO_INPUT_RESULT}"
     echo 'Aqua Linux QEMU audio input disconnect check passed.'
+    echo "Injector result: ${AUDIO_INPUT_RESULT}"
+elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = active-input-unplug; then
+    for marker in \
+        '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \
+        '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true' \
+        '[AQUA-AUDIO] stage=media-probe status=active direction=capture frames=480' \
+        '[AQUA-AUDIO] stage=media-probe status=interrupted direction=capture reason=input-route-loss frames=480' \
+        '[AQUA-AUDIO] stage=qemu-device-unplug status=ok device=aqua-hda-input event=DEVICE_DELETED alsa_inputs=0' \
+        '[AQUA-AUDIO] stage=media-probe status=blocked direction=capture reason=no-input-route inputs=0' \
+        '[AQUA-AUDIO] stage=qemu-active-input-unplug status=ok removed_default_input=true active_stream_aborted=true false_success=false new_capture_blocked=true services_running=true controlled_pattern=bipolar-injected host_microphone=false recovery_shell=true'
+    do
+        grep -Fq "${marker}" "${SERIAL_LOG}"
+    done
+    test "$(grep -Fc '[AQUA-AUDIO] stage=media-probe status=ok direction=capture frames=4800 rate=48000 channels=2 format=s16le' "${SERIAL_LOG}")" -eq 1
+    test "$(grep -Fc '[AQUA-AUDIO] stage=media-probe status=interrupted direction=capture' "${SERIAL_LOG}")" -eq 1
+    for result in \
+        'status=ok' \
+        'format=s16le' \
+        'rate=48000' \
+        'channels=2' \
+        'amplitude=4096' \
+        'pattern=square-1khz'
+    do
+        grep -Fxq "${result}" "${AUDIO_INPUT_RESULT}"
+    done
+    served_bytes="$(sed -n 's/^bytes_served=//p' "${AUDIO_INPUT_RESULT}")"
+    case "${served_bytes}" in
+        *[!0-9]*|'') echo 'Invalid active-input D-Bus byte count.' >&2; exit 1 ;;
+    esac
+    test "${served_bytes}" -ge 19200
+    echo 'Aqua Linux active input device unplug check passed.'
     echo "Injector result: ${AUDIO_INPUT_RESULT}"
 elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = service-loss; then
     for marker in \
