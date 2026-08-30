@@ -319,6 +319,17 @@ PID, `attempts=2`, a running authoritative graph, and a successful new
 and the recovery shell to remain responsive. This does not prove every client
 policy or physical-device failure mode.
 
+`scripts/check-audio-active-policy-loss-qemu.sh` covers the complementary
+policy-service failure. It terminates the exact supervisor-owned WirePlumber
+PID after an active playback client reaches 480 frames, requires explicit
+`Broken pipe` interruption without playback success, and observes the ordered
+full-stack response: the old PipeWire process is stopped, both old PIDs retire,
+and attempt 2 starts new PipeWire and WirePlumber processes with restart 1. A
+new client must then complete 48,000 frames into the non-silent WAV backend
+while recovery remains available. This proves only the declared supervisor
+policy for virtual Intel HDA; it is not seamless playback or physical-device
+evidence.
+
 `scripts/check-audio-restart-exhaustion-qemu.sh` exercises the opt-in profile's
 real `max_restarts=3` policy rather than a fixture. It terminates four distinct
 supervisor-owned PipeWire processes, requires exactly three ordered full-stack
