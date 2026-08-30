@@ -133,7 +133,12 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    requires two authoritative output nodes, changes the configured default
    through the native WirePlumber API, waits for the effective route to
    acknowledge that node, and proves non-silent playback in both captures.
-   Non-silent injected input and unplug/error behavior remain open.
+   A fourth run selects PCI output 05.0 as the authoritative default, proves
+   playback, removes its HDA controller through QMP, requires the matching
+   asynchronous deletion event and a one-card ALSA topology, then requires the
+   native snapshot to expose the sole remaining output as default and proves
+   non-silent fallback playback. Non-silent injected input and broader error
+   behavior remain open.
 4. Settings and the top bar consume authoritative adapter state. Pointer and
    keyboard changes must be acknowledged by the service before the UI claims
    application; service failure must visibly degrade and recover.
@@ -174,8 +179,10 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
   now support declared Intel HDA QEMU output and controlled zero-PCM input
   acceptance without changing the sound-free default image. Two-controller
   QEMU acceptance additionally proves acknowledged multi-device default-output
-  switching and playback on both routes. Non-silent injected input and
-  hotplug/error evidence remain open.
+  switching and playback on both routes. Selected virtual PCI output removal
+  additionally proves acknowledged device deletion, authoritative fallback,
+  and resumed playback. Non-silent injected input and broader error evidence
+  remain open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

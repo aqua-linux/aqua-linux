@@ -207,8 +207,10 @@ fakeroot user and ownership stage. Its generated
 hashes, config, and result stay under `build/audio-rootfs-contract/` and remain
 untracked. The same profile applies
 `board/aqua/x86_64/linux-audio-qemu.config`, which enables the Intel HDA and
-generic codec kernel path only for this opt-in image. The default kernel
-configuration remains sound-free.
+generic codec kernel path plus ACPI PCI hotplug only for this opt-in image. The
+rehearsal rejects a zero-length kernel artifact left by an interrupted build
+and reinstalls the kernel image before publishing local evidence. The default
+kernel configuration remains sound-free.
 
 Aqua has a locked unprivileged graphical-session identity, a private user-owned
 runtime directory, and explicit `video`, `audio`, and `input` group membership.
@@ -231,7 +233,16 @@ initial default, changes the configured default through `aqua-audio-native`,
 waits for an effective-route snapshot that acknowledges the alternate node,
 then plays again. Both host WAV files must contain non-silent 48 kHz stereo
 S16LE data, so a marker-only or unchanged-route result fails. Non-silent
-injected input and hotplug/error behavior remain open. The typed transport, native bridge,
+injected input remains open.
+`scripts/check-audio-hotplug-qemu.sh` fixes those controllers at PCI slots 04.0
+and 05.0, explicitly selects 05.0 as the configured default, proves playback
+there, and removes that controller through a bounded QMP `device_del` request.
+The host requires the matching asynchronous `DEVICE_DELETED` event; the guest
+requires ALSA to shrink to one playback device, the native adapter to report
+one authoritative default output, and playback to resume into the remaining
+non-silent WAV backend. This is selected-device loss and fallback evidence for
+the declared virtual topology, not general USB, Bluetooth, or physical-device
+hotplug support. Additional media error matrices remain open. The typed transport, native bridge,
 ordered per-user supervisor, dependency rehearsal, rootfs contract, and fail-closed
 `aqua-service-adapters` state/intent boundary are present, but none makes
 `/dev/snd` alone sufficient to enable Settings. No root-owned media daemon,

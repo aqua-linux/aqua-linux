@@ -8,6 +8,8 @@ FRAGMENT="${ROOT_DIR}/br2-external/aqua/board/aqua/x86_64/linux-audio-qemu.confi
 RUNNER="${ROOT_DIR}/scripts/check-audio-qemu.sh"
 INPUT_RUNNER="${ROOT_DIR}/scripts/check-audio-input-qemu.sh"
 MULTI_ROUTE_RUNNER="${ROOT_DIR}/scripts/check-audio-multi-route-qemu.sh"
+HOTPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-hotplug-qemu.sh"
+QMP_DELETE="${ROOT_DIR}/scripts/qmp-device-delete.py"
 EXPECT_SCRIPT="${ROOT_DIR}/scripts/check-audio-qemu.exp"
 PROBE_CONFIG="${ROOT_DIR}/br2-external/aqua/package/aqua-audio-probe/Config.in"
 PROBE_MAKE="${ROOT_DIR}/br2-external/aqua/package/aqua-audio-probe/aqua-audio-probe.mk"
@@ -16,9 +18,28 @@ for assignment in \
     CONFIG_SOUND=y \
     CONFIG_SND=y \
     CONFIG_SND_HDA_INTEL=y \
-    CONFIG_SND_HDA_GENERIC=y
+    CONFIG_SND_HDA_GENERIC=y \
+    CONFIG_HOTPLUG_PCI=y \
+    CONFIG_HOTPLUG_PCI_ACPI=y
 do
     grep -Fxq "${assignment}" "${FRAGMENT}"
+done
+
+test -x "${HOTPLUG_RUNNER}"
+test -x "${QMP_DELETE}"
+grep -Fq 'AQUA_AUDIO_QEMU_CONTRACT=hotplug' "${HOTPLUG_RUNNER}"
+for contract in \
+    'addr=04.0' \
+    'addr=05.0' \
+    'qmp-device-delete.py' \
+    '"execute": "device_del"' \
+    'DEVICE_DELETED' \
+    'aqua-audio-probe routes-secondary' \
+    'aqua-audio-probe fallback' \
+    'stage=hotplug-probe status=ok outputs=1' \
+    'stage=qemu-hotplug status=ok removed_default=true'
+do
+    grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}" "${QMP_DELETE}"
 done
 
 grep -Fxq \
@@ -77,4 +98,4 @@ do
     grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}"
 done
 
-echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backend=none controlled_input=zero-pcm multi_route=true default_image_audio=false'
+echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backend=none controlled_input=zero-pcm multi_route=true selected_device_unplug=true fallback=true default_image_audio=false'

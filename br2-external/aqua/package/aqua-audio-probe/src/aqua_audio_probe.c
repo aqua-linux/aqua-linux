@@ -44,6 +44,15 @@ static int route_failure(struct aqua_audio_native *handle,
   return 1;
 }
 
+static int hotplug_failure(struct aqua_audio_native *handle,
+    const char *operation, int32_t status) {
+  fprintf(stderr,
+          "[AQUA-AUDIO] stage=hotplug-probe status=failed "
+          "operation=%s code=%d detail=%s\n",
+          operation, status, aqua_audio_native_last_error(handle));
+  return 1;
+}
+
 static int controls(void) {
   struct aqua_audio_native *handle = NULL;
   int32_t status = aqua_audio_native_open(5000, &handle);
@@ -121,7 +130,7 @@ static uint32_t output_count(
   return count;
 }
 
-static int routes(void) {
+static int routes(const char *required_node_fragment) {
   struct aqua_audio_native *handle = NULL;
   int32_t status = aqua_audio_native_open(5000, &handle);
   if (status != AQUA_AUDIO_NATIVE_OK) {
@@ -150,7 +159,9 @@ static int routes(void) {
   for (uint32_t index = 0; index < snapshot.node_count; ++index) {
     const struct aqua_audio_native_node *node = &snapshot.nodes[index];
     if (node->kind == AQUA_AUDIO_NATIVE_OUTPUT &&
-        strcmp(node->name, previous) != 0) {
+        strcmp(node->name, previous) != 0 &&
+        (!required_node_fragment ||
+         strstr(node->name, required_node_fragment) != NULL)) {
       memcpy(requested, node->name, sizeof(requested));
       break;
     }
@@ -194,7 +205,45 @@ static int routes(void) {
   }
 
   printf("[AQUA-AUDIO] stage=route-probe status=ok outputs=2 "
-         "previous_default=true requested_node=true default_changed=true\n");
+         "previous_default=true requested_node=true default_changed=true%s\n",
+         required_node_fragment ? " requested_slot=05.0" : "");
+  aqua_audio_native_close(handle);
+  return 0;
+}
+
+static int fallback(void) {
+  struct aqua_audio_native *handle = NULL;
+  int32_t status = aqua_audio_native_open(5000, &handle);
+  if (status != AQUA_AUDIO_NATIVE_OK) {
+    int result = hotplug_failure(handle, "open", status);
+    aqua_audio_native_close(handle);
+    return result;
+  }
+
+  struct aqua_audio_native_snapshot snapshot;
+  int acknowledged = 0;
+  for (unsigned int attempt = 0; attempt < 50; ++attempt) {
+    status = aqua_audio_native_snapshot(handle, 5000, &snapshot);
+    if (status != AQUA_AUDIO_NATIVE_OK) {
+      break;
+    }
+    if (output_count(&snapshot) == 1 && default_output(&snapshot)) {
+      acknowledged = 1;
+      break;
+    }
+    poll(NULL, 0, 100);
+  }
+  if (status != AQUA_AUDIO_NATIVE_OK || !acknowledged) {
+    if (status == AQUA_AUDIO_NATIVE_OK) {
+      status = AQUA_AUDIO_NATIVE_NODE_NOT_FOUND;
+    }
+    int result = hotplug_failure(handle, "remaining-default", status);
+    aqua_audio_native_close(handle);
+    return result;
+  }
+
+  printf("[AQUA-AUDIO] stage=hotplug-probe status=ok outputs=1 "
+         "default_output=true graph_ready=true\n");
   aqua_audio_native_close(handle);
   return 0;
 }
@@ -350,7 +399,7 @@ static int capture(int require_silence) {
 int main(int argc, char **argv) {
   if (argc != 2) {
     fprintf(stderr,
-            "usage: aqua-audio-probe playback|capture|capture-silence|controls|routes\n");
+            "usage: aqua-audio-probe playback|capture|capture-silence|controls|routes|routes-secondary|fallback\n");
     return 2;
   }
   if (strcmp(argv[1], "playback") == 0) {
@@ -366,9 +415,15 @@ int main(int argc, char **argv) {
     return controls();
   }
   if (strcmp(argv[1], "routes") == 0) {
-    return routes();
+    return routes(NULL);
+  }
+  if (strcmp(argv[1], "routes-secondary") == 0) {
+    return routes("pci-0000_00_05.0");
+  }
+  if (strcmp(argv[1], "fallback") == 0) {
+    return fallback();
   }
   fprintf(stderr,
-          "usage: aqua-audio-probe playback|capture|capture-silence|controls|routes\n");
+          "usage: aqua-audio-probe playback|capture|capture-silence|controls|routes|routes-secondary|fallback\n");
   return 2;
 }

@@ -498,8 +498,11 @@ discovery, 48 kHz stereo S16LE output into a non-silent WAV capture,
 volume/mute, bounded WirePlumber recovery, and a separate controlled
 4,800-frame zero-PCM input stream. A two-controller output profile additionally
 proves native configured-default switching, effective-route acknowledgement,
-and non-silent playback on both independent WAV backends. Non-silent injected
-input and hotplug/error evidence remain open R4 work; physical hardware
+and non-silent playback on both independent WAV backends. A selected-output
+removal profile additionally requires QMP deletion acknowledgement, the ALSA
+topology to shrink from two devices to one, the native graph to expose the
+remaining output as authoritative default, and non-silent fallback playback.
+Non-silent injected input and broader error evidence remain open R4 work; physical hardware
 support is not claimed.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
