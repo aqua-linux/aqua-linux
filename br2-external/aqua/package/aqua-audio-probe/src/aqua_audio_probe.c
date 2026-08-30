@@ -314,7 +314,8 @@ static int recover_io(snd_pcm_t *pcm, int status) {
   return 0;
 }
 
-static int playback(unsigned int required_periods, int expect_interruption) {
+static int playback(unsigned int required_periods, int expect_interruption,
+                    int active_checkpoint) {
   snd_pcm_t *pcm = NULL;
   int status = snd_pcm_open(&pcm, "default", SND_PCM_STREAM_PLAYBACK, 0);
   if (status < 0) {
@@ -340,7 +341,7 @@ static int playback(unsigned int required_periods, int expect_interruption) {
     }
     snd_pcm_sframes_t written = snd_pcm_writei(pcm, samples, PERIOD_FRAMES);
     if (written < 0) {
-      if (expect_interruption) {
+      if (expect_interruption || active_checkpoint) {
         fprintf(stderr,
                 "[AQUA-AUDIO] stage=media-probe status=interrupted "
                 "direction=playback reason=pcm-io frames=%llu detail=%s\n",
@@ -356,7 +357,7 @@ static int playback(unsigned int required_periods, int expect_interruption) {
       continue;
     }
     frames += (uint64_t)written;
-    if (expect_interruption && period == 0) {
+    if ((expect_interruption || active_checkpoint) && period == 0) {
       printf("[AQUA-AUDIO] stage=media-probe status=active "
              "direction=playback frames=%llu\n",
              (unsigned long long)frames);
@@ -523,14 +524,17 @@ static int capture(enum capture_requirement requirement,
 int main(int argc, char **argv) {
   if (argc != 2) {
     fprintf(stderr,
-            "usage: aqua-audio-probe playback|playback-expect-interruption|capture|capture-silence|capture-signal|capture-expect-interruption|controls|routes|routes-secondary|fallback|primary-two|primary-one\n");
+            "usage: aqua-audio-probe playback|playback-expect-interruption|playback-active-stable|capture|capture-silence|capture-signal|capture-expect-interruption|controls|routes|routes-secondary|fallback|primary-two|primary-one\n");
     return 2;
   }
   if (strcmp(argv[1], "playback") == 0) {
-    return playback(PLAYBACK_PERIODS, 0);
+    return playback(PLAYBACK_PERIODS, 0, 0);
   }
   if (strcmp(argv[1], "playback-expect-interruption") == 0) {
-    return playback(INTERRUPTED_PLAYBACK_PERIODS, 1);
+    return playback(INTERRUPTED_PLAYBACK_PERIODS, 1, 1);
+  }
+  if (strcmp(argv[1], "playback-active-stable") == 0) {
+    return playback(PLAYBACK_PERIODS, 0, 1);
   }
   if (strcmp(argv[1], "capture") == 0) {
     return capture(CAPTURE_OBSERVE, CAPTURE_PERIODS, 0);
@@ -563,6 +567,6 @@ int main(int argc, char **argv) {
     return primary_topology(1);
   }
   fprintf(stderr,
-          "usage: aqua-audio-probe playback|playback-expect-interruption|capture|capture-silence|capture-signal|capture-expect-interruption|controls|routes|routes-secondary|fallback|primary-two|primary-one\n");
+          "usage: aqua-audio-probe playback|playback-expect-interruption|playback-active-stable|capture|capture-silence|capture-signal|capture-expect-interruption|controls|routes|routes-secondary|fallback|primary-two|primary-one\n");
   return 2;
 }

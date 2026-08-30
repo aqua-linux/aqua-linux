@@ -173,7 +173,10 @@ one authoritative fallback default through the native adapter, and proves
 non-silent playback resumes on the remaining output. A complementary profile
 removes the non-default PCI output instead, proves the authoritative PCI 04.0
 route does not change while the topology shrinks, and captures non-silent
-playback on that same route before and after removal. A separate active-stream
+playback on that same route before and after removal. Its active-stream variant
+removes the non-default controller after 480 frames and requires the same
+default-route client to complete 48,000 frames without interruption or hidden
+PCM recovery. A separate active-stream
 profile kills PipeWire after the client has written 480 frames, requires an
 explicit `Broken pipe` interruption with no false completion, observes the
 supervisor's second ordered service attempt, and proves a new 48,000-frame
