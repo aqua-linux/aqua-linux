@@ -37,6 +37,11 @@ docker run --rm \
             aqua_x86_64_audio_rehearsal_defconfig
         make -C "${buildroot_dir}" O="${output_dir}" \
             BR2_EXTERNAL="${external_dir}"
+        if ! test -s "${output_dir}/images/bzImage"; then
+            make -C "${buildroot_dir}" O="${output_dir}" \
+                BR2_EXTERNAL="${external_dir}" linux-reinstall
+        fi
+        test -s "${output_dir}/images/bzImage"
 
         final_rootfs="$(mktemp -d /work/build/audio-rootfs-contract-final.XXXXXX)"
         trap '\''rm -rf "${final_rootfs}"'\'' EXIT
@@ -64,6 +69,10 @@ docker run --rm \
         grep -Fxq "CONFIG_SND_HDA_INTEL=y" \
             "${output_dir}/build/linux-6.6.32/.config"
         grep -Fxq "CONFIG_SND_HDA_GENERIC=y" \
+            "${output_dir}/build/linux-6.6.32/.config"
+        grep -Fxq "CONFIG_HOTPLUG_PCI=y" \
+            "${output_dir}/build/linux-6.6.32/.config"
+        grep -Fxq "CONFIG_HOTPLUG_PCI_ACPI=y" \
             "${output_dir}/build/linux-6.6.32/.config"
         test -x "${rootfs}/usr/bin/aqua-audio-probe"
         cp "${output_dir}/.config" "${evidence_dir}/audio-rootfs.config"

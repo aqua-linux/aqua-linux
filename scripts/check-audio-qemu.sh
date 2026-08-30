@@ -10,13 +10,15 @@ WAV_CAPTURE="${WAV_CAPTURE:-${EVIDENCE_DIR}/playback.wav}"
 WAV_ROUTE_PRIMARY="${WAV_ROUTE_PRIMARY:-${EVIDENCE_DIR}/route-primary.wav}"
 WAV_ROUTE_SECONDARY="${WAV_ROUTE_SECONDARY:-${EVIDENCE_DIR}/route-secondary.wav}"
 QEMU_PID_FILE="${QEMU_PID_FILE:-${EVIDENCE_DIR}/qemu.pid}"
+QMP_SOCKET="${QMP_SOCKET:-${EVIDENCE_DIR}/qmp.sock}"
+QMP_DEVICE_DELETE="${QMP_DEVICE_DELETE:-${ROOT_DIR}/scripts/qmp-device-delete.py}"
 MEMORY="${MEMORY:-1024M}"
 CPUS="${CPUS:-2}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-output}"
 
 case "${AQUA_AUDIO_QEMU_CONTRACT}" in
-    output|input|multi-route) ;;
+    output|input|multi-route|hotplug) ;;
     *)
         echo "Unsupported audio QEMU contract: ${AQUA_AUDIO_QEMU_CONTRACT}" >&2
         exit 2
@@ -39,7 +41,7 @@ done
 
 mkdir -p "${EVIDENCE_DIR}"
 rm -f "${SERIAL_LOG}" "${WAV_CAPTURE}" "${WAV_ROUTE_PRIMARY}" \
-    "${WAV_ROUTE_SECONDARY}" "${QEMU_PID_FILE}"
+    "${WAV_ROUTE_SECONDARY}" "${QEMU_PID_FILE}" "${QMP_SOCKET}"
 cleanup() {
     if test -f "${QEMU_PID_FILE}"; then
         qemu_pid="$(cat "${QEMU_PID_FILE}" 2>/dev/null || true)"
@@ -49,10 +51,12 @@ cleanup() {
         esac
         rm -f "${QEMU_PID_FILE}"
     fi
+    rm -f "${QMP_SOCKET}"
 }
 trap cleanup EXIT INT TERM
 export ROOT_DIR KERNEL ROOTFS SERIAL_LOG WAV_CAPTURE QEMU_PID_FILE MEMORY CPUS TIMEOUT_SECONDS
 export WAV_ROUTE_PRIMARY WAV_ROUTE_SECONDARY
+export QMP_SOCKET QMP_DEVICE_DELETE
 export AQUA_AUDIO_QEMU_CONTRACT
 expect "${ROOT_DIR}/scripts/check-audio-qemu.exp"
 
@@ -86,7 +90,7 @@ elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = input; then
         grep -Fq "${marker}" "${SERIAL_LOG}"
     done
     echo 'Aqua Linux declared-device QEMU audio input check passed.'
-else
+elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = multi-route; then
     for marker in \
         '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-output outputs=2 capture_node=false' \
         '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sinks=true route_profile=true' \
@@ -102,5 +106,22 @@ else
     echo 'Aqua Linux multi-device QEMU audio route check passed.'
     echo "Primary route capture: ${WAV_ROUTE_PRIMARY}"
     echo "Secondary route capture: ${WAV_ROUTE_SECONDARY}"
+else
+    for marker in \
+        '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-output outputs=2 capture_node=false' \
+        '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sinks=true route_profile=true' \
+        '[AQUA-AUDIO] stage=route-probe status=ok outputs=2 previous_default=true requested_node=true default_changed=true requested_slot=05.0' \
+        '[AQUA-AUDIO] stage=qemu-device-unplug status=ok device=aqua-hda-secondary event=DEVICE_DELETED alsa_outputs=1' \
+        '[AQUA-AUDIO] stage=hotplug-probe status=ok outputs=1 default_output=true graph_ready=true' \
+        '[AQUA-AUDIO] stage=qemu-hotplug status=ok removed_default=true fallback_output=true playback_after=true'
+    do
+        grep -Fq "${marker}" "${SERIAL_LOG}"
+    done
+    test "$(grep -Fc '[AQUA-AUDIO] stage=media-probe status=ok direction=playback frames=48000 rate=48000 channels=2 format=s16le' "${SERIAL_LOG}")" -eq 3
+    python3 "${ROOT_DIR}/scripts/check-qemu-audio-wave.py" "${WAV_ROUTE_PRIMARY}"
+    python3 "${ROOT_DIR}/scripts/check-qemu-audio-wave.py" "${WAV_ROUTE_SECONDARY}"
+    echo 'Aqua Linux QEMU audio default-device unplug fallback check passed.'
+    echo "Remaining route capture: ${WAV_ROUTE_PRIMARY}"
+    echo "Removed route capture: ${WAV_ROUTE_SECONDARY}"
 fi
 echo "Serial log: ${SERIAL_LOG}"
