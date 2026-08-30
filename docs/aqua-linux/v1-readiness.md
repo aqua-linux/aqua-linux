@@ -398,8 +398,11 @@ profile binds a pending volume request to selected PCI 05.0 while fallback PCI
 04.0 already has the desired value, removes 05.0 through acknowledged QMP, and
 proves the fallback coincidence cannot falsely acknowledge the removed target.
 The old request becomes rejected or lost, the preference remains satisfied
-without resubmission, and services plus recovery stay available. Other control
-and UI failure matrices remain open. Default-image enablement remains a separate gate.
+without resubmission, and services plus recovery stay available. A symmetric
+mute profile prepares the fallback muted, binds a pending mute to the unmuted
+selected output, removes that output, and requires the same lost-request and
+no-resubmission result without false acknowledgement. Other control and UI
+failure matrices remain open. Default-image enablement remains a separate gate.
 Buildroot availability or these bounded QEMU profiles are not a complete audio
 integration decision.
 

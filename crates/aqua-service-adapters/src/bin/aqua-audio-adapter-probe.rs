@@ -308,6 +308,122 @@ fn run_route_generation_loss() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[cfg(target_os = "linux")]
+fn run_mute_route_generation_loss() -> Result<(), Box<dyn std::error::Error>> {
+    const ROUTE_VOLUME: u8 = 42;
+
+    let mut native = WirePlumberNativeApi::connect(Duration::from_secs(5))?;
+    let initial = wait_for_native_snapshot(&mut native, "two authoritative outputs", |snapshot| {
+        snapshot.phase() == PipeWireApiPhase::Ready
+            && snapshot
+                .nodes()
+                .iter()
+                .filter(|node| node.kind() == AudioDeviceKind::Output)
+                .count()
+                == 2
+    })?;
+    let selected = initial
+        .nodes()
+        .iter()
+        .find(|node| node.kind() == AudioDeviceKind::Output && node.name().contains("05.0"))
+        .ok_or("PCI 05.0 output node is required")?
+        .name()
+        .to_string();
+    let fallback = initial
+        .nodes()
+        .iter()
+        .find(|node| node.kind() == AudioDeviceKind::Output && node.name().contains("04.0"))
+        .ok_or("PCI 04.0 output node is required")?
+        .name()
+        .to_string();
+
+    native.set_configured_default_output(&selected)?;
+    native.set_output_volume(&selected, ROUTE_VOLUME)?;
+    native.set_output_muted(&selected, false)?;
+    wait_for_native_snapshot(
+        &mut native,
+        "unmuted selected PCI 05.0 output",
+        |snapshot| {
+            snapshot.default_output() == Some(selected.as_str())
+                && snapshot
+                    .nodes()
+                    .iter()
+                    .find(|node| node.name() == selected)
+                    .is_some_and(|node| node.volume_percent() == ROUTE_VOLUME && !node.muted())
+        },
+    )?;
+
+    native.set_configured_default_output(&fallback)?;
+    native.set_output_volume(&fallback, ROUTE_VOLUME)?;
+    native.set_output_muted(&fallback, true)?;
+    wait_for_native_snapshot(&mut native, "muted fallback PCI 04.0 output", |snapshot| {
+        snapshot.default_output() == Some(fallback.as_str())
+            && snapshot
+                .nodes()
+                .iter()
+                .find(|node| node.name() == fallback)
+                .is_some_and(|node| node.volume_percent() == ROUTE_VOLUME && node.muted())
+    })?;
+
+    native.set_configured_default_output(&selected)?;
+    wait_for_native_snapshot(&mut native, "selected output restoration", |snapshot| {
+        snapshot.default_output() == Some(selected.as_str())
+            && snapshot
+                .nodes()
+                .iter()
+                .find(|node| node.name() == selected)
+                .is_some_and(|node| node.volume_percent() == ROUTE_VOLUME && !node.muted())
+    })?;
+
+    let mut backend = PipeWireApiTransport::new(native);
+    let mut adapter = AudioServiceAdapter::with_preferences(ROUTE_VOLUME, true)?;
+    let submitted = adapter.drive_backend_once(&mut backend)?;
+    let pending = adapter
+        .pending_request()
+        .ok_or("mute request did not remain pending")?;
+    if submitted.submitted_request_id != Some(pending.id())
+        || pending.target_output() != Some(selected.as_str())
+        || adapter.backend_applied()
+    {
+        return Err("pending mute was not bound to the selected output".into());
+    }
+
+    println!(
+        "[AQUA-AUDIO] stage=adapter-mute-route-generation status=pending target_bound=true selected_route=true fallback_prepared=true fallback_matches_desired=true"
+    );
+    io::stdout().flush()?;
+
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let fallback_state = loop {
+        let state = backend.authoritative_state()?;
+        if state.default_output() == Some(fallback.as_str())
+            && state.devices().iter().all(|device| device.id() != selected)
+            && state.output_volume_percent() == ROUTE_VOLUME
+            && state.output_muted()
+        {
+            break state;
+        }
+        if Instant::now() >= deadline {
+            return Err("timed out waiting for muted fallback after route loss".into());
+        }
+        thread::sleep(Duration::from_millis(100));
+    };
+    let outcome = adapter.reconcile(fallback_state)?;
+    if outcome.request_confirmed
+        || !outcome.request_rejected_or_lost
+        || adapter.pending_request().is_some()
+        || adapter.next_reconciliation_request()?.is_some()
+        || !adapter.backend_applied()
+    {
+        return Err("lost selected-route mute produced a false acknowledgement".into());
+    }
+
+    println!(
+        "[AQUA-AUDIO] stage=adapter-mute-route-generation status=ok target_bound=true route_changed=true old_request_confirmed=false request_rejected_or_lost=true fallback_matches_desired=true no_resubmission=true"
+    );
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
 fn main() {
     let mode = std::env::args()
         .nth(1)
@@ -315,6 +431,10 @@ fn main() {
     let (stage, result) = match mode.as_str() {
         "submission-budget" => ("adapter-submission-budget", run_submission_budget()),
         "route-generation-loss" => ("adapter-route-generation", run_route_generation_loss()),
+        "mute-route-generation-loss" => (
+            "adapter-mute-route-generation",
+            run_mute_route_generation_loss(),
+        ),
         _ => {
             eprintln!("unsupported aqua audio adapter probe mode: {mode}");
             std::process::exit(2);

@@ -1238,10 +1238,13 @@ test -x scripts/build-audio-adapter-probe-linux-docker.sh
 test -x scripts/audio-buildroot-linker.sh
 test -x scripts/check-audio-control-submission-budget-qemu.sh
 test -x scripts/check-audio-control-route-loss-qemu.sh
+test -x scripts/check-audio-mute-route-loss-qemu.sh
 grep -Fq 'control-submission-budget' scripts/check-audio-qemu.sh
 grep -Fq 'control-route-loss' scripts/check-audio-qemu.sh
+grep -Fq 'mute-route-loss' scripts/check-audio-qemu.sh
 grep -Fq 'stage=qemu-control-submission-budget status=ok' scripts/check-audio-qemu.exp
 grep -Fq 'stage=qemu-control-route-loss status=ok' scripts/check-audio-qemu.exp
+grep -Fq 'stage=qemu-mute-route-loss status=ok' scripts/check-audio-qemu.exp
 grep -Fq 'target_output' crates/aqua-service-adapters/src/lib.rs
 grep -Fq 'has_snapshot' br2-external/aqua/package/aqua-audio-native/src/aqua_audio_native.c
 grep -Fq 'snapshot_payload_equal' br2-external/aqua/package/aqua-audio-native/src/aqua_audio_native.c

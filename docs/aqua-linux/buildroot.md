@@ -451,6 +451,14 @@ shell. The rootfs rehearsal explicitly rebuilds the local native bridge and C
 probe before image finalization so cached Buildroot stamps cannot hide source
 changes. This remains opt-in virtual-device evidence.
 
+`scripts/check-audio-mute-route-loss-qemu.sh` supplies the symmetric mute
+boundary. Both routes use 42% volume, fallback PCI 04.0 is prepared muted, and
+selected PCI 05.0 is kept unmuted before a pending mute request is bound to it.
+After acknowledged removal of 05.0, the already-muted fallback must not confirm
+the old request. The adapter reports it rejected or lost, observes the retained
+preference already satisfied without resubmission, and leaves services plus the
+recovery shell responsive.
+
 `scripts/check-audio-control-policy-service-loss-qemu.sh` proves the matching
 WirePlumber boundary. After one acknowledged volume/mute cycle, it terminates
 the supervisor-owned policy process and pauses the supervisor only after that
