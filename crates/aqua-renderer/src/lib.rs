@@ -8,11 +8,11 @@ use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     desktop_context_menu, desktop_grid_cell, files_back_button, files_forward_button,
     files_toolbar, running_app_dock, top_system_bar, workspace_switcher, AquaTheme,
-    DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
-    FilesWindowModel, LauncherCategory, LauncherMode, LauncherState, NotificationCenter,
-    SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView,
-    TopBarState, DESKTOP_ICONS, FILES_PREVIEW_VISIBLE_LINES, FILES_SIDEBAR_NAVIGATION,
-    FILES_VISIBLE_ROWS, SETTINGS_SIDEBAR_NAVIGATION,
+    AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
+    FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
+    NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
+    TerminalView, TopBarState, DESKTOP_ICONS, FILES_PREVIEW_VISIBLE_LINES,
+    FILES_SIDEBAR_NAVIGATION, FILES_VISIBLE_ROWS, SETTINGS_SIDEBAR_NAVIGATION,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -2565,6 +2565,10 @@ pub struct SettingsWindowProbe {
     pub desktop_icons: bool,
     pub key_repeat: bool,
     pub audio_available: bool,
+    pub audio_controls_enabled: bool,
+    pub audio_backend_applied: bool,
+    pub audio_control_status: &'static str,
+    pub audio_desired_volume_percent: u8,
     pub audio_volume_percent: u8,
     pub audio_muted: bool,
     pub network_interface_count: usize,
@@ -4246,6 +4250,10 @@ pub fn render_settings_window_rgba(
                 desktop_icons: model.desktop_icons,
                 key_repeat: model.key_repeat,
                 audio_available: model.audio.available(),
+                audio_controls_enabled: model.audio.controls_enabled(),
+                audio_backend_applied: model.audio.backend_applied(),
+                audio_control_status: model.audio.control_status().id(),
+                audio_desired_volume_percent: model.audio.volume_percent(),
                 audio_volume_percent: model
                     .audio
                     .authoritative_volume_percent()
@@ -4465,16 +4473,16 @@ pub fn render_settings_window_rgba(
             palette.text,
             1,
         );
-        let status = if model.audio.available() {
-            format!(
-                "{}%",
-                model
-                    .audio
-                    .authoritative_volume_percent()
-                    .unwrap_or_else(|| model.audio.volume_percent())
-            )
-        } else {
-            "UNAVAILABLE".to_string()
+        let authoritative_volume = model
+            .audio
+            .authoritative_volume_percent()
+            .unwrap_or_else(|| model.audio.volume_percent());
+        let status = match model.audio.control_status() {
+            AudioControlStatus::Unavailable => "UNAVAILABLE".to_string(),
+            AudioControlStatus::Starting => "STARTING".to_string(),
+            AudioControlStatus::Degraded => "DEGRADED".to_string(),
+            AudioControlStatus::Applying => format!("APPLYING {authoritative_volume}%"),
+            AudioControlStatus::Applied => format!("{authoritative_volume}%"),
         };
         draw_bitmap_text(
             &mut buffer,
@@ -4530,6 +4538,10 @@ pub fn render_settings_window_rgba(
             desktop_icons: model.desktop_icons,
             key_repeat: model.key_repeat,
             audio_available: model.audio.available(),
+            audio_controls_enabled: model.audio.controls_enabled(),
+            audio_backend_applied: model.audio.backend_applied(),
+            audio_control_status: model.audio.control_status().id(),
+            audio_desired_volume_percent: model.audio.volume_percent(),
             audio_volume_percent: model
                 .audio
                 .authoritative_volume_percent()
@@ -8211,6 +8223,7 @@ mod tests {
             aqua_service_adapters::AudioDeviceKind::Output,
         )
         .expect("output fixture");
+        assert!(model.audio.set_volume_percent(85));
         model
             .reconcile_audio_state(
                 aqua_service_adapters::AudioAuthoritativeState::new(
@@ -8230,10 +8243,67 @@ mod tests {
         assert_eq!(probe.category_count, 6);
         assert_eq!(probe.selected_category, 4);
         assert!(probe.audio_available);
+        assert!(probe.audio_controls_enabled);
+        assert!(probe.audio_backend_applied);
+        assert_eq!(probe.audio_control_status, "applied");
+        assert_eq!(probe.audio_desired_volume_percent, 85);
         assert_eq!(probe.audio_volume_percent, 85);
         assert!(!probe.audio_muted);
         assert_ne!(probe.checksum, 0);
         assert_eq!(pixels.len(), 600 * 400 * 4);
+    }
+
+    #[test]
+    fn settings_audio_category_distinguishes_applying_and_degraded_states() {
+        let mut model = SettingsWindowModel {
+            selected_category: 4,
+            ..SettingsWindowModel::default()
+        };
+        let output = aqua_service_adapters::AudioDevice::new(
+            "sink.1",
+            "Aqua Test Output",
+            aqua_service_adapters::AudioDeviceKind::Output,
+        )
+        .expect("output fixture");
+        model
+            .reconcile_audio_state(
+                aqua_service_adapters::AudioAuthoritativeState::new(
+                    1,
+                    aqua_service_adapters::AudioServiceHealth::Ready,
+                    vec![output],
+                    Some("sink.1".to_string()),
+                    None,
+                    70,
+                    false,
+                )
+                .expect("authoritative audio fixture"),
+            )
+            .expect("adapter state should be accepted");
+        assert!(model.audio.set_volume_percent(85));
+        let (_, applying) = render_settings_window_rgba(600, 400, &model);
+        assert!(applying.audio_available);
+        assert!(!applying.audio_controls_enabled);
+        assert!(!applying.audio_backend_applied);
+        assert_eq!(applying.audio_control_status, "applying");
+        assert_eq!(applying.audio_desired_volume_percent, 85);
+        assert_eq!(applying.audio_volume_percent, 70);
+
+        model
+            .reconcile_audio_state(
+                aqua_service_adapters::AudioAuthoritativeState::unavailable(
+                    2,
+                    aqua_service_adapters::AudioServiceHealth::Degraded,
+                )
+                .expect("degraded audio fixture"),
+            )
+            .expect("degraded state should be accepted");
+        let (_, degraded) = render_settings_window_rgba(600, 400, &model);
+        assert!(!degraded.audio_available);
+        assert!(!degraded.audio_controls_enabled);
+        assert!(!degraded.audio_backend_applied);
+        assert_eq!(degraded.audio_control_status, "degraded");
+        assert_eq!(degraded.audio_desired_volume_percent, 85);
+        assert_ne!(applying.checksum, degraded.checksum);
     }
 
     #[test]

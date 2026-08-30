@@ -69,6 +69,8 @@ grep -Fq 'AudioServiceAdapter' "$SHELL_MODEL"
 grep -Fq 'authoritative_volume_percent' "$SHELL_MODEL"
 grep -Fq 'aqua_settings_audio_service_health=' "$SETTINGS_CLIENT"
 grep -Fq 'aqua_settings_audio_backend_applied={}' "$SETTINGS_CLIENT"
+grep -Fq 'aqua_settings_audio_control_status={}' "$SETTINGS_CLIENT"
+grep -Fq 'aqua_settings_audio_controls_enabled={}' "$SETTINGS_CLIENT"
 if grep -Fq 'AQUA_AUDIO_DEV_SND' "$SETTINGS_CLIENT"; then
     echo 'Settings must not treat /dev/snd as authoritative service readiness.' >&2
     exit 1

@@ -1297,6 +1297,27 @@ fn parse_meminfo_kib(contents: &str, key: &str) -> io::Result<u64> {
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, format!("missing {key}")))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AudioControlStatus {
+    Unavailable,
+    Starting,
+    Degraded,
+    Applying,
+    Applied,
+}
+
+impl AudioControlStatus {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Unavailable => "unavailable",
+            Self::Starting => "starting",
+            Self::Degraded => "degraded",
+            Self::Applying => "applying",
+            Self::Applied => "applied",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AudioVolumeModel {
     adapter: AudioServiceAdapter,
@@ -1322,6 +1343,21 @@ impl AudioVolumeModel {
 
     pub fn backend_applied(&self) -> bool {
         self.adapter.backend_applied()
+    }
+
+    pub fn control_status(&self) -> AudioControlStatus {
+        match self.service_health() {
+            AudioServiceHealth::Unavailable => AudioControlStatus::Unavailable,
+            AudioServiceHealth::Starting => AudioControlStatus::Starting,
+            AudioServiceHealth::Degraded => AudioControlStatus::Degraded,
+            AudioServiceHealth::Ready if !self.available() => AudioControlStatus::Unavailable,
+            AudioServiceHealth::Ready if self.backend_applied() => AudioControlStatus::Applied,
+            AudioServiceHealth::Ready => AudioControlStatus::Applying,
+        }
+    }
+
+    pub fn controls_enabled(&self) -> bool {
+        self.control_status() == AudioControlStatus::Applied
     }
 
     pub fn authoritative_volume_percent(&self) -> Option<u8> {
@@ -1454,13 +1490,15 @@ impl SettingsWindowModel {
                 label,
                 checked,
             )
-            .with_state(if !self.audio.available() && self.selected_category == 4 {
-                ComponentState::Disabled
-            } else if self.keyboard_focus {
-                ComponentState::KeyboardFocus
-            } else {
-                ComponentState::Idle
-            }),
+            .with_state(
+                if !self.audio.controls_enabled() && self.selected_category == 4 {
+                    ComponentState::Disabled
+                } else if self.keyboard_focus {
+                    ComponentState::KeyboardFocus
+                } else {
+                    ComponentState::Idle
+                },
+            ),
         )
     }
 
@@ -1497,7 +1535,7 @@ impl SettingsWindowModel {
             100,
             5,
         )
-        .with_state(if !self.audio.available() {
+        .with_state(if !self.audio.controls_enabled() {
             ComponentState::Disabled
         } else if self.keyboard_focus {
             ComponentState::KeyboardFocus
@@ -1778,7 +1816,9 @@ impl SettingsWindowModel {
             SettingsKey::Increase if self.selected_category == 4 => {
                 self.adjust_audio_volume(SliderKey::Increase)
             }
-            SettingsKey::Activate if self.selected_category == 4 && self.audio.available() => {
+            SettingsKey::Activate
+                if self.selected_category == 4 && self.audio.controls_enabled() =>
+            {
                 let muted = !self.audio.muted();
                 self.audio.set_muted(muted);
                 SettingsUpdate::AudioMutedChanged(muted)
@@ -4063,11 +4103,23 @@ mod tests {
             SettingsUpdate::AudioVolumeChanged(100)
         );
         assert_eq!(model.audio.volume_percent(), 100);
+        assert_eq!(model.audio.control_status(), AudioControlStatus::Applying);
+        assert!(!model.audio.controls_enabled());
         assert_eq!(
             model.handle_key(SettingsKey::Decrease),
-            SettingsUpdate::AudioVolumeChanged(65)
+            SettingsUpdate::None
         );
-        assert_eq!(model.audio.volume_percent(), 65);
+        model
+            .reconcile_audio_state(ready_audio_state(2, 100, false))
+            .expect("volume acknowledgement");
+        assert_eq!(
+            model.handle_key(SettingsKey::Decrease),
+            SettingsUpdate::AudioVolumeChanged(95)
+        );
+        assert_eq!(model.audio.volume_percent(), 95);
+        model
+            .reconcile_audio_state(ready_audio_state(3, 95, false))
+            .expect("decreased volume acknowledgement");
         assert_eq!(
             model.handle_key(SettingsKey::Activate),
             SettingsUpdate::AudioMutedChanged(true)
@@ -4172,16 +4224,25 @@ mod tests {
             AudioServiceHealth::Unavailable
         );
         assert!(!model.audio.backend_applied());
+        assert_eq!(
+            model.audio.control_status(),
+            AudioControlStatus::Unavailable
+        );
+        assert!(!model.audio.controls_enabled());
         model
             .reconcile_audio_state(ready_audio_state(1, 70, false))
             .expect("ready adapter state should enable controls");
         assert!(model.audio.available());
         assert!(model.audio.backend_applied());
+        assert_eq!(model.audio.control_status(), AudioControlStatus::Applied);
+        assert!(model.audio.controls_enabled());
         assert_eq!(model.audio.output_device_name(), Some("Aqua Test Output"));
         assert!(model.audio.set_volume_percent(85));
         assert!(!model.audio.set_volume_percent(101));
         assert!(model.audio.set_muted(true));
         assert!(!model.audio.backend_applied());
+        assert_eq!(model.audio.control_status(), AudioControlStatus::Applying);
+        assert!(!model.audio.controls_enabled());
         let volume_request = model
             .audio
             .next_reconciliation_request()
@@ -4207,16 +4268,87 @@ mod tests {
             .reconcile_audio_state(ready_audio_state(3, 85, true))
             .expect("mute acknowledgement");
         assert!(model.audio.backend_applied());
+        assert_eq!(model.audio.control_status(), AudioControlStatus::Applied);
+        assert!(model.audio.controls_enabled());
         let restored = SettingsWindowModel::from_config(&model.to_config())
             .expect("bounded audio preference should reload");
         assert_eq!(restored.audio.volume_percent(), 85);
         assert!(restored.audio.muted());
         assert!(!restored.audio.available());
         assert!(!restored.audio.backend_applied());
+        assert_eq!(
+            restored.audio.control_status(),
+            AudioControlStatus::Unavailable
+        );
         assert!(matches!(
             SettingsWindowModel::from_config("version=1\nreduced_motion=false\naudio_volume=101\n"),
             Err(SettingsConfigError::InvalidFormat)
         ));
+    }
+
+    #[test]
+    fn settings_audio_controls_follow_authoritative_acknowledgement_state() {
+        let mut model = SettingsWindowModel {
+            selected_category: 4,
+            ..SettingsWindowModel::default()
+        };
+        model
+            .reconcile_audio_state(
+                AudioAuthoritativeState::unavailable(1, AudioServiceHealth::Starting)
+                    .expect("starting state"),
+            )
+            .expect("starting state should reconcile");
+        assert_eq!(model.audio.control_status(), AudioControlStatus::Starting);
+        assert!(!model.audio.controls_enabled());
+
+        model
+            .reconcile_audio_state(ready_audio_state(2, 70, false))
+            .expect("ready audio state");
+        assert_eq!(model.audio.control_status(), AudioControlStatus::Applied);
+        assert!(model.audio.set_volume_percent(85));
+        assert_eq!(model.audio.control_status(), AudioControlStatus::Applying);
+        assert_eq!(model.audio.authoritative_volume_percent(), Some(70));
+        assert_eq!(model.audio_slider().value, 70);
+        assert_eq!(
+            model.handle_key(SettingsKey::Increase),
+            SettingsUpdate::None
+        );
+        let slider = model.audio_slider();
+        assert_eq!(
+            model.handle_pointer(slider.rect.right() - 1, slider.rect.y),
+            SettingsUpdate::None
+        );
+        model
+            .audio
+            .next_reconciliation_request()
+            .expect("valid request")
+            .expect("pending volume request");
+
+        model
+            .reconcile_audio_state(
+                AudioAuthoritativeState::unavailable(3, AudioServiceHealth::Degraded)
+                    .expect("degraded state"),
+            )
+            .expect("degraded state should reconcile");
+        assert_eq!(model.audio.control_status(), AudioControlStatus::Degraded);
+        assert_eq!(model.audio.volume_percent(), 85);
+        assert!(!model.audio.controls_enabled());
+
+        model
+            .reconcile_audio_state(ready_audio_state(4, 70, false))
+            .expect("replacement graph state");
+        assert_eq!(model.audio.control_status(), AudioControlStatus::Applying);
+        model
+            .audio
+            .next_reconciliation_request()
+            .expect("valid replacement request")
+            .expect("replacement volume request");
+        model
+            .reconcile_audio_state(ready_audio_state(5, 85, false))
+            .expect("replacement acknowledgement");
+        assert_eq!(model.audio.control_status(), AudioControlStatus::Applied);
+        assert!(model.audio.controls_enabled());
+        assert!(model.audio.backend_applied());
     }
 
     #[cfg(unix)]

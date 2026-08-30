@@ -140,8 +140,11 @@ provides bounded typed device and route state, monotonic reconciliation,
 deferred desired volume and mute, and fail-closed unavailable/degraded behavior.
 Its typed PipeWire transport maps only synchronized snapshots and typed native
 volume, mute, and configured-default operations; Settings can drive this backend
-without treating submission as acknowledgement. A separate Buildroot rehearsal
-profile has resolved the exact package delta, packages a versioned bounded
+without treating submission as acknowledgement. Its UI model and renderer expose
+unavailable, starting, degraded, applying, and applied states, keep the last
+authoritative volume visible while an intent is pending, and enable slider/mute
+input only after authoritative reconciliation reaches applied. A separate
+Buildroot rehearsal profile has resolved the exact package delta, packages a versioned bounded
 WirePlumber 0.5 native bridge, and passed `legal-info` while the default image
 stayed unchanged. Its second, audio-only rootfs overlay now explicitly enables
 the per-user supervisor, records exact stack versions, and installs a checker
@@ -229,8 +232,8 @@ acknowledgement after the cleaned attempt 4/restart 3 degraded state. Its
 WirePlumber counterpart proves the same healthy precondition, three complete
 media-pair renewals, and fail-closed control rejection after the fourth policy
 loss reaches `failed_service=wireplumber` degradation. Other control and UI
-failure matrices remain open. The remaining
-UI acknowledgement gate still blocks default-image enablement.
+failure matrices remain open. The remaining runtime native-backend integration
+gate still blocks default-image enablement.
 Buildroot availability or these bounded QEMU profiles are not a complete audio
 integration decision.
 
