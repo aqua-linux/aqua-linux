@@ -705,9 +705,9 @@ The reviewed `qemu-tcg-bochs-v1` profile enforces 50,000 us page-flip wait,
 60,000,000 us input-to-present latency, 180,000,000 us CPU time, 163,840 KiB
 peak RSS growth, and zero dropped frames. The virtio target remains the recorded
 `legacy-cpu-copy` fallback. Repeated R2 collection and explicit QEMU budget
-review are complete for this profile. One longer qualification run is also
-complete; repeated qualification and physical-target budgets remain open, and
-TCG timings must not be used as physical responsiveness evidence.
+review are complete for this profile. Three independent longer qualification
+runs are also complete; physical-target budgets remain open, and TCG timings
+must not be used as physical responsiveness evidence.
 
 An initial `qemu-tcg-bochs-soak-v1` profile now holds one compositor process for
 at least five minutes with Files and Settings mapped and ten bounded real-input
@@ -730,6 +730,11 @@ ceiling, and requires at least 15 input samples, 45 keyboard events, zero
 crashes, complete cleanup, recovery return, and diagnostic isolation. The first
 accepted run observed 1,344,436 ms, 94 keyboard events, 71 frames, 38 input
 samples, 8,131 us maximum page-flip wait, 44,045,721 us maximum input latency,
-1,232,394,556 us CPU time, and 134,200 KiB RSS growth. This closes the first
-longer QEMU qualification window, not the repeated qualification or physical
-stability gates; the report remains `release_ready=false`.
+1,232,394,556 us CPU time, and 134,200 KiB RSS growth. Three independent cold
+boots now pass the same fixed profile. Their bounded review contains three
+isolated diagnostic records and 213 presented frames; the per-run minima are
+1,319,699 ms observation, 38 input samples, and 94 keyboard events, while the
+overall maxima are 8,505 us page-flip wait, 44,045,721 us input latency,
+1,232,394,556 us CPU time, and 134,348 KiB RSS growth. This closes repeated QEMU
+qualification, not physical stability or release readiness; the review remains
+`physical_evidence=false` and `release_ready=false`.

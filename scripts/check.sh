@@ -477,6 +477,7 @@ test -x scripts/check-r2-presentation-repeated-qemu.sh
 test -x scripts/check-r2-presentation-soak-qemu.sh
 test -x scripts/check-r2-presentation-soak-qemu.exp
 test -x scripts/check-r2-presentation-qualification-qemu.sh
+test -x scripts/check-r2-presentation-repeated-qualification-qemu.sh
 PYTHONPYCACHEPREFIX="${CHECK_TEMP_ROOT}/python-cache" \
     python3 -m py_compile \
     scripts/send-qemu-monitor-input.py \
@@ -531,6 +532,12 @@ grep -Fq 'monitor socket path must be shorter than 104 bytes' scripts/check-r2-p
 grep -Fq -- '--summarize-qualification-soak' scripts/check-r2-presentation-qualification-qemu.sh
 grep -Fq 'r2_qualification_soak_budget_profile=qemu-tcg-bochs-qualification-v1' scripts/check-r2-presentation-qualification-qemu.sh
 grep -Fq 'r2_qualification_soak_release_ready=false' scripts/check-r2-presentation-qualification-qemu.sh
+grep -Fq 'RUNS="${RUNS:-3}"' scripts/check-r2-presentation-repeated-qualification-qemu.sh
+grep -Fq 'R2 qualification evidence directory already exists' scripts/check-r2-presentation-repeated-qualification-qemu.sh
+grep -Fq -- '--summarize-repeated-qualification' scripts/check-r2-presentation-repeated-qualification-qemu.sh
+grep -Fq 'r2_qualification_review_budget_profile=qemu-tcg-bochs-qualification-v1' scripts/check-r2-presentation-repeated-qualification-qemu.sh
+grep -Fq 'r2_qualification_review_physical_evidence=false' scripts/check-r2-presentation-repeated-qualification-qemu.sh
+grep -Fq 'r2_qualification_review_release_ready=false' scripts/check-r2-presentation-repeated-qualification-qemu.sh
 grep -Fq 'QEMU_QUALIFICATION_MIN_OBSERVATION_WINDOW_MS = 900_000' scripts/check-r2-presentation-log.py
 grep -Fq 'QEMU_QUALIFICATION_MIN_INPUT_SAMPLES = 15' scripts/check-r2-presentation-log.py
 grep -Fq -- '--serve' scripts/send-qemu-monitor-input.py
