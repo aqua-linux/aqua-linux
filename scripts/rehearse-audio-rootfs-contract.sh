@@ -44,6 +44,9 @@ docker run --rm \
             BR2_EXTERNAL="${external_dir}" \
             aqua_x86_64_audio_rehearsal_defconfig
         make -C "${buildroot_dir}" O="${output_dir}" \
+            BR2_EXTERNAL="${external_dir}" \
+            aqua-audio-native-rebuild aqua-audio-probe-rebuild
+        make -C "${buildroot_dir}" O="${output_dir}" \
             BR2_EXTERNAL="${external_dir}"
         if ! test -s "${output_dir}/images/bzImage"; then
             make -C "${buildroot_dir}" O="${output_dir}" \

@@ -440,6 +440,17 @@ adapter submission, and requires a later snapshot to acknowledge the desired
 value. This is opt-in virtual runtime evidence; the default image stays
 sound-free and physical hardware is not claimed.
 
+`scripts/check-audio-control-route-loss-qemu.sh` proves that an in-flight
+volume request belongs to the output generation that received it. The profile
+prepares fallback PCI 04.0 at 37%, selects PCI 05.0 at 63%, submits 37% to 05.0,
+and removes that selected controller after the adapter exposes the pending
+target-bound request. Although fallback 04.0 already equals 37%, the adapter
+must reject the old request as lost rather than acknowledge it, avoid a
+redundant resubmission, and preserve the running media services and recovery
+shell. The rootfs rehearsal explicitly rebuilds the local native bridge and C
+probe before image finalization so cached Buildroot stamps cannot hide source
+changes. This remains opt-in virtual-device evidence.
+
 `scripts/check-audio-control-policy-service-loss-qemu.sh` proves the matching
 WirePlumber boundary. After one acknowledged volume/mute cycle, it terminates
 the supervisor-owned policy process and pauses the supervisor only after that

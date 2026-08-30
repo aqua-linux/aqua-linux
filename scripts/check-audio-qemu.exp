@@ -42,7 +42,7 @@ if {$audio_contract eq "output" || $audio_contract eq "service-loss" || $audio_c
     lappend qemu_args -audiodev "dbus,id=aqua-audio,nsamples=480,in.frequency=48000,in.channels=2,in.format=s16"
     lappend qemu_args -device ich9-intel-hda,id=aqua-hda-input,addr=04.0
     lappend qemu_args -device hda-duplex,bus=aqua-hda-input.0,audiodev=aqua-audio
-} elseif {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "replug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug"} {
+} elseif {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "replug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug" || $audio_contract eq "control-route-loss"} {
     lappend qemu_args -audiodev "wav,id=aqua-route-primary,path=$env(WAV_ROUTE_PRIMARY),out.frequency=48000,out.channels=2,out.format=s16"
     lappend qemu_args -audiodev "wav,id=aqua-route-secondary,path=$env(WAV_ROUTE_SECONDARY),out.frequency=48000,out.channels=2,out.format=s16"
     lappend qemu_args -device ich9-intel-hda,id=aqua-hda-primary,addr=04.0
@@ -58,7 +58,7 @@ if {$audio_contract eq "input-signal" || $audio_contract eq "input-disconnect" |
 } else {
     lappend qemu_args -display none
 }
-if {$audio_contract eq "hotplug" || $audio_contract eq "replug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug" || $audio_contract eq "input-signal" || $audio_contract eq "input-disconnect" || $audio_contract eq "active-input-unplug"} {
+if {$audio_contract eq "hotplug" || $audio_contract eq "replug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug" || $audio_contract eq "control-route-loss" || $audio_contract eq "input-signal" || $audio_contract eq "input-disconnect" || $audio_contract eq "active-input-unplug"} {
     lappend qemu_args -qmp "unix:$env(QMP_SOCKET),server=on,wait=off"
 }
 lappend qemu_args -no-reboot
@@ -92,7 +92,7 @@ expect {
 }
 expect -exact {# }
 
-if {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "replug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug"} {
+if {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "replug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug" || $audio_contract eq "control-route-loss"} {
     shell {ok=1; /usr/bin/aqua-audio-rootfs-check || ok=0; test -d /proc/asound || ok=0; test "$(awk '/^ [0-9]+ / { count++ } END { print count+0 }' /proc/asound/cards)" -eq 2 || ok=0; test -c /dev/snd/pcmC0D0p || ok=0; test -c /dev/snd/pcmC1D0p || ok=0; test ! -e /dev/snd/pcmC0D0c || ok=0; test ! -e /dev/snd/pcmC1D0c || ok=0; [ "$ok" = 1 ] || { cat /proc/asound/cards; ls -l /dev/snd; }} {checking two HDA output devices}
     send -- {marker='[AQUA-AUDIO] stage=qemu-device'; [ "$ok" = 1 ] && echo "$marker status=ok driver=snd_hda_intel codec=hda-output outputs=2 capture_node=false"}
     send -- "\r"
@@ -115,7 +115,7 @@ expect -exact {# }
 
 shell {AQUA_SESSION_ALLOWED_COMMAND=/usr/bin/aqua-media-service-supervisor /usr/bin/aqua-session-user-launch /usr/bin/aqua-media-service-supervisor >/run/aqua/audio-qemu-supervisor.log 2>&1 &} {starting per-user media services}
 shell {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'state=running' /run/aqua/media-service-supervisor.state 2>/dev/null; do sleep 1; i=$((i + 1)); done} {waiting for PipeWire and WirePlumber}
-if {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "replug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug"} {
+if {$audio_contract eq "multi-route" || $audio_contract eq "hotplug" || $audio_contract eq "replug" || $audio_contract eq "nondefault-unplug" || $audio_contract eq "active-nondefault-unplug" || $audio_contract eq "active-default-unplug" || $audio_contract eq "control-route-loss"} {
     shell {ok=1; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || ok=0; grep -Fq 'service_owner_uid=1000' /run/aqua/media-service-supervisor.state || ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/run/aqua/wpctl-status.txt 2>&1 || ok=0; grep -Fq 'Sinks:' /run/aqua/wpctl-status.txt || ok=0} {checking per-user multi-output graph}
     send -- {marker='[AQUA-AUDIO] stage=qemu-service'; [ "$ok" = 1 ] && echo "$marker status=ok owner_uid=1000 pipewire=true wireplumber=true sinks=true route_profile=true"}
     send -- "\r"
@@ -233,6 +233,49 @@ if {$audio_contract eq "control-submission-budget"} {
     }
     expect -exact {# }
     shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}
+    send -- "poweroff -f\r"
+    expect eof
+    exit 0
+}
+
+if {$audio_contract eq "control-route-loss"} {
+    send -- "su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/libexec/aqua-tests/aqua-audio-adapter-probe route-generation-loss'\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=adapter-route-generation status=pending target_bound=true selected_route=true fallback_prepared=true fallback_matches_desired=true} {}
+        -exact {[AQUA-AUDIO] stage=adapter-route-generation status=failed} { puts stderr "Audio adapter route-generation precondition failed"; exit 1 }
+        timeout { puts stderr "Audio adapter route-generation precondition marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited before the pending route-bound control"; exit 1 }
+    }
+    if {[catch {exec python3 $env(QMP_DEVICE_DELETE) $env(QMP_SOCKET) aqua-hda-secondary} delete_result]} {
+        puts stderr $delete_result
+        exit 1
+    }
+    expect {
+        -exact {[AQUA-AUDIO] stage=adapter-route-generation status=ok target_bound=true route_changed=true old_request_confirmed=false request_rejected_or_lost=true fallback_matches_desired=true no_resubmission=true} {}
+        -exact {[AQUA-AUDIO] stage=adapter-route-generation status=failed} { puts stderr "Audio adapter accepted a stale route control"; exit 1 }
+        timeout { puts stderr "Audio adapter route-generation result marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited during route-generation reconciliation"; exit 1 }
+    }
+    expect -exact {# }
+    shell {route_control_ok=1; i=0; while [ "$i" -lt 30 ] && [ "$(awk '/^ [0-9]+ / { count++ } END { print count+0 }' /proc/asound/cards)" -ne 1 ]; do sleep 1; i=$((i + 1)); done; test "$(awk '/^ [0-9]+ / { count++ } END { print count+0 }' /proc/asound/cards)" -eq 1 || route_control_ok=0; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || route_control_ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/dev/null || route_control_ok=0} {checking the authoritative fallback after pending control route loss}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-device-unplug'; [ "$route_control_ok" = 1 ] && echo "$marker status=ok device=aqua-hda-secondary event=DEVICE_DELETED alsa_outputs=1"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-device-unplug status=ok device=aqua-hda-secondary event=DEVICE_DELETED alsa_outputs=1} {}
+        timeout { puts stderr "Pending-control selected-device removal was not acknowledged"; exit 1 }
+        eof { puts stderr "QEMU exited during pending-control selected-device removal"; exit 1 }
+    }
+    expect -exact {# }
+    shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-control-route-loss'; [ "$route_control_ok" = 1 ] && echo "$marker status=ok target_bound=true removed_default=true false_acknowledgement=false request_rejected_or_lost=true fallback_matches_desired=true no_resubmission=true services_running=true recovery_shell=true" || echo "$marker status=failed"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-control-route-loss status=ok target_bound=true removed_default=true false_acknowledgement=false request_rejected_or_lost=true fallback_matches_desired=true no_resubmission=true services_running=true recovery_shell=true} {}
+        -exact {[AQUA-AUDIO] stage=qemu-control-route-loss status=failed} { puts stderr "Audio control route-loss contract failed"; exit 1 }
+        timeout { puts stderr "Audio control route-loss marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited during audio control route-loss verification"; exit 1 }
+    }
+    expect -exact {# }
     send -- "poweroff -f\r"
     expect eof
     exit 0

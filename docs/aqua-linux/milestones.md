@@ -581,8 +581,13 @@ proves the same healthy precondition, three complete media-pair renewals, and
 fail-closed control rejection after the fourth policy loss reaches
 `failed_service=wireplumber` degradation. The packaged production adapter also
 proves its three-attempt per-generation submission budget, blocked fourth call,
-and recovery only after a real native graph generation change. Other error behavior remains open R4
-work; physical hardware support is not claimed.
+and recovery only after a real native graph generation change. A separate
+two-output adapter profile now binds a pending volume request to selected PCI
+05.0, prepares fallback PCI 04.0 at the same desired value, removes 05.0 through
+QMP, and proves the matching fallback cannot falsely acknowledge the removed
+target. The request is rejected or lost and no resubmission is needed because
+the retained preference is already authoritative on the fallback. Other error
+behavior remains open R4 work; physical hardware support is not claimed.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
 to recovery after each bounded session.

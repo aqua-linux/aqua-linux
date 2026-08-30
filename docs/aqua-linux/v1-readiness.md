@@ -393,8 +393,13 @@ WirePlumber counterpart proves the same healthy precondition, three complete
 media-pair renewals, and fail-closed control rejection after the fourth policy
 loss reaches `failed_service=wireplumber` degradation. The packaged production
 adapter probe additionally proves the per-generation submission budget and its
-generation-gated recovery against the real native graph. Other control and UI
-failure matrices remain open. Default-image enablement remains a separate gate.
+generation-gated recovery against the real native graph. A distinct two-output
+profile binds a pending volume request to selected PCI 05.0 while fallback PCI
+04.0 already has the desired value, removes 05.0 through acknowledged QMP, and
+proves the fallback coincidence cannot falsely acknowledge the removed target.
+The old request becomes rejected or lost, the preference remains satisfied
+without resubmission, and services plus recovery stay available. Other control
+and UI failure matrices remain open. Default-image enablement remains a separate gate.
 Buildroot availability or these bounded QEMU profiles are not a complete audio
 integration decision.
 
