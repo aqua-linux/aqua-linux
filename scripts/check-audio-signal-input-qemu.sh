@@ -26,7 +26,7 @@ else
     exit 1
 fi
 
-AQUA_AUDIO_QEMU_CONTRACT=input-signal \
+AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-input-signal}" \
     AQUA_AUDIO_QEMU_EVIDENCE_DIR="${EVIDENCE_DIR}" \
     AUDIO_INPUT_INJECTOR="${INJECTOR}" \
     exec "${ROOT_DIR}/scripts/check-audio-qemu.sh"

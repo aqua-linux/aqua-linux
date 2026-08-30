@@ -142,7 +142,13 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    without host microphone access. The guest captures exactly 4,800 stereo
    S16LE frames through HDA, ALSA, and PipeWire; all 9,600 samples are non-zero,
    the measured peak is 4,096, and positive/negative counts are balanced.
-   Broader error behavior remains open.
+   A sixth run makes the same host listener serve exactly 9,600 bytes of
+   fixed-amplitude positive PCM and then reject every later D-Bus read. QEMU's
+   retained input buffer cannot create a false success because the guest
+   requires bipolar data: the probe reports `invalid-injected-signal` with
+   9,600 positive and zero negative samples, while PipeWire, WirePlumber, and
+   the recovery shell remain responsive. Other media error behavior remains
+   open.
 4. Settings and the top bar consume authoritative adapter state. Pointer and
    keyboard changes must be acknowledged by the service before the UI claims
    application; service failure must visibly degrade and recover.
@@ -186,8 +192,11 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
   switching and playback on both routes. Selected virtual PCI output removal
   additionally proves acknowledged device deletion, authoritative fallback,
   and resumed playback. A private QEMU D-Bus input listener additionally proves
-  deterministic non-silent capture through the declared HDA device without
-  requesting a host microphone. Broader error evidence remains open.
+   deterministic non-silent capture through the declared HDA device without
+   requesting a host microphone. The same bounded listener now proves a
+   mid-source read failure cannot be reported as valid bipolar input and does
+   not hang the service graph or recovery shell. Other error evidence remains
+   open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

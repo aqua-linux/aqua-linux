@@ -34,7 +34,7 @@ if {$audio_contract eq "output"} {
     lappend qemu_args -audiodev "none,id=aqua-audio,in.frequency=48000,in.channels=2,in.format=s16"
     lappend qemu_args -device ich9-intel-hda
     lappend qemu_args -device hda-duplex,audiodev=aqua-audio
-} elseif {$audio_contract eq "input-signal"} {
+} elseif {$audio_contract eq "input-signal" || $audio_contract eq "input-disconnect"} {
     lappend qemu_args -audiodev "dbus,id=aqua-audio,nsamples=480,in.frequency=48000,in.channels=2,in.format=s16"
     lappend qemu_args -device ich9-intel-hda
     lappend qemu_args -device hda-duplex,audiodev=aqua-audio
@@ -49,12 +49,12 @@ if {$audio_contract eq "output"} {
     puts stderr "Unsupported audio QEMU contract: $audio_contract"
     exit 2
 }
-if {$audio_contract eq "input-signal"} {
+if {$audio_contract eq "input-signal" || $audio_contract eq "input-disconnect"} {
     lappend qemu_args -display "dbus,p2p=on,audiodev=aqua-audio"
 } else {
     lappend qemu_args -display none
 }
-if {$audio_contract eq "hotplug" || $audio_contract eq "input-signal"} {
+if {$audio_contract eq "hotplug" || $audio_contract eq "input-signal" || $audio_contract eq "input-disconnect"} {
     lappend qemu_args -qmp "unix:$env(QMP_SOCKET),server=on,wait=off"
 }
 lappend qemu_args -no-reboot
@@ -156,8 +156,13 @@ if {$audio_contract eq "input"} {
     exit 0
 }
 
-if {$audio_contract eq "input-signal"} {
-    if {[catch {exec $env(AUDIO_INPUT_INJECTOR) $env(QMP_SOCKET) $env(AUDIO_INPUT_READY) $env(AUDIO_INPUT_RESULT) >$env(AUDIO_INPUT_LOG) 2>@1 &} injector_pid]} {
+if {$audio_contract eq "input-signal" || $audio_contract eq "input-disconnect"} {
+    if {$audio_contract eq "input-disconnect"} {
+        set injector_command [list $env(AUDIO_INPUT_INJECTOR) $env(QMP_SOCKET) $env(AUDIO_INPUT_READY) $env(AUDIO_INPUT_RESULT) $env(AUDIO_INPUT_DISCONNECT_BYTES)]
+    } else {
+        set injector_command [list $env(AUDIO_INPUT_INJECTOR) $env(QMP_SOCKET) $env(AUDIO_INPUT_READY) $env(AUDIO_INPUT_RESULT)]
+    }
+    if {[catch {exec {*}$injector_command >$env(AUDIO_INPUT_LOG) 2>@1 &} injector_pid]} {
         puts stderr "Unable to start the QEMU D-Bus input injector"
         exit 1
     }
@@ -178,7 +183,11 @@ if {$audio_contract eq "input-signal"} {
         puts stderr "Timed out waiting for the QEMU D-Bus input injector"
         exit 1
     }
-    shell {ok=1; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe capture-signal' || ok=0} {capturing the deterministic non-silent PCM signal}
+    if {$audio_contract eq "input-disconnect"} {
+        shell {input_failure_ok=1; probe_status=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe capture-signal' >/run/aqua/audio-input-disconnect.log 2>&1 || probe_status=$?; cat /run/aqua/audio-input-disconnect.log; test "$probe_status" -ne 0 || input_failure_ok=0; grep -Fq '[AQUA-AUDIO] stage=media-probe status=failed reason=invalid-injected-signal' /run/aqua/audio-input-disconnect.log || input_failure_ok=0; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || input_failure_ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/dev/null || input_failure_ok=0} {rejecting an interrupted deterministic input stream}
+    } else {
+        shell {ok=1; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe capture-signal' || ok=0} {capturing the deterministic non-silent PCM signal}
+    }
     set injector_result 0
     for {set attempt 0} {$attempt < 100} {incr attempt} {
         if {[file exists $env(AUDIO_INPUT_RESULT)]} {
@@ -187,12 +196,23 @@ if {$audio_contract eq "input-signal"} {
         }
         after 100
     }
-    send -- {marker='[AQUA-AUDIO] stage=qemu-capture'; [ "$ok" = 1 ] && echo "$marker status=ok pattern=bipolar-injected"}
-    send -- "\r"
-    expect {
-        -exact {[AQUA-AUDIO] stage=qemu-capture status=ok pattern=bipolar-injected} {}
-        timeout { puts stderr "Deterministic QEMU input result missing"; exit 1 }
-        eof { puts stderr "QEMU exited during deterministic input verification"; exit 1 }
+    if {$audio_contract eq "input-disconnect"} {
+        send -- {marker='[AQUA-AUDIO] stage=qemu-input-failure'; [ "$input_failure_ok" = 1 ] && echo "$marker status=ok backend=dbus expected_failure=true false_success=false services_running=true recovery_shell=true" || echo "$marker status=failed"}
+        send -- "\r"
+        expect {
+            -exact {[AQUA-AUDIO] stage=qemu-input-failure status=ok backend=dbus expected_failure=true false_success=false services_running=true recovery_shell=true} {}
+            -exact {[AQUA-AUDIO] stage=qemu-input-failure status=failed} { puts stderr "Interrupted input stream was not rejected"; exit 1 }
+            timeout { puts stderr "Interrupted input failure marker missing"; exit 1 }
+            eof { puts stderr "QEMU exited during interrupted input verification"; exit 1 }
+        }
+    } else {
+        send -- {marker='[AQUA-AUDIO] stage=qemu-capture'; [ "$ok" = 1 ] && echo "$marker status=ok pattern=bipolar-injected"}
+        send -- "\r"
+        expect {
+            -exact {[AQUA-AUDIO] stage=qemu-capture status=ok pattern=bipolar-injected} {}
+            timeout { puts stderr "Deterministic QEMU input result missing"; exit 1 }
+            eof { puts stderr "QEMU exited during deterministic input verification"; exit 1 }
+        }
     }
     if {!$injector_result} {
         puts stderr "The D-Bus injector did not serve the required PCM bytes"
@@ -200,12 +220,16 @@ if {$audio_contract eq "input-signal"} {
     }
     expect -exact {# }
     shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}
-    send -- {echo '[AQUA-AUDIO] stage=qemu-input-signal status=ok declared_device=intel-hda codec=hda-duplex backend=dbus capture=true frames=4800 host_microphone=false'}
+    if {$audio_contract eq "input-disconnect"} {
+        send -- {echo '[AQUA-AUDIO] stage=qemu-input-disconnect status=ok declared_device=intel-hda codec=hda-duplex backend=dbus bytes_before_failure=9600 host_microphone=false'}
+    } else {
+        send -- {echo '[AQUA-AUDIO] stage=qemu-input-signal status=ok declared_device=intel-hda codec=hda-duplex backend=dbus capture=true frames=4800 host_microphone=false'}
+    }
     send -- "\r"
-    expect {
-        -exact {[AQUA-AUDIO] stage=qemu-input-signal status=ok declared_device=intel-hda codec=hda-duplex backend=dbus capture=true frames=4800 host_microphone=false} {}
-        timeout { puts stderr "Final deterministic QEMU input marker missing"; exit 1 }
-        eof { puts stderr "QEMU exited before final deterministic input marker"; exit 1 }
+    if {$audio_contract eq "input-disconnect"} {
+        expect -exact {[AQUA-AUDIO] stage=qemu-input-disconnect status=ok declared_device=intel-hda codec=hda-duplex backend=dbus bytes_before_failure=9600 host_microphone=false}
+    } else {
+        expect -exact {[AQUA-AUDIO] stage=qemu-input-signal status=ok declared_device=intel-hda codec=hda-duplex backend=dbus capture=true frames=4800 host_microphone=false}
     }
     expect -exact {# }
     send -- "poweroff -f\r"

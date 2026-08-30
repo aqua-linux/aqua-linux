@@ -51,8 +51,10 @@ is outside this audit.
   audio acceptance. The default image does not select it.
 - The project-authored QEMU D-Bus audio-input injector is MIT licensed under
   the root project license. It is compiled and run only on the development
-  host, dynamically links to the host GLib/GIO installation, and is neither
-  copied into the Buildroot image nor included in release artifacts.
+  host, dynamically links to the host GLib/GIO installation, and supports both
+  successful deterministic input and bounded injected-read-failure acceptance.
+  It is neither copied into the Buildroot image nor included in release
+  artifacts.
 
 ## Unresolved Publication Gate
 

@@ -158,7 +158,12 @@ a fixed 1 kHz bipolar square wave. The guest captures exactly 4,800 stereo
 S16LE frames through HDA, ALSA, and PipeWire with a 4,096 peak, all 9,600
 samples non-zero, and balanced polarity; the host independently verifies the
 declared injector format and byte count. This remains virtual transport
-evidence and does not claim a physical microphone. A separate
+evidence and does not claim a physical microphone. A bounded failure variant
+serves exactly 9,600 bytes of one-polarity PCM before rejecting later D-Bus
+reads. The guest reports `invalid-injected-signal` rather than a false bipolar
+success, while the media graph and recovery shell remain responsive. This
+covers one virtual input-source failure boundary, not physical input loss. A
+separate
 two-controller QEMU profile now proves two authoritative output nodes,
 configured-default submission through the native API, effective-route
 acknowledgement, and non-silent playback captures on both routes. A bounded QMP

@@ -505,7 +505,10 @@ remaining output as authoritative default, and non-silent fallback playback.
 A private QEMU D-Bus input profile additionally injects a deterministic 1 kHz
 bipolar signal without host microphone access and proves an exact 4,800-frame
 capture through HDA, ALSA, and PipeWire with a 4,096 peak and balanced sample
-polarity. Broader error evidence remains open R4 work; physical hardware
+polarity. A separate bounded failure profile serves 9,600 bytes of one-polarity
+PCM before rejecting later D-Bus reads; the guest refuses the retained buffer
+as a valid bipolar signal while the media services and recovery shell stay
+responsive. Other error evidence remains open R4 work; physical hardware
 support is not claimed.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns

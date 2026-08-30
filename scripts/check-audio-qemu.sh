@@ -16,13 +16,14 @@ AUDIO_INPUT_INJECTOR="${AUDIO_INPUT_INJECTOR:-${EVIDENCE_DIR}/qemu-dbus-audio-in
 AUDIO_INPUT_READY="${AUDIO_INPUT_READY:-${EVIDENCE_DIR}/input-injector.ready}"
 AUDIO_INPUT_RESULT="${AUDIO_INPUT_RESULT:-${EVIDENCE_DIR}/input-injector.result}"
 AUDIO_INPUT_LOG="${AUDIO_INPUT_LOG:-${EVIDENCE_DIR}/input-injector.log}"
+AUDIO_INPUT_DISCONNECT_BYTES="${AUDIO_INPUT_DISCONNECT_BYTES:-9600}"
 MEMORY="${MEMORY:-1024M}"
 CPUS="${CPUS:-2}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-output}"
 
 case "${AQUA_AUDIO_QEMU_CONTRACT}" in
-    output|input|input-signal|multi-route|hotplug) ;;
+    output|input|input-signal|input-disconnect|multi-route|hotplug) ;;
     *)
         echo "Unsupported audio QEMU contract: ${AQUA_AUDIO_QEMU_CONTRACT}" >&2
         exit 2
@@ -63,6 +64,7 @@ export ROOT_DIR KERNEL ROOTFS SERIAL_LOG WAV_CAPTURE QEMU_PID_FILE MEMORY CPUS T
 export WAV_ROUTE_PRIMARY WAV_ROUTE_SECONDARY
 export QMP_SOCKET QMP_DEVICE_DELETE
 export AUDIO_INPUT_INJECTOR AUDIO_INPUT_READY AUDIO_INPUT_RESULT AUDIO_INPUT_LOG
+export AUDIO_INPUT_DISCONNECT_BYTES
 export AQUA_AUDIO_QEMU_CONTRACT
 expect "${ROOT_DIR}/scripts/check-audio-qemu.exp"
 
@@ -123,6 +125,21 @@ elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = input-signal; then
     esac
     test "${served_bytes}" -ge 19200
     echo 'Aqua Linux deterministic non-silent QEMU audio input check passed.'
+    echo "Injector result: ${AUDIO_INPUT_RESULT}"
+elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = input-disconnect; then
+    for marker in \
+        '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \
+        '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true' \
+        '[AQUA-AUDIO] stage=media-probe status=failed reason=invalid-injected-signal' \
+        '[AQUA-AUDIO] stage=qemu-input-failure status=ok backend=dbus expected_failure=true false_success=false services_running=true recovery_shell=true' \
+        '[AQUA-AUDIO] stage=qemu-input-disconnect status=ok declared_device=intel-hda codec=hda-duplex backend=dbus bytes_before_failure=9600 host_microphone=false'
+    do
+        grep -Fq "${marker}" "${SERIAL_LOG}"
+    done
+    grep -Fxq 'status=disconnected' "${AUDIO_INPUT_RESULT}"
+    grep -Fxq 'reason=injected-read-failure' "${AUDIO_INPUT_RESULT}"
+    grep -Fxq 'bytes_served=9600' "${AUDIO_INPUT_RESULT}"
+    echo 'Aqua Linux QEMU audio input disconnect check passed.'
     echo "Injector result: ${AUDIO_INPUT_RESULT}"
 elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = multi-route; then
     for marker in \
