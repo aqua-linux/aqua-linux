@@ -51,8 +51,9 @@ is outside this audit.
   audio acceptance, including explicit active playback and capture interruption
   reporting.
   The restart-exhaustion profile reuses the same probe and packaged services;
-  it introduces no package, runtime dependency, or license-closure change. The
-  default image does not select it.
+  the control-service-loss profile likewise reuses the existing native bridge,
+  probe, and supervisor. Neither introduces a package, runtime dependency, or
+  license-closure change. The default image does not select them.
 - The project-authored QEMU D-Bus audio-input injector is MIT licensed under
   the root project license. It is compiled and run only on the development
   host, dynamically links to the host GLib/GIO installation, and supports both

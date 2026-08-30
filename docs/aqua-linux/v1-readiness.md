@@ -183,7 +183,10 @@ active-capture profile kills PipeWire after
 480 zero-PCM frames, requires an explicit interrupted result without false
 capture success, observes ordered recovery, and captures a new exact 4,800
 frames without host-microphone access. Other media error matrices remain open.
-The remaining
+Native volume/mute controls are now separately proven to reject acknowledgement
+while the real PipeWire socket is absent and to succeed again only after the
+supervisor restores a new authoritative graph. Other control and UI failure
+matrices remain open. The remaining
 UI acknowledgement gate still blocks default-image enablement.
 Buildroot availability or these bounded QEMU profiles are not a complete audio
 integration decision.

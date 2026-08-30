@@ -11,6 +11,7 @@ SIGNAL_INPUT_RUNNER="${ROOT_DIR}/scripts/check-audio-signal-input-qemu.sh"
 DISCONNECT_INPUT_RUNNER="${ROOT_DIR}/scripts/check-audio-input-disconnect-qemu.sh"
 SERVICE_LOSS_RUNNER="${ROOT_DIR}/scripts/check-audio-active-service-loss-qemu.sh"
 CAPTURE_SERVICE_LOSS_RUNNER="${ROOT_DIR}/scripts/check-audio-active-capture-loss-qemu.sh"
+CONTROL_SERVICE_LOSS_RUNNER="${ROOT_DIR}/scripts/check-audio-control-service-loss-qemu.sh"
 RESTART_EXHAUSTION_RUNNER="${ROOT_DIR}/scripts/check-audio-restart-exhaustion-qemu.sh"
 MULTI_ROUTE_RUNNER="${ROOT_DIR}/scripts/check-audio-multi-route-qemu.sh"
 HOTPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-hotplug-qemu.sh"
@@ -29,6 +30,19 @@ for assignment in \
     CONFIG_HOTPLUG_PCI_ACPI=y
 do
     grep -Fxq "${assignment}" "${FRAGMENT}"
+done
+
+test -x "${CONTROL_SERVICE_LOSS_RUNNER}"
+grep -Fq 'AQUA_AUDIO_QEMU_CONTRACT=control-service-loss' "${CONTROL_SERVICE_LOSS_RUNNER}"
+for contract in \
+    'stage=control-probe status=failed operation=open' \
+    'control_rejected=true false_acknowledgement=false' \
+    'restart_recovery=true control_after=true recovery_shell=true' \
+    'kill -STOP' \
+    'kill -CONT'
+do
+    grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}" \
+        "${CONTROL_SERVICE_LOSS_RUNNER}"
 done
 
 test -x "${CAPTURE_SERVICE_LOSS_RUNNER}"
@@ -171,4 +185,4 @@ do
     grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}"
 done
 
-echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backends=none,dbus controlled_inputs=zero-pcm,bipolar-signal,input-disconnect active_service_loss=true active_capture_loss=true restart_exhaustion=true multi_route=true selected_device_unplug=true fallback=true host_microphone=false default_image_audio=false'
+echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backends=none,dbus controlled_inputs=zero-pcm,bipolar-signal,input-disconnect active_service_loss=true active_capture_loss=true control_service_loss=true restart_exhaustion=true multi_route=true selected_device_unplug=true fallback=true host_microphone=false default_image_audio=false'

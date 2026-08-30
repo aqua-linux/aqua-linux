@@ -519,7 +519,11 @@ access. An active capture profile additionally reads 480 controlled zero-PCM
 frames, terminates PipeWire, requires explicit `Broken pipe` interruption with
 no false capture completion, then proves ordered recovery and a new exact
 4,800-frame zero-PCM capture without host-microphone access. Other error
-evidence remains open R4 work; physical hardware support is not claimed.
+evidence now also includes a bounded native-control outage: volume/mute succeeds
+before loss, fails at bridge open with no false acknowledgement while PipeWire
+is absent, and succeeds again only after a new authoritative graph is running.
+Other error behavior remains open R4 work; physical hardware support is not
+claimed.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
 to recovery after each bounded session.

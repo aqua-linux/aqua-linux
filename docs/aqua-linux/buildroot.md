@@ -298,6 +298,16 @@ must restore the graph before a new client captures exactly 4,800 zero-PCM
 frames. This is virtual service-loss evidence, not physical microphone or
 device-disconnect support.
 
+`scripts/check-audio-control-service-loss-qemu.sh` exercises the native
+volume/mute acknowledgement boundary during a deterministic real graph outage.
+It first requires one successful control cycle, briefly holds the supervisor
+with `SIGSTOP`, terminates that supervisor's PipeWire process, and waits for
+the private socket to disappear. The control probe must then fail at native
+`open`, return non-zero, and emit no successful acknowledgement. `SIGCONT`
+releases the unchanged supervisor policy; a different PipeWire PID,
+`attempts=2`, and a second successful control cycle prove recovery. This does
+not make submission equivalent to acknowledgement or enable audio by default.
+
 `/usr/bin/aqua-session-check` is the recovery-safe aggregate checker for the same contract. Boot writes its output to `/run/aqua-session-check.log`, and users can run it manually from the recovery shell.
 
 ## Current Boot Choice

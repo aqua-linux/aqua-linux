@@ -163,7 +163,13 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    with a dedicated interrupted status and no false capture success; after the
    ordered restart, a new client must capture exactly 4,800 zero-PCM frames.
    The profile never requests a host microphone and keeps recovery responsive.
-   Other media error behavior remains open.
+   A tenth run first proves acknowledged volume/mute controls, then holds the
+   supervisor for a bounded interval while its PipeWire process is terminated.
+   With the socket absent, the native control probe must fail at `open` and
+   emit no success marker. Releasing the supervisor must produce a new
+   PipeWire PID and a second acknowledged control cycle. This proves an
+   unavailable graph cannot create a false control acknowledgement. Other
+   media error behavior remains open.
 4. Settings and the top bar consume authoritative adapter state. Pointer and
    keyboard changes must be acknowledged by the service before the UI claims
    application; service failure must visibly degrade and recover.
@@ -217,7 +223,10 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    media processes or socket after degradation, and blocks new playback while
    recovery remains available. Active controlled capture now also fails
    explicitly on PipeWire loss and succeeds from a new client after ordered
-   recovery without host-microphone access. Other error evidence remains open.
+   recovery without host-microphone access. Native volume/mute controls now
+   additionally fail closed during a bounded real graph outage and regain
+   acknowledgement only after ordered recovery. Other error evidence remains
+   open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or
