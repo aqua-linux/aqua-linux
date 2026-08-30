@@ -92,8 +92,16 @@ conditions are met:
   `aqua-service-adapters` crate: it validates bounded typed devices and routes,
   rejects stale or conflicting generations, preserves desired volume and mute
   across service loss, and requires authoritative reconciliation before an
-  intent is reported as applied. The production PipeWire/WirePlumber API
-  transport and packaged runtime evidence remain separate gates.
+  intent is reported as applied. The typed `PipeWireApiTransport` now maps only
+  graph-synchronized native API snapshots and typed volume, mute, and configured
+  default-output calls into that contract. Its native library binding and
+  packaged runtime evidence remain separate gates.
+- `aqua_x86_64_audio_rehearsal_defconfig` resolves the exact package closure
+  without changing the default image. The 2026-08-30 rehearsal verified
+  PipeWire 1.2.8, WirePlumber 0.5.5, alsa-lib 1.2.13, eudev 3.2.14, Lua 5.4.8,
+  and GLib 2.82.5 in Buildroot's generated `legal-info` manifest. Bluetooth,
+  D-Bus, JACK, PulseAudio, GStreamer, V4L2, and FFmpeg stayed unselected. This
+  satisfies dependency rehearsal, not release clearance or runtime acceptance.
 
 ## Acceptance Gates
 
@@ -141,8 +149,10 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
 - Aqua now has a bounded per-user media-service supervisor with ordered
   PipeWire/WirePlumber startup, reverse-order shutdown, finite readiness,
   restart, and degraded-state handling. Its packaged default remains disabled.
-- The next audio implementation item is the supported PipeWire/WirePlumber API
-  transport and exact Buildroot dependency/legal-info rehearsal; command-output
+- The typed PipeWire/WirePlumber API transport core and exact Buildroot
+  dependency/legal-info rehearsal are complete. The next audio implementation
+  item is the native library binding behind that transport, followed by
+  opt-in packaging and declared-device QEMU media evidence; command-output
   parsing remains prohibited.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.

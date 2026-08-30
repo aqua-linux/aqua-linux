@@ -166,14 +166,20 @@ Boot also runs non-graphical compositor contract probes for runtime assets, stat
 [ADR 0004](adr-0004-audio-service-stack.md) selects ALSA/eudev below per-user
 PipeWire and WirePlumber, with Aqua consuming authoritative service state
 through a bounded adapter. The Buildroot 2025.02.17 LTS defconfig keeps
-PipeWire, WirePlumber, alsa-lib, Lua, and GLib unselected. eudev is already
-packaged for general device discovery. Aqua now has a locked unprivileged
+PipeWire, WirePlumber, alsa-lib, Lua, and GLib unselected. The separate
+`aqua_x86_64_audio_rehearsal_defconfig` selects the narrow audio closure without
+changing that default. `scripts/rehearse-audio-buildroot-closure.sh` runs
+`show-info` and `legal-info` against the pinned tree and writes local evidence
+under `build/audio-rehearsal/`; the 2026-08-30 run verified the six recorded
+stack versions and kept D-Bus, Bluetooth, JACK, PulseAudio, FFmpeg, GStreamer,
+and V4L2 disabled. Generated evidence remains untracked and is not release
+clearance. eudev is already packaged for general device discovery. Aqua has a locked unprivileged
 graphical-session identity, a private user-owned runtime directory, and
 explicit `video`, `audio`, and `input` group membership. Audio packaging must
-still add the supported PipeWire/WirePlumber API transport, exact dependency
-and legal-info evidence, and real QEMU media evidence. The ordered per-user
-supervisor and fail-closed `aqua-service-adapters` state/intent boundary are now
-present, but neither makes `/dev/snd` alone sufficient to enable Settings. No
+still add the native PipeWire/WirePlumber library binding and real QEMU media
+evidence. The typed transport core, ordered per-user supervisor, dependency
+rehearsal, and fail-closed `aqua-service-adapters` state/intent boundary are
+present, but none makes `/dev/snd` alone sufficient to enable Settings. No
 root-owned media daemon, command-output parser, or globally writable `/dev/snd`
 fallback is permitted.
 

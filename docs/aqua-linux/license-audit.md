@@ -1,6 +1,6 @@
 # Aqua Linux License Audit
 
-Audit date: 2026-08-29
+Audit date: 2026-08-30
 
 Scope: the OS repository, Rust workspace, Buildroot external tree, committed
 fonts/icons, and design assets. The separately maintained `website/` repository
@@ -35,6 +35,12 @@ is outside this audit.
   general device management; PipeWire, WirePlumber, alsa-lib, Lua, and GLib are
   not selected. Enabling them requires a refreshed generated legal-info review
   and the ADR 0004 runtime gates.
+- A separate non-default audio rehearsal profile completed Buildroot `show-info`
+  and `legal-info` on 2026-08-30. The exact additions were alsa-lib, PipeWire,
+  WirePlumber, Lua, libglib2, pcre2, and their two host helpers; the generated
+  manifest verified all six recorded stack versions. D-Bus, Bluetooth, JACK,
+  PulseAudio, FFmpeg, GStreamer, and V4L2 remained disabled. This local evidence
+  does not clear release publication or enable the packages in the default image.
 
 ## Unresolved Publication Gate
 

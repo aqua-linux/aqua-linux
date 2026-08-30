@@ -9,6 +9,7 @@ STOP_TOOL="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-media-servic
 MEDIA_CONFIG="$REPO_ROOT/br2-external/aqua/rootfs-overlay/etc/aqua/media-services.conf"
 GRAPHICS_SUPERVISOR="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-graphical-session-supervisor"
 ADAPTER="$REPO_ROOT/crates/aqua-service-adapters/src/lib.rs"
+PIPEWIRE_TRANSPORT="$REPO_ROOT/crates/aqua-service-adapters/src/pipewire.rs"
 SHELL_MODEL="$REPO_ROOT/crates/aqua-shell/src/lib.rs"
 SETTINGS_CLIENT="$REPO_ROOT/crates/aqua-compositor/src/lib.rs"
 
@@ -53,6 +54,13 @@ grep -Fq 'MAX_AUDIO_DEVICES' "$ADAPTER"
 grep -Fq 'StaleGeneration' "$ADAPTER"
 grep -Fq 'ConflictingGeneration' "$ADAPTER"
 grep -Fq 'request_confirmed' "$ADAPTER"
+test -f "$PIPEWIRE_TRANSPORT"
+grep -Fq 'pub trait PipeWireApi' "$PIPEWIRE_TRANSPORT"
+grep -Fq 'pub struct PipeWireApiTransport' "$PIPEWIRE_TRANSPORT"
+grep -Fq 'fn synchronized_snapshot' "$PIPEWIRE_TRANSPORT"
+grep -Fq 'DefaultsBeforeGraphSync' "$PIPEWIRE_TRANSPORT"
+grep -Fq 'GenerationMismatch' "$PIPEWIRE_TRANSPORT"
+grep -Fq 'set_configured_default_output' "$PIPEWIRE_TRANSPORT"
 grep -Fq 'AudioServiceAdapter' "$SHELL_MODEL"
 grep -Fq 'authoritative_volume_percent' "$SHELL_MODEL"
 grep -Fq 'aqua_settings_audio_service_health=' "$SETTINGS_CLIENT"
@@ -63,6 +71,10 @@ if grep -Fq 'AQUA_AUDIO_DEV_SND' "$SETTINGS_CLIENT"; then
 fi
 if grep -Eq 'wpctl|Command::new|process::Command' "$ADAPTER"; then
     echo 'The audio adapter contract must not parse commands or spawn helper tools.' >&2
+    exit 1
+fi
+if grep -Eq 'wpctl|Command::new|process::Command' "$PIPEWIRE_TRANSPORT"; then
+    echo 'The PipeWire transport must use typed native API calls, not helper commands.' >&2
     exit 1
 fi
 grep -Fq '| Audio | Not tested |' \

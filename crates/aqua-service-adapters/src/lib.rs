@@ -1,6 +1,13 @@
 use std::collections::HashSet;
 use std::fmt;
 
+mod pipewire;
+
+pub use pipewire::{
+    PipeWireApi, PipeWireApiNode, PipeWireApiPhase, PipeWireApiSnapshot, PipeWireApiTransport,
+    PipeWireTransportError,
+};
+
 pub const MAX_AUDIO_DEVICES: usize = 32;
 pub const MAX_AUDIO_DEVICE_ID_BYTES: usize = 64;
 pub const MAX_AUDIO_DEVICE_NAME_BYTES: usize = 96;
@@ -240,6 +247,29 @@ pub trait AudioBackend {
     fn submit(&mut self, request: &AudioRequest) -> Result<(), Self::Error>;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AudioBackendDriveOutcome {
+    pub reconcile: AudioReconcileOutcome,
+    pub submitted_request_id: Option<u64>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum AudioBackendDriveError<E> {
+    Adapter(AudioAdapterError),
+    Backend(E),
+}
+
+impl<E: fmt::Display> fmt::Display for AudioBackendDriveError<E> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Adapter(error) => write!(formatter, "audio adapter error: {error}"),
+            Self::Backend(error) => write!(formatter, "audio backend error: {error}"),
+        }
+    }
+}
+
+impl<E> std::error::Error for AudioBackendDriveError<E> where E: std::error::Error + 'static {}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AudioReconcileOutcome {
     pub generation_advanced: bool,
@@ -428,6 +458,41 @@ impl AudioServiceAdapter {
             .ok_or(AudioAdapterError::RequestIdExhausted)?;
         self.pending_request = Some(request.clone());
         Ok(Some(request))
+    }
+
+    pub fn drive_backend_once<B: AudioBackend>(
+        &mut self,
+        backend: &mut B,
+    ) -> Result<AudioBackendDriveOutcome, AudioBackendDriveError<B::Error>> {
+        let next = backend
+            .authoritative_state()
+            .map_err(AudioBackendDriveError::Backend)?;
+        let reconcile = self
+            .reconcile(next)
+            .map_err(AudioBackendDriveError::Adapter)?;
+        let Some(request) = self
+            .next_reconciliation_request()
+            .map_err(AudioBackendDriveError::Adapter)?
+        else {
+            return Ok(AudioBackendDriveOutcome {
+                reconcile,
+                submitted_request_id: None,
+            });
+        };
+        if let Err(error) = backend.submit(&request) {
+            self.cancel_pending_request(request.id);
+            return Err(AudioBackendDriveError::Backend(error));
+        }
+        Ok(AudioBackendDriveOutcome {
+            reconcile,
+            submitted_request_id: Some(request.id),
+        })
+    }
+
+    fn cancel_pending_request(&mut self, request_id: u64) {
+        if self.pending_request.as_ref().map(AudioRequest::id) == Some(request_id) {
+            self.pending_request = None;
+        }
     }
 }
 

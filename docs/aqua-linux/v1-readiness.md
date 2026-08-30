@@ -138,10 +138,13 @@ startup, bounded restart, reverse-order shutdown, and degraded state. It stays
 disabled while the packages are absent. The `aqua-service-adapters` crate now
 provides bounded typed device and route state, monotonic reconciliation,
 deferred desired volume and mute, and fail-closed unavailable/degraded behavior.
-Settings no longer treats `/dev/snd` alone as service readiness. Packaging
-remains blocked until the supported API transport, exact legal-info review,
-and real QEMU media evidence exist. Buildroot availability alone is not an
-integration decision.
+Its typed PipeWire transport maps only synchronized snapshots and typed native
+volume, mute, and configured-default operations; Settings can drive this backend
+without treating submission as acknowledgement. A separate Buildroot rehearsal
+profile has also resolved the exact package delta and passed `legal-info` while
+the default image stayed unchanged. Packaging remains blocked until the native
+library binding, opt-in rootfs contract, and real QEMU media evidence exist.
+Buildroot availability alone is not an integration decision.
 
 ### R5: Accessibility, Internationalization, And Input
 

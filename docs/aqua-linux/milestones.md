@@ -486,7 +486,11 @@ Settings Audio now supplies the real bounded slider consumer: a persistent
 `aqua-service-adapters` contract. Controls require a ready authoritative state
 with a valid output route; `/dev/snd` alone is insufficient, and desired values
 are not reported as applied before reconciliation. It deliberately does not
-claim playback, production PipeWire transport, or physical hardware support.
+claim playback or physical hardware support. The typed PipeWire/WirePlumber
+transport maps synchronized graph snapshots and typed control calls into the
+same acknowledgement gate, and a non-default Buildroot profile proves the exact
+dependency and legal-info closure. Native library binding, opt-in rootfs
+packaging, and declared-device QEMU media evidence remain open R4 work.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
 to recovery after each bounded session.
