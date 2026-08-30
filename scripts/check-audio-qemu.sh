@@ -23,7 +23,7 @@ TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-output}"
 
 case "${AQUA_AUDIO_QEMU_CONTRACT}" in
-    output|input|input-signal|input-disconnect|service-loss|capture-service-loss|restart-exhaustion|multi-route|hotplug) ;;
+    output|input|input-signal|input-disconnect|service-loss|capture-service-loss|control-service-loss|restart-exhaustion|multi-route|hotplug) ;;
     *)
         echo "Unsupported audio QEMU contract: ${AQUA_AUDIO_QEMU_CONTRACT}" >&2
         exit 2
@@ -167,6 +167,18 @@ elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = capture-service-loss; then
     done
     test "$(grep -Fc '[AQUA-AUDIO] stage=media-probe status=ok direction=capture frames=4800 rate=48000 channels=2 format=s16le peak_abs=0 pattern=silence' "${SERIAL_LOG}")" -eq 1
     echo 'Aqua Linux active audio capture service-loss recovery check passed.'
+elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = control-service-loss; then
+    for marker in \
+        '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \
+        '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true' \
+        '[AQUA-AUDIO] stage=control-probe status=failed operation=open' \
+        '[AQUA-AUDIO] stage=qemu-control-service-loss status=ok failed_service=pipewire control_rejected=true false_acknowledgement=false restart_recovery=true control_after=true recovery_shell=true'
+    do
+        grep -Fq "${marker}" "${SERIAL_LOG}"
+    done
+    test "$(grep -Fc '[AQUA-AUDIO] stage=control-probe status=ok backend=aqua-audio-native default_sink=true volume=35 mute_cycle=true' "${SERIAL_LOG}")" -eq 2
+    test "$(grep -Fc '[AQUA-AUDIO] stage=control-probe status=failed' "${SERIAL_LOG}")" -eq 1
+    echo 'Aqua Linux audio control service-loss acknowledgement check passed.'
 elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = restart-exhaustion; then
     for marker in \
         '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \
