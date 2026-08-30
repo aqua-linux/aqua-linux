@@ -192,7 +192,11 @@ attempt 2, and requires a new non-silent 48,000-frame playback. A separate
 real-service exhaustion profile kills four successive PipeWire processes,
 requires exactly three restart transitions before the configured budget leaves
 the graph degraded, confirms process/socket cleanup, rejects new playback and
-`wpctl` access, and preserves the recovery shell. A separate controlled
+`wpctl` access, and preserves the recovery shell. Its policy-service counterpart
+kills four successive WirePlumber processes, requires a new complete media pair
+after each permitted restart, then proves the same degraded counters, cleanup,
+playback rejection, and recovery-shell availability with
+`failed_service=wireplumber`. A separate controlled
 active-capture profile kills PipeWire after
 480 zero-PCM frames, requires an explicit interrupted result without false
 capture success, observes ordered recovery, and captures a new exact 4,800

@@ -532,7 +532,10 @@ separate restart-budget profile terminates four successive real PipeWire
 processes, requires exactly
 three restarts before `degraded` with attempts=4/restarts=3, proves media
 process and socket cleanup, blocks new playback, and retains recovery-shell
-access. An active capture profile additionally reads 480 controlled zero-PCM
+access. Its policy-service counterpart terminates four successive WirePlumber
+processes, requires complete pair renewal on the first three losses, and proves
+the fourth loss reaches the same cleaned, playback-blocked degraded state with
+`failed_service=wireplumber`. An active capture profile additionally reads 480 controlled zero-PCM
 frames, terminates PipeWire, requires explicit `Broken pipe` interruption with
 no false capture completion, then proves ordered recovery and a new exact
 4,800-frame zero-PCM capture without host-microphone access. An active

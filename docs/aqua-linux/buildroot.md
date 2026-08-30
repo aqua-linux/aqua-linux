@@ -340,6 +340,16 @@ must fail closed while the recovery shell remains responsive. This is bounded
 QEMU service-exhaustion evidence; it does not enable audio by default or prove
 physical-device behavior.
 
+`scripts/check-audio-policy-restart-exhaustion-qemu.sh` applies the same real
+budget to policy-service failure. It terminates four successive supervisor-owned
+WirePlumber processes and requires a different PipeWire/WirePlumber pair after
+each of the first three losses. The fourth loss must leave `state=degraded`,
+`attempts=4`, `restarts=3`, and `failed_service=wireplumber`; all eight retired
+media PIDs, the supervisor PID file, and the PipeWire socket must be gone.
+`wpctl` and a new playback probe must fail closed while recovery remains
+responsive. This is bounded virtual policy-exhaustion evidence, not default
+audio enablement or physical-device support.
+
 `scripts/check-audio-active-capture-loss-qemu.sh` adds the matching active-input
 service boundary without requesting a host microphone. QEMU's timer-backed
 `none` ADC supplies controlled zero PCM; the probe publishes an active marker
