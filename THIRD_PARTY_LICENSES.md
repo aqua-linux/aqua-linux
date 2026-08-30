@@ -74,6 +74,16 @@ make -C build/buildroot-output legal-info
 Archive that output with the release, including notices and corresponding
 source required by the selected package licenses.
 
+The non-default audio rehearsal profile was audited on 2026-08-30 against
+Buildroot 2025.02.17 `legal-info`. Its recorded closure includes alsa-lib
+1.2.13 (LGPL-2.1+ library; GPL-2.0+ aserver), eudev 3.2.14 (GPL-2.0+ programs;
+LGPL-2.1+ libraries), GLib 2.82.5 (LGPL-2.1+), Lua 5.4.8 (MIT), PipeWire 1.2.8
+(MIT with separately licensed optional components), WirePlumber 0.5.5 (MIT),
+and the project-authored `aqua-audio-native` 1 bridge (MIT). The checked
+manifest and corresponding-source output under `build/audio-rehearsal/` are
+local development evidence, not a substitute for regenerating and archiving
+the complete `legal-info` output for a published binary image.
+
 ## Aqua-Specific Artwork
 
 Project logos, wallpapers, screenshots, and promotional

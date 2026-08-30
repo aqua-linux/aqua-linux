@@ -490,8 +490,10 @@ claim playback or physical hardware support. The typed PipeWire/WirePlumber
 transport maps synchronized graph snapshots and typed control calls into the
 same acknowledgement gate. The non-default Buildroot profile now packages the
 bounded native WirePlumber 0.5 bridge and proves its dependency and legal-info
-closure. Opt-in rootfs integration and declared-device QEMU media evidence
-remain open R4 work.
+closure. Its ordered audio-only overlay enables the per-user supervisor, pins
+the exact stack manifest, and passes a fail-closed checker against the complete
+Buildroot rootfs artifact without changing the default image. Declared-device
+QEMU media evidence remains open R4 work.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
 to recovery after each bounded session.

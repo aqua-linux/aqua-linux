@@ -143,9 +143,14 @@ volume, mute, and configured-default operations; Settings can drive this backend
 without treating submission as acknowledgement. A separate Buildroot rehearsal
 profile has resolved the exact package delta, packages a versioned bounded
 WirePlumber 0.5 native bridge, and passed `legal-info` while the default image
-stayed unchanged. Default-image enablement remains blocked until the opt-in
-rootfs contract and real QEMU media evidence exist. Buildroot availability
-alone is not an integration decision.
+stayed unchanged. Its second, audio-only rootfs overlay now explicitly enables
+the per-user supervisor, records exact stack versions, and installs a checker
+that proves required configuration, modules, identity, compatibility-layer
+exclusions, and the absence of an automatic root service. The complete final
+rootfs artifact passes that checker. Default-image enablement remains blocked until real
+declared-device QEMU media behavior and the remaining UI acknowledgement gate
+are proven. Buildroot availability or a valid rootfs alone is not an
+integration decision.
 
 ### R5: Accessibility, Internationalization, And Input
 
