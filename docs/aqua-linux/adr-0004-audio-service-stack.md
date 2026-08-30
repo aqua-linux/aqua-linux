@@ -209,8 +209,12 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    removes 05.0 through acknowledged QMP deletion. The fallback's matching
    value must not confirm the old target-bound request; reconciliation must
    report it rejected or lost, avoid an unnecessary resubmission, and retain
-   running services plus recovery-shell access. Other media error behavior
-   remains open.
+   running services plus recovery-shell access. A symmetric mute run prepares
+   PCI 04.0 muted, keeps selected PCI 05.0 unmuted at the same volume, submits
+   a target-bound mute request, and removes 05.0. The already-muted fallback
+   likewise cannot acknowledge the removed target; the old request is lost and
+   the satisfied preference requires no resubmission. Other media error
+   behavior remains open.
 4. Settings and the top bar consume authoritative adapter state. Pointer and
    keyboard changes must be acknowledged by the service before the UI claims
    application; service failure must visibly degrade and recover.
@@ -285,8 +289,10 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    separate selected-route loss run binds a pending volume request to PCI 05.0,
    removes that output, and proves PCI 04.0's already-matching value cannot
    falsely acknowledge the removed target; the request becomes lost while the
-   retained preference is already satisfied without resubmission. Physical
-   hardware behavior and other error evidence remain open.
+   retained preference is already satisfied without resubmission. The matching
+   mute profile proves the same target-generation rule when fallback PCI 04.0
+   is already muted and selected PCI 05.0 disappears with mute pending.
+   Physical hardware behavior and other error evidence remain open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.
 - Adding Bluetooth, PulseAudio compatibility, JACK compatibility, portals, or

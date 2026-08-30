@@ -736,6 +736,35 @@ mod tests {
     }
 
     #[test]
+    fn output_route_change_cannot_falsely_confirm_a_pending_mute() {
+        let mut adapter = AudioServiceAdapter::with_preferences(55, true).unwrap();
+        adapter.reconcile(ready_state(1, 55, false)).unwrap();
+        let request = adapter
+            .next_reconciliation_request()
+            .unwrap()
+            .expect("mute request");
+        assert_eq!(request.target_output(), Some("sink.1"));
+        assert_eq!(request.intent(), &AudioIntent::SetOutputMuted(true));
+
+        let fallback = AudioAuthoritativeState::new(
+            2,
+            AudioServiceHealth::Ready,
+            vec![output("sink.1"), output("sink.2"), input("source.1")],
+            Some("sink.2".to_string()),
+            Some("source.1".to_string()),
+            55,
+            true,
+        )
+        .unwrap();
+        let outcome = adapter.reconcile(fallback).unwrap();
+        assert!(outcome.generation_advanced);
+        assert!(!outcome.request_confirmed);
+        assert!(outcome.request_rejected_or_lost);
+        assert!(adapter.pending_request().is_none());
+        assert!(adapter.backend_applied());
+    }
+
+    #[test]
     fn devices_and_routes_are_bounded_typed_and_authoritative() {
         assert!(matches!(
             AudioDevice::new("bad/id", "Bad", AudioDeviceKind::Output),

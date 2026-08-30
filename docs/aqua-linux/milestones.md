@@ -586,8 +586,11 @@ two-output adapter profile now binds a pending volume request to selected PCI
 05.0, prepares fallback PCI 04.0 at the same desired value, removes 05.0 through
 QMP, and proves the matching fallback cannot falsely acknowledge the removed
 target. The request is rejected or lost and no resubmission is needed because
-the retained preference is already authoritative on the fallback. Other error
-behavior remains open R4 work; physical hardware support is not claimed.
+the retained preference is already authoritative on the fallback. A symmetric
+mute profile keeps selected 05.0 unmuted, prepares fallback 04.0 muted, removes
+05.0 with mute pending, and proves the matching fallback state cannot
+acknowledge the removed target. Other error behavior remains open R4 work;
+physical hardware support is not claimed.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
 to recovery after each bounded session.

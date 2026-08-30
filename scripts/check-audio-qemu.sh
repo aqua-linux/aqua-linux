@@ -24,7 +24,7 @@ TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-output}"
 
 case "${AQUA_AUDIO_QEMU_CONTRACT}" in
-    output|input|input-signal|input-disconnect|active-input-unplug|service-loss|policy-service-loss|capture-service-loss|capture-policy-service-loss|control-submission-budget|control-route-loss|control-service-loss|control-policy-service-loss|restart-exhaustion|control-restart-exhaustion|capture-restart-exhaustion|policy-restart-exhaustion|control-policy-restart-exhaustion|capture-policy-restart-exhaustion|multi-route|hotplug|replug|nondefault-unplug|active-nondefault-unplug|active-default-unplug) ;;
+    output|input|input-signal|input-disconnect|active-input-unplug|service-loss|policy-service-loss|capture-service-loss|capture-policy-service-loss|control-submission-budget|control-route-loss|mute-route-loss|control-service-loss|control-policy-service-loss|restart-exhaustion|control-restart-exhaustion|capture-restart-exhaustion|policy-restart-exhaustion|control-policy-restart-exhaustion|capture-policy-restart-exhaustion|multi-route|hotplug|replug|nondefault-unplug|active-nondefault-unplug|active-default-unplug) ;;
     *)
         echo "Unsupported audio QEMU contract: ${AQUA_AUDIO_QEMU_CONTRACT}" >&2
         exit 2
@@ -252,6 +252,19 @@ elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = control-route-loss; then
     done
     test "$(grep -Fc '[AQUA-AUDIO] stage=adapter-route-generation status=ok' "${SERIAL_LOG}")" -eq 1
     echo 'Aqua Linux audio control route-generation loss check passed.'
+elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = mute-route-loss; then
+    for marker in \
+        '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-output outputs=2 capture_node=false' \
+        '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sinks=true route_profile=true' \
+        '[AQUA-AUDIO] stage=adapter-mute-route-generation status=pending target_bound=true selected_route=true fallback_prepared=true fallback_matches_desired=true' \
+        '[AQUA-AUDIO] stage=adapter-mute-route-generation status=ok target_bound=true route_changed=true old_request_confirmed=false request_rejected_or_lost=true fallback_matches_desired=true no_resubmission=true' \
+        '[AQUA-AUDIO] stage=qemu-device-unplug status=ok device=aqua-hda-secondary event=DEVICE_DELETED alsa_outputs=1' \
+        '[AQUA-AUDIO] stage=qemu-mute-route-loss status=ok target_bound=true removed_default=true false_acknowledgement=false request_rejected_or_lost=true fallback_matches_desired=true no_resubmission=true services_running=true recovery_shell=true'
+    do
+        grep -Fq "${marker}" "${SERIAL_LOG}"
+    done
+    test "$(grep -Fc '[AQUA-AUDIO] stage=adapter-mute-route-generation status=ok' "${SERIAL_LOG}")" -eq 1
+    echo 'Aqua Linux audio mute route-generation loss check passed.'
 elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = control-service-loss; then
     for marker in \
         '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \
