@@ -538,9 +538,13 @@ the fourth loss reaches the same cleaned, playback-blocked degraded state with
 `failed_service=wireplumber`. A controlled-input exhaustion profile proves an
 exact 4,800-frame zero-PCM capture before four PipeWire losses and rejects a new
 capture without false success after the cleaned degraded state, without host
-microphone access. An active capture profile additionally reads 480 controlled zero-PCM
-frames, terminates PipeWire, requires explicit `Broken pipe` interruption with
-no false capture completion, then proves ordered recovery and a new exact
+microphone access. Its policy-service counterpart establishes the same capture
+precondition before four WirePlumber losses, requires three complete media-pair
+renewals, and rejects a new capture after the cleaned
+`failed_service=wireplumber` degraded state. An active capture profile
+additionally reads 480 controlled zero-PCM frames, terminates PipeWire,
+requires explicit `Broken pipe` interruption with no false capture completion,
+then proves ordered recovery and a new exact
 4,800-frame zero-PCM capture without host-microphone access. An active
 capture policy-service profile terminates WirePlumber after the same 480-frame
 checkpoint, rejects false capture completion, requires both old media processes
