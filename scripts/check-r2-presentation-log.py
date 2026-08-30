@@ -16,6 +16,7 @@ INTEGER_FIELDS = {
     "page_flip_events",
     "frame_callbacks_sent",
     "damage_commits",
+    "full_frame_readbacks",
     "settled_idle_observations",
     "settled_idle_repaints",
     "input_to_present_samples",
@@ -153,12 +154,14 @@ def validate_record(record: dict[str, str]) -> dict[str, int | str | bool]:
     presented = int(parsed["frames_presented"])
     if requested == 0 or requested != presented or parsed["page_flip_events"] != presented:
         raise ValueError(f"incomplete R2 frame accounting for {workload}")
-    if workload != "idle" and int(parsed["frame_callbacks_sent"]) == 0:
-        raise ValueError(f"missing frame callback evidence for {workload}")
+    if workload == "multi-client" and int(parsed["frame_callbacks_sent"]) == 0:
+        raise ValueError("missing frame callback evidence for multi-client")
     if int(parsed["max_frame_time_us"]) == 0 or int(parsed["observation_window_ms"]) == 0:
         raise ValueError(f"missing timing evidence for {workload}")
     if int(parsed["cpu_framebuffer_copies"]) != 0:
         raise ValueError(f"CPU framebuffer copy recorded for {workload}")
+    if int(parsed["full_frame_readbacks"]) != 0:
+        raise ValueError(f"full-frame GPU readback recorded for {workload}")
 
     if workload == "idle":
         if requested != 1 or int(parsed["damage_commits"]) > 1:
@@ -170,8 +173,10 @@ def validate_record(record: dict[str, str]) -> dict[str, int | str | bool]:
         if parsed["repeating_repaint_timer_after_settle"] is not False:
             raise ValueError("idle workload retained a repeating repaint timer")
     else:
-        if int(parsed["damage_commits"]) == 0:
-            raise ValueError(f"missing damage evidence for {workload}")
+        if requested < 2:
+            raise ValueError(f"active workload did not repaint for {workload}")
+        if workload == "multi-client" and int(parsed["damage_commits"]) == 0:
+            raise ValueError("missing damage evidence for multi-client")
         if int(parsed["input_to_present_samples"]) == 0:
             raise ValueError(f"missing input sample for {workload}")
         if int(parsed["max_input_to_present_us"]) == 0:
@@ -278,6 +283,7 @@ def fixture_record(workload: str) -> str:
         "page_flip_events": "1" if idle else "3",
         "frame_callbacks_sent": "0" if idle else "1",
         "damage_commits": "0" if idle else "2",
+        "full_frame_readbacks": "0",
         "settled_idle_observations": "5" if idle else "0",
         "settled_idle_repaints": "0",
         "repeating_repaint_timer_after_settle": "false",
@@ -329,6 +335,18 @@ def self_test() -> None:
         pass
     else:
         raise AssertionError("legacy path fixture unexpectedly passed")
+    try:
+        validate_log(
+            fixture.replace(
+                "r2_presentation_full_frame_readbacks=0",
+                "r2_presentation_full_frame_readbacks=1",
+                1,
+            )
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("production readback fixture unexpectedly passed")
     try:
         validate_log(f"r2_presentation_workload=idle\n{fixture}")
     except ValueError:

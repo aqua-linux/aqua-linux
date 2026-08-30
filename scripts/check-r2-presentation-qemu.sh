@@ -13,6 +13,7 @@ VALIDATOR="${ROOT_DIR}/scripts/check-r2-presentation-log.py"
 MEMORY="${MEMORY:-1024M}"
 CPUS="${CPUS:-2}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-420}"
+DISPLAY_DEVICE="${DISPLAY_DEVICE:-bochs-display}"
 
 cleanup() {
     rm -f "${MONITOR_SOCKET}"
@@ -40,7 +41,7 @@ test "${ROOTFS}" -nt "${ROOT_DIR}/crates/aqua-compositor/src/main.rs" || {
 mkdir -p "$(dirname "${SERIAL_LOG}")"
 rm -f "${SERIAL_LOG}" "${MONITOR_SOCKET}" "${REPORT}"
 
-export KERNEL ROOTFS SERIAL_LOG MONITOR_SOCKET INPUT_HELPER MEMORY CPUS TIMEOUT_SECONDS
+export KERNEL ROOTFS SERIAL_LOG MONITOR_SOCKET INPUT_HELPER MEMORY CPUS TIMEOUT_SECONDS DISPLAY_DEVICE
 expect "${ROOT_DIR}/scripts/check-r2-presentation-qemu.exp" >/dev/null
 PYTHONDONTWRITEBYTECODE=1 python3 "${VALIDATOR}" "${SERIAL_LOG}" >"${REPORT}"
 

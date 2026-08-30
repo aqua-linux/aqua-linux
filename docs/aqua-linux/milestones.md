@@ -688,9 +688,11 @@ frame-time, input-latency, CPU, and memory maxima while explicitly leaving
 budget selection false. This closes the repeat-collection tooling gap, not the
 runtime evidence or reviewed-budget gates.
 
-A fresh packaged-image rehearsal also confirmed that the current macOS QEMU
-device is `virtio_gpu` and therefore takes the separately recorded
-`legacy-cpu-copy` fallback. The production-path validator rejects all four
-records as intended. Integrating and proving a QEMU display target that can run
-the native GBM/KMS scanout path is now an explicit prerequisite to repeated R2
-collection; legacy timings must not be relabeled or used to choose budgets.
+The packaged kernel now enables Bochs DRM and the R2 runner defaults to QEMU
+`bochs-display`. A fresh image completed all four workloads at 1280x800 through
+the `production-gbm-kms` path with direct GBM dma-buf scanout, zero production
+full-frame readbacks and CPU copies, Files plus Settings client callbacks and
+damage, clean recovery return, and a separately isolated diagnostic readback.
+The virtio target remains the recorded `legacy-cpu-copy` fallback. Repeated R2
+collection and explicit budget review remain open, and TCG timings must not be
+used as physical responsiveness evidence.

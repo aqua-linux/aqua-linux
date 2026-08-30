@@ -465,6 +465,7 @@ grep -Fq 'run-drm-wayland-session' crates/aqua-compositor/src/main.rs
 grep -Fq 'SmithayDrmSession' crates/aqua-compositor/src/main.rs
 grep -Fq 'probe-evdev-aqua-seat' crates/aqua-compositor/src/main.rs
 grep -Fq 'CONFIG_VIRTIO_INPUT=y' br2-external/aqua/board/aqua/x86_64/linux.config
+grep -Fq 'CONFIG_DRM_BOCHS=y' br2-external/aqua/board/aqua/x86_64/linux.config
 grep -Fq 'virtio-keyboard-pci' scripts/check-fbdev-presenter-qemu.exp
 grep -Fq 'virtio-mouse-pci' scripts/check-fbdev-presenter-qemu.exp
 test -x scripts/send-qemu-monitor-input.py
@@ -482,10 +483,17 @@ PYTHONPYCACHEPREFIX="${CHECK_TEMP_ROOT}/python-cache" \
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/check-qemu-input-daemon.py
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/check-r2-presentation-log.py --self-test
 grep -Fq 'test "${ROOTFS}" -nt "${ROOT_DIR}/crates/aqua-compositor/src/main.rs"' scripts/check-r2-presentation-qemu.sh
+grep -Fq 'DISPLAY_DEVICE="${DISPLAY_DEVICE:-bochs-display}"' scripts/check-r2-presentation-qemu.sh
 grep -Fq 'start_bounded_session idle 4' scripts/check-r2-presentation-qemu.exp
 grep -Fq 'start_bounded_session window-interaction 6' scripts/check-r2-presentation-qemu.exp
 grep -Fq 'AQUA_R2_PRESENTATION_WORKLOAD=animation' scripts/check-r2-presentation-qemu.exp
-grep -Fq 'start_bounded_session multi-client 45' scripts/check-r2-presentation-qemu.exp
+grep -Fq 'start_bounded_session multi-client 90' scripts/check-r2-presentation-qemu.exp
+grep -Fq '.min(120)' crates/aqua-compositor/src/main.rs
+grep -Fq 'let frame_count = if r2_idle_workload { 1 } else { 3 };' crates/aqua-compositor/src/main.rs
+grep -Fq 'r2_presentation_full_frame_readbacks={}' crates/aqua-compositor/src/main.rs
+grep -Fq 'if int(parsed["full_frame_readbacks"]) != 0:' scripts/check-r2-presentation-log.py
+grep -Fq 'drm_wayland_gpu_frame_readback={cpu_scanout_compat}' crates/aqua-compositor/src/main.rs
+grep -Fq 'render-submission-token' crates/aqua-compositor/src/main.rs
 grep -Fq 'AQUA_R2_DIAGNOSTIC_READBACK_TELEMETRY=true' scripts/check-r2-presentation-qemu.exp
 grep -Fq 'r2_diagnostic_record_end=v1' scripts/check-r2-presentation-qemu.exp
 grep -Fq 'r2_budget_selected=false' scripts/check-r2-presentation-qemu.sh

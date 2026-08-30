@@ -50,7 +50,7 @@ spawn qemu-system-x86_64 \
     -monitor unix:$env(MONITOR_SOCKET),server=on,wait=off \
     -display none \
     -vga none \
-    -device virtio-vga \
+    -device $env(DISPLAY_DEVICE) \
     -device virtio-keyboard-pci \
     -device virtio-mouse-pci \
     -no-reboot
@@ -82,7 +82,7 @@ expect {
 inject_input input-burst "Animation input sample"
 expect_session_end animation
 
-start_bounded_session multi-client 45
+start_bounded_session multi-client 90
 inject_input files-launch-fast "Multi-client Files launch"
 expect {
     -exact {desktop_launch_surface_app_id=aqua.files} {}

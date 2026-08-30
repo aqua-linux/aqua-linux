@@ -84,8 +84,8 @@ Pass criteria:
 The first R2 baseline contract now lives in the renderer-independent
 `aqua-compositor` library. A bounded report requires exactly one production
 sample for idle, window interaction, animation, and multi-client workloads;
-checks GBM/KMS path identity, frame/page-flip accounting, frame callbacks,
-damage, settled-idle suppression, explicit timing and resource budgets, and
+checks GBM/KMS path identity, frame/page-flip accounting, client callbacks and
+damage for the multi-client workload, settled-idle suppression, explicit timing and resource budgets, and
 dropped frames; and rejects CPU framebuffer copies or full-frame readback in
 production samples. Diagnostic readback has a separate evidence record and
 must show that it neither reads nor blocks a production frame. Deterministic
@@ -134,9 +134,10 @@ before R2 can pass.
 Each live run now encloses its fields in a versioned `v1` serial-record boundary.
 The host-side `scripts/check-r2-presentation-log.py` validator rejects missing,
 duplicate, unknown, malformed, unbounded, legacy-path, or incomplete records;
-requires exactly one QEMU GBM/KMS record for every workload; and enforces the
-pre-budget frame, callback, damage, idle, input, timing, and resource evidence
-shape. The same validator requires exactly one separately framed QEMU
+requires exactly one QEMU GBM/KMS record for every workload; requires real input
+and multiple page flips for shell interaction and animation; requires client
+callbacks and damage for multi-client; and enforces idle, timing, and resource
+evidence. The same validator requires exactly one separately framed QEMU
 diagnostic-readback record. That record must identify the offscreen diagnostic
 path, account for bounded captures and readbacks, show zero production frames
 read or blocked, and show that neither KMS nor display output started. It then
@@ -168,13 +169,13 @@ that the minimum run count and diagnostic isolation are present while keeping
 project budgets. A fresh packaged image still has to execute the runner before
 this contract produces runtime evidence.
 
-A fresh-image rehearsal on the current macOS QEMU host reached all four
-workloads, including packaged Files and Settings, but correctly failed closed:
-the available `virtio_gpu` device uses Aqua's `legacy-cpu-copy` fallback rather
-than the required production GBM/KMS scanout path. The next R2 implementation
-step is therefore to integrate and prove a GBM/KMS-capable emulated display
-target. Repeated collection and budget review remain downstream of that gate;
-the legacy-path measurements are not valid substitutes.
+The packaged kernel now enables Bochs DRM and the macOS QEMU runner defaults to
+`bochs-display`. This reaches Aqua's `production-gbm-kms` path with GLES
+software rendering and direct GBM dma-buf scanout, while emitting zero
+production full-frame readbacks and CPU framebuffer copies. The virtio target
+remains a separately identified `legacy-cpu-copy` fallback. Repeated collection
+and budget review remain downstream; QEMU TCG measurements are not physical
+responsiveness evidence.
 
 ### R3: Wayland Compatibility And Display Behavior
 

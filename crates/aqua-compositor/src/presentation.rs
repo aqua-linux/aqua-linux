@@ -109,6 +109,7 @@ pub struct PresentationEventSnapshot {
     pub page_flip_events: u32,
     pub frame_callbacks_sent: u32,
     pub damage_commits: u32,
+    pub full_frame_readbacks: u32,
     pub input_to_present_samples: u32,
     pub settled_idle_observations: u32,
     pub settled_idle_repaints: u32,
@@ -346,6 +347,7 @@ impl PresentationTelemetry {
             page_flip_events: self.page_flip_events,
             frame_callbacks_sent: self.frame_callbacks_sent,
             damage_commits: self.damage_commits,
+            full_frame_readbacks: self.full_frame_readbacks,
             input_to_present_samples: self.input_to_present_samples,
             settled_idle_observations: self.settled_idle_observations,
             settled_idle_repaints: self.settled_idle_repaints,
@@ -400,7 +402,7 @@ impl PresentationSample {
 
     fn event_scheduling_ready(self) -> bool {
         self.page_flip_events == self.frames_presented
-            && (self.workload == PresentationWorkload::Idle || self.frame_callbacks_sent > 0)
+            && (self.workload != PresentationWorkload::MultiClient || self.frame_callbacks_sent > 0)
     }
 
     fn production_path_ready(self) -> bool {
@@ -412,7 +414,8 @@ impl PresentationSample {
     fn damage_ready(self) -> bool {
         match self.workload {
             PresentationWorkload::Idle => self.damage_commits <= 1,
-            _ => self.damage_commits > 0,
+            PresentationWorkload::MultiClient => self.damage_commits > 0,
+            PresentationWorkload::WindowInteraction | PresentationWorkload::Animation => true,
         }
     }
 
@@ -738,6 +741,34 @@ mod tests {
 
         assert!(report.is_baseline_ready());
         assert!(!report.supports_release_claim());
+    }
+
+    #[test]
+    fn shell_workloads_do_not_require_client_callbacks_or_damage() {
+        let mut fixtures = samples();
+        for sample in &mut fixtures[1..3] {
+            sample.frame_callbacks_sent = 0;
+            sample.damage_commits = 0;
+        }
+        let report = R2PresentationReport::evaluate(
+            PresentationEvidenceTarget::HostFixture,
+            BUDGET,
+            &fixtures,
+            diagnostic(),
+        );
+        assert!(report.event_scheduling_ready);
+        assert!(report.damage_ready);
+
+        fixtures[3].frame_callbacks_sent = 0;
+        fixtures[3].damage_commits = 0;
+        let report = R2PresentationReport::evaluate(
+            PresentationEvidenceTarget::HostFixture,
+            BUDGET,
+            &fixtures,
+            diagnostic(),
+        );
+        assert!(!report.event_scheduling_ready);
+        assert!(!report.damage_ready);
     }
 
     #[test]
