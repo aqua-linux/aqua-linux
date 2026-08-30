@@ -374,8 +374,9 @@ use calloop::{
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use smithay::{
     backend::input::{Axis, AxisSource, ButtonState, KeyState, Keycode},
-    delegate_compositor, delegate_data_device, delegate_primary_selection, delegate_seat,
-    delegate_shm, delegate_xdg_shell,
+    delegate_compositor, delegate_data_device, delegate_input_method_manager,
+    delegate_primary_selection, delegate_seat, delegate_shm, delegate_text_input_manager,
+    delegate_xdg_shell,
     input::{
         keyboard::FilterResult,
         pointer::{AxisFrame, ButtonEvent, CursorImageStatus, MotionEvent},
@@ -389,7 +390,7 @@ use smithay::{
         },
         Client, Display, DisplayHandle, ListeningSocket, Resource,
     },
-    utils::Serial,
+    utils::{Logical, Rectangle, Serial},
     wayland::shell::xdg::{
         Configure, PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
         XdgToplevelSurfaceData,
@@ -399,6 +400,9 @@ use smithay::{
         compositor::{
             with_states, BufferAssignment, CompositorClientState, CompositorHandler,
             CompositorState, RectangleKind,
+        },
+        input_method::{
+            InputMethodHandler, InputMethodManagerState, PopupSurface as InputMethodPopupSurface,
         },
         selection::{
             data_device::{
@@ -412,6 +416,7 @@ use smithay::{
             SelectionHandler, SelectionSource, SelectionTarget,
         },
         shm::{with_buffer_contents, ShmHandler, ShmState},
+        text_input::TextInputManagerState,
     },
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -437,9 +442,18 @@ use {
         zwp_primary_selection_offer_v1 as client_primary_selection_offer,
         zwp_primary_selection_source_v1 as client_primary_selection_source,
     },
+    wayland_protocols::wp::text_input::zv3::client::{
+        zwp_text_input_manager_v3 as client_text_input_manager,
+        zwp_text_input_v3 as client_text_input,
+    },
     wayland_protocols::xdg::shell::client::{
         xdg_surface as client_xdg_surface, xdg_toplevel as client_xdg_toplevel,
         xdg_wm_base as client_xdg_wm_base,
+    },
+    wayland_protocols_misc::zwp_input_method_v2::client::{
+        zwp_input_method_manager_v2 as client_input_method_manager,
+        zwp_input_method_v2 as client_input_method,
+        zwp_input_popup_surface_v2 as client_input_popup_surface,
     },
 };
 
@@ -1017,6 +1031,64 @@ impl DragAndDropProbe {
             && self.rejected_drop_cancelled
             && self.rejected_drop_not_delivered
             && !self.data_control_global_exposed
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextInputProbe {
+    pub product: &'static str,
+    pub status: &'static str,
+    pub text_input_protocol: &'static str,
+    pub input_method_protocol: &'static str,
+    pub client_count: usize,
+    pub text_input_visible_to_normal_clients: bool,
+    pub input_method_hidden_from_normal_clients: bool,
+    pub input_method_visible_to_authorized_client: bool,
+    pub focus_follows_keyboard: bool,
+    pub unfocused_enable_rejected: bool,
+    pub focused_enable_activates_input_method: bool,
+    pub surrounding_text_forwarded: bool,
+    pub content_type_forwarded: bool,
+    pub cursor_rectangle_forwarded: bool,
+    pub turkish_preedit_delivered: bool,
+    pub turkish_commit_delivered: bool,
+    pub delete_surrounding_delivered: bool,
+    pub serial_synchronized: bool,
+    pub focus_handoff_deactivates_input_method: bool,
+    pub focus_handoff_enters_new_client: bool,
+    pub stale_unfocused_client_blocked: bool,
+    pub popup_parent_bound: bool,
+    pub popup_repositioned: bool,
+    pub payload_limit_bytes: usize,
+    pub host_stub: bool,
+}
+
+impl TextInputProbe {
+    pub fn is_ready(&self) -> bool {
+        self.product == PRODUCT
+            && self.status == "text-input"
+            && self.text_input_protocol == "zwp_text_input_manager_v3"
+            && self.input_method_protocol == "zwp_input_method_manager_v2"
+            && self.client_count == 3
+            && self.text_input_visible_to_normal_clients
+            && self.input_method_hidden_from_normal_clients
+            && self.input_method_visible_to_authorized_client
+            && self.focus_follows_keyboard
+            && self.unfocused_enable_rejected
+            && self.focused_enable_activates_input_method
+            && self.surrounding_text_forwarded
+            && self.content_type_forwarded
+            && self.cursor_rectangle_forwarded
+            && self.turkish_preedit_delivered
+            && self.turkish_commit_delivered
+            && self.delete_surrounding_delivered
+            && self.serial_synchronized
+            && self.focus_handoff_deactivates_input_method
+            && self.focus_handoff_enters_new_client
+            && self.stale_unfocused_client_blocked
+            && self.popup_parent_bound
+            && self.popup_repositioned
+            && self.payload_limit_bytes == 4_000
     }
 }
 
@@ -2515,6 +2587,10 @@ pub fn probe_selection_ownership() -> Result<SelectionOwnershipProbe, Box<dyn st
 
 pub fn probe_drag_and_drop() -> Result<DragAndDropProbe, Box<dyn std::error::Error>> {
     probe_drag_and_drop_impl()
+}
+
+pub fn probe_text_input() -> Result<TextInputProbe, Box<dyn std::error::Error>> {
+    probe_text_input_impl()
 }
 
 pub fn probe_xdg_toplevel_window_model(
@@ -4556,6 +4632,184 @@ fn probe_drag_and_drop_impl() -> Result<DragAndDropProbe, Box<dyn std::error::Er
     })
 }
 
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn probe_text_input_impl() -> Result<TextInputProbe, Box<dyn std::error::Error>> {
+    let mut session = AquaCompositorSession::new()?;
+    let (server_stream_one, client_stream_one) = std::os::unix::net::UnixStream::pair()?;
+    let (server_stream_two, client_stream_two) = std::os::unix::net::UnixStream::pair()?;
+    let (server_stream_ime, client_stream_ime) = std::os::unix::net::UnixStream::pair()?;
+    let server_client_one = session.insert_client(server_stream_one)?;
+    let server_client_two = session.insert_client(server_stream_two)?;
+    session.insert_authorized_input_method_client(server_stream_ime)?;
+
+    let client_one_conn = ClientConnection::from_socket(client_stream_one)?;
+    let client_two_conn = ClientConnection::from_socket(client_stream_two)?;
+    let input_method_conn = ClientConnection::from_socket(client_stream_ime)?;
+    let mut event_queue_one = client_one_conn.new_event_queue();
+    let mut event_queue_two = client_two_conn.new_event_queue();
+    let mut event_queue_ime = input_method_conn.new_event_queue();
+    let qh_one = event_queue_one.handle();
+    let qh_two = event_queue_two.handle();
+    let qh_ime = event_queue_ime.handle();
+    client_one_conn.display().get_registry(&qh_one, ());
+    client_two_conn.display().get_registry(&qh_two, ());
+    input_method_conn.display().get_registry(&qh_ime, ());
+    client_one_conn.flush()?;
+    client_two_conn.flush()?;
+    input_method_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+
+    let mut client_one = TextInputSmokeClientState::default();
+    let mut client_two = TextInputSmokeClientState::default();
+    let mut input_method = InputMethodSmokeClientState::default();
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    event_queue_ime.blocking_dispatch(&mut input_method)?;
+    client_one_conn.flush()?;
+    client_two_conn.flush()?;
+    input_method_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+
+    let surface_one = session
+        .wayland_state
+        .committed_surfaces
+        .iter()
+        .find(|surface| surface.client().as_ref() == Some(&server_client_one))
+        .cloned()
+        .ok_or("first text-input client did not commit a surface")?;
+    let surface_two = session
+        .wayland_state
+        .committed_surfaces
+        .iter()
+        .find(|surface| surface.client().as_ref() == Some(&server_client_two))
+        .cloned()
+        .ok_or("second text-input client did not commit a surface")?;
+    let keyboard = session
+        .wayland_state
+        .seat
+        .get_keyboard()
+        .ok_or("Aqua Seat keyboard is required for text-input focus")?;
+
+    keyboard.set_focus(
+        &mut session.wayland_state,
+        Some(surface_one.clone()),
+        Serial::from(1),
+    );
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    let focus_follows_keyboard = client_one.enter_count == 1
+        && client_one.entered_own_surface
+        && client_two.enter_count == 0;
+
+    client_two.enable_with_state();
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    let unfocused_enable_rejected = input_method.activate_count == 0;
+
+    client_one.enable_with_state();
+    client_one_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    event_queue_ime.blocking_dispatch(&mut input_method)?;
+    while event_queue_ime.dispatch_pending(&mut input_method)? > 0 {}
+    input_method_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+
+    let expected_cursor = TextInputSmokeClientState::SURROUNDING_TEXT.len() as u32;
+    let focused_enable_activates_input_method = input_method.activate_count == 1;
+    let surrounding_text_forwarded = input_method.surrounding_text.as_deref()
+        == Some(TextInputSmokeClientState::SURROUNDING_TEXT)
+        && input_method.surrounding_cursor == expected_cursor
+        && input_method.surrounding_anchor == expected_cursor;
+    let content_type_forwarded =
+        input_method.content_type_forwarded && input_method.text_change_cause_forwarded;
+    let turkish_preedit_delivered =
+        client_one.preedit_text.as_deref() == Some(TextInputSmokeClientState::PREEDIT_TEXT);
+    let turkish_commit_delivered =
+        client_one.commit_text.as_deref() == Some(TextInputSmokeClientState::COMMIT_TEXT);
+    let delete_surrounding_delivered =
+        client_one.delete_before == 1 && client_one.delete_after == 0;
+    let serial_synchronized = client_one.done_serials.last().copied() == Some(1);
+    let popup_parent_bound = session.wayland_state.input_method_popup_new_count == 1;
+
+    client_one.update_cursor_rectangle(48, 52);
+    client_one_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    event_queue_ime.blocking_dispatch(&mut input_method)?;
+    let cursor_rectangle_forwarded = input_method.popup_rectangle == Some((48, 52, 2, 28));
+    let popup_repositioned = session.wayland_state.input_method_popup_reposition_count == 1;
+
+    let deactivate_count_before_handoff = input_method.deactivate_count;
+    keyboard.set_focus(
+        &mut session.wayland_state,
+        Some(surface_two),
+        Serial::from(2),
+    );
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    event_queue_ime.blocking_dispatch(&mut input_method)?;
+    let focus_handoff_deactivates_input_method = input_method.deactivate_count
+        >= deactivate_count_before_handoff + 1
+        && client_one.leave_count == 1
+        && session.wayland_state.input_method_popup_dismiss_count == 1;
+    let focus_handoff_enters_new_client =
+        client_two.enter_count == 1 && client_two.entered_own_surface;
+
+    let activation_count_before_stale_request = input_method.activate_count;
+    client_one.enable_with_state();
+    client_one_conn.flush()?;
+    session.dispatch_clients()?;
+    let stale_unfocused_client_blocked =
+        input_method.activate_count == activation_count_before_stale_request;
+
+    client_two.enable_with_state();
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    event_queue_ime.blocking_dispatch(&mut input_method)?;
+    let second_focus_activated = input_method.activate_count == 2;
+
+    Ok(TextInputProbe {
+        product: PRODUCT,
+        status: "text-input",
+        text_input_protocol: "zwp_text_input_manager_v3",
+        input_method_protocol: "zwp_input_method_manager_v2",
+        client_count: 3,
+        text_input_visible_to_normal_clients: client_one.globals_ready()
+            && client_two.globals_ready(),
+        input_method_hidden_from_normal_clients: !client_one.input_method_global_seen
+            && !client_two.input_method_global_seen,
+        input_method_visible_to_authorized_client: input_method.registry_bound
+            && input_method.text_input_global_seen
+            && input_method.input_method_global_seen
+            && input_method.input_method.is_some()
+            && !input_method.unavailable,
+        focus_follows_keyboard,
+        unfocused_enable_rejected,
+        focused_enable_activates_input_method,
+        surrounding_text_forwarded,
+        content_type_forwarded,
+        cursor_rectangle_forwarded,
+        turkish_preedit_delivered,
+        turkish_commit_delivered,
+        delete_surrounding_delivered,
+        serial_synchronized,
+        focus_handoff_deactivates_input_method,
+        focus_handoff_enters_new_client: focus_handoff_enters_new_client && second_focus_activated,
+        stale_unfocused_client_blocked,
+        popup_parent_bound,
+        popup_repositioned,
+        payload_limit_bytes: TextInputSmokeClientState::PAYLOAD_LIMIT_BYTES,
+        host_stub: false,
+    })
+}
+
 #[cfg(not(all(target_os = "linux", feature = "smithay-smoke")))]
 fn probe_drag_and_drop_impl() -> Result<DragAndDropProbe, Box<dyn std::error::Error>> {
     Ok(DragAndDropProbe {
@@ -4582,6 +4836,37 @@ fn probe_drag_and_drop_impl() -> Result<DragAndDropProbe, Box<dyn std::error::Er
         rejected_drop_cancelled: true,
         rejected_drop_not_delivered: true,
         data_control_global_exposed: false,
+        host_stub: true,
+    })
+}
+
+#[cfg(not(all(target_os = "linux", feature = "smithay-smoke")))]
+fn probe_text_input_impl() -> Result<TextInputProbe, Box<dyn std::error::Error>> {
+    Ok(TextInputProbe {
+        product: PRODUCT,
+        status: "text-input",
+        text_input_protocol: "zwp_text_input_manager_v3",
+        input_method_protocol: "zwp_input_method_manager_v2",
+        client_count: 3,
+        text_input_visible_to_normal_clients: true,
+        input_method_hidden_from_normal_clients: true,
+        input_method_visible_to_authorized_client: true,
+        focus_follows_keyboard: true,
+        unfocused_enable_rejected: true,
+        focused_enable_activates_input_method: true,
+        surrounding_text_forwarded: true,
+        content_type_forwarded: true,
+        cursor_rectangle_forwarded: true,
+        turkish_preedit_delivered: true,
+        turkish_commit_delivered: true,
+        delete_surrounding_delivered: true,
+        serial_synchronized: true,
+        focus_handoff_deactivates_input_method: true,
+        focus_handoff_enters_new_client: true,
+        stale_unfocused_client_blocked: true,
+        popup_parent_bound: true,
+        popup_repositioned: true,
+        payload_limit_bytes: 4_000,
         host_stub: true,
     })
 }
@@ -5039,6 +5324,8 @@ struct WaylandSmokeState {
     xdg_shell_state: XdgShellState,
     data_device_state: DataDeviceState,
     primary_selection_state: PrimarySelectionState,
+    _text_input_manager_state: TextInputManagerState,
+    _input_method_manager_state: InputMethodManagerState,
     seat_state: SeatState<Self>,
     seat: Seat<Self>,
     launcher_state: LauncherState,
@@ -5122,6 +5409,9 @@ struct WaylandSmokeState {
     dnd_cancelled_drop_count: usize,
     dnd_source_owner: Option<ClientId>,
     dnd_drop_target: Option<ClientId>,
+    input_method_popup_new_count: usize,
+    input_method_popup_dismiss_count: usize,
+    input_method_popup_reposition_count: usize,
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -5170,6 +5460,17 @@ impl WaylandSmokeState {
             data_device_state: DataDeviceState::new::<WaylandSmokeState>(display_handle),
             primary_selection_state: PrimarySelectionState::new::<WaylandSmokeState>(
                 display_handle,
+            ),
+            _text_input_manager_state: TextInputManagerState::new::<WaylandSmokeState>(
+                display_handle,
+            ),
+            _input_method_manager_state: InputMethodManagerState::new::<WaylandSmokeState, _>(
+                display_handle,
+                |client| {
+                    client
+                        .get_data::<WaylandSmokeClientState>()
+                        .is_some_and(|data| data.input_method_authorized)
+                },
             ),
             seat_state,
             seat,
@@ -5254,6 +5555,9 @@ impl WaylandSmokeState {
             dnd_cancelled_drop_count: 0,
             dnd_source_owner: None,
             dnd_drop_target: None,
+            input_method_popup_new_count: 0,
+            input_method_popup_dismiss_count: 0,
+            input_method_popup_reposition_count: 0,
         })
     }
 
@@ -8760,6 +9064,18 @@ impl AquaCompositorSession {
             .insert_client(stream, Arc::new(client_data))
     }
 
+    fn insert_authorized_input_method_client(
+        &mut self,
+        stream: std::os::unix::net::UnixStream,
+    ) -> std::io::Result<Client> {
+        let client_data = WaylandSmokeClientState::authorized_input_method(
+            self.wayland_state.disconnected_clients.clone(),
+        );
+        self.display
+            .handle()
+            .insert_client(stream, Arc::new(client_data))
+    }
+
     fn dispatch_clients(&mut self) -> std::io::Result<usize> {
         let dispatched = self.display.dispatch_clients(&mut self.wayland_state)?;
         self.wayland_state.process_disconnected_selection_owners();
@@ -9501,6 +9817,34 @@ impl PrimarySelectionHandler for WaylandSmokeState {
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl InputMethodHandler for WaylandSmokeState {
+    fn new_popup(&mut self, _surface: InputMethodPopupSurface) {
+        self.input_method_popup_new_count += 1;
+    }
+
+    fn dismiss_popup(&mut self, _surface: InputMethodPopupSurface) {
+        self.input_method_popup_dismiss_count += 1;
+    }
+
+    fn popup_repositioned(&mut self, _surface: InputMethodPopupSurface) {
+        self.input_method_popup_reposition_count += 1;
+    }
+
+    fn parent_geometry(&self, parent: &WlSurface) -> Rectangle<i32, Logical> {
+        self.mapped_surfaces
+            .iter()
+            .find(|record| record.surface == *parent)
+            .map(|record| {
+                Rectangle::new(
+                    (record.x as i32, record.y as i32).into(),
+                    (record.display_width as i32, record.display_height as i32).into(),
+                )
+            })
+            .unwrap_or_else(|| Rectangle::new((0, 0).into(), (640, 480).into()))
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl AsMut<CompositorState> for WaylandSmokeState {
     fn as_mut(&mut self) -> &mut CompositorState {
         &mut self.compositor_state
@@ -9514,6 +9858,9 @@ delegate_compositor!(WaylandSmokeState);
 delegate_data_device!(WaylandSmokeState);
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_input_method_manager!(WaylandSmokeState);
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 delegate_primary_selection!(WaylandSmokeState);
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -9523,12 +9870,16 @@ delegate_seat!(WaylandSmokeState);
 delegate_shm!(WaylandSmokeState);
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_text_input_manager!(WaylandSmokeState);
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 delegate_xdg_shell!(WaylandSmokeState);
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 struct WaylandSmokeClientState {
     compositor_state: CompositorClientState,
     disconnected_clients: Option<Arc<Mutex<Vec<ClientId>>>>,
+    input_method_authorized: bool,
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -9537,6 +9888,15 @@ impl WaylandSmokeClientState {
         Self {
             compositor_state: CompositorClientState::default(),
             disconnected_clients: Some(disconnected_clients),
+            input_method_authorized: false,
+        }
+    }
+
+    fn authorized_input_method(disconnected_clients: Arc<Mutex<Vec<ClientId>>>) -> Self {
+        Self {
+            compositor_state: CompositorClientState::default(),
+            disconnected_clients: Some(disconnected_clients),
+            input_method_authorized: true,
         }
     }
 
@@ -9551,6 +9911,7 @@ impl Default for WaylandSmokeClientState {
         Self {
             compositor_state: CompositorClientState::default(),
             disconnected_clients: None,
+            input_method_authorized: false,
         }
     }
 }
@@ -9565,6 +9926,358 @@ impl ClientData for WaylandSmokeClientState {
         }
     }
 }
+
+#[derive(Default)]
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+struct TextInputSmokeClientState {
+    registry_bound: bool,
+    text_input_global_seen: bool,
+    input_method_global_seen: bool,
+    surface: Option<wl_surface::WlSurface>,
+    seat: Option<client_wl_seat::WlSeat>,
+    manager: Option<client_text_input_manager::ZwpTextInputManagerV3>,
+    text_input: Option<client_text_input::ZwpTextInputV3>,
+    enter_count: usize,
+    leave_count: usize,
+    entered_own_surface: bool,
+    preedit_text: Option<String>,
+    commit_text: Option<String>,
+    delete_before: u32,
+    delete_after: u32,
+    done_serials: Vec<u32>,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl TextInputSmokeClientState {
+    const SURROUNDING_TEXT: &'static str = "Merhaba İstanbul";
+    const PREEDIT_TEXT: &'static str = "İ";
+    const COMMIT_TEXT: &'static str = "İstanbul";
+    const PAYLOAD_LIMIT_BYTES: usize = 4_000;
+
+    fn initialize_text_input(&mut self, qh: &QueueHandle<Self>) {
+        if self.text_input.is_none() {
+            if let (Some(manager), Some(seat)) = (self.manager.clone(), self.seat.clone()) {
+                self.text_input = Some(manager.get_text_input(&seat, qh, ()));
+            }
+        }
+    }
+
+    fn globals_ready(&self) -> bool {
+        self.registry_bound
+            && self.text_input_global_seen
+            && self.surface.is_some()
+            && self.text_input.is_some()
+    }
+
+    fn enable_with_state(&self) {
+        let Some(text_input) = &self.text_input else {
+            return;
+        };
+        let cursor = Self::SURROUNDING_TEXT.len() as i32;
+        text_input.enable();
+        text_input.set_surrounding_text(Self::SURROUNDING_TEXT.to_string(), cursor, cursor);
+        text_input.set_text_change_cause(client_text_input::ChangeCause::InputMethod);
+        text_input.set_content_type(
+            client_text_input::ContentHint::Completion | client_text_input::ContentHint::Spellcheck,
+            client_text_input::ContentPurpose::Normal,
+        );
+        text_input.set_cursor_rectangle(24, 36, 2, 28);
+        text_input.commit();
+    }
+
+    fn update_cursor_rectangle(&self, x: i32, y: i32) {
+        if let Some(text_input) = &self.text_input {
+            text_input.set_cursor_rectangle(x, y, 2, 28);
+            text_input.commit();
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<wl_registry::WlRegistry, ()> for TextInputSmokeClientState {
+    fn event(
+        state: &mut Self,
+        registry: &wl_registry::WlRegistry,
+        event: wl_registry::Event,
+        _: &(),
+        _: &ClientConnection,
+        qh: &QueueHandle<Self>,
+    ) {
+        state.registry_bound = true;
+        let wl_registry::Event::Global {
+            name,
+            interface,
+            version,
+        } = event
+        else {
+            return;
+        };
+        match interface.as_str() {
+            "wl_compositor" => {
+                let compositor = registry.bind::<wl_compositor::WlCompositor, _, _>(
+                    name,
+                    version.min(1),
+                    qh,
+                    (),
+                );
+                let surface = compositor.create_surface(qh, ());
+                surface.commit();
+                state.surface = Some(surface);
+            }
+            "wl_seat" => {
+                state.seat = Some(registry.bind::<client_wl_seat::WlSeat, _, _>(
+                    name,
+                    version.min(1),
+                    qh,
+                    (),
+                ));
+            }
+            "zwp_text_input_manager_v3" => {
+                state.manager = Some(
+                    registry.bind::<client_text_input_manager::ZwpTextInputManagerV3, _, _>(
+                        name,
+                        version.min(1),
+                        qh,
+                        (),
+                    ),
+                );
+                state.text_input_global_seen = true;
+            }
+            "zwp_input_method_manager_v2" => state.input_method_global_seen = true,
+            _ => {}
+        }
+        state.initialize_text_input(qh);
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_text_input::ZwpTextInputV3, ()> for TextInputSmokeClientState {
+    fn event(
+        state: &mut Self,
+        _: &client_text_input::ZwpTextInputV3,
+        event: client_text_input::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            client_text_input::Event::Enter { surface } => {
+                state.enter_count += 1;
+                state.entered_own_surface = state.surface.as_ref() == Some(&surface);
+            }
+            client_text_input::Event::Leave { .. } => state.leave_count += 1,
+            client_text_input::Event::PreeditString { text, .. } => state.preedit_text = text,
+            client_text_input::Event::CommitString { text } => state.commit_text = text,
+            client_text_input::Event::DeleteSurroundingText {
+                before_length,
+                after_length,
+            } => {
+                state.delete_before = before_length;
+                state.delete_after = after_length;
+            }
+            client_text_input::Event::Done { serial } => state.done_serials.push(serial),
+            _ => {}
+        }
+    }
+}
+
+#[derive(Default)]
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+struct InputMethodSmokeClientState {
+    registry_bound: bool,
+    text_input_global_seen: bool,
+    input_method_global_seen: bool,
+    compositor: Option<wl_compositor::WlCompositor>,
+    seat: Option<client_wl_seat::WlSeat>,
+    manager: Option<client_input_method_manager::ZwpInputMethodManagerV2>,
+    input_method: Option<client_input_method::ZwpInputMethodV2>,
+    popup: Option<client_input_popup_surface::ZwpInputPopupSurfaceV2>,
+    unavailable: bool,
+    activate_count: usize,
+    deactivate_count: usize,
+    active: bool,
+    surrounding_text: Option<String>,
+    surrounding_cursor: u32,
+    surrounding_anchor: u32,
+    content_type_forwarded: bool,
+    text_change_cause_forwarded: bool,
+    done_count: u32,
+    response_sent: bool,
+    popup_rectangle: Option<(i32, i32, i32, i32)>,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl InputMethodSmokeClientState {
+    fn initialize_input_method(&mut self, qh: &QueueHandle<Self>) {
+        if self.input_method.is_none() {
+            if let (Some(manager), Some(seat)) = (self.manager.clone(), self.seat.clone()) {
+                self.input_method = Some(manager.get_input_method(&seat, qh, ()));
+            }
+        }
+    }
+
+    fn initialize_popup(&mut self, qh: &QueueHandle<Self>) {
+        if self.popup.is_some() {
+            return;
+        }
+        if let (Some(compositor), Some(input_method)) =
+            (self.compositor.clone(), self.input_method.clone())
+        {
+            let surface = compositor.create_surface(qh, ());
+            surface.commit();
+            self.popup = Some(input_method.get_input_popup_surface(&surface, qh, ()));
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<wl_registry::WlRegistry, ()> for InputMethodSmokeClientState {
+    fn event(
+        state: &mut Self,
+        registry: &wl_registry::WlRegistry,
+        event: wl_registry::Event,
+        _: &(),
+        _: &ClientConnection,
+        qh: &QueueHandle<Self>,
+    ) {
+        state.registry_bound = true;
+        let wl_registry::Event::Global {
+            name,
+            interface,
+            version,
+        } = event
+        else {
+            return;
+        };
+        match interface.as_str() {
+            "wl_compositor" => {
+                state.compositor = Some(registry.bind::<wl_compositor::WlCompositor, _, _>(
+                    name,
+                    version.min(1),
+                    qh,
+                    (),
+                ));
+            }
+            "wl_seat" => {
+                state.seat = Some(registry.bind::<client_wl_seat::WlSeat, _, _>(
+                    name,
+                    version.min(1),
+                    qh,
+                    (),
+                ));
+            }
+            "zwp_text_input_manager_v3" => state.text_input_global_seen = true,
+            "zwp_input_method_manager_v2" => {
+                state.manager = Some(
+                    registry.bind::<client_input_method_manager::ZwpInputMethodManagerV2, _, _>(
+                        name,
+                        version.min(1),
+                        qh,
+                        (),
+                    ),
+                );
+                state.input_method_global_seen = true;
+            }
+            _ => {}
+        }
+        state.initialize_input_method(qh);
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_input_method::ZwpInputMethodV2, ()> for InputMethodSmokeClientState {
+    fn event(
+        state: &mut Self,
+        input_method: &client_input_method::ZwpInputMethodV2,
+        event: client_input_method::Event,
+        _: &(),
+        _: &ClientConnection,
+        qh: &QueueHandle<Self>,
+    ) {
+        match event {
+            client_input_method::Event::Activate => {
+                state.activate_count += 1;
+                state.active = true;
+                state.initialize_popup(qh);
+            }
+            client_input_method::Event::Deactivate => {
+                state.deactivate_count += 1;
+                state.active = false;
+            }
+            client_input_method::Event::SurroundingText {
+                text,
+                cursor,
+                anchor,
+            } => {
+                state.surrounding_text = Some(text);
+                state.surrounding_cursor = cursor;
+                state.surrounding_anchor = anchor;
+            }
+            client_input_method::Event::TextChangeCause { .. } => {
+                state.text_change_cause_forwarded = true
+            }
+            client_input_method::Event::ContentType { .. } => state.content_type_forwarded = true,
+            client_input_method::Event::Done => {
+                state.done_count += 1;
+                if state.active && !state.response_sent {
+                    input_method.set_preedit_string(
+                        TextInputSmokeClientState::PREEDIT_TEXT.to_string(),
+                        2,
+                        2,
+                    );
+                    input_method.delete_surrounding_text(1, 0);
+                    input_method.commit_string(TextInputSmokeClientState::COMMIT_TEXT.to_string());
+                    input_method.commit(state.done_count);
+                    state.response_sent = true;
+                }
+            }
+            client_input_method::Event::Unavailable => state.unavailable = true,
+            _ => {}
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_input_popup_surface::ZwpInputPopupSurfaceV2, ()>
+    for InputMethodSmokeClientState
+{
+    fn event(
+        state: &mut Self,
+        _: &client_input_popup_surface::ZwpInputPopupSurfaceV2,
+        event: client_input_popup_surface::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let client_input_popup_surface::Event::TextInputRectangle {
+            x,
+            y,
+            width,
+            height,
+        } = event
+        {
+            state.popup_rectangle = Some((x, y, width, height));
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(TextInputSmokeClientState: ignore wl_compositor::WlCompositor);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(TextInputSmokeClientState: ignore wl_surface::WlSurface);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(TextInputSmokeClientState: ignore client_wl_seat::WlSeat);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(TextInputSmokeClientState: ignore client_text_input_manager::ZwpTextInputManagerV3);
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(InputMethodSmokeClientState: ignore wl_compositor::WlCompositor);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(InputMethodSmokeClientState: ignore wl_surface::WlSurface);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(InputMethodSmokeClientState: ignore client_wl_seat::WlSeat);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(InputMethodSmokeClientState: ignore client_input_method_manager::ZwpInputMethodManagerV2);
 
 #[derive(Default)]
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -11875,6 +12588,35 @@ mod tests {
         assert!(probe.rejected_drop_cancelled);
         assert!(probe.rejected_drop_not_delivered);
         assert!(!probe.data_control_global_exposed);
+        assert!(!probe.host_stub);
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn smithay_text_input_is_focus_and_authorization_safe() {
+        let probe = probe_text_input().expect("text-input probe");
+
+        assert!(probe.is_ready());
+        assert_eq!(probe.client_count, 3);
+        assert!(probe.text_input_visible_to_normal_clients);
+        assert!(probe.input_method_hidden_from_normal_clients);
+        assert!(probe.input_method_visible_to_authorized_client);
+        assert!(probe.focus_follows_keyboard);
+        assert!(probe.unfocused_enable_rejected);
+        assert!(probe.focused_enable_activates_input_method);
+        assert!(probe.surrounding_text_forwarded);
+        assert!(probe.content_type_forwarded);
+        assert!(probe.cursor_rectangle_forwarded);
+        assert!(probe.turkish_preedit_delivered);
+        assert!(probe.turkish_commit_delivered);
+        assert!(probe.delete_surrounding_delivered);
+        assert!(probe.serial_synchronized);
+        assert!(probe.focus_handoff_deactivates_input_method);
+        assert!(probe.focus_handoff_enters_new_client);
+        assert!(probe.stale_unfocused_client_blocked);
+        assert!(probe.popup_parent_bound);
+        assert!(probe.popup_repositioned);
+        assert_eq!(probe.payload_limit_bytes, 4_000);
         assert!(!probe.host_stub);
     }
 

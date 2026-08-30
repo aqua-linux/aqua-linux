@@ -1550,6 +1550,9 @@ grep -Fq 'probe-xdg-shell-binding' scripts/check-compositor.sh
 grep -Fq 'probe-xdg-toplevel-client' scripts/check-compositor.sh
 grep -Fq 'probe-selection-ownership' scripts/check-compositor.sh
 grep -Fq 'probe-drag-and-drop' scripts/check-compositor.sh
+grep -Fq 'probe-text-input' scripts/check-compositor.sh
+grep -Fq 'text-input-probe.txt' scripts/check-compositor-rootfs-docker.sh
+grep -Fq 'smithay_text_input_is_focus_and_authorization_safe' scripts/check-smithay-seat-docker.sh
 grep -Fq 'unfocused_clipboard_rejected=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'unfocused_primary_rejected=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'data_control_global_exposed=false' scripts/check-smithay-seat-docker.sh

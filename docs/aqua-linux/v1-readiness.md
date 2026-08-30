@@ -267,8 +267,14 @@ pointer grab, routes enter/drop only to the pointer-focused target without
 changing keyboard focus, negotiates UTF-8 text and the copy action, transfers
 an exact bounded payload directly, finishes an accepted drop, and cancels a
 rejected drop without target delivery. Broader application interoperability,
-dma-buf import, display behavior, and text-input support remain part of R3
-acceptance.
+dma-buf import, and display behavior remain part of R3 acceptance. The
+three-client text-input probe separately publishes text-input v3 to normal
+clients while hiding input-method v2 from them and exposing it only to an
+authorized client. It proves keyboard-focus activation, stale-client
+rejection, bounded surrounding/content/cursor state, synchronized serials,
+Turkish UTF-8 preedit and commit delivery, deletion, focus handoff, and popup
+repositioning. The broader declared keyboard, locale, and independent-client
+matrix remains open.
 
 XWayland is not automatically required for v1. If it remains excluded, the
 supported application model and incompatibility boundary must be public.

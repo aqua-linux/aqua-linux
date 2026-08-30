@@ -75,6 +75,33 @@ docker run --rm --platform linux/amd64 \
         printf "%s\n" "$dnd_output" | grep -Fq "data_control_global_exposed=false"
         printf "%s\n" "$dnd_output" | grep -Fq "host_stub=false"
         printf "%s\n" "$dnd_output" | grep -Fq "[AQUA-COMPOSITOR] stage=drag-and-drop status=ok"
+        text_input_output="$(cargo run --quiet -p aqua-compositor --features smithay-smoke -- probe-text-input)" || {
+            printf "%s\n" "$text_input_output"
+            exit 1
+        }
+        printf "%s\n" "$text_input_output"
+        printf "%s\n" "$text_input_output" | grep -Fq "client_count=3"
+        printf "%s\n" "$text_input_output" | grep -Fq "text_input_visible_to_normal_clients=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "input_method_hidden_from_normal_clients=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "input_method_visible_to_authorized_client=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "focus_follows_keyboard=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "unfocused_enable_rejected=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "focused_enable_activates_input_method=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "surrounding_text_forwarded=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "content_type_forwarded=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "cursor_rectangle_forwarded=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "turkish_preedit_delivered=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "turkish_commit_delivered=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "delete_surrounding_delivered=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "serial_synchronized=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "focus_handoff_deactivates_input_method=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "focus_handoff_enters_new_client=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "stale_unfocused_client_blocked=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "popup_parent_bound=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "popup_repositioned=true"
+        printf "%s\n" "$text_input_output" | grep -Fq "payload_limit_bytes=4000"
+        printf "%s\n" "$text_input_output" | grep -Fq "host_stub=false"
+        printf "%s\n" "$text_input_output" | grep -Fq "[AQUA-COMPOSITOR] stage=text-input status=ok"
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_launcher_keyboard_is_compositor_owned
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
@@ -87,4 +114,6 @@ docker run --rm --platform linux/amd64 \
             smithay_selection_ownership_is_keyboard_focus_bound
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_drag_and_drop_is_focus_safe_and_bounded
+        cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
+            smithay_text_input_is_focus_and_authorization_safe
     '

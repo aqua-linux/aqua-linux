@@ -193,6 +193,8 @@ Tasks:
 - Route standard drag-and-drop through an implicit pointer grab with bounded
   MIME/action negotiation, direct client transfer, target-only drop, and
   cancellation.
+- Route text-input v3 through keyboard focus and expose input-method v2 only to
+  an explicitly authorized client, with bounded UTF-8 state and popup geometry.
 - Support move, resize, close, and basic stacking.
 - Add Aqua window chrome.
 - Keep compositor stable when a client exits.
@@ -221,6 +223,13 @@ Current compatibility extension:
   exact bounded 28-byte payload directly, completes the accepted source, and
   cancels a rejected second drop without target delivery. The packaged rootfs
   runs the same feature-enabled probe with `host_stub=false`.
+- A three-client Linux probe exposes text-input v3 to two normal clients while
+  hiding input-method v2 from both and publishing it only to an authorized
+  input-method client. It proves focus-bound activation, stale-client
+  rejection, surrounding/content/cursor state forwarding, synchronized serials,
+  Turkish UTF-8 preedit and commit delivery, deletion, focus handoff, and
+  parent-bound popup repositioning. The packaged rootfs runs the same probe
+  with `host_stub=false`; the broader keyboard and locale matrix remains open.
 
 ## Milestone 6: Boot Aqua Compositor In QEMU
 

@@ -58,6 +58,7 @@ dependencies = [
  "vt100",
  "wayland-client 0.31.14",
  "wayland-protocols 0.32.12",
+ "wayland-protocols-misc",
  "wayland-server",
 ]
 
@@ -1830,6 +1831,7 @@ checksum = "6e9567599ef23e09b8dad6e429e5738d4509dfc46b3b21f32841a304d16b29c8"
 dependencies = [
  "bitflags 2.13.1",
  "wayland-backend",
+ "wayland-client 0.31.14",
  "wayland-protocols 0.32.12",
  "wayland-scanner 0.31.11",
  "wayland-server",
