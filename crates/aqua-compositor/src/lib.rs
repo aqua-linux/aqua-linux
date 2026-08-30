@@ -11,6 +11,12 @@ use std::sync::mpsc::{self, Receiver};
 use std::sync::Arc;
 use std::time::Duration;
 
+mod presentation;
+pub use presentation::{
+    DiagnosticReadbackEvidence, PresentationBudget, PresentationEvidenceTarget, PresentationPath,
+    PresentationSample, PresentationWorkload, R2PresentationReport,
+};
+
 use aqua_components::{NotificationToast, WindowControl, WindowFrame};
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_installer::{

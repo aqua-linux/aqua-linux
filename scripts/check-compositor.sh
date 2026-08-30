@@ -10,6 +10,17 @@ TEMP_COMMAND_CACHE="${TEMP_ROOT}/command-cache"
 
 cd "${ROOT_DIR}"
 
+PRESENTATION_MODEL="crates/aqua-compositor/src/presentation.rs"
+test -f "${PRESENTATION_MODEL}"
+grep -Fq 'pub struct R2PresentationReport' "${PRESENTATION_MODEL}"
+grep -Fq 'PresentationPath::ProductionGbmKms' "${PRESENTATION_MODEL}"
+grep -Fq 'full_frame_readbacks == 0' "${PRESENTATION_MODEL}"
+grep -Fq 'cpu_framebuffer_copies == 0' "${PRESENTATION_MODEL}"
+grep -Fq 'page_flip_events == self.frames_presented' "${PRESENTATION_MODEL}"
+grep -Fq 'repeating_repaint_timer_after_settle' "${PRESENTATION_MODEL}"
+grep -Fq 'diagnostic_readback_isolated' "${PRESENTATION_MODEL}"
+grep -Fq 'supports_release_claim' "${PRESENTATION_MODEL}"
+
 mkdir -p "${TEMP_ROOT}/etc/init.d" "${TEMP_ROOT}/usr/bin" "${TEMP_COMMAND_CACHE}"
 touch "${TEMP_ROOT}/etc/init.d/rcS" "${TEMP_ROOT}/usr/bin/aqua-recovery"
 
