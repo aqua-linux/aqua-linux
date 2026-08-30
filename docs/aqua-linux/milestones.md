@@ -657,6 +657,9 @@ per-surface multiplication, and synchronized once more after the final flip.
 Real libinput keyboard, pointer-motion, and pointer-button timestamps are
 retained from the earliest unpresented event and measured at the next real
 page-flip boundary; the snapshot reports both a bounded sample count and maximum
-input-to-present latency. The emitted snapshot remains partial and cannot
-satisfy acceptance; packaged QEMU idle, resource, four-workload, budget, and
-diagnostic-isolation evidence remain open.
+input-to-present latency. The idle workload now counts quiet live dispatch
+intervals, resets settling on real input or state activity, and records both
+post-settle repaint violations and repeating motion timers without treating the
+normal bounded event wait as a repaint. The emitted snapshot remains partial
+and cannot satisfy acceptance; packaged QEMU resource, four-workload, budget,
+and diagnostic-isolation evidence remain open.

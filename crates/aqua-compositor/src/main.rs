@@ -3761,6 +3761,41 @@ fn record_wayland_presentation_counters(
     Ok(())
 }
 
+#[cfg(any(all(target_os = "linux", feature = "smithay-smoke"), test))]
+fn record_live_idle_observation(
+    telemetry: &mut Option<PresentationTelemetry>,
+    workload: PresentationWorkload,
+    was_settled: bool,
+    external_activity: bool,
+    repaint_requested: bool,
+    repeating_timer_active: bool,
+) -> Result<bool, String> {
+    if workload != PresentationWorkload::Idle {
+        return Ok(false);
+    }
+    let telemetry = telemetry
+        .as_mut()
+        .ok_or_else(|| "idle observation arrived before DRM presentation telemetry".to_string())?;
+    if external_activity {
+        return Ok(false);
+    }
+    if repaint_requested {
+        if was_settled {
+            telemetry
+                .record_settled_idle_repaint()
+                .map_err(|error| format!("cannot record settled idle repaint: {error}"))?;
+            if repeating_timer_active {
+                telemetry.mark_repeating_repaint_timer_after_settle();
+            }
+        }
+        return Ok(false);
+    }
+    telemetry
+        .record_settled_idle_observation()
+        .map_err(|error| format!("cannot record settled idle observation: {error}"))?;
+    Ok(true)
+}
+
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 fn smithay_presentation_counters(
     session: &SmithayDrmSession,
@@ -4696,6 +4731,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     let r2_wayland_counters = RefCell::new(WaylandPresentationCounters::default());
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let r2_pending_input_time_us = Cell::new(None::<u64>);
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let r2_idle_settled = Cell::new(false);
 
     let result = present_drm_wayland_page_flip!(
         &device,
@@ -5413,7 +5450,21 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 smithay_session.borrow().visible_client_surface_snapshots();
                             let revisions = desktop_surface_revisions(&snapshots);
                             let surface_changed = *runtime_surface_revisions.borrow() != revisions;
-                            if session_action.is_none()
+                            let external_activity = input_event_time_us.is_some()
+                                || launcher_changed
+                                || dock_changed
+                                || desktop_icons_changed
+                                || session_menu_changed
+                                || notification_changed
+                                || notification_ticked
+                                || shell_status_changed
+                                || theme_changed
+                                || reduced_motion_changed
+                                || launched
+                                || surface_changed
+                                || process_exited
+                                || session_action.is_some();
+                            let repaint_requested = session_action.is_none()
                                 && (launcher_changed
                                     || dock_changed
                                     || desktop_icons_changed
@@ -5426,8 +5477,18 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                     || motion_active
                                     || launched
                                     || surface_changed
-                                    || process_exited)
-                            {
+                                    || process_exited);
+                            if let Some(workload) = r2_presentation_workload {
+                                r2_idle_settled.set(record_live_idle_observation(
+                                    &mut r2_presentation_telemetry.borrow_mut(),
+                                    workload,
+                                    r2_idle_settled.get(),
+                                    external_activity,
+                                    repaint_requested,
+                                    motion_active,
+                                )?);
+                            }
+                            if repaint_requested {
                                 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
                                 let repaint_frame = {
                                     if let Some(compositor) =
@@ -7189,6 +7250,18 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     snapshot.frame_callbacks_sent
                 );
                 println!("r2_presentation_damage_commits={}", snapshot.damage_commits);
+                println!(
+                    "r2_presentation_settled_idle_observations={}",
+                    snapshot.settled_idle_observations
+                );
+                println!(
+                    "r2_presentation_settled_idle_repaints={}",
+                    snapshot.settled_idle_repaints
+                );
+                println!(
+                    "r2_presentation_repeating_repaint_timer_after_settle={}",
+                    snapshot.repeating_repaint_timer_after_settle
+                );
                 println!(
                     "r2_presentation_input_to_present_samples={}",
                     snapshot.input_to_present_samples
@@ -10263,8 +10336,9 @@ mod fbdev_tests {
         drm_kms_confirmation_source, drm_wayland_hold_seconds, fbdev_confirmation_source,
         input_to_present_latency_us, opaque_layer_covers_reference_output, pack_rgba_frame,
         parse_virtual_size, probe_drm_device, r2_presentation_workload,
-        record_drm_presentation_event, record_wayland_presentation_counters, render_fbdev_frame,
-        with_stride, DrmPresentationEvent, WaylandPresentationCounters,
+        record_drm_presentation_event, record_live_idle_observation,
+        record_wayland_presentation_counters, render_fbdev_frame, with_stride,
+        DrmPresentationEvent, WaylandPresentationCounters,
     };
     use aqua_compositor::{PresentationEvidenceTarget, PresentationPath, PresentationWorkload};
     use std::fs;
@@ -10375,6 +10449,63 @@ mod fbdev_tests {
         assert_eq!(input_to_present_latency_us(10_000, 10_000).unwrap(), 1);
         assert!(input_to_present_latency_us(10_001, 10_000).is_err());
         assert!(input_to_present_latency_us(0, u64::from(u32::MAX) + 1).is_err());
+    }
+
+    #[test]
+    fn live_idle_observation_requires_quiet_dispatch_and_flags_timer_repaint() {
+        let mut telemetry = Some(aqua_compositor::PresentationTelemetry::new(
+            PresentationEvidenceTarget::QemuTcg,
+            PresentationPath::ProductionGbmKms,
+            PresentationWorkload::Idle,
+        ));
+        let settled = record_live_idle_observation(
+            &mut telemetry,
+            PresentationWorkload::Idle,
+            false,
+            false,
+            false,
+            false,
+        )
+        .unwrap();
+        assert!(settled);
+        assert!(!record_live_idle_observation(
+            &mut telemetry,
+            PresentationWorkload::Idle,
+            settled,
+            false,
+            true,
+            true,
+        )
+        .unwrap());
+        let snapshot = telemetry.unwrap().event_snapshot();
+        assert_eq!(snapshot.settled_idle_observations, 1);
+        assert_eq!(snapshot.settled_idle_repaints, 1);
+        assert!(snapshot.repeating_repaint_timer_after_settle);
+    }
+
+    #[test]
+    fn live_idle_observation_resets_on_external_activity() {
+        let mut telemetry = Some(aqua_compositor::PresentationTelemetry::new(
+            PresentationEvidenceTarget::QemuTcg,
+            PresentationPath::ProductionGbmKms,
+            PresentationWorkload::Idle,
+        ));
+        assert!(!record_live_idle_observation(
+            &mut telemetry,
+            PresentationWorkload::Idle,
+            true,
+            true,
+            false,
+            false,
+        )
+        .unwrap());
+        assert_eq!(
+            telemetry
+                .unwrap()
+                .event_snapshot()
+                .settled_idle_observations,
+            0
+        );
     }
 
     #[test]
