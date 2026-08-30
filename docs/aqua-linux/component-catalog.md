@@ -216,12 +216,13 @@ degraded service state, while the displayed value and `backend_applied` status
 remain bound to reconciliation. Three consecutive native submission failures
 for one authoritative graph generation disable the controls and expose the
 degraded state; the adapter does not submit again until a newer synchronized
-generation arrives. This is still a UI and control-plane model: no
-playback or physical-hardware support is claimed. The typed transport now has
+generation arrives. A packaged QEMU probe now validates this control boundary
+through the production native bridge, including stable unchanged-graph
+generation, a bridge-blocked fourth call, and recovery after a real graph
+change. This does not claim physical-hardware support. The typed transport has
 an opt-in bounded native WirePlumber binding for graph snapshots, mixer
-requests, and configured default output. It is not enabled in the default
-image and has no packaged runtime or QEMU media evidence yet. Those remain
-separate R4 gates. The
+requests, and configured default output. It remains disabled in the default
+image; physical media behavior remains a separate R4 gate. The
 four-theme, three-viewport deterministic matrix is recorded in
 `component-fixtures.txt`.
 

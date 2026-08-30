@@ -26,7 +26,7 @@ set qemu_args [list qemu-system-x86_64 \
     -monitor none \
     -vga none \
     -device virtio-vga]
-if {$audio_contract eq "output" || $audio_contract eq "service-loss" || $audio_contract eq "policy-service-loss" || $audio_contract eq "control-service-loss" || $audio_contract eq "control-policy-service-loss" || $audio_contract eq "restart-exhaustion" || $audio_contract eq "control-restart-exhaustion" || $audio_contract eq "policy-restart-exhaustion" || $audio_contract eq "control-policy-restart-exhaustion"} {
+if {$audio_contract eq "output" || $audio_contract eq "service-loss" || $audio_contract eq "policy-service-loss" || $audio_contract eq "control-submission-budget" || $audio_contract eq "control-service-loss" || $audio_contract eq "control-policy-service-loss" || $audio_contract eq "restart-exhaustion" || $audio_contract eq "control-restart-exhaustion" || $audio_contract eq "policy-restart-exhaustion" || $audio_contract eq "control-policy-restart-exhaustion"} {
     lappend qemu_args -audiodev "wav,id=aqua-audio,path=$env(WAV_CAPTURE),out.frequency=48000,out.channels=2,out.format=s16"
     lappend qemu_args -device ich9-intel-hda
     lappend qemu_args -device hda-duplex,audiodev=aqua-audio
@@ -213,6 +213,23 @@ if {$audio_contract eq "capture-policy-service-loss"} {
         -exact {[AQUA-AUDIO] stage=qemu-capture-policy-service-loss status=failed} { puts stderr "Active capture policy-service loss contract failed"; exit 1 }
         timeout { puts stderr "Active capture policy-service loss marker missing"; exit 1 }
         eof { puts stderr "QEMU exited during capture policy-service recovery"; exit 1 }
+    }
+    expect -exact {# }
+    shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}
+    send -- "poweroff -f\r"
+    expect eof
+    exit 0
+}
+
+if {$audio_contract eq "control-submission-budget"} {
+    shell {submission_budget_ok=1; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/libexec/aqua-tests/aqua-audio-adapter-probe' || submission_budget_ok=0; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || submission_budget_ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/dev/null || submission_budget_ok=0} {checking the native adapter submission budget and recovery}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-control-submission-budget'; [ "$submission_budget_ok" = 1 ] && echo "$marker status=ok failed_submissions=3 fourth_submission_blocked=true generation_stable=true recovery_generation_advanced=true authoritative_ack=true services_running=true recovery_shell=true" || echo "$marker status=failed"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-control-submission-budget status=ok failed_submissions=3 fourth_submission_blocked=true generation_stable=true recovery_generation_advanced=true authoritative_ack=true services_running=true recovery_shell=true} {}
+        -exact {[AQUA-AUDIO] stage=qemu-control-submission-budget status=failed} { puts stderr "Audio control submission-budget contract failed"; exit 1 }
+        timeout { puts stderr "Audio control submission-budget marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited during audio control submission-budget verification"; exit 1 }
     }
     expect -exact {# }
     shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}

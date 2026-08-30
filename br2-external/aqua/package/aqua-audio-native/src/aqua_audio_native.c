@@ -25,14 +25,33 @@ struct aqua_audio_native {
   gint references;
   uint32_t phase;
   uint64_t generation;
+  struct aqua_audio_native_snapshot last_snapshot;
   uint32_t pending_plugins;
   guint timeout_source;
   bool operation_complete;
   bool initialization_complete;
+  bool has_snapshot;
   bool closing;
   int32_t operation_status;
   char error[AQUA_AUDIO_NATIVE_ERROR_BYTES];
 };
+
+static int compare_nodes_by_name(const void *left, const void *right) {
+  const struct aqua_audio_native_node *left_node = left;
+  const struct aqua_audio_native_node *right_node = right;
+  return strcmp(left_node->name, right_node->name);
+}
+
+static bool snapshot_payload_equal(
+    const struct aqua_audio_native_snapshot *left,
+    const struct aqua_audio_native_snapshot *right) {
+  return left->phase == right->phase &&
+      left->node_count == right->node_count &&
+      strcmp(left->default_output, right->default_output) == 0 &&
+      strcmp(left->default_input, right->default_input) == 0 &&
+      memcmp(left->nodes, right->nodes,
+          left->node_count * sizeof(left->nodes[0])) == 0;
+}
 
 static struct aqua_audio_native *handle_ref(
     struct aqua_audio_native *handle) {
@@ -408,9 +427,16 @@ int32_t aqua_audio_native_snapshot(struct aqua_audio_native *handle,
     g_value_unset(&item);
   }
 
-  handle->generation++;
-  out_snapshot->generation = handle->generation;
+  qsort(out_snapshot->nodes, out_snapshot->node_count,
+      sizeof(out_snapshot->nodes[0]), compare_nodes_by_name);
   out_snapshot->phase = AQUA_AUDIO_NATIVE_READY;
+  if (!handle->has_snapshot ||
+      !snapshot_payload_equal(out_snapshot, &handle->last_snapshot)) {
+    handle->generation++;
+  }
+  out_snapshot->generation = handle->generation;
+  handle->last_snapshot = *out_snapshot;
+  handle->has_snapshot = true;
   return AQUA_AUDIO_NATIVE_OK;
 }
 

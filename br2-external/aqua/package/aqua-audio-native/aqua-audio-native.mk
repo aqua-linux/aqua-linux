@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-AQUA_AUDIO_NATIVE_VERSION = 1
+AQUA_AUDIO_NATIVE_VERSION = 2
 AQUA_AUDIO_NATIVE_SITE = $(BR2_EXTERNAL_AQUA_PATH)/package/aqua-audio-native/src
 AQUA_AUDIO_NATIVE_SITE_METHOD = local
 AQUA_AUDIO_NATIVE_LICENSE = MIT

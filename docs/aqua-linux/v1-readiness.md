@@ -271,9 +271,13 @@ input only after authoritative reconciliation reaches applied. A
 control-submission guard now permits at most three failed native submissions
 per authoritative graph generation. Exhaustion retains the desired preference,
 keeps the last authoritative value visible, disables Settings input, and waits
-for a newer synchronized generation before retrying; deterministic adapter and
-shell tests cover failure, blocking, recovery, and acknowledgement. This is
-host control-plane evidence rather than packaged media or hardware evidence. A separate
+for a newer synchronized generation before retrying. Deterministic adapter and
+shell tests cover failure, blocking, recovery, and acknowledgement. The packaged
+QEMU probe now exercises the production native bridge as well: three rejected
+submissions share one stable generation, the fourth is blocked before reaching
+the bridge, and a real authoritative graph change advances the generation and
+reopens submission through final acknowledgement. This remains virtual runtime
+evidence rather than physical-hardware evidence. A separate
 Buildroot rehearsal profile has resolved the exact package delta, packages a versioned bounded
 WirePlumber 0.5 native bridge, and passed `legal-info` while the default image
 stayed unchanged. Its second, audio-only rootfs overlay now explicitly enables
@@ -361,9 +365,10 @@ before four PipeWire losses, then rejects control open without false
 acknowledgement after the cleaned attempt 4/restart 3 degraded state. Its
 WirePlumber counterpart proves the same healthy precondition, three complete
 media-pair renewals, and fail-closed control rejection after the fourth policy
-loss reaches `failed_service=wireplumber` degradation. Other control and UI
-failure matrices remain open. The remaining runtime native-backend integration
-gate still blocks default-image enablement.
+loss reaches `failed_service=wireplumber` degradation. The packaged production
+adapter probe additionally proves the per-generation submission budget and its
+generation-gated recovery against the real native graph. Other control and UI
+failure matrices remain open. Default-image enablement remains a separate gate.
 Buildroot availability or these bounded QEMU profiles are not a complete audio
 integration decision.
 

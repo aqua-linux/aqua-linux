@@ -9,6 +9,11 @@ OUTPUT_DIR="/work/build/audio-rehearsal-output"
 EVIDENCE_DIR="${ROOT_DIR}/build/audio-rootfs-contract"
 
 cd "${ROOT_DIR}"
+test -x "${ROOT_DIR}/target/x86_64-unknown-linux-musl/release/aqua-audio-adapter-probe" || {
+    echo 'Missing Linux audio adapter probe.' >&2
+    echo 'Run scripts/build-audio-adapter-probe-linux-docker.sh first.' >&2
+    exit 1
+}
 docker build -f Dockerfile.buildroot -t "${IMAGE_NAME}" .
 docker volume inspect "${VOLUME_NAME}" >/dev/null
 mkdir -p "${EVIDENCE_DIR}"
@@ -32,6 +37,9 @@ docker run --rm \
             --exclude target \
             --exclude .git \
             /src/ /work/
+        mkdir -p /work/target/x86_64-unknown-linux-musl/release
+        cp /src/target/x86_64-unknown-linux-musl/release/aqua-audio-adapter-probe \
+            /work/target/x86_64-unknown-linux-musl/release/aqua-audio-adapter-probe
         make -C "${buildroot_dir}" O="${output_dir}" \
             BR2_EXTERNAL="${external_dir}" \
             aqua_x86_64_audio_rehearsal_defconfig
@@ -75,6 +83,7 @@ docker run --rm \
         grep -Fxq "CONFIG_HOTPLUG_PCI_ACPI=y" \
             "${output_dir}/build/linux-6.6.32/.config"
         test -x "${rootfs}/usr/bin/aqua-audio-probe"
+        test -x "${rootfs}/usr/libexec/aqua-tests/aqua-audio-adapter-probe"
         cp "${output_dir}/.config" "${evidence_dir}/audio-rootfs.config"
         cp "${output_dir}/build/linux-6.6.32/.config" \
             "${evidence_dir}/linux-audio-qemu.config"
@@ -86,6 +95,7 @@ docker run --rm \
             "${rootfs}/usr/bin/pipewire" \
             "${rootfs}/usr/bin/wireplumber" \
             "${rootfs}/usr/bin/aqua-audio-probe" \
+            "${rootfs}/usr/libexec/aqua-tests/aqua-audio-adapter-probe" \
             "${rootfs}/usr/lib/libaqua-audio-native.so.1" > \
             "${evidence_dir}/rootfs-contract.sha256"
     '

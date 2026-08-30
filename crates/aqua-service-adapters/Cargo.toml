@@ -11,3 +11,8 @@ path = "src/lib.rs"
 [features]
 default = []
 wireplumber-native = []
+
+[[bin]]
+name = "aqua-audio-adapter-probe"
+path = "src/bin/aqua-audio-adapter-probe.rs"
+required-features = ["wireplumber-native"]
