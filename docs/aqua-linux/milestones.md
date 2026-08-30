@@ -511,8 +511,12 @@ as a valid bipolar signal while the media services and recovery shell stay
 responsive. An active playback failure profile additionally writes 480 frames,
 terminates the owning PipeWire process, requires the client to report
 `Broken pipe` without false completion, proves bounded ordered service restart,
-and verifies a new 48,000-frame non-silent playback. Other error evidence
-remains open R4 work; physical hardware support is not claimed.
+and verifies a new 48,000-frame non-silent playback. A separate restart-budget
+profile terminates four successive real PipeWire processes, requires exactly
+three restarts before `degraded` with attempts=4/restarts=3, proves media
+process and socket cleanup, blocks new playback, and retains recovery-shell
+access. Other error evidence remains open R4 work; physical hardware support
+is not claimed.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
 to recovery after each bounded session.

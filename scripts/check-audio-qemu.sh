@@ -23,7 +23,7 @@ TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 AQUA_AUDIO_QEMU_CONTRACT="${AQUA_AUDIO_QEMU_CONTRACT:-output}"
 
 case "${AQUA_AUDIO_QEMU_CONTRACT}" in
-    output|input|input-signal|input-disconnect|service-loss|multi-route|hotplug) ;;
+    output|input|input-signal|input-disconnect|service-loss|restart-exhaustion|multi-route|hotplug) ;;
     *)
         echo "Unsupported audio QEMU contract: ${AQUA_AUDIO_QEMU_CONTRACT}" >&2
         exit 2
@@ -155,6 +155,17 @@ elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = service-loss; then
     python3 "${ROOT_DIR}/scripts/check-qemu-audio-wave.py" "${WAV_CAPTURE}"
     echo 'Aqua Linux active audio service-loss recovery check passed.'
     echo "Playback capture: ${WAV_CAPTURE}"
+elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = restart-exhaustion; then
+    for marker in \
+        '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-duplex playback=true capture_node=true' \
+        '[AQUA-AUDIO] stage=qemu-service status=ok owner_uid=1000 pipewire=true wireplumber=true sink=true source=true' \
+        '[AQUA-MEDIA] stage=media-service-supervisor status=degraded reason=restart-limit failed_service=pipewire attempts=4 restarts=3' \
+        '[AQUA-AUDIO] stage=qemu-restart-exhaustion status=ok failed_service=pipewire attempts=4 restarts=3 restart_limit=true services_stopped=true playback_blocked=true recovery_shell=true'
+    do
+        grep -Fq "${marker}" "${SERIAL_LOG}"
+    done
+    test "$(grep -Fc '[AQUA-MEDIA] stage=media-service-supervisor status=restarting failed_service=pipewire' "${SERIAL_LOG}")" -eq 3
+    echo 'Aqua Linux QEMU audio restart-exhaustion check passed.'
 elif test "${AQUA_AUDIO_QEMU_CONTRACT}" = multi-route; then
     for marker in \
         '[AQUA-AUDIO] stage=qemu-device status=ok driver=snd_hda_intel codec=hda-output outputs=2 capture_node=false' \
