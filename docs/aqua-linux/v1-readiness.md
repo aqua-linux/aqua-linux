@@ -128,18 +128,21 @@ lower final reading. CPU time and peak RSS growth are attached to the same event
 snapshot. The bounded event snapshot is emitted only after clean CRTC
 restoration and is explicitly marked
 `r2_presentation_acceptance_complete=false`. Packaged QEMU runs still need to
-select fixed project budgets, cover all four workloads, and isolate diagnostic
-readback before R2 can pass.
+execute all four workloads on a current image and select fixed project budgets
+before R2 can pass.
 
 Each live run now encloses its fields in a versioned `v1` serial-record boundary.
 The host-side `scripts/check-r2-presentation-log.py` validator rejects missing,
 duplicate, unknown, malformed, unbounded, legacy-path, or incomplete records;
 requires exactly one QEMU GBM/KMS record for every workload; and enforces the
 pre-budget frame, callback, damage, idle, input, timing, and resource evidence
-shape. It reports observed maxima only as inputs to later budget selection and
-continues to emit `r2_budget_selected=false` and
-`r2_diagnostic_isolation_recorded=false`. Its deterministic self-test proves the
-log contract, not packaged runtime performance.
+shape. The same validator requires exactly one separately framed QEMU
+diagnostic-readback record. That record must identify the offscreen diagnostic
+path, account for bounded captures and readbacks, show zero production frames
+read or blocked, and show that neither KMS nor display output started. It then
+emits `r2_diagnostic_isolation_recorded=true` while retaining
+`r2_budget_selected=false`. Its deterministic self-test proves the log contract,
+not packaged runtime performance.
 
 The bounded `scripts/check-r2-presentation-qemu.sh` runner now defines one
 recovery-safe QEMU boot with four isolated compositor sessions. Idle receives no
@@ -147,11 +150,12 @@ injected activity; window interaction uses real virtio keyboard input;
 animation combines the frame-driven motion scenario with a real input sample;
 and multi-client launches packaged Files and Settings through the launcher. The
 runner refuses a rootfs older than the compositor source, uses snapshot disk
-mode, returns through recovery between workloads, and passes the combined serial
-log to the validator. It deliberately leaves budget selection and diagnostic
-isolation false. The runner contract alone is not runtime evidence; a current
-image must still execute it successfully and repeated observations must be
-reviewed before budgets are recorded.
+mode, returns through recovery between workloads, and then executes the existing
+deterministic two-frame offscreen GLES probe under explicit QEMU evidence gates.
+The combined validator records diagnostic isolation but deliberately leaves
+budget selection false. The runner contract alone is not runtime evidence; a
+current image must still execute it successfully and repeated observations must
+be reviewed before budgets are recorded.
 
 ### R3: Wayland Compatibility And Display Behavior
 

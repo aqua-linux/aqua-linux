@@ -61,7 +61,7 @@ Phases are ordered by their most recent update.
 ## Next Developments
 
 1. Add the next packaged-QEMU media error scenario after the host-proven control-submission budget, without enabling audio in the default image.
-2. Rebuild the packaged image, execute repeated R2 idle, window-interaction, animation, and multi-client QEMU collections, select reviewed project budgets from those observations, and add separate diagnostic-readback isolation evidence.
+2. Rebuild the packaged image, execute repeated R2 idle, window-interaction, animation, multi-client, and isolated diagnostic-readback QEMU collections, then select reviewed project budgets from those observations.
 3. Implement the R3-R6 Wayland compatibility, unprivileged session, system service, accessibility, internationalization, signed update, rollback, and security gates.
 4. After core desktop functionality supplies real consumers, consolidate the proven typography, component, layout, focus, accessibility, lifecycle, and renderer contracts into the internal Aqua UI framework defined by ADR 0003.
 5. Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation.

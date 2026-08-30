@@ -31,6 +31,21 @@ BOOLEAN_FIELDS = {
 }
 TEXT_FIELDS = {"target", "path", "workload"}
 REQUIRED_FIELDS = INTEGER_FIELDS | BOOLEAN_FIELDS | TEXT_FIELDS
+DIAGNOSTIC_INTEGER_FIELDS = {
+    "captured_frames",
+    "full_frame_readbacks",
+    "production_frames_read_back",
+    "production_frames_blocked",
+}
+DIAGNOSTIC_BOOLEAN_FIELDS = {
+    "kms_activated",
+    "display_output_started",
+    "acceptance_complete",
+}
+DIAGNOSTIC_TEXT_FIELDS = {"target", "path"}
+DIAGNOSTIC_REQUIRED_FIELDS = (
+    DIAGNOSTIC_INTEGER_FIELDS | DIAGNOSTIC_BOOLEAN_FIELDS | DIAGNOSTIC_TEXT_FIELDS
+)
 
 
 def parse_records(text: str) -> list[dict[str, str]]:
@@ -61,6 +76,37 @@ def parse_records(text: str) -> list[dict[str, str]]:
         current[key] = value
     if current is not None:
         raise ValueError("unterminated R2 presentation record")
+    return records
+
+
+def parse_diagnostic_records(text: str) -> list[dict[str, str]]:
+    records: list[dict[str, str]] = []
+    current: dict[str, str] | None = None
+    for raw_line in text.replace("\r", "").splitlines():
+        line = raw_line.strip()
+        if line == "r2_diagnostic_record_begin=v1":
+            if current is not None:
+                raise ValueError("nested R2 diagnostic record")
+            current = {}
+            continue
+        if line == "r2_diagnostic_record_end=v1":
+            if current is None:
+                raise ValueError("R2 diagnostic record ended without a start")
+            records.append(current)
+            current = None
+            continue
+        if not line.startswith("r2_diagnostic_"):
+            continue
+        if current is None:
+            raise ValueError("R2 diagnostic field appeared outside a record")
+        key, separator, value = line.removeprefix("r2_diagnostic_").partition("=")
+        if not separator or not key or not value:
+            raise ValueError("malformed R2 diagnostic field")
+        if key in current:
+            raise ValueError(f"duplicate R2 diagnostic field: {key}")
+        current[key] = value
+    if current is not None:
+        raise ValueError("unterminated R2 diagnostic record")
     return records
 
 
@@ -139,6 +185,43 @@ def validate_log(text: str) -> list[dict[str, int | str | bool]]:
     return records
 
 
+def validate_diagnostic_log(text: str) -> dict[str, int | str | bool]:
+    records = parse_diagnostic_records(text)
+    if len(records) != 1:
+        raise ValueError("R2 log must contain exactly one diagnostic readback record")
+    record = records[0]
+    missing = DIAGNOSTIC_REQUIRED_FIELDS - record.keys()
+    extra = record.keys() - DIAGNOSTIC_REQUIRED_FIELDS
+    if missing:
+        raise ValueError(f"missing R2 diagnostic fields: {','.join(sorted(missing))}")
+    if extra:
+        raise ValueError(f"unknown R2 diagnostic fields: {','.join(sorted(extra))}")
+    parsed: dict[str, int | str | bool] = {
+        field: parse_integer(record, field) for field in DIAGNOSTIC_INTEGER_FIELDS
+    }
+    parsed.update(
+        {field: parse_boolean(record, field) for field in DIAGNOSTIC_BOOLEAN_FIELDS}
+    )
+    parsed.update({field: record[field] for field in DIAGNOSTIC_TEXT_FIELDS})
+
+    if parsed["target"] != "qemu-tcg" or parsed["path"] != "diagnostic-readback":
+        raise ValueError("R2 diagnostic record is not an isolated QEMU readback")
+    captured = int(parsed["captured_frames"])
+    readbacks = int(parsed["full_frame_readbacks"])
+    if captured == 0 or readbacks == 0 or readbacks > captured:
+        raise ValueError("R2 diagnostic record has invalid capture accounting")
+    if (
+        int(parsed["production_frames_read_back"]) != 0
+        or int(parsed["production_frames_blocked"]) != 0
+    ):
+        raise ValueError("R2 diagnostic readback touched production presentation")
+    if parsed["kms_activated"] is not False or parsed["display_output_started"] is not False:
+        raise ValueError("R2 diagnostic readback activated a presentation output")
+    if parsed["acceptance_complete"] is not False:
+        raise ValueError("R2 diagnostic record made an unsupported acceptance claim")
+    return parsed
+
+
 def fixture_record(workload: str) -> str:
     idle = workload == "idle"
     values = {
@@ -167,10 +250,32 @@ def fixture_record(workload: str) -> str:
     return f"r2_presentation_record_begin=v1\n{fields}\nr2_presentation_record_end=v1"
 
 
+def diagnostic_fixture() -> str:
+    return "\n".join(
+        (
+            "r2_diagnostic_record_begin=v1",
+            "r2_diagnostic_target=qemu-tcg",
+            "r2_diagnostic_path=diagnostic-readback",
+            "r2_diagnostic_captured_frames=2",
+            "r2_diagnostic_full_frame_readbacks=2",
+            "r2_diagnostic_production_frames_read_back=0",
+            "r2_diagnostic_production_frames_blocked=0",
+            "r2_diagnostic_kms_activated=false",
+            "r2_diagnostic_display_output_started=false",
+            "r2_diagnostic_acceptance_complete=false",
+            "r2_diagnostic_record_end=v1",
+        )
+    )
+
+
 def self_test() -> None:
-    fixture = "\n".join(fixture_record(workload) for workload in sorted(WORKLOADS))
+    fixture = "\n".join(
+        [*(fixture_record(workload) for workload in sorted(WORKLOADS)), diagnostic_fixture()]
+    )
     records = validate_log(fixture)
+    diagnostic = validate_diagnostic_log(fixture)
     assert len(records) == 4
+    assert diagnostic["full_frame_readbacks"] == 2
     try:
         validate_log(fixture.replace("r2_presentation_path=production-gbm-kms", "r2_presentation_path=legacy-cpu-copy", 1))
     except ValueError:
@@ -183,6 +288,14 @@ def self_test() -> None:
         pass
     else:
         raise AssertionError("out-of-record field fixture unexpectedly passed")
+    try:
+        validate_diagnostic_log(
+            fixture.replace("r2_diagnostic_production_frames_blocked=0", "r2_diagnostic_production_frames_blocked=1")
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("production-blocking diagnostic fixture unexpectedly passed")
 
 
 def read_bounded_log(path: pathlib.Path) -> str:
@@ -200,14 +313,16 @@ def main() -> int:
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} SERIAL_LOG", file=sys.stderr)
         return 2
-    records = validate_log(read_bounded_log(pathlib.Path(sys.argv[1])))
+    log = read_bounded_log(pathlib.Path(sys.argv[1]))
+    records = validate_log(log)
+    validate_diagnostic_log(log)
     print("r2_qemu_workload_records=4")
     print(f"r2_recorded_max_frame_time_us={max(int(record['max_frame_time_us']) for record in records)}")
     print(f"r2_recorded_max_input_to_present_us={max(int(record['max_input_to_present_us']) for record in records)}")
     print(f"r2_recorded_max_cpu_time_us={max(int(record['cpu_time_us']) for record in records)}")
     print(f"r2_recorded_max_memory_growth_kib={max(int(record['memory_growth_kib']) for record in records)}")
     print("r2_budget_selected=false")
-    print("r2_diagnostic_isolation_recorded=false")
+    print("r2_diagnostic_isolation_recorded=true")
     return 0
 
 

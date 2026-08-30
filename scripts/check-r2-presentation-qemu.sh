@@ -46,9 +46,11 @@ PYTHONDONTWRITEBYTECODE=1 python3 "${VALIDATOR}" "${SERIAL_LOG}" >"${REPORT}"
 
 grep -Fq 'r2_qemu_workload_records=4' "${REPORT}"
 grep -Fq 'r2_budget_selected=false' "${REPORT}"
-grep -Fq 'r2_diagnostic_isolation_recorded=false' "${REPORT}"
+grep -Fq 'r2_diagnostic_isolation_recorded=true' "${REPORT}"
 test "$(grep -Fc 'r2_presentation_record_begin=v1' "${SERIAL_LOG}")" -eq 4
 test "$(grep -Fc 'r2_presentation_record_end=v1' "${SERIAL_LOG}")" -eq 4
+test "$(grep -Fc 'r2_diagnostic_record_begin=v1' "${SERIAL_LOG}")" -eq 1
+test "$(grep -Fc 'r2_diagnostic_record_end=v1' "${SERIAL_LOG}")" -eq 1
 
 echo "Aqua Linux packaged R2 presentation workload collection passed."
 echo "Serial log: ${SERIAL_LOG}"

@@ -446,20 +446,26 @@ impl PresentationSample {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DiagnosticReadbackEvidence {
     pub target: PresentationEvidenceTarget,
+    pub path: PresentationPath,
     pub captured_frames: u32,
     pub full_frame_readbacks: u32,
     pub production_frames_read_back: u32,
     pub production_frames_blocked: u32,
+    pub kms_activated: bool,
+    pub display_output_started: bool,
 }
 
 impl DiagnosticReadbackEvidence {
     pub fn is_isolated(self, target: PresentationEvidenceTarget) -> bool {
         self.target == target
+            && self.path == PresentationPath::DiagnosticReadback
             && self.captured_frames > 0
             && self.full_frame_readbacks > 0
             && self.full_frame_readbacks <= self.captured_frames
             && self.production_frames_read_back == 0
             && self.production_frames_blocked == 0
+            && !self.kms_activated
+            && !self.display_output_started
     }
 }
 
@@ -598,10 +604,13 @@ mod tests {
     fn diagnostic() -> DiagnosticReadbackEvidence {
         DiagnosticReadbackEvidence {
             target: PresentationEvidenceTarget::HostFixture,
+            path: PresentationPath::DiagnosticReadback,
             captured_frames: 2,
             full_frame_readbacks: 2,
             production_frames_read_back: 0,
             production_frames_blocked: 0,
+            kms_activated: false,
+            display_output_started: false,
         }
     }
 
@@ -803,5 +812,20 @@ mod tests {
         assert!(!report.dropped_frames_ready);
         assert!(!report.diagnostic_readback_isolated);
         assert!(!report.is_baseline_ready());
+    }
+
+    #[test]
+    fn diagnostic_readback_must_use_an_offscreen_non_kms_path() {
+        let mut readback = diagnostic();
+        readback.path = PresentationPath::ProductionGbmKms;
+        assert!(!readback.is_isolated(PresentationEvidenceTarget::HostFixture));
+
+        readback = diagnostic();
+        readback.kms_activated = true;
+        assert!(!readback.is_isolated(PresentationEvidenceTarget::HostFixture));
+
+        readback = diagnostic();
+        readback.display_output_started = true;
+        assert!(!readback.is_isolated(PresentationEvidenceTarget::HostFixture));
     }
 }

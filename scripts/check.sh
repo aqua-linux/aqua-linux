@@ -485,8 +485,10 @@ grep -Fq 'start_bounded_session idle 4' scripts/check-r2-presentation-qemu.exp
 grep -Fq 'start_bounded_session window-interaction 6' scripts/check-r2-presentation-qemu.exp
 grep -Fq 'AQUA_R2_PRESENTATION_WORKLOAD=animation' scripts/check-r2-presentation-qemu.exp
 grep -Fq 'start_bounded_session multi-client 12' scripts/check-r2-presentation-qemu.exp
+grep -Fq 'AQUA_R2_DIAGNOSTIC_READBACK_TELEMETRY=true' scripts/check-r2-presentation-qemu.exp
+grep -Fq 'r2_diagnostic_record_end=v1' scripts/check-r2-presentation-qemu.exp
 grep -Fq 'r2_budget_selected=false' scripts/check-r2-presentation-qemu.sh
-grep -Fq 'r2_diagnostic_isolation_recorded=false' scripts/check-r2-presentation-qemu.sh
+grep -Fq 'r2_diagnostic_isolation_recorded=true' scripts/check-r2-presentation-qemu.sh
 grep -Fq -- '--serve' scripts/send-qemu-monitor-input.py
 grep -Fq 'AQUA_QEMU_INPUT_CONTROL_SOCKET' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'request_input_daemon' scripts/capture-qemu-monitor-screendump.py
