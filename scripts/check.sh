@@ -469,12 +469,15 @@ grep -Fq 'virtio-keyboard-pci' scripts/check-fbdev-presenter-qemu.exp
 grep -Fq 'virtio-mouse-pci' scripts/check-fbdev-presenter-qemu.exp
 test -x scripts/send-qemu-monitor-input.py
 test -x scripts/check-qemu-input-daemon.py
+test -x scripts/check-r2-presentation-log.py
 PYTHONPYCACHEPREFIX="${CHECK_TEMP_ROOT}/python-cache" \
     python3 -m py_compile \
     scripts/send-qemu-monitor-input.py \
     scripts/capture-qemu-monitor-screendump.py \
-    scripts/check-qemu-input-daemon.py
+    scripts/check-qemu-input-daemon.py \
+    scripts/check-r2-presentation-log.py
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/check-qemu-input-daemon.py
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/check-r2-presentation-log.py --self-test
 grep -Fq -- '--serve' scripts/send-qemu-monitor-input.py
 grep -Fq 'AQUA_QEMU_INPUT_CONTROL_SOCKET' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'request_input_daemon' scripts/capture-qemu-monitor-screendump.py

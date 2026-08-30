@@ -131,6 +131,16 @@ restoration and is explicitly marked
 select fixed project budgets, cover all four workloads, and isolate diagnostic
 readback before R2 can pass.
 
+Each live run now encloses its fields in a versioned `v1` serial-record boundary.
+The host-side `scripts/check-r2-presentation-log.py` validator rejects missing,
+duplicate, unknown, malformed, unbounded, legacy-path, or incomplete records;
+requires exactly one QEMU GBM/KMS record for every workload; and enforces the
+pre-budget frame, callback, damage, idle, input, timing, and resource evidence
+shape. It reports observed maxima only as inputs to later budget selection and
+continues to emit `r2_budget_selected=false` and
+`r2_diagnostic_isolation_recorded=false`. Its deterministic self-test proves the
+log contract, not packaged runtime performance.
+
 ### R3: Wayland Compatibility And Display Behavior
 
 Scope: support the protocol set required for a coherent desktop and its

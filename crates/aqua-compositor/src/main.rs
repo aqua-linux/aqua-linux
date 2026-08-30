@@ -7359,6 +7359,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
             }
             if let Some(telemetry) = r2_presentation_telemetry.borrow().as_ref() {
                 let snapshot = telemetry.event_snapshot();
+                println!("r2_presentation_record_begin=v1");
                 println!("r2_presentation_live_events=true");
                 println!("r2_presentation_target={}", snapshot.target.id());
                 println!("r2_presentation_path={}", snapshot.path.id());
@@ -7421,6 +7422,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     snapshot.memory_growth_kib.unwrap_or_default()
                 );
                 println!("r2_presentation_acceptance_complete=false");
+                println!("r2_presentation_record_end=v1");
             }
             #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
             {

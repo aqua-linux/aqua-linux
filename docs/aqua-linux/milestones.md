@@ -665,3 +665,8 @@ CPU-clock consumption, and the maximum bounded Linux `VmRSS` growth sampled
 throughout the workload now complete the live resource bridge. The emitted
 snapshot remains partial and cannot satisfy acceptance; packaged QEMU
 four-workload, budget, and diagnostic-isolation evidence remain open.
+Versioned serial boundaries now frame each live record, and a fail-closed host
+validator requires exactly one structurally complete QEMU production-GBM/KMS
+record per workload before reporting observed timing and resource maxima. Those
+maxima are explicitly not selected budgets, and the validator keeps diagnostic
+isolation false until separate runtime evidence exists.
