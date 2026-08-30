@@ -147,8 +147,12 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    retained input buffer cannot create a false success because the guest
    requires bipolar data: the probe reports `invalid-injected-signal` with
    9,600 positive and zero negative samples, while PipeWire, WirePlumber, and
-   the recovery shell remain responsive. Other media error behavior remains
-   open.
+   the recovery shell remain responsive. A seventh run writes 480 playback
+   frames, marks the stream active, and then kills its owning PipeWire process.
+   The client reports `Broken pipe` and exits with the dedicated interrupted
+   status instead of claiming completion; the supervisor performs its bounded
+   ordered restart and a new 48,000-frame playback produces a non-silent WAV
+   while recovery stays responsive. Other media error behavior remains open.
 4. Settings and the top bar consume authoritative adapter state. Pointer and
    keyboard changes must be acknowledged by the service before the UI claims
    application; service failure must visibly degrade and recover.
@@ -195,7 +199,9 @@ Packaging is only the beginning of R4 audio work. Acceptance requires:
    deterministic non-silent capture through the declared HDA device without
    requesting a host microphone. The same bounded listener now proves a
    mid-source read failure cannot be reported as valid bipolar input and does
-   not hang the service graph or recovery shell. Other error evidence remains
+   not hang the service graph or recovery shell. Active playback now also
+   fails explicitly on PipeWire loss, followed by bounded service recovery and
+   verified non-silent playback from a new client. Other error evidence remains
    open.
 - Aqua gains one documented audio stack for device discovery, output, input,
   mute, volume, routing, permissions, and restart recovery.

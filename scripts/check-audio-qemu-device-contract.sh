@@ -9,6 +9,7 @@ RUNNER="${ROOT_DIR}/scripts/check-audio-qemu.sh"
 INPUT_RUNNER="${ROOT_DIR}/scripts/check-audio-input-qemu.sh"
 SIGNAL_INPUT_RUNNER="${ROOT_DIR}/scripts/check-audio-signal-input-qemu.sh"
 DISCONNECT_INPUT_RUNNER="${ROOT_DIR}/scripts/check-audio-input-disconnect-qemu.sh"
+SERVICE_LOSS_RUNNER="${ROOT_DIR}/scripts/check-audio-active-service-loss-qemu.sh"
 MULTI_ROUTE_RUNNER="${ROOT_DIR}/scripts/check-audio-multi-route-qemu.sh"
 HOTPLUG_RUNNER="${ROOT_DIR}/scripts/check-audio-hotplug-qemu.sh"
 QMP_DELETE="${ROOT_DIR}/scripts/qmp-device-delete.py"
@@ -26,6 +27,19 @@ for assignment in \
     CONFIG_HOTPLUG_PCI_ACPI=y
 do
     grep -Fxq "${assignment}" "${FRAGMENT}"
+done
+
+test -x "${SERVICE_LOSS_RUNNER}"
+grep -Fq 'AQUA_AUDIO_QEMU_CONTRACT=service-loss' "${SERVICE_LOSS_RUNNER}"
+for contract in \
+    'aqua-audio-probe playback-expect-interruption' \
+    'status=active direction=playback frames=480' \
+    'status=interrupted direction=playback reason=pcm-io' \
+    'failed_service=pipewire active_stream_aborted=true false_success=false' \
+    'restart_recovery=true playback_after=true recovery_shell=true'
+do
+    grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}" \
+        "${SERVICE_LOSS_RUNNER}"
 done
 
 test -x "${DISCONNECT_INPUT_RUNNER}"
@@ -129,4 +143,4 @@ do
     grep -Fq -- "${contract}" "${RUNNER}" "${EXPECT_SCRIPT}"
 done
 
-echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backends=none,dbus controlled_inputs=zero-pcm,bipolar-signal,input-disconnect multi_route=true selected_device_unplug=true fallback=true host_microphone=false default_image_audio=false'
+echo '[AQUA-AUDIO] stage=qemu-device-contract status=ok device=intel-hda codecs=hda-duplex,hda-output output_backends=wav,multi-wav input_backends=none,dbus controlled_inputs=zero-pcm,bipolar-signal,input-disconnect active_service_loss=true multi_route=true selected_device_unplug=true fallback=true host_microphone=false default_image_audio=false'

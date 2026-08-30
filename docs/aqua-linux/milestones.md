@@ -508,8 +508,11 @@ capture through HDA, ALSA, and PipeWire with a 4,096 peak and balanced sample
 polarity. A separate bounded failure profile serves 9,600 bytes of one-polarity
 PCM before rejecting later D-Bus reads; the guest refuses the retained buffer
 as a valid bipolar signal while the media services and recovery shell stay
-responsive. Other error evidence remains open R4 work; physical hardware
-support is not claimed.
+responsive. An active playback failure profile additionally writes 480 frames,
+terminates the owning PipeWire process, requires the client to report
+`Broken pipe` without false completion, proves bounded ordered service restart,
+and verifies a new 48,000-frame non-silent playback. Other error evidence
+remains open R4 work; physical hardware support is not claimed.
 The packaged acceptance-only component client proves all twenty-two shared
 primitives through the real Smithay/GLES/DRM path in all four themes and returns
 to recovery after each bounded session.

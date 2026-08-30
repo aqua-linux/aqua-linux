@@ -267,6 +267,17 @@ are present, but none makes
 `/dev/snd` alone sufficient to enable Settings. No root-owned media daemon,
 command-output parser, or globally writable `/dev/snd` fallback is permitted.
 
+`scripts/check-audio-active-service-loss-qemu.sh` adds an active-client service
+failure boundary. The acceptance probe first writes 480 frames to the declared
+HDA/WAV path and publishes an active marker, after which the test terminates
+the exact PipeWire PID owned by the per-user supervisor. The client must exit
+with its dedicated interrupted status and `Broken pipe` detail without a
+playback-success marker. The supervisor must then expose a different PipeWire
+PID, `attempts=2`, a running authoritative graph, and a successful new
+48,000-frame playback. The host requires the combined WAV to remain non-silent
+and the recovery shell to remain responsive. This does not prove every client
+policy or physical-device failure mode.
+
 `/usr/bin/aqua-session-check` is the recovery-safe aggregate checker for the same contract. Boot writes its output to `/run/aqua-session-check.log`, and users can run it manually from the recovery shell.
 
 ## Current Boot Choice

@@ -26,7 +26,7 @@ set qemu_args [list qemu-system-x86_64 \
     -monitor none \
     -vga none \
     -device virtio-vga]
-if {$audio_contract eq "output"} {
+if {$audio_contract eq "output" || $audio_contract eq "service-loss"} {
     lappend qemu_args -audiodev "wav,id=aqua-audio,path=$env(WAV_CAPTURE),out.frequency=48000,out.channels=2,out.format=s16"
     lappend qemu_args -device ich9-intel-hda
     lappend qemu_args -device hda-duplex,audiodev=aqua-audio
@@ -232,6 +232,35 @@ if {$audio_contract eq "input-signal" || $audio_contract eq "input-disconnect"} 
         expect -exact {[AQUA-AUDIO] stage=qemu-input-signal status=ok declared_device=intel-hda codec=hda-duplex backend=dbus capture=true frames=4800 host_microphone=false}
     }
     expect -exact {# }
+    send -- "poweroff -f\r"
+    expect eof
+    exit 0
+}
+
+if {$audio_contract eq "service-loss"} {
+    shell {rm -f /run/aqua/audio-active-service-loss.log; playback_status=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe playback-expect-interruption' >/run/aqua/audio-active-service-loss.log 2>&1 & playback_pid=$!; i=0; while [ "$i" -lt 10 ] && ! grep -Fq '[AQUA-AUDIO] stage=media-probe status=active direction=playback frames=480' /run/aqua/audio-active-service-loss.log 2>/dev/null; do sleep 1; i=$((i + 1)); done; playback_started=0; grep -Fq '[AQUA-AUDIO] stage=media-probe status=active direction=playback frames=480' /run/aqua/audio-active-service-loss.log && playback_started=1} {starting a bounded active playback stream}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-service-loss-precondition'; [ "$playback_started" = 1 ] && echo "$marker status=ok active_stream=true frames=480" || echo "$marker status=failed"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-service-loss-precondition status=ok active_stream=true frames=480} {}
+        -exact {[AQUA-AUDIO] stage=qemu-service-loss-precondition status=failed} { puts stderr "Active playback precondition failed"; exit 1 }
+        timeout { puts stderr "Active playback precondition marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited before active service loss"; exit 1 }
+    }
+    expect -exact {# }
+    shell {old_pipewire="$(sed -n 's/^pipewire_pid=//p' /run/aqua/media-service-supervisor.state)"; kill "$old_pipewire"; wait "$playback_pid" || playback_status=$?} {interrupting active playback through PipeWire loss}
+    shell {cat /run/aqua/audio-active-service-loss.log; service_loss_ok=1; [ "$playback_status" -eq 3 ] || service_loss_ok=0; grep -Fq '[AQUA-AUDIO] stage=media-probe status=interrupted direction=playback reason=pcm-io' /run/aqua/audio-active-service-loss.log || service_loss_ok=0; if grep -Fq '[AQUA-AUDIO] stage=media-probe status=ok direction=playback' /run/aqua/audio-active-service-loss.log; then service_loss_ok=0; fi; i=0; while [ "$i" -lt 30 ]; do new_pipewire="$(sed -n 's/^pipewire_pid=//p' /run/aqua/media-service-supervisor.state 2>/dev/null)"; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state 2>/dev/null && [ -n "$new_pipewire" ] && [ "$new_pipewire" != "$old_pipewire" ] && break; sleep 1; i=$((i + 1)); done; grep -Fq 'state=running' /run/aqua/media-service-supervisor.state || service_loss_ok=0; grep -Fq 'attempts=2' /run/aqua/media-service-supervisor.state || service_loss_ok=0; su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 wpctl status' >/dev/null || service_loss_ok=0} {checking bounded ordered media-service recovery}
+    shell {[ "$service_loss_ok" = 1 ] && su -s /bin/sh aqua -c 'XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/aqua-audio-probe playback' || service_loss_ok=0} {playing after media-service recovery}
+    send -- {marker='[AQUA-AUDIO] stage=qemu-service-loss'; [ "$service_loss_ok" = 1 ] && echo "$marker status=ok failed_service=pipewire active_stream_aborted=true false_success=false restart_recovery=true playback_after=true recovery_shell=true" || echo "$marker status=failed"}
+    send -- "\r"
+    expect {
+        -exact {[AQUA-AUDIO] stage=qemu-service-loss status=ok failed_service=pipewire active_stream_aborted=true false_success=false restart_recovery=true playback_after=true recovery_shell=true} {}
+        -exact {[AQUA-AUDIO] stage=qemu-service-loss status=failed} { puts stderr "Active media-service loss contract failed"; exit 1 }
+        timeout { puts stderr "Active media-service loss marker missing"; exit 1 }
+        eof { puts stderr "QEMU exited during active media-service recovery"; exit 1 }
+    }
+    expect -exact {# }
+    shell {/usr/bin/aqua-media-service-stop >/run/aqua/audio-qemu-stop.log; i=0; while [ "$i" -lt 10 ] && test -e /run/aqua/media-service-supervisor.pid; do sleep 1; i=$((i + 1)); done} {stopping per-user media services}
     send -- "poweroff -f\r"
     expect eof
     exit 0
