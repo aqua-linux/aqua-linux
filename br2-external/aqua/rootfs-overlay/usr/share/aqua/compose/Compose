@@ -1,0 +1,3 @@
+# Aqua Linux v1 bounded Compose policy.
+<Multi_key> <apostrophe> <e> : "é" U00E9
+<dead_acute> <e> : "é" U00E9

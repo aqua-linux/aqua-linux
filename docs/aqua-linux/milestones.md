@@ -229,7 +229,13 @@ Current compatibility extension:
   rejection, surrounding/content/cursor state forwarding, synchronized serials,
   Turkish UTF-8 preedit and commit delivery, deletion, focus handoff, and
   parent-bound popup repositioning. The packaged rootfs runs the same probe
-  with `host_stub=false`; the broader keyboard and locale matrix remains open.
+  with `host_stub=false`.
+- The keyboard/locale matrix now delivers Compose-enabled XKB maps to two
+  clients per layout, proves nine locale/layout Compose cases, six Turkish
+  Q/F dead-acute cases, and locale-wide invalid-sequence cancellation in both
+  Linux and the packaged rootfs. The same bounded table is packaged and
+  exported to graphical clients through `XCOMPOSEFILE`. Physical keyboard
+  behavior remains open.
 - A two-client Linux probe publishes two standard `wl_output` globals with
   xdg-output logical geometry, current and preferred 60 Hz modes, integer
   fallback scales, fractional-scale preference, and viewporter state. Both

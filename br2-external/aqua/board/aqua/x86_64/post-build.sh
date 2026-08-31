@@ -364,6 +364,7 @@ cat > "${TARGET_DIR}/etc/aqua/session.env" <<'EOF'
 export WAYLAND_DISPLAY=aqua-wayland-0
 export XDG_RUNTIME_DIR=/run/user/1000
 export AQUA_ASSET_ROOT=/usr/share/aqua
+export XCOMPOSEFILE=/usr/share/aqua/compose/Compose
 export AQUA_SESSION_MODE=nested-dev
 export AQUA_COMPOSITOR_AUTOSTART=false
 export AQUA_BOOT_GRAPHICS=false
@@ -388,6 +389,7 @@ cat > "${TARGET_DIR}/etc/aqua/session-graphics.env" <<'EOF'
 export WAYLAND_DISPLAY=aqua-wayland-drm-0
 export XDG_RUNTIME_DIR=/run/user/1000
 export AQUA_ASSET_ROOT=/usr/share/aqua
+export XCOMPOSEFILE=/usr/share/aqua/compose/Compose
 export AQUA_SESSION_MODE=drm-wayland
 export AQUA_COMPOSITOR_AUTOSTART=true
 export AQUA_BOOT_GRAPHICS=true

@@ -1,6 +1,6 @@
 # Aqua Linux V1 Readiness Gates
 
-Status date: 2026-08-29
+Status date: 2026-08-31
 
 Aqua Linux has a real Buildroot image, a custom Smithay compositor, first-party
 desktop surfaces, a guarded installer, and repeatable packaged-QEMU evidence.
@@ -294,10 +294,17 @@ repositioning. The declared v1 matrix is now bounded to the installer's
 creates an Aqua Seat for each layout and requires two independent clients to
 receive the real `wl_keyboard` XKB keymap and the declared 400 ms/25 Hz repeat
 information. Both clients recompile every delivered map and resolve a
-layout-distinguishing UTF-8 key (`ı`, `f`, or `q`), and the packaged-rootfs
-contract runs the same feature-enabled probe. Compose/dead-key coverage,
-hardware keyboard behavior, and broader independent-application
-interoperability remain open and are not implied by this bounded matrix.
+layout-distinguishing UTF-8 key (`ı`, `f`, or `q`). The keymaps also reserve
+the Menu key as `Multi_key`. Across all nine locale/layout combinations, both
+clients feed a bounded Compose sequence through libxkbcommon and obtain `é`;
+the Turkish Q and Turkish F maps additionally resolve their real
+Shift+Level3 dead-acute key and pass six locale/layout dead-key cases. Invalid
+Compose input cancels without producing text in every declared locale. The
+same bounded table is packaged at `/usr/share/aqua/compose/Compose` and exported
+to graphical clients through `XCOMPOSEFILE`; the packaged-rootfs contract runs
+the feature-enabled probe and verifies that session binding. Physical keyboard
+behavior and broader independent-application interoperability remain open and
+are not implied by this bounded matrix.
 
 The arbitrary-client privileged-protocol boundary is now covered by a separate
 three-client Linux registry probe and the packaged-rootfs contract. Two normal

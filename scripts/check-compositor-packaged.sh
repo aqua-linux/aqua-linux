@@ -13,6 +13,10 @@ fi
 tar -tf "${ROOTFS_TAR}" ./usr/bin/aqua-compositor >/dev/null
 tar -tf "${ROOTFS_TAR}" ./usr/lib/libxkbcommon.so.0 >/dev/null
 tar -tf "${ROOTFS_TAR}" ./usr/share/X11/xkb/rules/evdev >/dev/null
+tar -tf "${ROOTFS_TAR}" ./usr/share/aqua/compose/Compose >/dev/null
+tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/compose/Compose | grep -Fq '<Multi_key> <apostrophe> <e> : "é" U00E9'
+tar -xOf "${ROOTFS_TAR}" ./etc/aqua/session.env | grep -Fq 'export XCOMPOSEFILE=/usr/share/aqua/compose/Compose'
+tar -xOf "${ROOTFS_TAR}" ./etc/aqua/session-graphics.env | grep -Fq 'export XCOMPOSEFILE=/usr/share/aqua/compose/Compose'
 tar -tf "${ROOTFS_TAR}" ./usr/share/doc/aqua/compositor-binary.txt >/dev/null
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/compositor-binary.txt | grep -Fq "aqua-compositor packaged=true"
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/compositor-binary.txt | grep -Fq "autostart=false"

@@ -1423,6 +1423,8 @@ grep -Fq 'recovery_tty_required=true' br2-external/aqua/board/aqua/x86_64/post-b
 grep -Fq 'export WAYLAND_DISPLAY=aqua-wayland-0' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'export XDG_RUNTIME_DIR=/run/user/1000' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'export AQUA_ASSET_ROOT=/usr/share/aqua' br2-external/aqua/board/aqua/x86_64/post-build.sh
+grep -Fq 'export XCOMPOSEFILE=/usr/share/aqua/compose/Compose' br2-external/aqua/board/aqua/x86_64/post-build.sh
+grep -Fq '<dead_acute> <e> : "é" U00E9' br2-external/aqua/rootfs-overlay/usr/share/aqua/compose/Compose
 grep -Fq '/etc/aqua/session.env' br2-external/aqua/rootfs-overlay/etc/profile
 grep -Fq '/usr/bin/aqua-compositor status' br2-external/aqua/rootfs-overlay/usr/bin/aqua-recovery
 grep -Fq '/usr/bin/aqua-session-check' br2-external/aqua/rootfs-overlay/usr/bin/aqua-recovery
@@ -1557,11 +1559,14 @@ grep -Fq 'probe-v1-client-buffer-contract' scripts/check-compositor.sh
 grep -Fq 'probe-wayland-output-matrix' scripts/check-compositor.sh
 grep -Fq 'text-input-probe.txt' scripts/check-compositor-rootfs-docker.sh
 grep -Fq 'keyboard-locale-matrix-probe.txt' scripts/check-compositor-rootfs-docker.sh
+grep -Fq 'compose_key_available_for_all_layouts=true' scripts/check-smithay-seat-docker.sh
+grep -Fq 'dead_key_utf8_matches_for_all_clients=true' scripts/check-compositor-rootfs-docker.sh
+grep -Fq 'cancelled_compose_rejected_for_all_locales=true' scripts/check-compositor.sh
 grep -Fq 'privileged-protocol-boundary-probe.txt' scripts/check-compositor-rootfs-docker.sh
 grep -Fq 'v1-client-buffer-contract-probe.txt' scripts/check-compositor-rootfs-docker.sh
 grep -Fq 'wayland-output-matrix-probe.txt' scripts/check-compositor-rootfs-docker.sh
 grep -Fq 'smithay_text_input_is_focus_and_authorization_safe' scripts/check-smithay-seat-docker.sh
-grep -Fq 'smithay_keyboard_locale_matrix_delivers_compilable_keymaps' scripts/check-smithay-seat-docker.sh
+grep -Fq 'smithay_keyboard_locale_matrix_delivers_compose_and_dead_keys' scripts/check-smithay-seat-docker.sh
 grep -Fq 'smithay_privileged_protocol_boundary_is_narrow_and_unadvertised' scripts/check-smithay-seat-docker.sh
 grep -Fq 'v1_client_buffer_contract_excludes_accelerated_clients' scripts/check-smithay-seat-docker.sh
 grep -Fq 'smithay_output_matrix_is_discoverable_scaled_and_hotpluggable' scripts/check-smithay-seat-docker.sh
@@ -1569,6 +1574,7 @@ grep -Fq 'unfocused_clipboard_rejected=true' scripts/check-smithay-seat-docker.s
 grep -Fq 'unfocused_primary_rejected=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'data_control_global_exposed=false' scripts/check-smithay-seat-docker.sh
 grep -Fq 'privileged_wayland_boundary = ' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'keyboard_locale_matrix = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'clipboard_payload_transferred=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'primary_payload_transferred=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'owner_disconnect_clears_clipboard=true' scripts/check-smithay-seat-docker.sh
