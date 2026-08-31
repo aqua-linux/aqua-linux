@@ -1,5 +1,9 @@
 use std::collections::HashSet;
 use std::fmt;
+use std::io::{self, Read, Write};
+use std::os::unix::net::UnixStream;
+use std::path::Path;
+use std::time::Duration;
 
 use crate::wifi_control::{WifiPassphrase, WifiSsid};
 
@@ -9,6 +13,8 @@ pub const FIXED_WIFI_INTERFACE: &str = "wlan0";
 pub const MAX_REQUEST_BYTES: usize = 256;
 pub const MAX_RESPONSE_BYTES: usize = 512;
 pub const MAX_STATE_BYTES: usize = 4096;
+pub const NETWORK_BROKER_SOCKET_PATH: &str = "/run/aqua-network/control.sock";
+const CLIENT_IO_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetworkBrokerOperation {
@@ -47,6 +53,7 @@ pub enum WifiBrokerRequest {
         ssid: WifiSsid,
         passphrase: WifiPassphrase,
     },
+    Reconnect,
     Disconnect,
 }
 
@@ -55,6 +62,7 @@ impl fmt::Debug for WifiBrokerRequest {
         formatter.write_str(match self {
             Self::Status => "WifiBrokerRequest::Status",
             Self::Connect { .. } => "WifiBrokerRequest::Connect([redacted])",
+            Self::Reconnect => "WifiBrokerRequest::Reconnect",
             Self::Disconnect => "WifiBrokerRequest::Disconnect",
         })
     }
@@ -166,6 +174,12 @@ pub fn parse_authenticated_request(
                 WifiBrokerRequest::Disconnect,
             ))
         }
+        "WIFI_RECONNECT" if fields.len() == 3 => {
+            validate_wifi_interface(fields[2])?;
+            Ok(AuthenticatedNetworkRequest::Wifi(
+                WifiBrokerRequest::Reconnect,
+            ))
+        }
         "WIFI_CONNECT" if fields.len() == 5 => {
             validate_wifi_interface(fields[2])?;
             let ssid = decode_hex(fields[3]).and_then(|value| {
@@ -180,11 +194,244 @@ pub fn parse_authenticated_request(
                 WifiBrokerRequest::Connect { ssid, passphrase },
             ))
         }
-        "WIFI_STATUS" | "WIFI_DISCONNECT" | "WIFI_CONNECT" => {
+        "WIFI_STATUS" | "WIFI_DISCONNECT" | "WIFI_RECONNECT" | "WIFI_CONNECT" => {
             Err(NetworkBrokerError::InvalidRequest)
         }
         _ => Err(NetworkBrokerError::UnsupportedOperation),
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WifiBrokerOperation {
+    Status,
+    Reconnect,
+    Disconnect,
+}
+
+impl WifiBrokerOperation {
+    pub const fn wire_name(self) -> &'static str {
+        match self {
+            Self::Status => "WIFI_STATUS",
+            Self::Reconnect => "WIFI_RECONNECT",
+            Self::Disconnect => "WIFI_DISCONNECT",
+        }
+    }
+
+    const fn response_name(self) -> &'static str {
+        match self {
+            Self::Status => "wifi-status",
+            Self::Reconnect => "wifi-reconnect",
+            Self::Disconnect => "wifi-disconnect",
+        }
+    }
+
+    pub fn encode(self) -> String {
+        format!(
+            "{PROTOCOL_VERSION} {} {FIXED_WIFI_INTERFACE}\n",
+            self.wire_name()
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WifiBrokerStatus {
+    pub state: String,
+    pub network_id: Option<u16>,
+    pub authoritative: bool,
+}
+
+impl WifiBrokerStatus {
+    pub fn connected(&self) -> bool {
+        self.state == "completed" && self.network_id.is_some() && self.authoritative
+    }
+}
+
+#[derive(Debug)]
+pub enum WifiBrokerClientError {
+    Io(io::Error),
+    ResponseTooLarge,
+    InvalidResponse,
+    Rejected(String),
+}
+
+impl fmt::Display for WifiBrokerClientError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Io(error) => write!(formatter, "broker-io-{}", error.kind()),
+            Self::ResponseTooLarge => formatter.write_str("broker-response-too-large"),
+            Self::InvalidResponse => formatter.write_str("invalid-broker-response"),
+            Self::Rejected(reason) => write!(formatter, "broker-rejected-{reason}"),
+        }
+    }
+}
+
+impl std::error::Error for WifiBrokerClientError {}
+
+impl From<io::Error> for WifiBrokerClientError {
+    fn from(error: io::Error) -> Self {
+        Self::Io(error)
+    }
+}
+
+pub fn request_wifi_broker(
+    socket_path: &Path,
+    operation: WifiBrokerOperation,
+) -> Result<WifiBrokerStatus, WifiBrokerClientError> {
+    let mut stream = UnixStream::connect(socket_path)?;
+    stream.set_read_timeout(Some(CLIENT_IO_TIMEOUT))?;
+    stream.set_write_timeout(Some(CLIENT_IO_TIMEOUT))?;
+    stream.write_all(operation.encode().as_bytes())?;
+    stream.shutdown(std::net::Shutdown::Write)?;
+    let mut response = Vec::with_capacity(MAX_RESPONSE_BYTES + 1);
+    Read::by_ref(&mut stream)
+        .take((MAX_RESPONSE_BYTES + 1) as u64)
+        .read_to_end(&mut response)?;
+    parse_wifi_broker_response(&response, operation)
+}
+
+pub fn parse_wifi_broker_response(
+    bytes: &[u8],
+    operation: WifiBrokerOperation,
+) -> Result<WifiBrokerStatus, WifiBrokerClientError> {
+    if bytes.len() > MAX_RESPONSE_BYTES {
+        return Err(WifiBrokerClientError::ResponseTooLarge);
+    }
+    let line = std::str::from_utf8(bytes).map_err(|_| WifiBrokerClientError::InvalidResponse)?;
+    let line = line
+        .strip_suffix('\n')
+        .ok_or(WifiBrokerClientError::InvalidResponse)?;
+    if line.contains(['\r', '\n', '\0']) {
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
+    if let Some(reason) = line.strip_prefix(&format!("{PROTOCOL_VERSION} ERROR ")) {
+        if valid_response_value(reason) {
+            return Err(WifiBrokerClientError::Rejected(reason.to_owned()));
+        }
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
+    let fields = line.split(' ').collect::<Vec<_>>();
+    if fields.len() < 5 || fields[0] != PROTOCOL_VERSION || fields[1] != "OK" {
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
+    let mut values = std::collections::HashMap::new();
+    for field in &fields[2..] {
+        let (key, value) = field
+            .split_once('=')
+            .ok_or(WifiBrokerClientError::InvalidResponse)?;
+        if !valid_response_key(key)
+            || !valid_response_value(value)
+            || values.insert(key, value).is_some()
+        {
+            return Err(WifiBrokerClientError::InvalidResponse);
+        }
+    }
+    if values.get("operation") != Some(&operation.response_name())
+        || values.get("interface") != Some(&FIXED_WIFI_INTERFACE)
+    {
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
+    let allowed = match operation {
+        WifiBrokerOperation::Status => [
+            "operation",
+            "interface",
+            "state",
+            "network_id",
+            "authoritative",
+        ]
+        .as_slice(),
+        WifiBrokerOperation::Reconnect => [
+            "operation",
+            "interface",
+            "network_id",
+            "authoritative",
+            "credential_saved",
+        ]
+        .as_slice(),
+        WifiBrokerOperation::Disconnect => ["operation", "interface", "authoritative"].as_slice(),
+    };
+    if values.keys().any(|key| !allowed.contains(key)) {
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
+    let authoritative = match values.get("authoritative") {
+        Some(&"true") => true,
+        Some(&"false") => false,
+        _ => return Err(WifiBrokerClientError::InvalidResponse),
+    };
+    let network_id = match values.get("network_id") {
+        Some(&"none") | None => None,
+        Some(value) => Some(
+            value
+                .parse::<u16>()
+                .map_err(|_| WifiBrokerClientError::InvalidResponse)
+                .and_then(|value| {
+                    (value <= crate::wifi_control::MAX_WIFI_NETWORK_ID)
+                        .then_some(value)
+                        .ok_or(WifiBrokerClientError::InvalidResponse)
+                })?,
+        ),
+    };
+    match operation {
+        WifiBrokerOperation::Status
+            if !values.contains_key("state") || !values.contains_key("network_id") =>
+        {
+            return Err(WifiBrokerClientError::InvalidResponse);
+        }
+        WifiBrokerOperation::Reconnect
+            if network_id.is_none()
+                || !authoritative
+                || values.get("credential_saved") != Some(&"true") =>
+        {
+            return Err(WifiBrokerClientError::InvalidResponse);
+        }
+        WifiBrokerOperation::Disconnect if !authoritative => {
+            return Err(WifiBrokerClientError::InvalidResponse);
+        }
+        _ => {}
+    }
+    let state = match values.get("state").copied() {
+        Some(state) => state,
+        None => match operation {
+            WifiBrokerOperation::Reconnect => "completed",
+            WifiBrokerOperation::Disconnect => "disconnected",
+            WifiBrokerOperation::Status => return Err(WifiBrokerClientError::InvalidResponse),
+        },
+    };
+    if !matches!(
+        state,
+        "disconnected"
+            | "scanning"
+            | "authenticating"
+            | "associating"
+            | "associated"
+            | "four-way-handshake"
+            | "group-handshake"
+            | "completed"
+            | "inactive"
+            | "interface-disabled"
+    ) {
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
+    Ok(WifiBrokerStatus {
+        state: state.to_owned(),
+        network_id,
+        authoritative,
+    })
+}
+
+fn valid_response_value(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+}
+
+fn valid_response_key(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 32
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte == b'_')
 }
 
 impl std::error::Error for NetworkBrokerError {}
@@ -439,6 +686,53 @@ mod tests {
             Ok(AuthenticatedNetworkRequest::Wifi(
                 WifiBrokerRequest::Disconnect
             ))
+        ));
+        assert!(matches!(
+            parse_authenticated_request(b"AQUA-NETWORK/1 WIFI_RECONNECT wlan0\n"),
+            Ok(AuthenticatedNetworkRequest::Wifi(
+                WifiBrokerRequest::Reconnect
+            ))
+        ));
+    }
+
+    #[test]
+    fn settings_wifi_client_accepts_only_typed_broker_responses() {
+        let status = parse_wifi_broker_response(
+            b"AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0 state=completed network_id=7 authoritative=true\n",
+            WifiBrokerOperation::Status,
+        )
+        .expect("valid status");
+        assert!(status.connected());
+        assert_eq!(status.network_id, Some(7));
+
+        let disconnected = parse_wifi_broker_response(
+            b"AQUA-NETWORK/1 OK operation=wifi-disconnect interface=wlan0 authoritative=true\n",
+            WifiBrokerOperation::Disconnect,
+        )
+        .expect("valid disconnect");
+        assert!(!disconnected.connected());
+        assert_eq!(disconnected.state, "disconnected");
+
+        let reconnected = parse_wifi_broker_response(
+            b"AQUA-NETWORK/1 OK operation=wifi-reconnect interface=wlan0 network_id=8 authoritative=true credential_saved=true\n",
+            WifiBrokerOperation::Reconnect,
+        )
+        .expect("valid reconnect");
+        assert!(reconnected.connected());
+
+        assert!(matches!(
+            parse_wifi_broker_response(
+                b"AQUA-NETWORK/1 ERROR credential-read-failed\n",
+                WifiBrokerOperation::Reconnect,
+            ),
+            Err(WifiBrokerClientError::Rejected(reason)) if reason == "credential-read-failed"
+        ));
+        assert!(matches!(
+            parse_wifi_broker_response(
+                b"AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0 state=completed network_id=7 authoritative=true injected=value\n",
+                WifiBrokerOperation::Status,
+            ),
+            Err(WifiBrokerClientError::InvalidResponse)
         ));
     }
 

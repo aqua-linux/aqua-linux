@@ -380,7 +380,9 @@ and link state, BusyBox `udhcpc` remains the initial Ethernet DHCP client, and
 `wpa_supplicant` is reserved for gated Wi-Fi targets. The new unprivileged
 adapter reports bounded typed interface, default-route, DNS, and
 offline/configuring/online/degraded state without spawning management commands.
-Settings consumes that state but remains read-only. The opt-in Wi-Fi profile
+Settings consumes that state and remains read-only unless the authenticated
+Wi-Fi broker is present. In that gated profile it exposes only disconnect and
+root-owned saved-credential reconnect, with no secret entering the UI. The opt-in Wi-Fi profile
 now proves the exact wpa_supplicant 2.12, libnl 3.11.0, and OpenSSL 3.5.7
 package and legal closure together with the MIT-licensed `aqua-wifi-native`
 bridge, without changing the default image or starting a service. The bridge
@@ -389,9 +391,10 @@ The authenticated broker admits only Aqua UID/GID 1000, requires authoritative
 association before atomically writing a root-owned `0600` PSK-only record, and
 wipes transient request buffers. A deterministic fake-control-socket fixture
 proves the exact request sequence, PSK vector, authentication, redaction, and
-storage contract. This is not radio evidence: Settings controls, daemon
-lifecycle, default network ownership, WPA3 association, reconnect behavior,
-and physical support remain gated. The
+storage contract. Packaged mac80211_hwsim now proves the supervised daemon
+lifecycle and saved-credential reconnect path. This is virtual-radio evidence,
+not physical-radio evidence; network discovery, new credential entry, default
+network ownership, WPA3 association, and physical support remain gated. The
 root-owned DHCP supervisor is
 now packaged with a finite readiness timeout, three-restart budget, lease-loss
 grace period, atomic non-secret state, a checked hook around Buildroot's default

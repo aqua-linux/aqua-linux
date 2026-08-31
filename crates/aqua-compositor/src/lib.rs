@@ -7554,6 +7554,7 @@ struct XdgSmokeClientState {
     files_scrollbar_dragging: bool,
     settings_model: Option<aqua_shell::SettingsWindowModel>,
     settings_config_path: Option<PathBuf>,
+    settings_wifi_socket_path: Option<PathBuf>,
     settings_persistence_failed: bool,
     properties_model: Option<aqua_shell::DesktopPropertiesModel>,
     properties_home_root: Option<PathBuf>,
@@ -7797,6 +7798,13 @@ impl XdgSmokeClientState {
         {
             eprintln!("aqua_settings_network_status_available=false error={error}");
         }
+        #[cfg(test)]
+        let wifi_socket_path = std::env::var_os("AQUA_NETWORK_BROKER_SOCKET")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(aqua_shell::SETTINGS_WIFI_BROKER_SOCKET_PATH));
+        #[cfg(not(test))]
+        let wifi_socket_path = PathBuf::from(aqua_shell::SETTINGS_WIFI_BROKER_SOCKET_PATH);
+        settings_model.refresh_wifi_control(&wifi_socket_path);
         Ok(Self {
             buffer_width: 600,
             buffer_height: 400,
@@ -7805,6 +7813,7 @@ impl XdgSmokeClientState {
             theme: settings_model.theme,
             settings_model: Some(settings_model),
             settings_config_path: Some(config_path),
+            settings_wifi_socket_path: Some(wifi_socket_path),
             ..Self::default()
         })
     }
@@ -8519,6 +8528,24 @@ impl XdgSmokeClientState {
                 eprintln!("aqua_settings_persisted=false error={error}");
             }
         }
+    }
+
+    fn apply_settings_wifi_control(&mut self, connected: bool) {
+        let (Some(model), Some(socket_path)) = (
+            self.settings_model.as_mut(),
+            self.settings_wifi_socket_path.as_deref(),
+        ) else {
+            return;
+        };
+        let applied = model.apply_wifi_control(socket_path, connected);
+        println!(
+            "aqua_settings_wifi_control requested={} applied={} available={} connected={} status={}",
+            if connected { "reconnect" } else { "disconnect" },
+            applied,
+            model.wifi.available(),
+            model.wifi.connected(),
+            model.wifi.status_label()
+        );
     }
 
     fn init_xdg_surface(&mut self, qh: &QueueHandle<Self>) {
@@ -10461,6 +10488,18 @@ pub fn run_aqua_settings_client(
             .as_ref()
             .map_or(0, |model| model.network.interfaces().len())
     );
+    if let Some(model) = state.settings_model.as_ref() {
+        println!(
+            "aqua_settings_wifi_control_available={}",
+            model.wifi.available()
+        );
+        println!(
+            "aqua_settings_wifi_controls_enabled={}",
+            model.wifi.controls_enabled()
+        );
+        println!("aqua_settings_wifi_connected={}", model.wifi.connected());
+        println!("aqua_settings_wifi_status={}", model.wifi.status_label());
+    }
     if let Some(interface) = state
         .settings_model
         .as_ref()
@@ -13638,6 +13677,9 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
                     state.theme = theme;
                     println!("aqua_settings_theme={}", theme.id());
                 }
+                if let aqua_shell::SettingsUpdate::WifiControlRequested(connected) = update {
+                    state.apply_settings_wifi_control(connected);
+                }
                 if matches!(
                     update,
                     aqua_shell::SettingsUpdate::ReducedMotionChanged(_)
@@ -13797,6 +13839,9 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                 if let aqua_shell::SettingsUpdate::ThemeChanged(theme) = update {
                     state.theme = theme;
                     println!("aqua_settings_theme={}", theme.id());
+                }
+                if let aqua_shell::SettingsUpdate::WifiControlRequested(connected) = update {
+                    state.apply_settings_wifi_control(connected);
                 }
                 if matches!(
                     update,

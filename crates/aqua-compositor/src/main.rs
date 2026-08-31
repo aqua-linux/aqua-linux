@@ -7008,6 +7008,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         println!("drm_wayland_settings_keyboard_category=Network");
                         println!("drm_wayland_settings_network_read_only=true");
                         println!("drm_wayland_settings_network_management=false");
+                        println!("drm_wayland_settings_wifi_control_available=false");
                         println!(
                             "drm_wayland_settings_network_category_checksum={network_category_checksum:016x}"
                         );

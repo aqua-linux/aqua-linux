@@ -29,7 +29,13 @@ fn main() -> ExitCode {
             b"AQUA-NETWORK/1 WIFI_DISCONNECT wlan0\n",
             "AQUA-NETWORK/1 OK operation=wifi-disconnect interface=wlan0 authoritative=true",
         ),
-        _ => Err("usage: aqua-wifi-native-probe native|broker|broker-status|broker-disconnect"),
+        Some("broker-reconnect") => probe_broker_request(
+            b"AQUA-NETWORK/1 WIFI_RECONNECT wlan0\n",
+            "AQUA-NETWORK/1 OK operation=wifi-reconnect interface=wlan0 network_id=",
+        ),
+        _ => Err(
+            "usage: aqua-wifi-native-probe native|broker|broker-status|broker-disconnect|broker-reconnect",
+        ),
     };
     #[cfg(not(target_os = "linux"))]
     let result: Result<(), &'static str> = Err("Linux native Wi-Fi probe required");
@@ -98,9 +104,12 @@ fn probe_broker_request(request: &[u8], expected: &str) -> Result<(), &'static s
     if !response.starts_with(expected) {
         return Err("broker-response");
     }
-    if request
+    if (request
         .windows(b"WIFI_CONNECT".len())
         .any(|value| value == b"WIFI_CONNECT")
+        || request
+            .windows(b"WIFI_RECONNECT".len())
+            .any(|value| value == b"WIFI_RECONNECT"))
         && !response.contains(" authoritative=true credential_saved=true")
     {
         return Err("broker-connect-acknowledgement");

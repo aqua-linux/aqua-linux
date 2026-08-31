@@ -2573,6 +2573,9 @@ pub struct SettingsWindowProbe {
     pub audio_muted: bool,
     pub network_interface_count: usize,
     pub network_status_available: bool,
+    pub wifi_control_available: bool,
+    pub wifi_controls_enabled: bool,
+    pub wifi_connected: bool,
     pub primitive_count: usize,
     pub checksum: u64,
 }
@@ -4264,6 +4267,9 @@ pub fn render_settings_window_rgba(
                     .unwrap_or_else(|| model.audio.muted()),
                 network_interface_count: model.network.interfaces().len(),
                 network_status_available: model.network.status_available(),
+                wifi_control_available: model.wifi.available(),
+                wifi_controls_enabled: model.wifi.controls_enabled(),
+                wifi_connected: model.wifi.connected(),
                 primitive_count: 0,
                 checksum: 0,
             },
@@ -4425,9 +4431,28 @@ pub fn render_settings_window_rgba(
             &mut buffer,
             (width, height),
             (first_row.x, first_row.y + 16),
-            "NETWORK STATUS",
+            "WI-FI ASSOCIATION",
             palette.text,
             1,
+        );
+        draw_bitmap_text(
+            &mut buffer,
+            (width, height),
+            (first_row.x, first_row.y + 30),
+            if model.wifi.available() {
+                "AUTHENTICATED BROKER"
+            } else {
+                "CONTROL UNAVAILABLE"
+            },
+            palette.secondary_text,
+            1,
+        );
+        primitives += draw_switch_control(
+            &mut buffer,
+            width,
+            height,
+            model.active_switch().expect("network switch"),
+            model.theme,
         );
         let (adapter, state) = if !model.network.status_available() {
             ("STATUS UNAVAILABLE".to_string(), "READ ONLY".to_string())
@@ -4442,16 +4467,23 @@ pub fn render_settings_window_rgba(
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (section.row_rect(1).x, section.row_rect(1).y + 14),
-            &adapter,
+            (section.row_rect(1).x, section.row_rect(1).y + 18),
+            &format!("{adapter}  {state}"),
             palette.text,
-            2,
+            1,
         );
+        let wifi_status = model
+            .wifi
+            .status_label()
+            .chars()
+            .take(42)
+            .collect::<String>()
+            .to_ascii_uppercase();
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (section.row_rect(2).x, section.row_rect(2).y + 14),
-            &state,
+            (section.row_rect(2).x, section.row_rect(2).y + 18),
+            &format!("WI-FI {wifi_status}"),
             palette.accent,
             1,
         );
@@ -4468,7 +4500,7 @@ pub fn render_settings_window_rgba(
             palette.secondary_text,
             1,
         );
-        primitives += 4;
+        primitives += 6;
     } else if model.selected_category == 4 {
         draw_bitmap_text(
             &mut buffer,
@@ -4557,6 +4589,9 @@ pub fn render_settings_window_rgba(
                 .unwrap_or_else(|| model.audio.muted()),
             network_interface_count: model.network.interfaces().len(),
             network_status_available: model.network.status_available(),
+            wifi_control_available: model.wifi.available(),
+            wifi_controls_enabled: model.wifi.controls_enabled(),
+            wifi_connected: model.wifi.connected(),
             primitive_count: primitives,
             checksum,
         },
@@ -8254,6 +8289,22 @@ mod tests {
         assert_eq!(probe.audio_desired_volume_percent, 85);
         assert_eq!(probe.audio_volume_percent, 85);
         assert!(!probe.audio_muted);
+        assert_ne!(probe.checksum, 0);
+        assert_eq!(pixels.len(), 600 * 400 * 4);
+    }
+
+    #[test]
+    fn settings_network_category_disables_wifi_without_authenticated_broker() {
+        let model = SettingsWindowModel {
+            selected_category: 3,
+            ..SettingsWindowModel::default()
+        };
+        let (pixels, probe) = render_settings_window_rgba(600, 400, &model);
+        assert!(probe.rendered);
+        assert_eq!(probe.selected_category, 3);
+        assert!(!probe.wifi_control_available);
+        assert!(!probe.wifi_controls_enabled);
+        assert!(!probe.wifi_connected);
         assert_ne!(probe.checksum, 0);
         assert_eq!(pixels.len(), 600 * 400 * 4);
     }

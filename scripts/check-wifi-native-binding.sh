@@ -39,10 +39,12 @@ grep -Fq 'pub fn derive_wpa2_psk' "$RUST_BINDING"
 
 grep -Fq 'parse_authenticated_request' "$PROTOCOL"
 grep -Fq 'WIFI_CONNECT' "$PROTOCOL"
+grep -Fq 'WIFI_RECONNECT' "$PROTOCOL"
 grep -Fq 'wipe_bytes(&mut passphrase_bytes)' "$PROTOCOL"
 grep -Fq 'peer_credentials(&stream)' "$BROKER"
 grep -Fq 'wipe_bytes(&mut bytes)' "$BROKER"
 grep -Fq 'persist_wifi_credential' "$BROKER"
+grep -Fq 'load_wifi_credential' "$BROKER"
 grep -Fq 'CredentialTransaction' "$BROKER"
 
 grep -Fxq 'BR2_PACKAGE_AQUA_WIFI_NATIVE=y' "$REHEARSAL_CONFIG"

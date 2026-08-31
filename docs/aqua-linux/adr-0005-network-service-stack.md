@@ -51,8 +51,10 @@ Aqua Linux will use this network stack:
    server. Missing route data or a route without usable DNS fails visibly.
 7. Configuration requests cross a narrow authenticated privilege broker
    with an operation allowlist, target interface binding, bounded timeouts,
-   secret redaction, and authoritative acknowledgement. The current Settings
-   surface remains read-only and exposes no configuration request path.
+   secret redaction, and authoritative acknowledgement. Settings exposes only
+   broker-gated Wi-Fi disconnect and saved-credential reconnect controls; when
+   the fixed broker socket is absent, the control remains visibly disabled and
+   the default image stays read-only.
 8. The initial resolver is libc plus the resolver file managed by the selected
    DHCP lifecycle. A caching or validating resolver is not added without a
    separate operational and security decision.
