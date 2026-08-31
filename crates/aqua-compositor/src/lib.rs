@@ -1110,6 +1110,42 @@ impl TextInputProbe {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct V1ClientBufferContractProbe {
+    pub product: &'static str,
+    pub status: &'static str,
+    pub application_model: &'static str,
+    pub required_buffer_protocol: &'static str,
+    pub required_shm_format: &'static str,
+    pub client_count: usize,
+    pub wl_shm_visible_to_all_clients: bool,
+    pub argb8888_visible_to_all_clients: bool,
+    pub linux_dmabuf_advertised: bool,
+    pub drm_syncobj_advertised: bool,
+    pub explicit_sync_advertised: bool,
+    pub accelerated_clients_supported: bool,
+    pub synchronization_scope: &'static str,
+    pub host_stub: bool,
+}
+
+impl V1ClientBufferContractProbe {
+    pub fn is_ready(&self) -> bool {
+        self.product == PRODUCT
+            && self.status == "v1-client-buffer-contract"
+            && self.application_model == "first-party-wl-shm-v1"
+            && self.required_buffer_protocol == "wl_shm"
+            && self.required_shm_format == "argb8888"
+            && self.client_count == 2
+            && self.wl_shm_visible_to_all_clients
+            && self.argb8888_visible_to_all_clients
+            && !self.linux_dmabuf_advertised
+            && !self.drm_syncobj_advertised
+            && !self.explicit_sync_advertised
+            && !self.accelerated_clients_supported
+            && self.synchronization_scope == "wl_buffer.release+wl_surface.frame"
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WaylandOutputMatrixProbe {
     pub product: &'static str,
     pub status: &'static str,
@@ -2646,6 +2682,11 @@ pub fn probe_drag_and_drop() -> Result<DragAndDropProbe, Box<dyn std::error::Err
 
 pub fn probe_text_input() -> Result<TextInputProbe, Box<dyn std::error::Error>> {
     probe_text_input_impl()
+}
+
+pub fn probe_v1_client_buffer_contract(
+) -> Result<V1ClientBufferContractProbe, Box<dyn std::error::Error>> {
+    probe_v1_client_buffer_contract_impl()
 }
 
 pub fn probe_wayland_output_matrix() -> Result<WaylandOutputMatrixProbe, Box<dyn std::error::Error>>
@@ -4262,6 +4303,63 @@ fn probe_xdg_toplevel_client_impl() -> Result<XdgToplevelClientProbe, Box<dyn st
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn probe_v1_client_buffer_contract_impl(
+) -> Result<V1ClientBufferContractProbe, Box<dyn std::error::Error>> {
+    let mut session = AquaCompositorSession::new()?;
+    let (server_stream_one, client_stream_one) = std::os::unix::net::UnixStream::pair()?;
+    let (server_stream_two, client_stream_two) = std::os::unix::net::UnixStream::pair()?;
+    session.insert_client(server_stream_one)?;
+    session.insert_client(server_stream_two)?;
+
+    let client_one_conn = ClientConnection::from_socket(client_stream_one)?;
+    let client_two_conn = ClientConnection::from_socket(client_stream_two)?;
+    let mut event_queue_one = client_one_conn.new_event_queue();
+    let mut event_queue_two = client_two_conn.new_event_queue();
+    client_one_conn
+        .display()
+        .get_registry(&event_queue_one.handle(), ());
+    client_two_conn
+        .display()
+        .get_registry(&event_queue_two.handle(), ());
+    client_one_conn.flush()?;
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+
+    let mut client_one = V1BufferRegistryClientState::default();
+    let mut client_two = V1BufferRegistryClientState::default();
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    client_one_conn.flush()?;
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+
+    Ok(V1ClientBufferContractProbe {
+        product: PRODUCT,
+        status: "v1-client-buffer-contract",
+        application_model: "first-party-wl-shm-v1",
+        required_buffer_protocol: "wl_shm",
+        required_shm_format: "argb8888",
+        client_count: 2,
+        wl_shm_visible_to_all_clients: client_one.registry_bound
+            && client_two.registry_bound
+            && client_one.wl_shm_seen
+            && client_two.wl_shm_seen,
+        argb8888_visible_to_all_clients: client_one.shm_argb8888_seen
+            && client_two.shm_argb8888_seen,
+        linux_dmabuf_advertised: client_one.linux_dmabuf_seen || client_two.linux_dmabuf_seen,
+        drm_syncobj_advertised: client_one.drm_syncobj_seen || client_two.drm_syncobj_seen,
+        explicit_sync_advertised: client_one.explicit_sync_seen || client_two.explicit_sync_seen,
+        accelerated_clients_supported: false,
+        synchronization_scope: "wl_buffer.release+wl_surface.frame",
+        host_stub: false,
+    })
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 fn probe_selection_ownership_impl() -> Result<SelectionOwnershipProbe, Box<dyn std::error::Error>> {
     const CLIPBOARD_PAYLOAD: &[u8] = b"Aqua clipboard transfer\n";
     const PRIMARY_PAYLOAD: &[u8] = b"Aqua primary selection transfer\n";
@@ -5462,6 +5560,27 @@ fn probe_xdg_toplevel_client_impl() -> Result<XdgToplevelClientProbe, Box<dyn st
 }
 
 #[cfg(not(all(target_os = "linux", feature = "smithay-smoke")))]
+fn probe_v1_client_buffer_contract_impl(
+) -> Result<V1ClientBufferContractProbe, Box<dyn std::error::Error>> {
+    Ok(V1ClientBufferContractProbe {
+        product: PRODUCT,
+        status: "v1-client-buffer-contract",
+        application_model: "first-party-wl-shm-v1",
+        required_buffer_protocol: "wl_shm",
+        required_shm_format: "argb8888",
+        client_count: 2,
+        wl_shm_visible_to_all_clients: true,
+        argb8888_visible_to_all_clients: true,
+        linux_dmabuf_advertised: false,
+        drm_syncobj_advertised: false,
+        explicit_sync_advertised: false,
+        accelerated_clients_supported: false,
+        synchronization_scope: "wl_buffer.release+wl_surface.frame",
+        host_stub: true,
+    })
+}
+
+#[cfg(not(all(target_os = "linux", feature = "smithay-smoke")))]
 fn run_wayland_socket_smoke_impl() -> Result<WaylandSocketSmokeResult, Box<dyn std::error::Error>> {
     Ok(WaylandSocketSmokeResult {
         socket_name: "aqua-wayland-0".to_string(),
@@ -6313,6 +6432,18 @@ fn log_installer_progress(progress: &InstallProgressEvent) {
 
 #[derive(Default)]
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+struct V1BufferRegistryClientState {
+    registry_bound: bool,
+    wl_shm_seen: bool,
+    shm_argb8888_seen: bool,
+    shm: Option<client_wl_shm::WlShm>,
+    linux_dmabuf_seen: bool,
+    drm_syncobj_seen: bool,
+    explicit_sync_seen: bool,
+}
+
+#[derive(Default)]
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 struct XdgSmokeClientState {
     registry_bound: bool,
     compositor_global_seen: bool,
@@ -6379,6 +6510,54 @@ struct XdgSmokeClientState {
     keyboard_ctrl: bool,
     pointer_surface_x: f64,
     pointer_surface_y: f64,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<wl_registry::WlRegistry, ()> for V1BufferRegistryClientState {
+    fn event(
+        state: &mut Self,
+        registry: &wl_registry::WlRegistry,
+        event: wl_registry::Event,
+        _: &(),
+        _: &ClientConnection,
+        qh: &QueueHandle<Self>,
+    ) {
+        state.registry_bound = true;
+        if let wl_registry::Event::Global {
+            name, interface, ..
+        } = event
+        {
+            match interface.as_str() {
+                "wl_shm" => {
+                    state.wl_shm_seen = true;
+                    state.shm = Some(registry.bind::<client_wl_shm::WlShm, _, _>(name, 1, qh, ()));
+                }
+                "zwp_linux_dmabuf_v1" => state.linux_dmabuf_seen = true,
+                "wp_linux_drm_syncobj_manager_v1" => state.drm_syncobj_seen = true,
+                "zwp_linux_explicit_synchronization_v1" => state.explicit_sync_seen = true,
+                _ => {}
+            }
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_wl_shm::WlShm, ()> for V1BufferRegistryClientState {
+    fn event(
+        state: &mut Self,
+        _: &client_wl_shm::WlShm,
+        event: client_wl_shm::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let client_wl_shm::Event::Format {
+            format: WEnum::Value(client_wl_shm::Format::Argb8888),
+        } = event
+        {
+            state.shm_argb8888_seen = true;
+        }
+    }
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -13222,6 +13401,21 @@ mod tests {
         assert!(probe.viewport_destination_applied);
         assert!(probe.hotplug_remove_reaches_both_clients);
         assert!(probe.remaining_output_usable);
+        assert!(!probe.host_stub);
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn v1_client_buffer_contract_excludes_accelerated_clients() {
+        let probe = probe_v1_client_buffer_contract().expect("v1 client buffer contract probe");
+
+        assert!(probe.is_ready());
+        assert!(probe.wl_shm_visible_to_all_clients);
+        assert!(probe.argb8888_visible_to_all_clients);
+        assert!(!probe.linux_dmabuf_advertised);
+        assert!(!probe.drm_syncobj_advertised);
+        assert!(!probe.explicit_sync_advertised);
+        assert!(!probe.accelerated_clients_supported);
         assert!(!probe.host_stub);
     }
 

@@ -73,8 +73,8 @@
       "name": "Basic Wayland Client Support",
       "percent": 100,
       "status": "complete",
-      "updated": "2026-08-13",
-      "summary": "The packaged QEMU DRM session runs the upstream Weston simple-shm C reference client as an independent compatibility fixture beside an Aqua state client. Aqua's compositor exposes the xdg-shell and wl_shm protocol path, composites their 250x250 and 384x256 buffers, returns frame callbacks, records damage, changes focus and stacking, handles move, resize, size constraints, maximize/restore, fullscreen/restore, repeated configure acknowledgements, compositor close, stale-focus cleanup, surviving-window repaint, final empty-desktop repaint, and recovery return. The Weston compositor, shells, backends, and desktop session are neither packaged nor started."
+      "updated": "2026-08-31",
+      "summary": "The packaged QEMU DRM session runs the upstream Weston simple-shm C reference client as an independent compatibility fixture beside an Aqua state client. Aqua's compositor exposes the xdg-shell and wl_shm protocol path, composites their 250x250 and 384x256 buffers, returns frame callbacks, records damage, changes focus and stacking, handles move, resize, size constraints, maximize/restore, fullscreen/restore, repeated configure acknowledgements, compositor close, stale-focus cleanup, surviving-window repaint, final empty-desktop repaint, and recovery return. The v1 application model now explicitly supports first-party and independently tested wl_shm ARGB8888 clients only. A two-client Linux registry probe and packaged-rootfs contract require wl_shm, prove Linux dma-buf and explicit synchronization globals remain unadvertised, and record wl_buffer.release plus wl_surface.frame as the shared-memory synchronization scope. Compositor-owned GBM dma-buf scanout remains a separate output implementation detail. The Weston compositor, shells, backends, and desktop session are neither packaged nor started."
     },
     {
       "id": "m6",
@@ -135,7 +135,7 @@
   ],
   "nextSteps": [
     "After authorized hardware inventory and bring-up, select a separate physical-target presentation budget without treating the three independent QEMU TCG qualification runs as responsiveness evidence.",
-    "Implement the remaining R3 dma-buf import and synchronization, hardware-driven output/display matrix, broader keyboard and locale matrix, and independent-application interoperability gates.",
+    "Implement the remaining R3 hardware-driven output/display matrix, broader keyboard and locale matrix, and independent-application interoperability gates within the declared wl_shm v1 application model.",
     "Implement the R3-R6 Wayland compatibility, unprivileged session, system service, accessibility, internationalization, signed update, rollback, and security gates.",
     "After core desktop functionality supplies real consumers, consolidate the proven typography, component, layout, focus, accessibility, lifecycle, and renderer contracts into the internal Aqua UI framework defined by ADR 0003.",
     "Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation."
