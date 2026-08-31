@@ -429,6 +429,15 @@ check_output_contains "keymaps_delivered_to_all_clients=true" cargo run -p aqua-
 check_output_contains "keymaps_compile_for_all_layouts=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
 check_output_contains "representative_utf8_matches=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
 check_output_contains "repeat_info_matches=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "[AQUA-COMPOSITOR] stage=privileged-protocol-boundary status=ok" cargo run -p aqua-compositor -- probe-privileged-protocol-boundary
+check_output_contains "baseline_globals_visible_to_all_clients=true" cargo run -p aqua-compositor -- probe-privileged-protocol-boundary
+check_output_contains "input_method_hidden_from_normal_clients=true" cargo run -p aqua-compositor -- probe-privileged-protocol-boundary
+check_output_contains "input_method_visible_to_authorized_client=true" cargo run -p aqua-compositor -- probe-privileged-protocol-boundary
+check_output_contains "privileged_global_count=16" cargo run -p aqua-compositor -- probe-privileged-protocol-boundary
+check_output_contains "screenshot_global_exposed=false" cargo run -p aqua-compositor -- probe-privileged-protocol-boundary
+check_output_contains "screencopy_global_exposed=false" cargo run -p aqua-compositor -- probe-privileged-protocol-boundary
+check_output_contains "activation_global_exposed=false" cargo run -p aqua-compositor -- probe-privileged-protocol-boundary
+check_output_contains "authorized_scope_is_narrow=true" cargo run -p aqua-compositor -- probe-privileged-protocol-boundary
 check_output_contains "[AQUA-COMPOSITOR] stage=v1-client-buffer-contract status=ok" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
 check_output_contains "application_model=first-party-wl-shm-v1" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
 check_output_contains "required_buffer_protocol=wl_shm" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract

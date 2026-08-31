@@ -1120,6 +1120,67 @@ impl KeyboardLocaleMatrixProbe {
     }
 }
 
+pub const PRIVILEGED_WAYLAND_GLOBALS: [&str; 16] = [
+    "weston_screenshooter",
+    "zwlr_screencopy_manager_v1",
+    "ext_image_copy_capture_manager_v1",
+    "ext_output_image_capture_source_manager_v1",
+    "zwlr_export_dmabuf_manager_v1",
+    "xdg_activation_v1",
+    "zwlr_layer_shell_v1",
+    "weston_desktop_shell",
+    "zwp_virtual_keyboard_manager_v1",
+    "zwlr_foreign_toplevel_manager_v1",
+    "ext_foreign_toplevel_list_v1",
+    "zwlr_output_manager_v1",
+    "zwlr_gamma_control_manager_v1",
+    "zwlr_output_power_manager_v1",
+    "wp_drm_lease_device_v1",
+    "ext_session_lock_manager_v1",
+];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivilegedProtocolBoundaryProbe {
+    pub product: &'static str,
+    pub status: &'static str,
+    pub client_count: usize,
+    pub normal_client_count: usize,
+    pub authorized_client_count: usize,
+    pub baseline_globals_visible_to_all_clients: bool,
+    pub input_method_hidden_from_normal_clients: bool,
+    pub input_method_visible_to_authorized_client: bool,
+    pub privileged_global_count: usize,
+    pub screenshot_global_exposed: bool,
+    pub screencopy_global_exposed: bool,
+    pub activation_global_exposed: bool,
+    pub privileged_shell_global_exposed: bool,
+    pub virtual_input_global_exposed: bool,
+    pub desktop_management_global_exposed: bool,
+    pub authorized_scope_is_narrow: bool,
+    pub host_stub: bool,
+}
+
+impl PrivilegedProtocolBoundaryProbe {
+    pub fn is_ready(&self) -> bool {
+        self.product == PRODUCT
+            && self.status == "privileged-protocol-boundary"
+            && self.client_count == 3
+            && self.normal_client_count == 2
+            && self.authorized_client_count == 1
+            && self.baseline_globals_visible_to_all_clients
+            && self.input_method_hidden_from_normal_clients
+            && self.input_method_visible_to_authorized_client
+            && self.privileged_global_count == PRIVILEGED_WAYLAND_GLOBALS.len()
+            && !self.screenshot_global_exposed
+            && !self.screencopy_global_exposed
+            && !self.activation_global_exposed
+            && !self.privileged_shell_global_exposed
+            && !self.virtual_input_global_exposed
+            && !self.desktop_management_global_exposed
+            && self.authorized_scope_is_narrow
+    }
+}
+
 impl TextInputProbe {
     pub fn is_ready(&self) -> bool {
         self.product == PRODUCT
@@ -2727,6 +2788,11 @@ pub fn probe_text_input() -> Result<TextInputProbe, Box<dyn std::error::Error>> 
 pub fn probe_keyboard_locale_matrix(
 ) -> Result<KeyboardLocaleMatrixProbe, Box<dyn std::error::Error>> {
     probe_keyboard_locale_matrix_impl()
+}
+
+pub fn probe_privileged_protocol_boundary(
+) -> Result<PrivilegedProtocolBoundaryProbe, Box<dyn std::error::Error>> {
+    probe_privileged_protocol_boundary_impl()
 }
 
 pub fn probe_v1_client_buffer_contract(
@@ -4494,6 +4560,130 @@ fn probe_keyboard_locale_matrix_impl(
         repeat_delay_ms: 400,
         repeat_rate_hz: 25,
         repeat_info_matches,
+        host_stub: false,
+    })
+}
+
+#[cfg(not(all(target_os = "linux", feature = "smithay-smoke")))]
+fn probe_privileged_protocol_boundary_impl(
+) -> Result<PrivilegedProtocolBoundaryProbe, Box<dyn std::error::Error>> {
+    Ok(PrivilegedProtocolBoundaryProbe {
+        product: PRODUCT,
+        status: "privileged-protocol-boundary",
+        client_count: 3,
+        normal_client_count: 2,
+        authorized_client_count: 1,
+        baseline_globals_visible_to_all_clients: true,
+        input_method_hidden_from_normal_clients: true,
+        input_method_visible_to_authorized_client: true,
+        privileged_global_count: PRIVILEGED_WAYLAND_GLOBALS.len(),
+        screenshot_global_exposed: false,
+        screencopy_global_exposed: false,
+        activation_global_exposed: false,
+        privileged_shell_global_exposed: false,
+        virtual_input_global_exposed: false,
+        desktop_management_global_exposed: false,
+        authorized_scope_is_narrow: true,
+        host_stub: true,
+    })
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn probe_privileged_protocol_boundary_impl(
+) -> Result<PrivilegedProtocolBoundaryProbe, Box<dyn std::error::Error>> {
+    const INPUT_METHOD_MANAGER: &str = "zwp_input_method_manager_v2";
+    const SCREENSHOT_GLOBALS: [&str; 1] = ["weston_screenshooter"];
+    const SCREENCOPY_GLOBALS: [&str; 4] = [
+        "zwlr_screencopy_manager_v1",
+        "ext_image_copy_capture_manager_v1",
+        "ext_output_image_capture_source_manager_v1",
+        "zwlr_export_dmabuf_manager_v1",
+    ];
+    const ACTIVATION_GLOBALS: [&str; 1] = ["xdg_activation_v1"];
+    const PRIVILEGED_SHELL_GLOBALS: [&str; 3] = [
+        "zwlr_layer_shell_v1",
+        "weston_desktop_shell",
+        "ext_session_lock_manager_v1",
+    ];
+    const VIRTUAL_INPUT_GLOBALS: [&str; 1] = ["zwp_virtual_keyboard_manager_v1"];
+    const DESKTOP_MANAGEMENT_GLOBALS: [&str; 6] = [
+        "zwlr_foreign_toplevel_manager_v1",
+        "ext_foreign_toplevel_list_v1",
+        "zwlr_output_manager_v1",
+        "zwlr_gamma_control_manager_v1",
+        "zwlr_output_power_manager_v1",
+        "wp_drm_lease_device_v1",
+    ];
+
+    let mut session = AquaCompositorSession::new()?;
+    let (server_stream_one, client_stream_one) = std::os::unix::net::UnixStream::pair()?;
+    let (server_stream_two, client_stream_two) = std::os::unix::net::UnixStream::pair()?;
+    let (server_stream_authorized, client_stream_authorized) =
+        std::os::unix::net::UnixStream::pair()?;
+    session.insert_client(server_stream_one)?;
+    session.insert_client(server_stream_two)?;
+    session.insert_authorized_input_method_client(server_stream_authorized)?;
+
+    let client_one_conn = ClientConnection::from_socket(client_stream_one)?;
+    let client_two_conn = ClientConnection::from_socket(client_stream_two)?;
+    let authorized_conn = ClientConnection::from_socket(client_stream_authorized)?;
+    let mut event_queue_one = client_one_conn.new_event_queue();
+    let mut event_queue_two = client_two_conn.new_event_queue();
+    let mut event_queue_authorized = authorized_conn.new_event_queue();
+    client_one_conn
+        .display()
+        .get_registry(&event_queue_one.handle(), ());
+    client_two_conn
+        .display()
+        .get_registry(&event_queue_two.handle(), ());
+    authorized_conn
+        .display()
+        .get_registry(&event_queue_authorized.handle(), ());
+    client_one_conn.flush()?;
+    client_two_conn.flush()?;
+    authorized_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+
+    let mut client_one = ProtocolBoundaryClientState::default();
+    let mut client_two = ProtocolBoundaryClientState::default();
+    let mut authorized_client = ProtocolBoundaryClientState::default();
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    event_queue_authorized.blocking_dispatch(&mut authorized_client)?;
+
+    let clients = [&client_one, &client_two, &authorized_client];
+    let any_client_sees =
+        |interfaces: &[&str]| clients.iter().any(|client| client.sees_any(interfaces));
+    let screenshot_global_exposed = any_client_sees(&SCREENSHOT_GLOBALS);
+    let screencopy_global_exposed = any_client_sees(&SCREENCOPY_GLOBALS);
+    let activation_global_exposed = any_client_sees(&ACTIVATION_GLOBALS);
+    let privileged_shell_global_exposed = any_client_sees(&PRIVILEGED_SHELL_GLOBALS);
+    let virtual_input_global_exposed = any_client_sees(&VIRTUAL_INPUT_GLOBALS);
+    let desktop_management_global_exposed = any_client_sees(&DESKTOP_MANAGEMENT_GLOBALS);
+    let authorized_sees_forbidden = authorized_client.sees_any(&PRIVILEGED_WAYLAND_GLOBALS);
+
+    Ok(PrivilegedProtocolBoundaryProbe {
+        product: PRODUCT,
+        status: "privileged-protocol-boundary",
+        client_count: 3,
+        normal_client_count: 2,
+        authorized_client_count: 1,
+        baseline_globals_visible_to_all_clients: clients
+            .iter()
+            .all(|client| client.registry_bound && client.sees_all_baseline_globals()),
+        input_method_hidden_from_normal_clients: !client_one.sees(INPUT_METHOD_MANAGER)
+            && !client_two.sees(INPUT_METHOD_MANAGER),
+        input_method_visible_to_authorized_client: authorized_client.sees(INPUT_METHOD_MANAGER),
+        privileged_global_count: PRIVILEGED_WAYLAND_GLOBALS.len(),
+        screenshot_global_exposed,
+        screencopy_global_exposed,
+        activation_global_exposed,
+        privileged_shell_global_exposed,
+        virtual_input_global_exposed,
+        desktop_management_global_exposed,
+        authorized_scope_is_narrow: authorized_client.sees(INPUT_METHOD_MANAGER)
+            && !authorized_sees_forbidden,
         host_stub: false,
     })
 }
@@ -6663,6 +6853,68 @@ struct KeyboardMatrixClientState {
     keyboard: Option<client_wl_keyboard::WlKeyboard>,
     keymap: Option<xkb::Keymap>,
     repeat_info: Option<(i32, i32)>,
+}
+
+#[derive(Default)]
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+struct ProtocolBoundaryClientState {
+    registry_bound: bool,
+    globals: Vec<String>,
+    global_limit_exceeded: bool,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ProtocolBoundaryClientState {
+    const GLOBAL_LIMIT: usize = 64;
+    const BASELINE_GLOBALS: [&'static str; 11] = [
+        "wl_compositor",
+        "wl_shm",
+        "wl_seat",
+        "wl_output",
+        "xdg_wm_base",
+        "wl_data_device_manager",
+        "zwp_primary_selection_device_manager_v1",
+        "zwp_text_input_manager_v3",
+        "zxdg_output_manager_v1",
+        "wp_fractional_scale_manager_v1",
+        "wp_viewporter",
+    ];
+
+    fn sees(&self, interface: &str) -> bool {
+        self.globals.iter().any(|global| global == interface)
+    }
+
+    fn sees_all_baseline_globals(&self) -> bool {
+        !self.global_limit_exceeded
+            && Self::BASELINE_GLOBALS
+                .iter()
+                .all(|interface| self.sees(interface))
+    }
+
+    fn sees_any(&self, interfaces: &[&str]) -> bool {
+        interfaces.iter().any(|interface| self.sees(interface))
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<wl_registry::WlRegistry, ()> for ProtocolBoundaryClientState {
+    fn event(
+        state: &mut Self,
+        _: &wl_registry::WlRegistry,
+        event: wl_registry::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        state.registry_bound = true;
+        if let wl_registry::Event::Global { interface, .. } = event {
+            if state.globals.len() >= Self::GLOBAL_LIMIT {
+                state.global_limit_exceeded = true;
+            } else {
+                state.globals.push(interface);
+            }
+        }
+    }
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -13731,6 +13983,30 @@ mod tests {
         assert_eq!(probe.repeat_delay_ms, 400);
         assert_eq!(probe.repeat_rate_hz, 25);
         assert!(probe.repeat_info_matches);
+        assert!(!probe.host_stub);
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn smithay_privileged_protocol_boundary_is_narrow_and_unadvertised() {
+        let probe =
+            probe_privileged_protocol_boundary().expect("privileged protocol boundary probe");
+
+        assert!(probe.is_ready());
+        assert_eq!(probe.client_count, 3);
+        assert_eq!(probe.normal_client_count, 2);
+        assert_eq!(probe.authorized_client_count, 1);
+        assert!(probe.baseline_globals_visible_to_all_clients);
+        assert!(probe.input_method_hidden_from_normal_clients);
+        assert!(probe.input_method_visible_to_authorized_client);
+        assert_eq!(probe.privileged_global_count, 16);
+        assert!(!probe.screenshot_global_exposed);
+        assert!(!probe.screencopy_global_exposed);
+        assert!(!probe.activation_global_exposed);
+        assert!(!probe.privileged_shell_global_exposed);
+        assert!(!probe.virtual_input_global_exposed);
+        assert!(!probe.desktop_management_global_exposed);
+        assert!(probe.authorized_scope_is_narrow);
         assert!(!probe.host_stub);
     }
 
