@@ -2,8 +2,9 @@
 
 ## Status
 
-Accepted on 2026-08-31. The observation boundary is implemented; privileged
-configuration, Wi-Fi packaging, and end-to-end runtime evidence remain gated.
+Accepted on 2026-08-31. The observation boundary and disabled root-owned DHCP
+supervisor are implemented; ownership migration, privileged Settings requests,
+Wi-Fi packaging, and end-to-end runtime evidence remain gated.
 
 ## Context
 
@@ -74,8 +75,11 @@ Aqua Linux will use this network stack:
 
 Network management must remain disabled until all of these are satisfied:
 
-1. A root-owned supervisor provides finite DHCP and association startup,
-   reconnect, restart, shutdown, state publication, and recovery behavior.
+1. **Partially satisfied on 2026-08-31:** a packaged root-owned supervisor
+   provides finite DHCP startup/readiness, lease-loss detection, restart,
+   shutdown, public non-secret state, and deterministic recovery behavior. It
+   remains disabled and refuses to start while Buildroot `S40network` is the
+   legacy owner, so ownership migration and real lease renewal remain open.
 2. The privilege broker authenticates the Aqua session and accepts only typed,
    allowlisted operations without accepting arbitrary commands or paths.
 3. An opt-in Buildroot profile resolves `wpa_supplicant` and its exact legal

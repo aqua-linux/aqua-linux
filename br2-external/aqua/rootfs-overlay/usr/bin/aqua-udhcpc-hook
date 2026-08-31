@@ -1,0 +1,67 @@
+#!/bin/sh
+
+set -u
+
+DEFAULT_SCRIPT="${AQUA_UDHCPC_DEFAULT_SCRIPT:-/usr/share/udhcpc/default.script}"
+EXPECTED_INTERFACE="${AQUA_NETWORK_INTERFACE:-eth0}"
+READY_FILE="${AQUA_NETWORK_READY_FILE:-/run/aqua-network/lease.ready}"
+EVENT="${1:-}"
+
+mark() {
+    echo "[AQUA-NETWORK] stage=udhcpc-hook status=$1 event=${EVENT} interface=${interface:-missing}"
+}
+
+valid_interface() {
+    case "$1" in
+        ''|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-]*|????????????????*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+if ! valid_interface "${EXPECTED_INTERFACE}" ||
+   [ "${interface:-}" != "${EXPECTED_INTERFACE}" ]; then
+    mark blocked
+    exit 2
+fi
+if [ "${DEFAULT_SCRIPT#/}" = "${DEFAULT_SCRIPT}" ] ||
+   [ ! -f "${DEFAULT_SCRIPT}" ] || [ ! -x "${DEFAULT_SCRIPT}" ] ||
+   [ -L "${DEFAULT_SCRIPT}" ]; then
+    mark blocked
+    exit 2
+fi
+case "${EVENT}" in
+    deconfig|bound|renew|nak|leasefail) ;;
+    *) mark blocked; exit 2 ;;
+esac
+
+if ! "${DEFAULT_SCRIPT}" "${EVENT}"; then
+    rm -f "${READY_FILE}" 2>/dev/null || true
+    mark degraded
+    exit 1
+fi
+
+case "${EVENT}" in
+    bound|renew)
+        ready_dir="$(dirname "${READY_FILE}")"
+        if [ -L "${ready_dir}" ] || [ ! -d "${ready_dir}" ]; then
+            mark degraded
+            exit 1
+        fi
+        tmp="${READY_FILE}.tmp.$$"
+        {
+            echo 'product=Aqua Linux'
+            echo "interface=${EXPECTED_INTERFACE}"
+            echo "event=${EVENT}"
+            echo 'lease_ready=true'
+        } > "${tmp}" && chmod 644 "${tmp}" && mv "${tmp}" "${READY_FILE}" || {
+            rm -f "${tmp}" 2>/dev/null || true
+            mark degraded
+            exit 1
+        }
+        mark ready
+        ;;
+    *)
+        rm -f "${READY_FILE}" 2>/dev/null || true
+        mark offline
+        ;;
+esac

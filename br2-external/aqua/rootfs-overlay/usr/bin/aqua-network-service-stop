@@ -1,0 +1,55 @@
+#!/bin/sh
+
+set -u
+
+CONTROL_DIR="${AQUA_NETWORK_CONTROL_DIR:-/run/aqua-network}"
+PID_FILE="${AQUA_NETWORK_SUPERVISOR_PID_FILE:-${CONTROL_DIR}/network-service-supervisor.pid}"
+STATE_FILE="${AQUA_NETWORK_SUPERVISOR_STATE_FILE:-${CONTROL_DIR}/network-service-supervisor.state}"
+STOP_FILE="${AQUA_NETWORK_SUPERVISOR_STOP_FILE:-${CONTROL_DIR}/network-service-supervisor.stop}"
+TIMEOUT="${AQUA_NETWORK_STOP_TIMEOUT_SECONDS:-10}"
+
+mark() {
+    echo "[AQUA-NETWORK] stage=network-service-stop status=$1 $2"
+}
+
+case "${TIMEOUT}" in ''|*[!0-9]*) mark error "reason=invalid-timeout"; exit 2 ;; esac
+
+if [ ! -f "${PID_FILE}" ]; then
+    state="$(sed -n 's/^state=//p' "${STATE_FILE}" 2>/dev/null | tail -n 1)"
+    mark idle "reason=supervisor-not-running state=${state:-unknown}"
+    exit 0
+fi
+pid="$(cat "${PID_FILE}" 2>/dev/null || true)"
+case "${pid}" in ''|*[!0-9]*) mark error "reason=invalid-supervisor-pid"; exit 1 ;; esac
+if ! kill -0 "${pid}" 2>/dev/null; then
+    rm -f "${PID_FILE}"
+    mark idle "reason=stale-supervisor-pid-removed"
+    exit 0
+fi
+
+tmp="${STOP_FILE}.tmp.$$"
+{
+    echo 'product=Aqua Linux'
+    echo 'request=graceful-network-service-stop'
+    echo "supervisor_pid=${pid}"
+} > "${tmp}" && mv "${tmp}" "${STOP_FILE}" || {
+    mark error "reason=stop-request-write-failed"
+    exit 1
+}
+mark requested "supervisor_pid=${pid}"
+
+waited=0
+while kill -0 "${pid}" 2>/dev/null && [ "${waited}" -lt "${TIMEOUT}" ]; do
+    sleep 1
+    waited=$((waited + 1))
+done
+if kill -0 "${pid}" 2>/dev/null; then
+    mark timeout "supervisor_pid=${pid} waited_seconds=${waited}"
+    exit 1
+fi
+if [ -f "${PID_FILE}" ] || ! grep -Fq 'state=stopped' "${STATE_FILE}" 2>/dev/null; then
+    mark error "reason=incomplete-service-cleanup"
+    exit 1
+fi
+rm -f "${STOP_FILE}" "${tmp}"
+mark ok "supervisor_stopped=true service_stopped=udhcpc"

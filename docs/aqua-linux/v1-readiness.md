@@ -382,7 +382,13 @@ adapter reports bounded typed interface, default-route, DNS, and
 offline/configuring/online/degraded state without spawning management commands.
 Settings consumes that state but remains read-only; the root-owned supervisor,
 authenticated broker, opt-in Wi-Fi package rehearsal, reconnect behavior, and
-QEMU and physical evidence remain open. [ADR 0004](adr-0004-audio-service-stack.md) selects ALSA,
+QEMU and physical evidence remain open. The root-owned DHCP supervisor is now
+packaged with a finite readiness timeout, three-restart budget, lease-loss
+grace period, atomic non-secret state, a checked hook around Buildroot's default
+lease script, and deterministic start/failure/stop fixtures. Its fail-closed
+configuration keeps it disabled and rejects activation while Buildroot
+`S40network` remains the policy owner; no second DHCP client is started.
+[ADR 0004](adr-0004-audio-service-stack.md) selects ALSA,
 PipeWire, WirePlumber, and eudev for audio. Buildroot 2025.02.17 now supplies
 the supported LTS baseline. The locked `aqua` UID/GID 1000 session,
 user-owned `/run/user/1000`, and explicit `video`, `audio`, and `input` groups
