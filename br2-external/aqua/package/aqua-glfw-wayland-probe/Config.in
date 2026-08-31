@@ -1,0 +1,8 @@
+config BR2_PACKAGE_AQUA_GLFW_WAYLAND_PROBE
+	bool "Aqua GLFW Wayland compatibility probe"
+	depends on BR2_PACKAGE_WAYLAND
+	select BR2_PACKAGE_LIBGLFW
+	help
+	  Installs a bounded test-only GLFW 3.4 client that uses GLFW's native
+	  Wayland window and input lifecycle while presenting an ARGB8888 wl_shm
+	  buffer. It does not require X11 or client-side dma-buf support.

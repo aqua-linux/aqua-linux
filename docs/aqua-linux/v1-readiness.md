@@ -293,19 +293,23 @@ presentation synchronization scope. Compositor-owned GBM dma-buf scanout is a
 separate output implementation detail and does not expand the client contract.
 The packaged-rootfs independent-application matrix now launches the upstream
 Weston 14.0.1 `weston-simple-shm`, `weston-simple-damage`, and
-`weston-simple-touch`, plus `weston-terminal` as four external processes
-against one Aqua compositor session. It requires all four app IDs; exact and
-distinct 250x250, 320x200, 600x500, and 726x443 `wl_shm` buffers;
+`weston-simple-touch`, plus `weston-terminal` as four external processes and
+an Aqua-authored GLFW 3.4 native-Wayland client against one Aqua compositor
+session. It requires all five app IDs; exact and distinct 250x250, 320x200,
+600x500, 726x443, and 400x240 `wl_shm` buffers;
 `wl_surface.damage_buffer` and frame
 callback progress; and a real `wl_touch` down/motion/up sequence that paints
 exact red points at 120,140 and 180,200 through two new client commits. The
 terminal opens a real PTY backed by the packaged shell and must redraw after
-the compositor delivers `echo aqua` plus Enter through `wl_keyboard`. All four
-clients receive independent compositor close delivery, exit cleanly, and leave
-zero surfaces. Four terminal frame PNGs are retained only as fixture assets;
+the compositor delivers `echo aqua` plus Enter through `wl_keyboard`. The GLFW
+client uses no OpenGL API and must redraw from a second nonzero-offset shm
+buffer after its GLFW key callback receives `G`; this verifies offset-aware
+buffer sampling. All five clients receive independent compositor close
+delivery, exit cleanly, and leave zero surfaces. Four terminal frame PNGs are retained only as fixture assets;
 the image neither packages nor starts the Weston compositor or its shells.
 This is protocol-level touch evidence, not physical touchscreen evidence.
-Broader toolkit interoperability remains part of R3 acceptance. The
+General toolkit interoperability beyond the bounded Weston and GLFW evidence
+remains part of R3 acceptance. The
 three-client text-input probe separately publishes text-input v3 to normal
 clients while hiding input-method v2 from them and exposing it only to an
 authorized client. It proves keyboard-focus activation, stale-client

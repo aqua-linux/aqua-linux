@@ -44,6 +44,11 @@ docker run --rm \
         done
         printf "%s\n" \
             "#!/bin/sh" \
+            "exec \"${tmp_dir}/rootfs/lib/ld-musl-x86_64.so.1\" --library-path \"${tmp_dir}/rootfs/lib:${tmp_dir}/rootfs/usr/lib\" \"${tmp_dir}/rootfs/usr/libexec/aqua-tests/aqua-glfw-wayland-probe\" \"\$@\"" \
+            > "${tmp_dir}/aqua-glfw-wayland-probe"
+        chmod +x "${tmp_dir}/aqua-glfw-wayland-probe"
+        printf "%s\n" \
+            "#!/bin/sh" \
             "exec \"${tmp_dir}/rootfs/lib/ld-musl-x86_64.so.1\" --library-path \"${tmp_dir}/rootfs/lib:${tmp_dir}/rootfs/usr/lib\" \"${tmp_dir}/rootfs/bin/sh\" \"\$@\"" \
             > "${tmp_dir}/rootfs-shell"
         chmod +x "${tmp_dir}/rootfs-shell"
@@ -375,6 +380,7 @@ EOF
             "${tmp_dir}/weston-simple-damage" \
             "${tmp_dir}/weston-simple-touch" \
             "${tmp_dir}/weston-terminal" \
+            "${tmp_dir}/aqua-glfw-wayland-probe" \
             > "${CONTRACT_DIR}/independent-application-matrix-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-privileged-protocol-boundary > "${CONTRACT_DIR}/privileged-protocol-boundary-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-v1-client-buffer-contract > "${CONTRACT_DIR}/v1-client-buffer-contract-probe.txt"

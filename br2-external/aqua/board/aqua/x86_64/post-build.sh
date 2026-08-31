@@ -375,16 +375,27 @@ if [ -x "${TARGET_DIR}/usr/bin/weston-simple-shm" ] || \
     mkdir -p "${TARGET_DIR}/usr/share/weston"
     mv "${frame_asset_stage}"/* "${TARGET_DIR}/usr/share/weston/"
     rmdir "${frame_asset_stage}"
+    if [ ! -x "${TARGET_DIR}/usr/libexec/aqua-tests/aqua-glfw-wayland-probe" ] || \
+        [ ! -e "${TARGET_DIR}/usr/lib/libglfw.so.3" ]; then
+        echo "missing required GLFW Wayland compatibility fixture" >&2
+        exit 1
+    fi
     cat > "${TARGET_DIR}/usr/share/doc/aqua/wayland-compat-client.txt" <<'EOF'
 source=upstream-weston-14.0.1-simple-clients
 role=third-party-wayland-compatibility-fixtures
 fixtures=weston-simple-shm,weston-simple-damage,weston-simple-touch,weston-terminal
+matrix_fixtures=weston-simple-shm,weston-simple-damage,weston-simple-touch,weston-terminal,aqua-glfw-wayland-probe
+fixture_count=5
 simple_shm_path=/usr/libexec/aqua-tests/weston-simple-shm
 simple_damage_path=/usr/libexec/aqua-tests/weston-simple-damage
 simple_touch_path=/usr/libexec/aqua-tests/weston-simple-touch
 weston_terminal_path=/usr/libexec/aqua-tests/weston-terminal
+independent_toolkit=glfw-3.4-wayland
+glfw_probe_path=/usr/libexec/aqua-tests/aqua-glfw-wayland-probe
+glfw_client_api=none
+glfw_render_path=wl_shm-argb8888
 frame_assets=icon_window.png,sign_close.png,sign_maximize.png,sign_minimize.png
-protocol_scope=xdg-shell+wl_shm+wl_surface.damage_buffer+wl_touch+wl_keyboard+pty
+protocol_scope=xdg-shell+wl_shm+wl_surface.damage_buffer+wl_touch+wl_keyboard+pty+glfw-window-lifecycle
 weston_compositor_packaged=false
 autostart=false
 EOF
@@ -413,7 +424,8 @@ x11_server_packaged=false
 x11_applications_supported=false
 display_environment_exported=false
 xkb_data_scope=wayland-keyboard-layouts
-broader_toolkit_coverage=unproven
+independently_tested_toolkits=weston-client-toolkit,glfw-3.4-wayland
+broader_toolkit_coverage=bounded-not-general
 EOF
 
 mkdir -p "${TARGET_DIR}/etc/aqua"

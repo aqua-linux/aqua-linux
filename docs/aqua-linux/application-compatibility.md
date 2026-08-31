@@ -9,7 +9,12 @@ fixture covers protocol-level `wl_touch`
 down, motion, up, frame delivery and exact client-painted buffer changes; it
 does not constitute physical touchscreen evidence. The terminal fixture opens
 a real PTY backed by the packaged shell and proves keyboard-driven client
-redrawing, but does not broaden the claim beyond the Weston client toolkit.
+redrawing. A separate Aqua-authored fixture uses GLFW 3.4's native Wayland
+window, app-id, keyboard callback, and close lifecycle with no OpenGL client
+API. It presents two 400x240 ARGB8888 buffers from distinct offsets in one
+`wl_shm` pool; Aqua delivers `G`, observes an exact one-commit redraw with a
+changed checksum, then closes and reaps the client. This establishes bounded
+Weston-client-toolkit and GLFW interoperability, not general toolkit support.
 
 XWayland and an Xorg server are not packaged, the graphical session does not
 export `DISPLAY`, and Aqua does not claim support for X11-only applications.

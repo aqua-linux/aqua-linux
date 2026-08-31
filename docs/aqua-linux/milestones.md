@@ -238,13 +238,15 @@ Current compatibility extension:
   behavior remains open.
 - A packaged-rootfs matrix launches the upstream Weston 14.0.1
   `weston-simple-shm`, `weston-simple-damage`, `weston-simple-touch`, and
-  `weston-terminal` C clients as four external processes. It proves distinct
-  exact-size `wl_shm` buffers, all app IDs, `damage_buffer` and frame-callback
+  `weston-terminal` C clients plus an Aqua-authored GLFW 3.4 native-Wayland
+  client as five external processes. It proves distinct exact-size `wl_shm`
+  buffers, all app IDs, `damage_buffer` and frame-callback
   progress, exact client-painted changes after `wl_touch` down/motion/up, and
   keyboard-driven terminal redraw through a real PTY backed by the packaged
-  shell. All clients close cleanly with zero stale surfaces without packaging
-  or starting the Weston compositor. Physical touch and broader toolkit
-  coverage remain open.
+  shell. The GLFW callback redraws after a real `G` key and uses a second
+  buffer at a nonzero offset in the same shm pool. All clients close cleanly
+  with zero stale surfaces without packaging or starting the Weston compositor.
+  Physical touch and general toolkit coverage remain open.
 - A native-Wayland application compatibility boundary disables Xorg and
   XWayland in both Buildroot profiles, omits `DISPLAY`, rejects X11 server
   artifacts and sockets from the rootfs, and publicly marks X11-only

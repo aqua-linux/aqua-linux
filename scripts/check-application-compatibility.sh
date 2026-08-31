@@ -27,7 +27,8 @@ for marker in \
     'x11_applications_supported=false' \
     'display_environment_exported=false' \
     'xkb_data_scope=wayland-keyboard-layouts' \
-    'broader_toolkit_coverage=unproven'; do
+    'independently_tested_toolkits=weston-client-toolkit,glfw-3.4-wayland' \
+    'broader_toolkit_coverage=bounded-not-general'; do
     tar -xOf "${ROOTFS_TAR}" "${contract}" | grep -Fxq "${marker}"
 done
 
