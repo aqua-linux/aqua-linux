@@ -299,6 +299,17 @@ contract runs the same feature-enabled probe. Compose/dead-key coverage,
 hardware keyboard behavior, and broader independent-application
 interoperability remain open and are not implied by this bounded matrix.
 
+The arbitrary-client privileged-protocol boundary is now covered by a separate
+three-client Linux registry probe and the packaged-rootfs contract. Two normal
+clients and the one narrowly authorized input-method client must all retain
+the eleven baseline desktop globals. Only the authorized client may see
+`zwp_input_method_manager_v2`; that authorization does not reveal any of the
+sixteen audited screenshot, screencopy/export, activation, privileged-shell,
+virtual-input, foreign-toplevel, output-management, gamma/power, DRM-lease, or
+session-lock globals. Aqua currently publishes none of those privileged
+interfaces, so there is no arbitrary-client capture, activation, or shell
+control path and no broader authorization claim.
+
 XWayland is not automatically required for v1. If it remains excluded, the
 supported application model and incompatibility boundary must be public.
 

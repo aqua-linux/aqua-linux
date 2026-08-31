@@ -117,6 +117,25 @@ docker run --rm --platform linux/amd64 \
         printf "%s\n" "$keyboard_matrix_output" | grep -Fq "repeat_info_matches=true"
         printf "%s\n" "$keyboard_matrix_output" | grep -Fq "host_stub=false"
         printf "%s\n" "$keyboard_matrix_output" | grep -Fq "[AQUA-COMPOSITOR] stage=keyboard-locale-matrix status=ok"
+        protocol_boundary_output="$(cargo run --quiet -p aqua-compositor --features smithay-smoke -- probe-privileged-protocol-boundary)" || {
+            printf "%s\n" "$protocol_boundary_output"
+            exit 1
+        }
+        printf "%s\n" "$protocol_boundary_output"
+        printf "%s\n" "$protocol_boundary_output" | grep -Fq "client_count=3"
+        printf "%s\n" "$protocol_boundary_output" | grep -Fq "baseline_globals_visible_to_all_clients=true"
+        printf "%s\n" "$protocol_boundary_output" | grep -Fq "input_method_hidden_from_normal_clients=true"
+        printf "%s\n" "$protocol_boundary_output" | grep -Fq "input_method_visible_to_authorized_client=true"
+        printf "%s\n" "$protocol_boundary_output" | grep -Fq "privileged_global_count=16"
+        printf "%s\n" "$protocol_boundary_output" | grep -Fq "screenshot_global_exposed=false"
+        printf "%s\n" "$protocol_boundary_output" | grep -Fq "screencopy_global_exposed=false"
+        printf "%s\n" "$protocol_boundary_output" | grep -Fq "activation_global_exposed=false"
+        printf "%s\n" "$protocol_boundary_output" | grep -Fq "privileged_shell_global_exposed=false"
+        printf "%s\n" "$protocol_boundary_output" | grep -Fq "virtual_input_global_exposed=false"
+        printf "%s\n" "$protocol_boundary_output" | grep -Fq "desktop_management_global_exposed=false"
+        printf "%s\n" "$protocol_boundary_output" | grep -Fq "authorized_scope_is_narrow=true"
+        printf "%s\n" "$protocol_boundary_output" | grep -Fq "host_stub=false"
+        printf "%s\n" "$protocol_boundary_output" | grep -Fq "[AQUA-COMPOSITOR] stage=privileged-protocol-boundary status=ok"
         buffer_contract_output="$(cargo run --quiet -p aqua-compositor --features smithay-smoke -- probe-v1-client-buffer-contract)" || {
             printf "%s\n" "$buffer_contract_output"
             exit 1
@@ -169,6 +188,8 @@ docker run --rm --platform linux/amd64 \
             smithay_text_input_is_focus_and_authorization_safe
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_keyboard_locale_matrix_delivers_compilable_keymaps
+        cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
+            smithay_privileged_protocol_boundary_is_narrow_and_unadvertised
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             v1_client_buffer_contract_excludes_accelerated_clients
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \

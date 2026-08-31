@@ -496,6 +496,15 @@ Implemented now:
   Protocol strings retain the 4000-byte input-method limit. This is a protocol
   boundary, not evidence for the complete keyboard, locale, or application
   compatibility matrix.
+- A separate three-client registry probe audits sixteen privileged protocol
+  names. Two normal clients and the narrowly authorized input-method client
+  all retain the eleven baseline desktop globals, while only the authorized
+  connection sees `zwp_input_method_manager_v2`. Screenshot,
+  screencopy/export, activation, layer/desktop shell, session lock, virtual
+  keyboard, foreign-toplevel, output-management, gamma/power, and DRM-lease
+  globals remain unadvertised to every connection. The input-method exception
+  therefore does not broaden into capture, synthetic-input, activation, or
+  desktop-control authority.
 - Bounded packaged QEMU input validation with two layers: a low-level evdev diagnostic probe and the shared DRM-Wayland session's libinput/udev seat0 discovery. One persistent HMP connection serves every keyboard, relative pointer, button, and screendump request through a Unix control socket. Normalized events reach Aqua Seat without stopping dispatch after cumulative probe counters are satisfied. The production path opens the launcher, dismisses a notification, promotes the FIFO queue, selects desktop icons, opens and refreshes Aqua Properties, confirms confined Trash emptying, forwards a 24-event Settings keyboard burst plus 17 host pointer commands with explicit virtio motion coalescing, captures the session menu, and completes two clean compositor cycles.
 - Smithay GPU texture damage is expressed in destination-local coordinates. This prevents non-origin icon, client, overview, notification, and session textures from being clipped by a second application of the destination offset. Clean-desktop and session-menu QEMU captures cover the direct GPU overlay path; session content replaces overview content on their shared surface surface.
 - Client-window elevation uses shared control, panel, dialog, and active-window tokens. The renderer rasterizes bounded rounded shadow masks and caches them by physical geometry, output scale, theme, and elevation; the Smithay GLES path reuses uploaded mask textures, places each shadow immediately below its client surface, and computes viewport-clipped shadow damage. A committed 16-case fixture matrix covers all themes and supported scales. One recovery-safe packaged QEMU boot maps two fixture windows with exactly one focused surface, captures all four themes as distinct 1280x800 PNGs, verifies two mask uploads and bounded damage regions per session, and returns to recovery after each capture.

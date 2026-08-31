@@ -42,15 +42,15 @@ use aqua_compositor::{
     probe_client_window_model, probe_display_activation_plan, probe_display_output_handoff,
     probe_display_output_plan, probe_drag_and_drop, probe_keyboard_locale_matrix,
     probe_launcher_input_scene_binding, probe_manual_nested_preview_backend,
-    probe_renderer_surface_sources, probe_runtime_assets, probe_selection_ownership,
-    probe_session_bootstrap, probe_session_skeleton, probe_smithay_launcher_seat,
-    probe_static_frame_buffer, probe_static_frame_plan, probe_static_paint_plan,
-    probe_static_raster_export, probe_static_raster_png_export, probe_static_render_plan,
-    probe_static_shell_scene, probe_static_software_raster, probe_text_input,
-    probe_v1_client_buffer_contract, probe_visible_preview_plan, probe_wayland_output_matrix,
-    probe_xdg_shell_binding, probe_xdg_toplevel_client, probe_xdg_toplevel_window_model,
-    read_session_config, run_calloop_socket_smoke, run_event_loop_smoke,
-    run_manual_display_output_smoke, run_manual_nested_preview_execution,
+    probe_privileged_protocol_boundary, probe_renderer_surface_sources, probe_runtime_assets,
+    probe_selection_ownership, probe_session_bootstrap, probe_session_skeleton,
+    probe_smithay_launcher_seat, probe_static_frame_buffer, probe_static_frame_plan,
+    probe_static_paint_plan, probe_static_raster_export, probe_static_raster_png_export,
+    probe_static_render_plan, probe_static_shell_scene, probe_static_software_raster,
+    probe_text_input, probe_v1_client_buffer_contract, probe_visible_preview_plan,
+    probe_wayland_output_matrix, probe_xdg_shell_binding, probe_xdg_toplevel_client,
+    probe_xdg_toplevel_window_model, read_session_config, run_calloop_socket_smoke,
+    run_event_loop_smoke, run_manual_display_output_smoke, run_manual_nested_preview_execution,
     run_nested_output_surface_lifecycle, run_nested_preview_frame_loop, run_session_loop_smoke,
     run_session_once_smoke, run_wayland_display_smoke, run_wayland_socket_smoke, status_lines,
     Viewport,
@@ -238,6 +238,7 @@ fn main() {
         "probe-drag-and-drop" => probe_drag_and_drop_cli(),
         "probe-text-input" => probe_text_input_cli(),
         "probe-keyboard-locale-matrix" => probe_keyboard_locale_matrix_cli(),
+        "probe-privileged-protocol-boundary" => probe_privileged_protocol_boundary_cli(),
         "probe-v1-client-buffer-contract" => probe_v1_client_buffer_contract_cli(),
         "probe-wayland-output-matrix" => probe_wayland_output_matrix_cli(),
         "probe-xdg-toplevel-window-model" => probe_xdg_toplevel_window_model_cli(),
@@ -277,7 +278,7 @@ fn main() {
         _ => {
             eprintln!("unknown command: {command}");
             eprintln!(
-                "usage: aqua-compositor [status|probe-assets <runtime-asset-root>|probe-renderer-backend [auto|gpu|software]|probe-gpu-offscreen-frame [device]|smoke-loop|smoke-wayland|smoke-socket|smoke-calloop-socket|probe-session-config|probe-session-env|probe-session-bootstrap <config-path> <prepared-runtime-dir>|probe-session|probe-output-plan|dump-output-plan|probe-display-output-handoff|probe-display-activation-plan|probe-drm-device [device]|probe-drm-dumb-buffer [device]|probe-drm-gbm-scanout-buffer [device]|present-drm-gbm-scanout [device]|present-drm-kms [device]|present-drm-page-flip [device]|run-drm-frame-loop [device]|run-drm-session-loop [device]|run-wayland-test-client [socket]|smoke-display-output|smoke-nested-output-surface|probe-visible-preview-plan|probe-visible-preview-export|export-visible-preview-html <path>|probe-fbdev-frame <width> <height> <bits-per-pixel>|present-fbdev [device]|smoke-nested-preview-loop|probe-manual-nested-preview-backend|run-manual-nested-preview-execution|probe-client-window-model|probe-client-surface-lifecycle|probe-client-surface-registry|probe-xdg-shell-binding|probe-xdg-toplevel-client|probe-selection-ownership|probe-drag-and-drop|probe-text-input|probe-keyboard-locale-matrix|probe-v1-client-buffer-contract|probe-wayland-output-matrix|probe-xdg-toplevel-window-model|probe-launcher-model|probe-launcher-input-scene|probe-smithay-launcher-seat|probe-evdev-aqua-seat <keyboard-event> <pointer-event>|probe-scene|dump-scene|probe-render-plan|dump-render-plan|probe-renderer-surface-sources|probe-client-layer-pipeline|probe-paint-plan|dump-paint-plan|probe-frame-plan|dump-frame-plan|probe-frame-buffer|dump-frame-buffer|probe-raster|dump-raster|probe-raster-export|dump-raster-export|export-raster-ppm <path>|probe-raster-png-export|dump-raster-png-export|export-raster-png <path>|smoke-run-once|smoke-session-loop]"
+                "usage: aqua-compositor [status|probe-assets <runtime-asset-root>|probe-renderer-backend [auto|gpu|software]|probe-gpu-offscreen-frame [device]|smoke-loop|smoke-wayland|smoke-socket|smoke-calloop-socket|probe-session-config|probe-session-env|probe-session-bootstrap <config-path> <prepared-runtime-dir>|probe-session|probe-output-plan|dump-output-plan|probe-display-output-handoff|probe-display-activation-plan|probe-drm-device [device]|probe-drm-dumb-buffer [device]|probe-drm-gbm-scanout-buffer [device]|present-drm-gbm-scanout [device]|present-drm-kms [device]|present-drm-page-flip [device]|run-drm-frame-loop [device]|run-drm-session-loop [device]|run-wayland-test-client [socket]|smoke-display-output|smoke-nested-output-surface|probe-visible-preview-plan|probe-visible-preview-export|export-visible-preview-html <path>|probe-fbdev-frame <width> <height> <bits-per-pixel>|present-fbdev [device]|smoke-nested-preview-loop|probe-manual-nested-preview-backend|run-manual-nested-preview-execution|probe-client-window-model|probe-client-surface-lifecycle|probe-client-surface-registry|probe-xdg-shell-binding|probe-xdg-toplevel-client|probe-selection-ownership|probe-drag-and-drop|probe-text-input|probe-keyboard-locale-matrix|probe-privileged-protocol-boundary|probe-v1-client-buffer-contract|probe-wayland-output-matrix|probe-xdg-toplevel-window-model|probe-launcher-model|probe-launcher-input-scene|probe-smithay-launcher-seat|probe-evdev-aqua-seat <keyboard-event> <pointer-event>|probe-scene|dump-scene|probe-render-plan|dump-render-plan|probe-renderer-surface-sources|probe-client-layer-pipeline|probe-paint-plan|dump-paint-plan|probe-frame-plan|dump-frame-plan|probe-frame-buffer|dump-frame-buffer|probe-raster|dump-raster|probe-raster-export|dump-raster-export|export-raster-ppm <path>|probe-raster-png-export|dump-raster-png-export|export-raster-png <path>|smoke-run-once|smoke-session-loop]"
             );
             std::process::exit(2);
         }
@@ -10604,6 +10605,65 @@ fn probe_keyboard_locale_matrix_cli() {
         Err(error) => {
             eprintln!("keyboard locale matrix probe failed: {error}");
             finish_stage("keyboard-locale-matrix", false);
+        }
+    }
+}
+
+fn probe_privileged_protocol_boundary_cli() {
+    match probe_privileged_protocol_boundary() {
+        Ok(probe) => {
+            println!("[AQUA-COMPOSITOR] stage=privileged-protocol-boundary status=running");
+            println!("protocol_boundary_status={}", probe.status);
+            println!("client_count={}", probe.client_count);
+            println!("normal_client_count={}", probe.normal_client_count);
+            println!("authorized_client_count={}", probe.authorized_client_count);
+            println!(
+                "baseline_globals_visible_to_all_clients={}",
+                probe.baseline_globals_visible_to_all_clients
+            );
+            println!(
+                "input_method_hidden_from_normal_clients={}",
+                probe.input_method_hidden_from_normal_clients
+            );
+            println!(
+                "input_method_visible_to_authorized_client={}",
+                probe.input_method_visible_to_authorized_client
+            );
+            println!("privileged_global_count={}", probe.privileged_global_count);
+            println!(
+                "screenshot_global_exposed={}",
+                probe.screenshot_global_exposed
+            );
+            println!(
+                "screencopy_global_exposed={}",
+                probe.screencopy_global_exposed
+            );
+            println!(
+                "activation_global_exposed={}",
+                probe.activation_global_exposed
+            );
+            println!(
+                "privileged_shell_global_exposed={}",
+                probe.privileged_shell_global_exposed
+            );
+            println!(
+                "virtual_input_global_exposed={}",
+                probe.virtual_input_global_exposed
+            );
+            println!(
+                "desktop_management_global_exposed={}",
+                probe.desktop_management_global_exposed
+            );
+            println!(
+                "authorized_scope_is_narrow={}",
+                probe.authorized_scope_is_narrow
+            );
+            println!("host_stub={}", probe.host_stub);
+            finish_stage("privileged-protocol-boundary", probe.is_ready());
+        }
+        Err(error) => {
+            eprintln!("privileged protocol boundary probe failed: {error}");
+            finish_stage("privileged-protocol-boundary", false);
         }
     }
 }
