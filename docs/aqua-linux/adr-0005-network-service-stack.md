@@ -52,9 +52,10 @@ Aqua Linux will use this network stack:
 7. Configuration requests cross a narrow authenticated privilege broker
    with an operation allowlist, target interface binding, bounded timeouts,
    secret redaction, and authoritative acknowledgement. Settings exposes
-   broker-gated Wi-Fi discovery, WPA2-Personal credential entry, disconnect,
-   and saved-credential reconnect; when the fixed broker socket is absent, the
-   controls remain visibly disabled and the default image stays read-only.
+   broker-gated Wi-Fi discovery and explicit rescan, WPA2-Personal credential
+   entry, disconnect, saved-credential reconnect, and saved-network forget;
+   when the fixed broker socket is absent, the controls remain visibly
+   disabled and the default image stays read-only.
 8. The initial resolver is libc plus the resolver file managed by the selected
    DHCP lifecycle. A caching or validating resolver is not added without a
    separate operational and security decision.
@@ -95,12 +96,17 @@ Aqua Linux will use this network stack:
   Settings never permits credential entry for an unsupported result.
 - Settings keeps the passphrase in a fixed 63-byte redacted buffer, accepts
   only printable ASCII, masks rendering, rejects submission before eight
-  bytes, and wipes the buffer on cancel or after the broker request. The
-  settings configuration and logs never persist or print the passphrase.
+  bytes, and wipes the buffer on cancel or after every broker request. A
+  failed association stays in credential entry for at most one explicit retry;
+  the second failure closes the flow. The settings configuration and logs
+  never persist or print the passphrase.
 - The v1 credential record has one versioned, 256-byte-bounded schema at the
   fixed `/var/lib/aqua-network/wifi.psk` path. Its directory and file must be
   root-owned normal non-symlink objects with exact `0700` and `0600` modes.
   Writes must use the fixed sibling temporary path, sync, and atomic rename.
+  Forget validates the same directory and record metadata before unlinking the
+  record, syncs the directory, clears association state, and acknowledges only
+  `credential_saved=false`.
   This permission boundary is not an encryption-at-rest claim.
 
 ## Packaging And Acceptance Gates
@@ -135,13 +141,15 @@ Network management must remain disabled until all of these are satisfied:
    only bounded typed requests through `libwpa_client` at the fixed
    `wlan0` control socket and derives WPA2 PSKs through OpenSSL's bounded PBKDF2
    API. The authenticated broker accepts only typed status, scan, connect,
-   saved reconnect, and disconnect requests from Aqua UID/GID 1000, persists an atomic root-owned
-   `0600` PSK-only record after authoritative association, and rolls back a
-   failed association. Deterministic native fixtures prove the known PSK
-   vector, exact control sequence, peer authentication, secret redaction, and
-   storage metadata without a radio. Settings renders at most the three
-   strongest discovered rows in its bounded panel, masks transient credential
-   input, and accepts only WPA2-Personal selection. The default image still
+   saved reconnect, disconnect, and forget requests from Aqua UID/GID 1000,
+   persists an atomic root-owned `0600` PSK-only record after authoritative
+   association, and rolls back a failed association. Deterministic native
+   fixtures prove the known PSK vector, exact control sequence, peer
+   authentication, secret redaction, and storage metadata without a radio.
+   Settings renders at most the two strongest discovered rows beside explicit
+   rescan and forget actions, masks transient credential input, accepts only
+   WPA2-Personal selection, and permits at most two explicit association
+   submissions per entry flow. The default image still
    contains neither the bridge nor `wpa_supplicant`; no daemon lifecycle is
    enabled, and WPA3 association remains outside this initial control contract.
 5. **Satisfied on 2026-08-31:** deterministic fixtures prove offline,
@@ -151,10 +159,11 @@ Network management must remain disabled until all of these are satisfied:
    routing, external DNS lookup, lease renewal, forced service failure, route
    loss, bounded reconnect, and recovery-shell availability.
 7. **Satisfied for the QEMU virtual-radio target on 2026-09-01:** packaged
-   mac80211_hwsim proves bounded broker discovery of the isolated WPA2 fixture,
-   new credential association, DHCP, DNS, disconnect, saved reconnect, radio
-   disable, and service recovery. Physical targets still require their own
-   radio, firmware, association, and failure evidence.
+   mac80211_hwsim proves bounded broker discovery and explicit rescan of the
+   isolated WPA2 fixture, new credential association, DHCP, DNS, disconnect,
+   saved reconnect, service recovery, safe saved-network forget, rejection of
+   reconnect after forget, and radio disable. Physical targets still require
+   their own radio, firmware, association, and failure evidence.
 
 Physical Ethernet and Wi-Fi support remain `Not tested`; this decision and its
 deterministic observation tests are not hardware evidence.

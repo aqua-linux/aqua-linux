@@ -59,6 +59,7 @@ pub enum WifiBrokerRequest {
     },
     Reconnect,
     Disconnect,
+    Forget,
 }
 
 impl fmt::Debug for WifiBrokerRequest {
@@ -69,6 +70,7 @@ impl fmt::Debug for WifiBrokerRequest {
             Self::Connect { .. } => "WifiBrokerRequest::Connect([redacted])",
             Self::Reconnect => "WifiBrokerRequest::Reconnect",
             Self::Disconnect => "WifiBrokerRequest::Disconnect",
+            Self::Forget => "WifiBrokerRequest::Forget",
         })
     }
 }
@@ -189,6 +191,10 @@ pub fn parse_authenticated_request(
                 WifiBrokerRequest::Reconnect,
             ))
         }
+        "WIFI_FORGET" if fields.len() == 3 => {
+            validate_wifi_interface(fields[2])?;
+            Ok(AuthenticatedNetworkRequest::Wifi(WifiBrokerRequest::Forget))
+        }
         "WIFI_CONNECT" if fields.len() == 5 => {
             validate_wifi_interface(fields[2])?;
             let ssid = decode_hex(fields[3]).and_then(|value| {
@@ -203,9 +209,8 @@ pub fn parse_authenticated_request(
                 WifiBrokerRequest::Connect { ssid, passphrase },
             ))
         }
-        "WIFI_STATUS" | "WIFI_SCAN" | "WIFI_DISCONNECT" | "WIFI_RECONNECT" | "WIFI_CONNECT" => {
-            Err(NetworkBrokerError::InvalidRequest)
-        }
+        "WIFI_STATUS" | "WIFI_SCAN" | "WIFI_DISCONNECT" | "WIFI_RECONNECT" | "WIFI_FORGET"
+        | "WIFI_CONNECT" => Err(NetworkBrokerError::InvalidRequest),
         _ => Err(NetworkBrokerError::UnsupportedOperation),
     }
 }
@@ -215,6 +220,7 @@ pub enum WifiBrokerOperation {
     Status,
     Reconnect,
     Disconnect,
+    Forget,
 }
 
 impl WifiBrokerOperation {
@@ -223,6 +229,7 @@ impl WifiBrokerOperation {
             Self::Status => "WIFI_STATUS",
             Self::Reconnect => "WIFI_RECONNECT",
             Self::Disconnect => "WIFI_DISCONNECT",
+            Self::Forget => "WIFI_FORGET",
         }
     }
 
@@ -231,6 +238,7 @@ impl WifiBrokerOperation {
             Self::Status => "wifi-status",
             Self::Reconnect => "wifi-reconnect",
             Self::Disconnect => "wifi-disconnect",
+            Self::Forget => "wifi-forget",
         }
     }
 
@@ -247,6 +255,7 @@ pub struct WifiBrokerStatus {
     pub state: String,
     pub network_id: Option<u16>,
     pub authoritative: bool,
+    pub credential_saved: bool,
 }
 
 impl WifiBrokerStatus {
@@ -390,6 +399,7 @@ pub fn parse_wifi_broker_response(
             "state",
             "network_id",
             "authoritative",
+            "credential_saved",
         ]
         .as_slice(),
         WifiBrokerOperation::Reconnect => [
@@ -400,7 +410,20 @@ pub fn parse_wifi_broker_response(
             "credential_saved",
         ]
         .as_slice(),
-        WifiBrokerOperation::Disconnect => ["operation", "interface", "authoritative"].as_slice(),
+        WifiBrokerOperation::Disconnect => [
+            "operation",
+            "interface",
+            "authoritative",
+            "credential_saved",
+        ]
+        .as_slice(),
+        WifiBrokerOperation::Forget => [
+            "operation",
+            "interface",
+            "authoritative",
+            "credential_saved",
+        ]
+        .as_slice(),
     };
     if values.keys().any(|key| !allowed.contains(key)) {
         return Err(WifiBrokerClientError::InvalidResponse);
@@ -423,6 +446,11 @@ pub fn parse_wifi_broker_response(
                 })?,
         ),
     };
+    let credential_saved = match values.get("credential_saved") {
+        Some(&"true") => true,
+        Some(&"false") => false,
+        _ => return Err(WifiBrokerClientError::InvalidResponse),
+    };
     match operation {
         WifiBrokerOperation::Status
             if !values.contains_key("state") || !values.contains_key("network_id") =>
@@ -439,6 +467,9 @@ pub fn parse_wifi_broker_response(
         WifiBrokerOperation::Disconnect if !authoritative => {
             return Err(WifiBrokerClientError::InvalidResponse);
         }
+        WifiBrokerOperation::Forget if !authoritative || credential_saved => {
+            return Err(WifiBrokerClientError::InvalidResponse);
+        }
         _ => {}
     }
     let state = match values.get("state").copied() {
@@ -446,6 +477,7 @@ pub fn parse_wifi_broker_response(
         None => match operation {
             WifiBrokerOperation::Reconnect => "completed",
             WifiBrokerOperation::Disconnect => "disconnected",
+            WifiBrokerOperation::Forget => "disconnected",
             WifiBrokerOperation::Status => return Err(WifiBrokerClientError::InvalidResponse),
         },
     };
@@ -468,6 +500,7 @@ pub fn parse_wifi_broker_response(
         state: state.to_owned(),
         network_id,
         authoritative,
+        credential_saved,
     })
 }
 
@@ -555,6 +588,7 @@ fn parse_wifi_connect_response(bytes: &[u8]) -> Result<WifiBrokerStatus, WifiBro
         state: "completed".to_owned(),
         network_id: Some(network_id),
         authoritative: true,
+        credential_saved: true,
     })
 }
 
@@ -883,12 +917,16 @@ mod tests {
                 WifiBrokerRequest::Reconnect
             ))
         ));
+        assert!(matches!(
+            parse_authenticated_request(b"AQUA-NETWORK/1 WIFI_FORGET wlan0\n"),
+            Ok(AuthenticatedNetworkRequest::Wifi(WifiBrokerRequest::Forget))
+        ));
     }
 
     #[test]
     fn settings_wifi_client_accepts_only_typed_broker_responses() {
         let status = parse_wifi_broker_response(
-            b"AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0 state=completed network_id=7 authoritative=true\n",
+            b"AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0 state=completed network_id=7 authoritative=true credential_saved=true\n",
             WifiBrokerOperation::Status,
         )
         .expect("valid status");
@@ -896,7 +934,7 @@ mod tests {
         assert_eq!(status.network_id, Some(7));
 
         let disconnected = parse_wifi_broker_response(
-            b"AQUA-NETWORK/1 OK operation=wifi-disconnect interface=wlan0 authoritative=true\n",
+            b"AQUA-NETWORK/1 OK operation=wifi-disconnect interface=wlan0 authoritative=true credential_saved=true\n",
             WifiBrokerOperation::Disconnect,
         )
         .expect("valid disconnect");
@@ -909,6 +947,15 @@ mod tests {
         )
         .expect("valid reconnect");
         assert!(reconnected.connected());
+        assert!(reconnected.credential_saved);
+
+        let forgotten = parse_wifi_broker_response(
+            b"AQUA-NETWORK/1 OK operation=wifi-forget interface=wlan0 authoritative=true credential_saved=false\n",
+            WifiBrokerOperation::Forget,
+        )
+        .expect("valid forget");
+        assert!(!forgotten.connected());
+        assert!(!forgotten.credential_saved);
 
         let scanned = parse_wifi_scan_response(
             b"AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=2 authoritative=true network_0=417175612d51454d55,-28,wpa2-personal network_1=4675747572652d4e6574,-55,unsupported\n",
@@ -928,7 +975,7 @@ mod tests {
         ));
         assert!(matches!(
             parse_wifi_broker_response(
-                b"AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0 state=completed network_id=7 authoritative=true injected=value\n",
+                b"AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0 state=completed network_id=7 authoritative=true credential_saved=true injected=value\n",
                 WifiBrokerOperation::Status,
             ),
             Err(WifiBrokerClientError::InvalidResponse)

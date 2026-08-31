@@ -43,7 +43,7 @@ const IO_TIMEOUT: Duration = Duration::from_secs(2);
 const RENEW_TIMEOUT: Duration = Duration::from_secs(8);
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]
 const BROKER_OPERATIONS: &str =
-    "status,renew-dhcp,wifi-status,wifi-scan,wifi-connect,wifi-reconnect,wifi-disconnect";
+    "status,renew-dhcp,wifi-status,wifi-scan,wifi-connect,wifi-reconnect,wifi-disconnect,wifi-forget";
 #[cfg(not(all(feature = "wifi-native", target_os = "linux")))]
 const BROKER_OPERATIONS: &str = "status,renew-dhcp";
 
@@ -174,6 +174,7 @@ fn handle_wifi_request(stream: &mut UnixStream, request: WifiBrokerRequest) -> i
         WifiBrokerRequest::Connect { ssid, passphrase } => wifi_connect(ssid, passphrase),
         WifiBrokerRequest::Reconnect => wifi_reconnect(),
         WifiBrokerRequest::Disconnect => wifi_disconnect(),
+        WifiBrokerRequest::Forget => wifi_forget(),
     };
     match result {
         Ok(response) => write_response(stream, &response),
@@ -234,11 +235,13 @@ fn wifi_status() -> Result<String, &'static str> {
     let WifiControlResponse::Status(status) = response else {
         return Err("invalid-wifi-status");
     };
+    let credential_saved = wifi_credential_saved().map_err(|_| "credential-state-failed")?;
     Ok(format!(
-        "{PROTOCOL_VERSION} OK operation=wifi-status interface={FIXED_WIFI_INTERFACE} state={} network_id={} authoritative={}\n",
+        "{PROTOCOL_VERSION} OK operation=wifi-status interface={FIXED_WIFI_INTERFACE} state={} network_id={} authoritative={} credential_saved={}\n",
         status.state.id(),
         status.network_id.map_or_else(|| "none".to_owned(), |id| id.to_string()),
-        status.authoritative_association()
+        status.authoritative_association(),
+        credential_saved
     ))
 }
 
@@ -260,8 +263,33 @@ fn wifi_disconnect() -> Result<String, &'static str> {
             .map_err(native_reason)?;
     }
     remove_wifi_association_marker().map_err(|_| "association-state-write-failed")?;
+    let credential_saved = wifi_credential_saved().map_err(|_| "credential-state-failed")?;
     Ok(format!(
-        "{PROTOCOL_VERSION} OK operation=wifi-disconnect interface={FIXED_WIFI_INTERFACE} authoritative=true\n"
+        "{PROTOCOL_VERSION} OK operation=wifi-disconnect interface={FIXED_WIFI_INTERFACE} authoritative=true credential_saved={credential_saved}\n"
+    ))
+}
+
+#[cfg(all(feature = "wifi-native", target_os = "linux"))]
+fn wifi_forget() -> Result<String, &'static str> {
+    wifi_credential_saved().map_err(|_| "credential-state-failed")?;
+    let mut control = WifiNativeControl::connect().map_err(native_reason)?;
+    let network_id = match control
+        .request(&WifiControlRequest::Status)
+        .map_err(native_reason)?
+    {
+        WifiControlResponse::Status(status) => status.network_id,
+        _ => return Err("invalid-wifi-status"),
+    };
+    expect_acknowledgement(control.request(&WifiControlRequest::Disconnect))
+        .map_err(native_reason)?;
+    if let Some(network_id) = network_id {
+        expect_acknowledgement(control.request(&WifiControlRequest::RemoveNetwork { network_id }))
+            .map_err(native_reason)?;
+    }
+    remove_wifi_association_marker().map_err(|_| "association-state-write-failed")?;
+    remove_wifi_credential().map_err(|_| "credential-remove-failed")?;
+    Ok(format!(
+        "{PROTOCOL_VERSION} OK operation=wifi-forget interface={FIXED_WIFI_INTERFACE} authoritative=true credential_saved=false\n"
     ))
 }
 
@@ -493,6 +521,53 @@ fn load_wifi_credential() -> io::Result<WifiCredentialRecord> {
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "invalid Wi-Fi credential"));
     wipe_bytes(&mut bytes);
     record
+}
+
+#[cfg(all(feature = "wifi-native", target_os = "linux"))]
+fn wifi_credential_saved() -> io::Result<bool> {
+    let directory = Path::new(WIFI_CREDENTIAL_DIRECTORY);
+    let path = Path::new(WIFI_CREDENTIAL_PATH);
+    let directory_metadata = match fs::symlink_metadata(directory) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    validate_credential_directory(&directory_metadata)?;
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    validate_credential_metadata(WifiCredentialMetadata {
+        directory_uid: directory_metadata.uid(),
+        directory_mode: directory_metadata.mode() & 0o777,
+        directory_is_symlink: directory_metadata.file_type().is_symlink(),
+        file_uid: metadata.uid(),
+        file_mode: metadata.mode() & 0o777,
+        file_is_regular: metadata.file_type().is_file(),
+        file_is_symlink: metadata.file_type().is_symlink(),
+        file_bytes: usize::try_from(metadata.len()).unwrap_or(usize::MAX),
+    })
+    .map_err(|_| io::Error::new(io::ErrorKind::PermissionDenied, "unsafe credential storage"))?;
+    let mut bytes = fs::read(path)?;
+    let valid = WifiCredentialRecord::parse(&bytes).is_ok();
+    wipe_bytes(&mut bytes);
+    if !valid {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid Wi-Fi credential",
+        ));
+    }
+    Ok(true)
+}
+
+#[cfg(all(feature = "wifi-native", target_os = "linux"))]
+fn remove_wifi_credential() -> io::Result<()> {
+    if !wifi_credential_saved()? {
+        return Ok(());
+    }
+    fs::remove_file(WIFI_CREDENTIAL_PATH)?;
+    fs::File::open(WIFI_CREDENTIAL_DIRECTORY)?.sync_all()
 }
 
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]
