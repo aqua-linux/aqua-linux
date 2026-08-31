@@ -72,12 +72,14 @@ need_entry "./usr/bin/aqua-session-runtime-prepare"
 need_entry "./usr/bin/aqua-session-user-launch"
 need_entry "./usr/bin/aqua-media-service-supervisor"
 need_entry "./usr/bin/aqua-network-service-supervisor"
+need_entry "./usr/bin/aqua-network-service-boot"
 need_entry "./usr/bin/aqua-network-service-stop"
 need_entry "./usr/bin/aqua-udhcpc-hook"
 need_entry "./usr/bin/aqua-media-service-stop"
 need_entry "./etc/aqua/compositor-session.conf"
 need_entry "./etc/aqua/media-services.conf"
 need_entry "./etc/aqua/network-services.conf"
+need_entry "./etc/aqua/network-services-qemu.conf"
 need_entry "./etc/aqua/session.env"
 
 tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '"fill"'
@@ -108,6 +110,9 @@ tar -xOf "${ROOTFS_TAR}" ./etc/aqua/media-services.conf | grep -Fq 'pipewire_bin
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/media-services.conf | grep -Fq 'wireplumber_binary=/usr/bin/wireplumber'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/network-services.conf | grep -Fq 'enabled=false'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/network-services.conf | grep -Fq 'legacy_owner_disabled=false'
+tar -xOf "${ROOTFS_TAR}" ./etc/aqua/network-services-qemu.conf | grep -Fq 'enabled=true'
+tar -xOf "${ROOTFS_TAR}" ./etc/aqua/network-services-qemu.conf | grep -Fq 'legacy_owner_disabled=true'
+tar -xOf "${ROOTFS_TAR}" ./etc/aqua/network-services-qemu.conf | grep -Fq 'profile_scope=qemu-only'
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq 'weston_compositor_packaged=false'
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq 'fixtures=weston-simple-shm,weston-simple-damage,weston-simple-touch,weston-terminal'
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq 'fixture_count=5'

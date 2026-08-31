@@ -37,7 +37,7 @@ disabled_output="$(
     AQUA_NETWORK_SERVICES_ENABLED=false \
     "${SUPERVISOR}"
 )"
-printf '%s\n' "${disabled_output}" | grep -Fq 'status=disabled reason=transition-not-enabled legacy_owner=buildroot-s40network'
+printf '%s\n' "${disabled_output}" | grep -Fq 'status=disabled reason=transition-not-enabled boot_owner=none'
 grep -Fq 'state=disabled' "${control_dir}/network-service-supervisor.state"
 
 set +e
@@ -50,7 +50,7 @@ conflict_output="$(
 conflict_status="$?"
 set -e
 test "${conflict_status}" -ne 0
-printf '%s\n' "${conflict_output}" | grep -Fq 'status=blocked reason=legacy-network-owner-active owner=buildroot-s40network'
+printf '%s\n' "${conflict_output}" | grep -Fq 'status=blocked reason=legacy-owner-not-declared-disabled owner=buildroot-s40network'
 
 if [ "$(id -u)" -ne 0 ]; then
     set +e

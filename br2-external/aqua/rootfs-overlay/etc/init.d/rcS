@@ -38,6 +38,17 @@ else
     mark '[AQUA-BOOT] stage=udev-ready status=failed seat=seat0'
 fi
 
+if [ -x /usr/bin/aqua-network-service-boot ] &&
+   /usr/bin/aqua-network-service-boot >/run/aqua-network-service-boot.log 2>/run/aqua-network-service-boot.err; then
+    if grep -Fq 'status=started' /run/aqua-network-service-boot.log; then
+        mark '[AQUA-BOOT] stage=network-service-activation status=started mode=supervised-root target=qemu interface=eth0 boot_network=true recovery_tty=true'
+    else
+        mark '[AQUA-BOOT] stage=network-service-activation status=disabled boot_network=false network_started=false'
+    fi
+else
+    mark '[AQUA-BOOT] stage=network-service-activation status=blocked boot_network=false network_started=false'
+fi
+
 if [ -c /dev/fb0 ] && \
    [ -r /sys/class/graphics/fb0/virtual_size ] && \
    [ -r /sys/class/graphics/fb0/bits_per_pixel ]; then

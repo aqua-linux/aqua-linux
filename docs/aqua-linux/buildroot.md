@@ -153,10 +153,13 @@ supervisor requires root ownership, a fixed valid interface, absolute
 non-symlink service paths, finite DHCP readiness and lease-loss waits, and a
 three-restart budget. It publishes only non-secret state under
 `/run/aqua-network`. `/etc/aqua/network-services.conf` keeps both `enabled` and
-`legacy_owner_disabled` false, so the supervisor refuses activation while
-Buildroot `S40network` owns the existing `udhcpc` lifecycle. This packages and
-tests the transition target without creating two DHCP policy owners or
-changing default boot networking.
+`legacy_owner_disabled` false. Buildroot generates `S40network`, but Aqua's
+custom `rcS` does not invoke the generic `S??` sequence, so default boot has no
+DHCP owner. `/usr/bin/aqua-network-service-boot` requires the exact
+`aqua.boot_network=1` kernel flag and a separate non-symlink
+`network-services-qemu.conf` with an explicit legacy-owner-disabled assertion
+before it dispatches the root supervisor. This packages and tests an opt-in
+QEMU transition path without changing default boot networking.
 
 The image also writes the derived session environment to:
 

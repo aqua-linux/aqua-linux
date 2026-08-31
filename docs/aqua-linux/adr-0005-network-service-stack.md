@@ -77,9 +77,12 @@ Network management must remain disabled until all of these are satisfied:
 
 1. **Partially satisfied on 2026-08-31:** a packaged root-owned supervisor
    provides finite DHCP startup/readiness, lease-loss detection, restart,
-   shutdown, public non-secret state, and deterministic recovery behavior. It
-   remains disabled and refuses to start while Buildroot `S40network` is the
-   legacy owner, so ownership migration and real lease renewal remain open.
+   shutdown, public non-secret state, and deterministic recovery behavior.
+   Aqua's custom `rcS` does not invoke Buildroot's generated `S40network`, so
+   the default boot currently has no DHCP policy owner. The supervisor remains
+   disabled by default. An exact `aqua.boot_network=1` kernel flag plus the
+   separate QEMU-only profile can opt into the transition without changing the
+   recovery boot; DHCP acceptance and real lease renewal remain open.
 2. The privilege broker authenticates the Aqua session and accepts only typed,
    allowlisted operations without accepting arbitrary commands or paths.
 3. An opt-in Buildroot profile resolves `wpa_supplicant` and its exact legal

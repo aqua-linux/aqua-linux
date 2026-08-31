@@ -8,9 +8,12 @@ ADAPTER="$REPO_ROOT/crates/aqua-service-adapters/src/network.rs"
 SHELL_MODEL="$REPO_ROOT/crates/aqua-shell/src/lib.rs"
 SETTINGS_CLIENT="$REPO_ROOT/crates/aqua-compositor/src/lib.rs"
 SUPERVISOR="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-network-service-supervisor"
+BOOT_TOOL="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-network-service-boot"
 STOP_TOOL="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-network-service-stop"
 UDHCPC_HOOK="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-udhcpc-hook"
 NETWORK_CONFIG="$REPO_ROOT/br2-external/aqua/rootfs-overlay/etc/aqua/network-services.conf"
+QEMU_NETWORK_CONFIG="$REPO_ROOT/br2-external/aqua/rootfs-overlay/etc/aqua/network-services-qemu.conf"
+RCS="$REPO_ROOT/br2-external/aqua/rootfs-overlay/etc/init.d/rcS"
 
 need_adr() {
     grep -Fq "$1" "$ADR" || {
@@ -34,19 +37,32 @@ if grep -Eq '^BR2_PACKAGE_(WPA_SUPPLICANT|IWD|CONNMAN|NETWORK_MANAGER|DHCPCD)=y$
 fi
 
 test -x "$SUPERVISOR"
+test -x "$BOOT_TOOL"
 test -x "$STOP_TOOL"
 test -x "$UDHCPC_HOOK"
 grep -Fxq 'enabled=false' "$NETWORK_CONFIG"
 grep -Fxq 'legacy_owner_disabled=false' "$NETWORK_CONFIG"
+grep -Fxq 'enabled=true' "$QEMU_NETWORK_CONFIG"
+grep -Fxq 'legacy_owner_disabled=true' "$QEMU_NETWORK_CONFIG"
+grep -Fxq 'profile_scope=qemu-only' "$QEMU_NETWORK_CONFIG"
 grep -Fq 'reason=root-service-required' "$SUPERVISOR"
-grep -Fq 'reason=legacy-network-owner-active' "$SUPERVISOR"
+grep -Fq 'reason=legacy-owner-not-declared-disabled' "$SUPERVISOR"
 grep -Fq 'reason=interface-not-present' "$SUPERVISOR"
 grep -Fq 'policy_owner=aqua-network-service-supervisor' "$SUPERVISOR"
 grep -Fq 'settings_management=false' "$SUPERVISOR"
 grep -Fq 'wifi_packaged=false' "$SUPERVISOR"
 grep -Fq 'AQUA_UDHCPC_DEFAULT_SCRIPT' "$UDHCPC_HOOK"
+grep -Fq 'aqua.boot_network=1' "$BOOT_TOOL"
+grep -Fq 'reason=invalid-qemu-network-profile' "$BOOT_TOOL"
+grep -Fq '/usr/bin/aqua-network-service-boot' "$RCS"
+if grep -Eq '/etc/init\.d/S40network|for .*S\?\?' "$RCS"; then
+    echo 'Aqua rcS must not invoke the generated Buildroot network init script.' >&2
+    exit 1
+fi
 grep -Fq 'network-service-supervisor.txt' "$REPO_ROOT/scripts/export-rootfs-compositor-contract-docker.sh"
 grep -Fq 'network-service-supervisor.txt' "$REPO_ROOT/scripts/check-compositor-rootfs-docker.sh"
+grep -Fq 'network-service-boot.txt' "$REPO_ROOT/scripts/export-rootfs-compositor-contract-docker.sh"
+grep -Fq 'network-service-boot.txt' "$REPO_ROOT/scripts/check-compositor-rootfs-docker.sh"
 
 test -f "$ADAPTER"
 grep -Fq 'pub enum NetworkServiceHealth' "$ADAPTER"
