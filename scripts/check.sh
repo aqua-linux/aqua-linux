@@ -1315,7 +1315,10 @@ test -x scripts/publish-public-runtime-screenshots.sh
 test -x scripts/check-public-runtime-screenshots.sh
 grep -Fq 'desktop-public-runtime-qemu status=ok' scripts/check-public-runtime-qemu.sh
 grep -Fq 'public_runtime_screenshots = ' docs/aqua-linux/compositor-foundation.toml
-grep -Fq 'Current QEMU Runtime' README.md
+if grep -Eq '^!\[[^]]*\]\([^)]*\)' README.md; then
+    echo 'README must not embed runtime screenshots or decorative images.' >&2
+    exit 1
+fi
 grep -Fq 'These images are captures of the current Aqua Linux runtime in QEMU' docs/aqua-linux/runtime-screenshots.md
 scripts/check-public-runtime-screenshots.sh
 test -x scripts/check-hardware-support-status.sh
