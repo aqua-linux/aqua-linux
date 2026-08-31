@@ -21,6 +21,12 @@ tar -tf "${ROOTFS_TAR}" ./usr/share/doc/aqua/compositor-binary.txt >/dev/null
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/compositor-binary.txt | grep -Fq "aqua-compositor packaged=true"
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/compositor-binary.txt | grep -Fq "autostart=false"
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/compositor-binary.txt | grep -Fq "boot_graphics=false"
+tar -tf "${ROOTFS_TAR}" ./usr/libexec/aqua-tests/weston-simple-shm >/dev/null
+tar -tf "${ROOTFS_TAR}" ./usr/libexec/aqua-tests/weston-simple-damage >/dev/null
+tar -tf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt >/dev/null
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "source=upstream-weston-14.0.1-simple-clients"
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "fixtures=weston-simple-shm,weston-simple-damage"
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "weston_compositor_packaged=false"
 tar -tf "${ROOTFS_TAR}" ./usr/bin/aqua-files >/dev/null
 tar -tf "${ROOTFS_TAR}" ./usr/share/doc/aqua/files-binary.txt >/dev/null
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/files-binary.txt | grep -Fq "aqua-files packaged=true"

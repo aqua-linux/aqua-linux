@@ -236,6 +236,12 @@ Current compatibility extension:
   Linux and the packaged rootfs. The same bounded table is packaged and
   exported to graphical clients through `XCOMPOSEFILE`. Physical keyboard
   behavior remains open.
+- A packaged-rootfs matrix launches the upstream Weston 14.0.1
+  `weston-simple-shm` and `weston-simple-damage` C clients as two external
+  processes. It proves distinct exact-size `wl_shm` buffers, both standard app
+  IDs, `damage_buffer` and frame-callback progress, independent compositor
+  close delivery, clean exits, and zero stale surfaces without packaging or
+  starting the Weston compositor. Broader toolkit coverage remains open.
 - A two-client Linux probe publishes two standard `wl_output` globals with
   xdg-output logical geometry, current and preferred 60 Hz modes, integer
   fallback scales, fractional-scale preference, and viewporter state. Both

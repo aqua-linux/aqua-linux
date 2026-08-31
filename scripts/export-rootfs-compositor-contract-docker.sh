@@ -35,6 +35,13 @@ docker run --rm \
             "exec \"${tmp_dir}/rootfs/lib/ld-musl-x86_64.so.1\" --library-path \"${tmp_dir}/rootfs/lib:${tmp_dir}/rootfs/usr/lib\" \"${tmp_dir}/aqua-compositor.real\" \"\$@\"" \
             > "${tmp_dir}/aqua-compositor"
         chmod +x "${tmp_dir}/aqua-compositor"
+        for fixture in weston-simple-shm weston-simple-damage; do
+            printf "%s\n" \
+                "#!/bin/sh" \
+                "exec \"${tmp_dir}/rootfs/lib/ld-musl-x86_64.so.1\" --library-path \"${tmp_dir}/rootfs/lib:${tmp_dir}/rootfs/usr/lib\" \"${tmp_dir}/rootfs/usr/libexec/aqua-tests/${fixture}\" \"\$@\"" \
+                > "${tmp_dir}/${fixture}"
+            chmod +x "${tmp_dir}/${fixture}"
+        done
         "${tmp_dir}/aqua-compositor" status > "${CONTRACT_DIR}/status.txt"
         "${tmp_dir}/aqua-compositor" probe-session-config "${tmp_dir}/compositor-session.conf" > "${CONTRACT_DIR}/session-config.txt"
         "${tmp_dir}/aqua-compositor" probe-session-env "${tmp_dir}/compositor-session.conf" > "${CONTRACT_DIR}/session-env.txt"
@@ -353,6 +360,10 @@ EOF
         "${tmp_dir}/aqua-compositor" probe-drag-and-drop > "${CONTRACT_DIR}/drag-and-drop-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-text-input > "${CONTRACT_DIR}/text-input-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-keyboard-locale-matrix > "${CONTRACT_DIR}/keyboard-locale-matrix-probe.txt"
+        "${tmp_dir}/aqua-compositor" probe-independent-application-matrix \
+            "${tmp_dir}/weston-simple-shm" \
+            "${tmp_dir}/weston-simple-damage" \
+            > "${CONTRACT_DIR}/independent-application-matrix-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-privileged-protocol-boundary > "${CONTRACT_DIR}/privileged-protocol-boundary-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-v1-client-buffer-contract > "${CONTRACT_DIR}/v1-client-buffer-contract-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-wayland-output-matrix > "${CONTRACT_DIR}/wayland-output-matrix-probe.txt"

@@ -1554,11 +1554,15 @@ grep -Fq 'probe-selection-ownership' scripts/check-compositor.sh
 grep -Fq 'probe-drag-and-drop' scripts/check-compositor.sh
 grep -Fq 'probe-text-input' scripts/check-compositor.sh
 grep -Fq 'probe-keyboard-locale-matrix' scripts/check-compositor.sh
+grep -Fq 'probe-independent-application-matrix' scripts/check-compositor.sh
 grep -Fq 'probe-privileged-protocol-boundary' scripts/check-compositor.sh
 grep -Fq 'probe-v1-client-buffer-contract' scripts/check-compositor.sh
 grep -Fq 'probe-wayland-output-matrix' scripts/check-compositor.sh
 grep -Fq 'text-input-probe.txt' scripts/check-compositor-rootfs-docker.sh
 grep -Fq 'keyboard-locale-matrix-probe.txt' scripts/check-compositor-rootfs-docker.sh
+grep -Fq 'independent-application-matrix-probe.txt' scripts/check-compositor-rootfs-docker.sh
+grep -Fq 'weston-simple-damage' scripts/export-rootfs-compositor-contract-docker.sh
+grep -Fq 'weston-simple-damage' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'compose_key_available_for_all_layouts=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'dead_key_utf8_matches_for_all_clients=true' scripts/check-compositor-rootfs-docker.sh
 grep -Fq 'cancelled_compose_rejected_for_all_locales=true' scripts/check-compositor.sh
@@ -1575,6 +1579,7 @@ grep -Fq 'unfocused_primary_rejected=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'data_control_global_exposed=false' scripts/check-smithay-seat-docker.sh
 grep -Fq 'privileged_wayland_boundary = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'keyboard_locale_matrix = ' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'independent_application_matrix = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'clipboard_payload_transferred=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'primary_payload_transferred=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'owner_disconnect_clears_clipboard=true' scripts/check-smithay-seat-docker.sh

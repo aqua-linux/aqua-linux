@@ -56,6 +56,7 @@ need_entry "./usr/share/doc/aqua/runtime-assets.md"
 need_entry "./usr/share/doc/aqua/aqua-icons.md"
 need_entry "./usr/share/doc/aqua/third-party-licenses.md"
 need_entry "./usr/libexec/aqua-tests/weston-simple-shm"
+need_entry "./usr/libexec/aqua-tests/weston-simple-damage"
 need_entry "./usr/share/doc/aqua/wayland-compat-client.txt"
 need_entry "./usr/bin/aqua-session-check"
 need_entry "./usr/bin/aqua-session-runtime-prepare"
@@ -93,6 +94,7 @@ tar -xOf "${ROOTFS_TAR}" ./etc/aqua/media-services.conf | grep -Fq 'enabled=fals
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/media-services.conf | grep -Fq 'pipewire_binary=/usr/bin/pipewire'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/media-services.conf | grep -Fq 'wireplumber_binary=/usr/bin/wireplumber'
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq 'weston_compositor_packaged=false'
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq 'fixtures=weston-simple-shm,weston-simple-damage'
 
 if tar -tf "${ROOTFS_TAR}" | grep -Eq '^\./usr/(bin/weston($|-)|lib/libweston|libexec/weston-|share/libweston|share/wayland-sessions/weston\.desktop)'; then
     echo "Weston compositor runtime leaked into the Aqua rootfs." >&2

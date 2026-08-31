@@ -300,15 +300,21 @@ build_hint=scripts/build-compositor-linux-docker.sh
 EOF
 fi
 
-# Keep the upstream C reference client as a compatibility fixture without
+# Keep the upstream C reference clients as compatibility fixtures without
 # shipping Weston compositor, shells, backends, launchers, or desktop runtime.
 if [ -x "${TARGET_DIR}/usr/bin/weston-simple-shm" ] || \
     [ -x "${TARGET_DIR}/usr/libexec/aqua-tests/weston-simple-shm" ]; then
     mkdir -p "${TARGET_DIR}/usr/libexec/aqua-tests"
-    if [ -x "${TARGET_DIR}/usr/bin/weston-simple-shm" ]; then
-        mv "${TARGET_DIR}/usr/bin/weston-simple-shm" \
-            "${TARGET_DIR}/usr/libexec/aqua-tests/weston-simple-shm"
-    fi
+    for fixture in weston-simple-shm weston-simple-damage; do
+        if [ -x "${TARGET_DIR}/usr/bin/${fixture}" ]; then
+            mv "${TARGET_DIR}/usr/bin/${fixture}" \
+                "${TARGET_DIR}/usr/libexec/aqua-tests/${fixture}"
+        fi
+        if [ ! -x "${TARGET_DIR}/usr/libexec/aqua-tests/${fixture}" ]; then
+            echo "missing required upstream Wayland fixture: ${fixture}" >&2
+            exit 1
+        fi
+    done
     rm -f "${TARGET_DIR}/usr/bin/weston" "${TARGET_DIR}/usr/bin/weston-"*
     rm -rf \
         "${TARGET_DIR}/usr/lib/libweston-"* \
@@ -318,9 +324,12 @@ if [ -x "${TARGET_DIR}/usr/bin/weston-simple-shm" ] || \
         "${TARGET_DIR}/usr/share/wayland-sessions/weston.desktop" \
         "${TARGET_DIR}/usr/share/weston"
     cat > "${TARGET_DIR}/usr/share/doc/aqua/wayland-compat-client.txt" <<'EOF'
-source=upstream-weston-simple-shm
-role=third-party-wayland-compatibility-fixture
-path=/usr/libexec/aqua-tests/weston-simple-shm
+source=upstream-weston-14.0.1-simple-clients
+role=third-party-wayland-compatibility-fixtures
+fixtures=weston-simple-shm,weston-simple-damage
+simple_shm_path=/usr/libexec/aqua-tests/weston-simple-shm
+simple_damage_path=/usr/libexec/aqua-tests/weston-simple-damage
+protocol_scope=xdg-shell+wl_shm+wl_surface.damage_buffer
 weston_compositor_packaged=false
 autostart=false
 EOF
