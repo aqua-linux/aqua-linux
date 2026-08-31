@@ -5,6 +5,8 @@ mod network;
 pub mod network_broker;
 mod pipewire;
 pub mod wifi_control;
+#[cfg(all(feature = "wifi-native", any(target_os = "linux", test)))]
+mod wifi_native;
 #[cfg(all(feature = "wireplumber-native", any(target_os = "linux", test)))]
 mod wireplumber_native;
 
@@ -17,6 +19,8 @@ pub use pipewire::{
     PipeWireApi, PipeWireApiNode, PipeWireApiPhase, PipeWireApiSnapshot, PipeWireApiTransport,
     PipeWireTransportError,
 };
+#[cfg(all(feature = "wifi-native", target_os = "linux"))]
+pub use wifi_native::{derive_wpa2_psk, WifiNativeControl, WifiNativeError};
 #[cfg(all(feature = "wireplumber-native", target_os = "linux"))]
 pub use wireplumber_native::WirePlumberNativeApi;
 #[cfg(all(feature = "wireplumber-native", target_os = "linux"))]

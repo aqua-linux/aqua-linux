@@ -26,7 +26,8 @@ for symbol in \
     BR2_PACKAGE_WPA_SUPPLICANT_AUTOSCAN \
     BR2_PACKAGE_WPA_SUPPLICANT_WPA3 \
     BR2_PACKAGE_WPA_SUPPLICANT_WPA_CLIENT_SO \
-    BR2_PACKAGE_WPA_SUPPLICANT_CTRL_IFACE
+    BR2_PACKAGE_WPA_SUPPLICANT_CTRL_IFACE \
+    BR2_PACKAGE_AQUA_WIFI_NATIVE
 do
     grep -Fxq "${symbol}=y" "$REHEARSAL_CONFIG"
     ! grep -Fxq "${symbol}=y" "$DEFAULT_CONFIG"
@@ -56,6 +57,7 @@ grep -Fq 'aqua_x86_64_wifi_rehearsal_defconfig' "$REHEARSAL_SCRIPT"
 grep -Fq -- '--exclude website' "$REHEARSAL_SCRIPT"
 grep -Fq 'wpa_supplicant' "$REHEARSAL_SCRIPT"
 grep -Fq 'libwpa_client.so' "$REHEARSAL_SCRIPT"
+grep -Fq 'libaqua-wifi-native.so.1' "$REHEARSAL_SCRIPT"
 grep -Fq 'legal-info' "$REHEARSAL_SCRIPT"
 grep -Fq 'show-info' "$REHEARSAL_SCRIPT"
 grep -Fq 'default_image_changed' "$REPORT_WRITER"
@@ -63,6 +65,7 @@ grep -Fq 'typed_control_transport_implemented' "$REPORT_WRITER"
 grep -Fq 'physical_hardware_validated' "$REPORT_WRITER"
 grep -Fq 'release_cleared' "$REPORT_WRITER"
 grep -Fq '"wpa_supplicant": "2.12"' "$REPORT_WRITER"
+grep -Fq '"aqua-wifi-native": "1"' "$REPORT_WRITER"
 grep -Fq '"libnl": "3.11.0"' "$REPORT_WRITER"
 grep -Fq '"libopenssl": "3.5.7"' "$REPORT_WRITER"
 

@@ -5,9 +5,10 @@
 Accepted on 2026-08-31. The observation boundary, disabled root-owned DHCP
 supervisor, authenticated privilege broker, and opt-in QEMU runtime acceptance
 are implemented. The isolated Wi-Fi package and legal closure is rehearsed.
-The typed Wi-Fi control and credential-storage contract is defined. Native
-control execution, default ownership, Settings configuration controls, and
-physical runtime evidence remain gated.
+The typed Wi-Fi contract is bound to an opt-in native control bridge and the
+authenticated broker, with bounded PSK derivation and deterministic transport
+evidence. Default ownership, Settings configuration controls, radio lifecycle,
+and physical runtime evidence remain gated.
 
 ## Context
 
@@ -34,8 +35,8 @@ Aqua Linux will use this network stack:
    enabled in Settings.
 3. `wpa_supplicant` is selected for Wi-Fi association on hardware that requires
    it. An opt-in Buildroot rehearsal resolves its dependency and license
-   closure, but it remains absent from the default image until the typed
-   control contract is bound to the native transport and radio evidence passes.
+   closure together with Aqua's native control bridge, but both remain absent
+   from the default image until radio lifecycle and target evidence pass.
 4. Aqua will not add NetworkManager, ConnMan, or a second DHCP client to the v1
    image. A single policy owner avoids competing route, lease, and resolver
    writers on the BusyBox system.
@@ -82,8 +83,8 @@ Aqua Linux will use this network stack:
 - SSIDs and secrets have redacted debug output. An input passphrase is limited
   to 8-63 printable ASCII bytes and must remain transient. The persisted record
   contains only the derived 32-byte WPA2 PSK, but that PSK is still treated as
-  a network-equivalent secret. PSK derivation and broker ingress are not yet
-  implemented.
+  a network-equivalent secret. The opt-in native bridge performs the bounded
+  WPA2 derivation and the broker wipes the request buffer after parsing.
 - The v1 credential record has one versioned, 256-byte-bounded schema at the
   fixed `/var/lib/aqua-network/wifi.psk` path. Its directory and file must be
   root-owned normal non-symlink objects with exact `0700` and `0600` modes.
@@ -114,18 +115,22 @@ Network management must remain disabled until all of these are satisfied:
    `aqua_x86_64_wifi_rehearsal_defconfig` resolves `wpa_supplicant` 2.12,
    libnl 3.11.0, and OpenSSL 3.5.7 and completes Buildroot `legal-info`.
    It selects only nl80211, autoscan, WPA3, the control interface, and
-   `libwpa_client`; it excludes alternate network managers, D-Bus, a second
-   DHCP client, CLI/passphrase tools, and unsupported association modes. The
-   default profile and service ownership remain unchanged.
-4. **Satisfied on 2026-08-31:** `aqua-service-adapters` defines a bounded typed
-   WPA2-Personal control and credential-storage contract. Deterministic tests
-   prove exact allowlisted command encoding, strict response parsing,
-   authoritative association, redacted secrets, passphrase bounds, a
-   versioned PSK-only record, and fail-closed root-only storage metadata.
-   This contract does not execute `libwpa_client`, derive a PSK, write a real
-   credential, or enable a service. Settings still exposes no Wi-Fi
-   configuration control, and WPA3 association remains outside this initial
-   control contract even though its package capability is compiled.
+   `libwpa_client`, plus the MIT-licensed `aqua-wifi-native` bridge; it excludes
+   alternate network managers, D-Bus, a second DHCP client, CLI/passphrase
+   tools, and unsupported association modes. The default profile and service
+   ownership remain unchanged.
+4. **Satisfied on 2026-08-31:** the opt-in `aqua-wifi-native` bridge executes
+   only bounded typed requests through `libwpa_client` at the fixed
+   `wlan0` control socket and derives WPA2 PSKs through OpenSSL's bounded PBKDF2
+   API. The authenticated broker accepts only typed status, connect, and
+   disconnect requests from Aqua UID/GID 1000, persists an atomic root-owned
+   `0600` PSK-only record after authoritative association, and rolls back a
+   failed association. Deterministic native fixtures prove the known PSK
+   vector, exact control sequence, peer authentication, secret redaction, and
+   storage metadata without a radio. The default image still contains neither
+   the bridge nor `wpa_supplicant`; Settings exposes no Wi-Fi control, no
+   daemon lifecycle is enabled, and WPA3 association remains outside this
+   initial control contract.
 5. **Satisfied on 2026-08-31:** deterministic fixtures prove offline,
    configuring, online, DNS loss, route loss, malformed input, bounded source
    sizes, and recovery without hanging Settings or the shell.

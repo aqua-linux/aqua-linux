@@ -9,5 +9,6 @@ config BR2_PACKAGE_AQUA_BOOT_MARKERS
 source "$BR2_EXTERNAL_AQUA_PATH/package/aqua-audio-native/Config.in"
 source "$BR2_EXTERNAL_AQUA_PATH/package/aqua-audio-probe/Config.in"
 source "$BR2_EXTERNAL_AQUA_PATH/package/aqua-glfw-wayland-probe/Config.in"
+source "$BR2_EXTERNAL_AQUA_PATH/package/aqua-wifi-native/Config.in"
 
 endmenu

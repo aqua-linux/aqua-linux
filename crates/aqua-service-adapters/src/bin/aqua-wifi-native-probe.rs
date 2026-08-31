@@ -1,0 +1,89 @@
+#[cfg(target_os = "linux")]
+use aqua_service_adapters::wifi_control::{
+    WifiAssociationState, WifiControlRequest, WifiControlResponse, WifiPassphrase, WifiSsid,
+};
+#[cfg(target_os = "linux")]
+use aqua_service_adapters::{derive_wpa2_psk, WifiNativeControl};
+#[cfg(target_os = "linux")]
+use std::io::{Read, Write};
+#[cfg(target_os = "linux")]
+use std::os::unix::net::UnixStream;
+use std::process::ExitCode;
+
+#[cfg(target_os = "linux")]
+const EXPECTED_PSK: [u8; 32] = [
+    0xf4, 0x2c, 0x6f, 0xc5, 0x2d, 0xf0, 0xeb, 0xef, 0x9e, 0xbb, 0x4b, 0x90, 0xb3, 0x8a, 0x5f, 0x90,
+    0x2e, 0x83, 0xfe, 0x1b, 0x13, 0x5a, 0x70, 0xe2, 0x3a, 0xed, 0x76, 0x2e, 0x97, 0x10, 0xa1, 0x2e,
+];
+
+fn main() -> ExitCode {
+    #[cfg(target_os = "linux")]
+    let result = match std::env::args().nth(1).as_deref() {
+        Some("native") => probe_native(),
+        Some("broker") => probe_broker(),
+        _ => Err("usage: aqua-wifi-native-probe native|broker"),
+    };
+    #[cfg(not(target_os = "linux"))]
+    let result: Result<(), &'static str> = Err("Linux native Wi-Fi probe required");
+
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(reason) => {
+            eprintln!("[AQUA-NETWORK] stage=wifi-native-probe status=failed reason={reason}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn probe_native() -> Result<(), &'static str> {
+    let ssid = WifiSsid::new(b"IEEE".to_vec()).map_err(|_| "invalid-fixture-ssid")?;
+    let passphrase = WifiPassphrase::new("password").map_err(|_| "invalid-fixture-passphrase")?;
+    let psk = derive_wpa2_psk(&ssid, &passphrase).map_err(|_| "psk-derivation")?;
+    if !psk.securely_matches(&EXPECTED_PSK) {
+        return Err("psk-vector-mismatch");
+    }
+    let mut control = WifiNativeControl::connect().map_err(|_| "native-connect")?;
+    let response = control
+        .request(&WifiControlRequest::Status)
+        .map_err(|_| "native-status")?;
+    if response
+        != WifiControlResponse::Status(aqua_service_adapters::wifi_control::WifiControlStatus {
+            state: WifiAssociationState::Disconnected,
+            network_id: None,
+        })
+    {
+        return Err("unexpected-native-status");
+    }
+    println!(
+        "[AQUA-NETWORK] stage=wifi-native-probe status=ok transport=libwpa_client psk_vector=true secrets_logged=false"
+    );
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn probe_broker() -> Result<(), &'static str> {
+    let mut stream =
+        UnixStream::connect("/run/aqua-network/control.sock").map_err(|_| "broker-connect")?;
+    stream
+        .write_all(b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 49454545 70617373776f7264\n")
+        .map_err(|_| "broker-write")?;
+    stream
+        .shutdown(std::net::Shutdown::Write)
+        .map_err(|_| "broker-shutdown")?;
+    let mut response = Vec::new();
+    stream
+        .take(513)
+        .read_to_end(&mut response)
+        .map_err(|_| "broker-read")?;
+    let response = std::str::from_utf8(&response).map_err(|_| "broker-response-utf8")?;
+    if !response.starts_with(
+        "AQUA-NETWORK/1 OK operation=wifi-connect interface=wlan0 network_id=7 authoritative=true credential_saved=true",
+    ) {
+        return Err("broker-response");
+    }
+    println!(
+        "[AQUA-NETWORK] stage=wifi-broker-probe status=ok peer_uid=1000 typed_connect=true credential_acknowledged=true"
+    );
+    Ok(())
+}

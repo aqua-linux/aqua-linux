@@ -1,9 +1,12 @@
 use std::collections::HashSet;
 use std::fmt;
 
+use crate::wifi_control::{WifiPassphrase, WifiSsid};
+
 pub const PROTOCOL_VERSION: &str = "AQUA-NETWORK/1";
 pub const FIXED_INTERFACE: &str = "eth0";
-pub const MAX_REQUEST_BYTES: usize = 96;
+pub const FIXED_WIFI_INTERFACE: &str = "wlan0";
+pub const MAX_REQUEST_BYTES: usize = 256;
 pub const MAX_RESPONSE_BYTES: usize = 512;
 pub const MAX_STATE_BYTES: usize = 4096;
 
@@ -36,6 +39,31 @@ impl NetworkBrokerRequest {
             FIXED_INTERFACE
         )
     }
+}
+
+pub enum WifiBrokerRequest {
+    Status,
+    Connect {
+        ssid: WifiSsid,
+        passphrase: WifiPassphrase,
+    },
+    Disconnect,
+}
+
+impl fmt::Debug for WifiBrokerRequest {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Status => "WifiBrokerRequest::Status",
+            Self::Connect { .. } => "WifiBrokerRequest::Connect([redacted])",
+            Self::Disconnect => "WifiBrokerRequest::Disconnect",
+        })
+    }
+}
+
+#[derive(Debug)]
+pub enum AuthenticatedNetworkRequest {
+    Ethernet(NetworkBrokerRequest),
+    Wifi(WifiBrokerRequest),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,6 +113,7 @@ pub enum NetworkBrokerError {
     UnsupportedVersion,
     UnsupportedOperation,
     InvalidInterface,
+    InvalidCredential,
     StateTooLarge,
     InvalidState,
 }
@@ -98,9 +127,63 @@ impl fmt::Display for NetworkBrokerError {
             Self::UnsupportedVersion => "unsupported-version",
             Self::UnsupportedOperation => "unsupported-operation",
             Self::InvalidInterface => "invalid-interface",
+            Self::InvalidCredential => "invalid-credential",
             Self::StateTooLarge => "state-too-large",
             Self::InvalidState => "invalid-state",
         })
+    }
+}
+
+pub fn parse_authenticated_request(
+    bytes: &[u8],
+) -> Result<AuthenticatedNetworkRequest, NetworkBrokerError> {
+    if bytes.len() > MAX_REQUEST_BYTES {
+        return Err(NetworkBrokerError::RequestTooLarge);
+    }
+    let line = std::str::from_utf8(bytes).map_err(|_| NetworkBrokerError::InvalidUtf8)?;
+    let line = line
+        .strip_suffix('\n')
+        .ok_or(NetworkBrokerError::InvalidRequest)?;
+    if line.contains(['\r', '\n', '\0']) {
+        return Err(NetworkBrokerError::InvalidRequest);
+    }
+    let fields = line.split(' ').collect::<Vec<_>>();
+    if fields.len() < 3 || fields.iter().any(|field| field.is_empty()) {
+        return Err(NetworkBrokerError::InvalidRequest);
+    }
+    if fields[0] != PROTOCOL_VERSION {
+        return Err(NetworkBrokerError::UnsupportedVersion);
+    }
+    match fields[1] {
+        "STATUS" | "RENEW_DHCP" => parse_request(bytes).map(AuthenticatedNetworkRequest::Ethernet),
+        "WIFI_STATUS" if fields.len() == 3 => {
+            validate_wifi_interface(fields[2])?;
+            Ok(AuthenticatedNetworkRequest::Wifi(WifiBrokerRequest::Status))
+        }
+        "WIFI_DISCONNECT" if fields.len() == 3 => {
+            validate_wifi_interface(fields[2])?;
+            Ok(AuthenticatedNetworkRequest::Wifi(
+                WifiBrokerRequest::Disconnect,
+            ))
+        }
+        "WIFI_CONNECT" if fields.len() == 5 => {
+            validate_wifi_interface(fields[2])?;
+            let ssid = decode_hex(fields[3]).and_then(|value| {
+                WifiSsid::new(value).map_err(|_| NetworkBrokerError::InvalidCredential)
+            })?;
+            let mut passphrase_bytes = decode_hex(fields[4])?;
+            let passphrase = WifiPassphrase::from_bytes(&passphrase_bytes)
+                .map_err(|_| NetworkBrokerError::InvalidCredential);
+            wipe_bytes(&mut passphrase_bytes);
+            let passphrase = passphrase?;
+            Ok(AuthenticatedNetworkRequest::Wifi(
+                WifiBrokerRequest::Connect { ssid, passphrase },
+            ))
+        }
+        "WIFI_STATUS" | "WIFI_DISCONNECT" | "WIFI_CONNECT" => {
+            Err(NetworkBrokerError::InvalidRequest)
+        }
+        _ => Err(NetworkBrokerError::UnsupportedOperation),
     }
 }
 
@@ -133,6 +216,43 @@ pub fn parse_request(bytes: &[u8]) -> Result<NetworkBrokerRequest, NetworkBroker
         _ => return Err(NetworkBrokerError::UnsupportedOperation),
     };
     Ok(NetworkBrokerRequest { operation })
+}
+
+fn validate_wifi_interface(interface: &str) -> Result<(), NetworkBrokerError> {
+    if interface == FIXED_WIFI_INTERFACE {
+        Ok(())
+    } else {
+        Err(NetworkBrokerError::InvalidInterface)
+    }
+}
+
+fn decode_hex(value: &str) -> Result<Vec<u8>, NetworkBrokerError> {
+    if value.is_empty() || value.len() % 2 != 0 {
+        return Err(NetworkBrokerError::InvalidCredential);
+    }
+    value
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            let high = decode_hex_digit(pair[0])?;
+            let low = decode_hex_digit(pair[1])?;
+            Ok((high << 4) | low)
+        })
+        .collect()
+}
+
+fn decode_hex_digit(value: u8) -> Result<u8, NetworkBrokerError> {
+    match value {
+        b'0'..=b'9' => Ok(value - b'0'),
+        b'a'..=b'f' => Ok(value - b'a' + 10),
+        _ => Err(NetworkBrokerError::InvalidCredential),
+    }
+}
+
+fn wipe_bytes(bytes: &mut [u8]) {
+    for byte in bytes {
+        unsafe { std::ptr::write_volatile(byte, 0) };
+    }
 }
 
 pub fn parse_supervisor_state(bytes: &[u8]) -> Result<NetworkSupervisorState, NetworkBrokerError> {
@@ -292,6 +412,58 @@ mod tests {
             parse_request(b"AQUA-NETWORK/1 STATUS eth0"),
             Err(NetworkBrokerError::InvalidRequest)
         );
+    }
+
+    #[test]
+    fn authenticated_protocol_types_and_redacts_wifi_credentials() {
+        let request = parse_authenticated_request(
+            b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 41717561204c6162 636f727265637420686f727365\n",
+        )
+        .expect("valid typed Wi-Fi request");
+        let AuthenticatedNetworkRequest::Wifi(WifiBrokerRequest::Connect { ssid, passphrase }) =
+            request
+        else {
+            panic!("expected Wi-Fi connect request");
+        };
+        assert_eq!(ssid.bytes(), b"Aqua Lab");
+        assert_eq!(passphrase.with_bytes(|value| value.len()), 13);
+        let debug = format!("{passphrase:?}");
+        assert!(!debug.contains("correct horse"));
+
+        assert!(matches!(
+            parse_authenticated_request(b"AQUA-NETWORK/1 WIFI_STATUS wlan0\n"),
+            Ok(AuthenticatedNetworkRequest::Wifi(WifiBrokerRequest::Status))
+        ));
+        assert!(matches!(
+            parse_authenticated_request(b"AQUA-NETWORK/1 WIFI_DISCONNECT wlan0\n"),
+            Ok(AuthenticatedNetworkRequest::Wifi(
+                WifiBrokerRequest::Disconnect
+            ))
+        ));
+    }
+
+    #[test]
+    fn authenticated_protocol_rejects_wifi_injection_and_invalid_secrets() {
+        assert!(matches!(
+            parse_authenticated_request(
+                b"AQUA-NETWORK/1 WIFI_CONNECT wlan1 41717561 636f727265637431\n"
+            ),
+            Err(NetworkBrokerError::InvalidInterface)
+        ));
+        assert!(matches!(
+            parse_authenticated_request(b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 41717561 73686f7274\n"),
+            Err(NetworkBrokerError::InvalidCredential)
+        ));
+        assert!(matches!(
+            parse_authenticated_request(
+                b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 41717561 636f727265637431 extra\n"
+            ),
+            Err(NetworkBrokerError::InvalidRequest)
+        ));
+        assert!(matches!(
+            parse_authenticated_request(b"AQUA-NETWORK/1 WIFI_STATUS wlan0\nEXEC root\n"),
+            Err(NetworkBrokerError::InvalidRequest)
+        ));
     }
 
     #[test]

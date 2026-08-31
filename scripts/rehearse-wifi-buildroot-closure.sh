@@ -44,6 +44,7 @@ docker run --rm \
             BR2_PACKAGE_WPA_SUPPLICANT_WPA3 \
             BR2_PACKAGE_WPA_SUPPLICANT_WPA_CLIENT_SO \
             BR2_PACKAGE_WPA_SUPPLICANT_CTRL_IFACE \
+            BR2_PACKAGE_AQUA_WIFI_NATIVE \
             BR2_PACKAGE_LIBNL \
             BR2_PACKAGE_LIBOPENSSL
         do
@@ -70,9 +71,12 @@ docker run --rm \
         done
 
         make -C "${buildroot_dir}" O="${output_dir}" \
-            BR2_EXTERNAL="${external_dir}" wpa_supplicant
+            BR2_EXTERNAL="${external_dir}" aqua-wifi-native
         test -x "${output_dir}/target/usr/sbin/wpa_supplicant"
         test -s "${output_dir}/target/usr/lib/libwpa_client.so"
+        test -s "${output_dir}/target/usr/lib/libaqua-wifi-native.so.1"
+        test -s "${output_dir}/host/x86_64-buildroot-linux-musl/sysroot/usr/include/aqua_wifi_native.h"
+        test -s "${output_dir}/host/x86_64-buildroot-linux-musl/sysroot/usr/lib/libaqua-wifi-native.so"
         test ! -e "${output_dir}/target/usr/sbin/wpa_cli"
         test ! -e "${output_dir}/target/usr/bin/wpa_passphrase"
         ! grep -Eq "^[[:space:]]*(network=\\{|psk=)" \

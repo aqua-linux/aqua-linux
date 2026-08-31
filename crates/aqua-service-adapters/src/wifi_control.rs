@@ -50,7 +50,10 @@ pub struct WifiPassphrase {
 
 impl WifiPassphrase {
     pub fn new(value: &str) -> Result<Self, WifiControlError> {
-        let value = value.as_bytes();
+        Self::from_bytes(value.as_bytes())
+    }
+
+    pub fn from_bytes(value: &[u8]) -> Result<Self, WifiControlError> {
         if !(MIN_WIFI_PASSPHRASE_BYTES..=MAX_WIFI_PASSPHRASE_BYTES).contains(&value.len())
             || !value.iter().all(|byte| (0x20..=0x7e).contains(byte))
         {
@@ -93,6 +96,16 @@ pub struct WifiPsk([u8; 32]);
 impl WifiPsk {
     pub fn from_bytes(bytes: [u8; 32]) -> Self {
         Self(bytes)
+    }
+
+    pub fn securely_matches(&self, expected: &[u8; 32]) -> bool {
+        self.0
+            .iter()
+            .zip(expected)
+            .fold(0_u8, |difference, (actual, expected)| {
+                difference | (actual ^ expected)
+            })
+            == 0
     }
 
     pub fn from_hex(value: &str) -> Result<Self, WifiControlError> {
@@ -414,6 +427,23 @@ pub enum WifiAssociationState {
     Completed,
     Inactive,
     InterfaceDisabled,
+}
+
+impl WifiAssociationState {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Disconnected => "disconnected",
+            Self::Scanning => "scanning",
+            Self::Authenticating => "authenticating",
+            Self::Associating => "associating",
+            Self::Associated => "associated",
+            Self::FourWayHandshake => "four-way-handshake",
+            Self::GroupHandshake => "group-handshake",
+            Self::Completed => "completed",
+            Self::Inactive => "inactive",
+            Self::InterfaceDisabled => "interface-disabled",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

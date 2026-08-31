@@ -1,0 +1,8 @@
+config BR2_PACKAGE_AQUA_WIFI_NATIVE
+    bool "Aqua wpa_supplicant native control binding"
+    depends on BR2_PACKAGE_WPA_SUPPLICANT
+    depends on BR2_PACKAGE_WPA_SUPPLICANT_WPA_CLIENT_SO
+    select BR2_PACKAGE_LIBOPENSSL
+    help
+      Installs Aqua's bounded native wpa_supplicant control and WPA2 PSK
+      derivation bridge. This opt-in package does not start a service.

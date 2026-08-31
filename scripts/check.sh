@@ -1246,6 +1246,7 @@ grep -Fq 'stage=qemu-acceptance status=ok' scripts/check-network-qemu.sh
 scripts/check-audio-buildroot-rehearsal.sh
 scripts/check-wifi-buildroot-rehearsal.sh
 scripts/check-wifi-control-contract.sh
+scripts/check-wifi-native-binding.sh
 scripts/check-audio-native-binding.sh
 scripts/check-audio-rootfs-contract.sh
 scripts/check-audio-qemu-device-contract.sh

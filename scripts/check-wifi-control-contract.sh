@@ -32,7 +32,7 @@ grep -Fq 'CredentialRecordTooLarge' "$CONTROL"
 ! grep -Fxq 'BR2_PACKAGE_WPA_SUPPLICANT=y' "$DEFAULT_CONFIG"
 grep -Fxq 'BR2_PACKAGE_WPA_SUPPLICANT=y' "$REHEARSAL_CONFIG"
 grep -Fq 'wifi_packaged=false' "$SUPERVISOR"
-grep -Fq 'Settings still exposes no Wi-Fi' "$ADR"
-grep -Fq 'does not execute `libwpa_client`' "$ADR"
+grep -Fq 'The default image still contains neither' "$ADR"
+grep -Fq 'Settings exposes no Wi-Fi control' "$ADR"
 
 echo 'Aqua Linux Wi-Fi control and credential contract checks passed.'
