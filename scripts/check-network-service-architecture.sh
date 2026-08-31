@@ -1,0 +1,55 @@
+#!/bin/sh
+set -eu
+
+REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ADR="$REPO_ROOT/docs/aqua-linux/adr-0005-network-service-stack.md"
+DEFCONFIG="$REPO_ROOT/br2-external/aqua/configs/aqua_x86_64_defconfig"
+ADAPTER="$REPO_ROOT/crates/aqua-service-adapters/src/network.rs"
+SHELL_MODEL="$REPO_ROOT/crates/aqua-shell/src/lib.rs"
+SETTINGS_CLIENT="$REPO_ROOT/crates/aqua-compositor/src/lib.rs"
+
+need_adr() {
+    grep -Fq "$1" "$ADR" || {
+        echo "Missing network architecture contract: $1" >&2
+        exit 1
+    }
+}
+
+test -f "$ADR"
+need_adr 'Accepted on 2026-08-31.'
+need_adr 'BusyBox `udhcpc` remains the initial IPv4 DHCP client'
+need_adr '`wpa_supplicant` is selected for Wi-Fi association'
+need_adr 'will not add NetworkManager, ConnMan, or a second DHCP client'
+need_adr 'narrow authenticated privilege broker'
+need_adr 'Physical Ethernet and Wi-Fi support remain `Not tested`'
+
+grep -Fxq 'BR2_SYSTEM_DHCP="eth0"' "$DEFCONFIG"
+if grep -Eq '^BR2_PACKAGE_(WPA_SUPPLICANT|IWD|CONNMAN|NETWORK_MANAGER|DHCPCD)=y$' "$DEFCONFIG"; then
+    echo 'Network management packages must remain disabled until ADR 0005 gates pass.' >&2
+    exit 1
+fi
+
+test -f "$ADAPTER"
+grep -Fq 'pub enum NetworkServiceHealth' "$ADAPTER"
+grep -Fq 'pub struct NetworkAuthoritativeState' "$ADAPTER"
+grep -Fq 'pub fn read_network_snapshot' "$ADAPTER"
+grep -Fq 'MAX_NETWORK_INTERFACES' "$ADAPTER"
+grep -Fq 'MAX_DNS_SERVERS' "$ADAPTER"
+grep -Fq 'MAX_ROUTE_BYTES' "$ADAPTER"
+grep -Fq 'MAX_RESOLVER_BYTES' "$ADAPTER"
+if grep -Eq 'Command::new|process::Command|udhcpc|wpa_cli' "$ADAPTER"; then
+    echo 'The unprivileged network adapter must not spawn management commands.' >&2
+    exit 1
+fi
+
+grep -Fq 'NetworkAuthoritativeState' "$SHELL_MODEL"
+grep -Fq 'read_network_snapshot' "$SHELL_MODEL"
+grep -Fq 'aqua_settings_network_health={}' "$SETTINGS_CLIENT"
+grep -Fq 'aqua_settings_network_default_route={}' "$SETTINGS_CLIENT"
+grep -Fq 'aqua_settings_network_dns_count={}' "$SETTINGS_CLIENT"
+grep -Fq '| Network adapter | Present, unvalidated |' \
+    "$REPO_ROOT/docs/aqua-linux/hardware-support.md"
+grep -Fq '| Wi-Fi and Bluetooth | Not tested |' \
+    "$REPO_ROOT/docs/aqua-linux/hardware-support.md"
+
+echo 'Aqua Linux network service architecture checks passed.'

@@ -31,6 +31,11 @@ is outside this audit.
 - GLFW 3.4 is packaged under the Zlib license as a bounded native-Wayland
   compatibility dependency. The associated Aqua test fixture is MIT licensed,
   uses no OpenGL client API, and is installed only under `/usr/libexec/aqua-tests`.
+- ADR 0005 selects the already packaged BusyBox `udhcpc` path for initial
+  Ethernet DHCP and reserves `wpa_supplicant` for a future opt-in Wi-Fi
+  rehearsal. No network package or dependency closure changed in the default
+  image; `wpa_supplicant` requires generated `legal-info` review before it can
+  be enabled.
 - No private keys or environment-secret files were found in the OS source tree.
 - The OS baseline is pinned to Buildroot 2025.02.17 LTS by SHA-256. Its audio
   package metadata records PipeWire 1.2.8 (MIT/LGPL-2.1+/GPL-2.0 components),

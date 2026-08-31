@@ -8,8 +8,9 @@ use aqua_components::{
 };
 use aqua_scene::Rect;
 use aqua_service_adapters::{
-    AudioAdapterError, AudioAuthoritativeState, AudioBackend, AudioBackendDriveError,
-    AudioBackendDriveOutcome, AudioRequest, AudioServiceAdapter, AudioServiceHealth,
+    read_network_snapshot, AudioAdapterError, AudioAuthoritativeState, AudioBackend,
+    AudioBackendDriveError, AudioBackendDriveOutcome, AudioRequest, AudioServiceAdapter,
+    AudioServiceHealth, NetworkAuthoritativeState, NetworkSnapshotError,
 };
 use std::collections::VecDeque;
 use std::fs;
@@ -1427,8 +1428,7 @@ pub struct SettingsWindowModel {
     pub desktop_icons: bool,
     pub key_repeat: bool,
     pub audio: AudioVolumeModel,
-    pub network_interfaces: Vec<NetworkInterfaceStatus>,
-    pub network_status_available: bool,
+    pub network: NetworkAuthoritativeState,
     pub keyboard_focus: bool,
     pub theme: AquaTheme,
 }
@@ -1451,8 +1451,7 @@ impl Default for SettingsWindowModel {
             desktop_icons: true,
             key_repeat: true,
             audio: AudioVolumeModel::default(),
-            network_interfaces: Vec::new(),
-            network_status_available: false,
+            network: NetworkAuthoritativeState::default(),
             keyboard_focus: false,
             theme: AquaTheme::default(),
         }
@@ -1555,9 +1554,13 @@ impl SettingsWindowModel {
         })
     }
 
-    pub fn refresh_network_status(&mut self, class_net: &Path) -> io::Result<()> {
-        self.network_interfaces = read_network_interfaces(class_net)?;
-        self.network_status_available = true;
+    pub fn refresh_network_status(
+        &mut self,
+        class_net: &Path,
+        ipv4_route: &Path,
+        resolver: &Path,
+    ) -> Result<(), NetworkSnapshotError> {
+        self.network = read_network_snapshot(class_net, ipv4_route, resolver)?;
         Ok(())
     }
 
@@ -1853,12 +1856,6 @@ impl SettingsWindowModel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NetworkInterfaceStatus {
-    pub name: String,
-    pub state: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TopBarState {
     pub product_label: String,
     pub clock_label: String,
@@ -1881,10 +1878,12 @@ pub fn top_system_bar(width: u32, height: u32) -> TopSystemBar<'static> {
 
 impl TopBarState {
     pub fn read(root: &Path, epoch_seconds: u64) -> Self {
-        let network_connected = read_network_interfaces(&root.join("sys/class/net"))
-            .unwrap_or_default()
-            .iter()
-            .any(|interface| interface.state == "up");
+        let network_connected = read_network_snapshot(
+            &root.join("sys/class/net"),
+            &root.join("proc/net/route"),
+            &root.join("etc/resolv.conf"),
+        )
+        .is_ok_and(|state| state.health() == aqua_service_adapters::NetworkServiceHealth::Online);
 
         Self {
             product_label: "Aqua Linux".to_string(),
@@ -1952,40 +1951,6 @@ fn civil_date_from_unix_days(days: i64) -> (i64, u32, u32) {
     let month = month_piece + if month_piece < 10 { 3 } else { -9 };
     year += i64::from(month <= 2);
     (year, month as u32, day as u32)
-}
-
-pub fn read_network_interfaces(class_net: &Path) -> io::Result<Vec<NetworkInterfaceStatus>> {
-    let mut interfaces = Vec::new();
-    for entry in fs::read_dir(class_net)? {
-        let entry = entry?;
-        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
-            continue;
-        };
-        if name == "lo"
-            || name.is_empty()
-            || !name
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
-        {
-            continue;
-        }
-        let state = fs::read_to_string(entry.path().join("operstate"))
-            .unwrap_or_else(|_| "unknown".to_string())
-            .trim()
-            .to_ascii_lowercase();
-        let state = match state.as_str() {
-            "up" | "down" | "dormant" | "lowerlayerdown" | "notpresent" | "testing" | "unknown" => {
-                state
-            }
-            _ => "unknown".to_string(),
-        };
-        interfaces.push(NetworkInterfaceStatus { name, state });
-        if interfaces.len() == 8 {
-            break;
-        }
-    }
-    interfaces.sort_by(|left, right| left.name.cmp(&right.name));
-    Ok(interfaces)
 }
 
 #[derive(Debug)]
@@ -3698,7 +3663,9 @@ pub fn probe_launcher_model() -> LauncherProbe {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use aqua_service_adapters::{AudioDevice, AudioDeviceKind};
+    use aqua_service_adapters::{
+        read_network_interfaces, AudioDevice, AudioDeviceKind, NetworkLinkState,
+    };
 
     #[derive(Debug)]
     struct RejectingAudioBackend {
@@ -3885,10 +3852,19 @@ mod tests {
         let root = std::env::temp_dir().join(format!("aqua-top-bar-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("sys/class/net/eth0")).expect("network fixture");
+        fs::create_dir(root.join("sys/class/net/eth0/device")).expect("network device fixture");
+        fs::create_dir_all(root.join("proc/net")).expect("route directory fixture");
+        fs::create_dir_all(root.join("etc")).expect("resolver directory fixture");
         fs::create_dir_all(root.join("sys/class/power_supply/AC")).expect("adapter fixture");
         fs::create_dir_all(root.join("sys/class/power_supply/BAT0")).expect("battery fixture");
         fs::create_dir_all(root.join("dev/snd")).expect("audio fixture");
         fs::write(root.join("sys/class/net/eth0/operstate"), "up\n").expect("network state");
+        fs::write(
+            root.join("proc/net/route"),
+            "Iface Destination Gateway Flags\neth0 00000000 0100000A 0003\n",
+        )
+        .expect("route state");
+        fs::write(root.join("etc/resolv.conf"), "nameserver 1.1.1.1\n").expect("resolver state");
         fs::write(root.join("sys/class/power_supply/AC/type"), "Mains\n").expect("adapter type");
         fs::write(root.join("sys/class/power_supply/BAT0/type"), "Battery\n")
             .expect("battery type");
@@ -4465,24 +4441,37 @@ mod tests {
         fs::create_dir_all(root.join("lo")).expect("loopback fixture");
         fs::write(root.join("lo/operstate"), b"unknown\n").expect("loopback state");
         fs::create_dir_all(root.join("eth0")).expect("ethernet fixture");
+        fs::create_dir(root.join("eth0/device")).expect("ethernet device fixture");
         fs::write(root.join("eth0/operstate"), b"up\n").expect("ethernet state");
         fs::create_dir_all(root.join("wlan0")).expect("wireless fixture");
+        fs::create_dir(root.join("wlan0/wireless")).expect("wireless device fixture");
         fs::write(root.join("wlan0/operstate"), b"unexpected\n").expect("wireless state");
 
         let interfaces = read_network_interfaces(&root).expect("network status should read");
+        assert_eq!(interfaces.len(), 2);
+        assert_eq!(interfaces[0].name(), "eth0");
+        assert_eq!(interfaces[0].link(), NetworkLinkState::Up);
+        assert_eq!(interfaces[1].name(), "wlan0");
+        assert_eq!(interfaces[1].link(), NetworkLinkState::Unknown);
+
+        let route = root.join("route");
+        let resolver = root.join("resolv.conf");
+        fs::write(
+            &route,
+            "Iface Destination Gateway Flags\neth0 00000000 0100000A 0003\n",
+        )
+        .expect("route fixture");
+        fs::write(&resolver, "nameserver 9.9.9.9\n").expect("resolver fixture");
+        let mut settings = SettingsWindowModel::default();
+        settings
+            .refresh_network_status(&root, &route, &resolver)
+            .expect("Settings network snapshot");
         assert_eq!(
-            interfaces,
-            vec![
-                NetworkInterfaceStatus {
-                    name: "eth0".to_string(),
-                    state: "up".to_string(),
-                },
-                NetworkInterfaceStatus {
-                    name: "wlan0".to_string(),
-                    state: "unknown".to_string(),
-                },
-            ]
+            settings.network.health(),
+            aqua_service_adapters::NetworkServiceHealth::Online
         );
+        assert_eq!(settings.network.default_route(), Some("eth0"));
+        assert_eq!(settings.network.dns_servers().len(), 1);
         fs::remove_dir_all(root).expect("remove network fixture");
     }
 

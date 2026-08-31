@@ -4262,8 +4262,8 @@ pub fn render_settings_window_rgba(
                     .audio
                     .authoritative_muted()
                     .unwrap_or_else(|| model.audio.muted()),
-                network_interface_count: model.network_interfaces.len(),
-                network_status_available: model.network_status_available,
+                network_interface_count: model.network.interfaces().len(),
+                network_status_available: model.network.status_available(),
                 primitive_count: 0,
                 checksum: 0,
             },
@@ -4429,12 +4429,12 @@ pub fn render_settings_window_rgba(
             palette.text,
             1,
         );
-        let (adapter, state) = if !model.network_status_available {
+        let (adapter, state) = if !model.network.status_available() {
             ("STATUS UNAVAILABLE".to_string(), "READ ONLY".to_string())
-        } else if let Some(interface) = model.network_interfaces.first() {
+        } else if let Some(interface) = model.network.primary_interface() {
             (
-                interface.name.chars().take(20).collect(),
-                interface.state.to_ascii_uppercase(),
+                interface.name().chars().take(20).collect(),
+                interface.link().id().to_ascii_uppercase(),
             )
         } else {
             ("NO ADAPTER".to_string(), "READ ONLY".to_string())
@@ -4459,7 +4459,12 @@ pub fn render_settings_window_rgba(
             &mut buffer,
             (width, height),
             (section.row_rect(3).x, section.row_rect(3).y + 18),
-            "Configuration disabled",
+            &format!(
+                "{}  ROUTE {}  DNS {}",
+                model.network.health().id().to_ascii_uppercase(),
+                model.network.default_route().unwrap_or("NONE"),
+                model.network.dns_servers().len()
+            ),
             palette.secondary_text,
             1,
         );
@@ -4550,8 +4555,8 @@ pub fn render_settings_window_rgba(
                 .audio
                 .authoritative_muted()
                 .unwrap_or_else(|| model.audio.muted()),
-            network_interface_count: model.network_interfaces.len(),
-            network_status_available: model.network_status_available,
+            network_interface_count: model.network.interfaces().len(),
+            network_status_available: model.network.status_available(),
             primitive_count: primitives,
             checksum,
         },

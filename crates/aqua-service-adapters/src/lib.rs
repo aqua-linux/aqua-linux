@@ -1,10 +1,16 @@
 use std::collections::HashSet;
 use std::fmt;
 
+mod network;
 mod pipewire;
 #[cfg(all(feature = "wireplumber-native", any(target_os = "linux", test)))]
 mod wireplumber_native;
 
+pub use network::{
+    read_network_interfaces, read_network_snapshot, NetworkAuthoritativeState, NetworkInterface,
+    NetworkInterfaceKind, NetworkLinkState, NetworkServiceHealth, NetworkSnapshotError,
+    MAX_DNS_SERVERS, MAX_NETWORK_INTERFACES,
+};
 pub use pipewire::{
     PipeWireApi, PipeWireApiNode, PipeWireApiPhase, PipeWireApiSnapshot, PipeWireApiTransport,
     PipeWireTransportError,
