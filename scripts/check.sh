@@ -1232,6 +1232,11 @@ grep -Fq 'Accepted on 2026-08-29' docs/aqua-linux/adr-0004-audio-service-stack.m
 grep -Fq 'ADR 0004' docs/aqua-linux/v1-readiness.md
 test -x scripts/check-audio-service-architecture.sh
 scripts/check-audio-service-architecture.sh
+test -f docs/aqua-linux/adr-0005-network-service-stack.md
+grep -Fq 'Accepted on 2026-08-31' docs/aqua-linux/adr-0005-network-service-stack.md
+grep -Fq 'ADR 0005' docs/aqua-linux/v1-readiness.md
+test -x scripts/check-network-service-architecture.sh
+scripts/check-network-service-architecture.sh
 scripts/check-audio-buildroot-rehearsal.sh
 scripts/check-audio-native-binding.sh
 scripts/check-audio-rootfs-contract.sh

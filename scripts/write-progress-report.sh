@@ -79,6 +79,8 @@ lines = [
     "",
     cell(data.get("r3ProtocolBoundary", "")),
     "",
+    cell(data.get("r4NetworkBoundary", "")),
+    "",
     cell(data["currentStage"]),
     "",
     "## Phases",

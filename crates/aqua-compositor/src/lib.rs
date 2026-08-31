@@ -7786,7 +7786,15 @@ impl XdgSmokeClientState {
         let network_root = std::env::var_os("AQUA_NETWORK_SYS_CLASS_NET")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("/sys/class/net"));
-        if let Err(error) = settings_model.refresh_network_status(&network_root) {
+        let network_route = std::env::var_os("AQUA_NETWORK_IPV4_ROUTE")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("/proc/net/route"));
+        let network_resolver = std::env::var_os("AQUA_NETWORK_RESOLV_CONF")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("/etc/resolv.conf"));
+        if let Err(error) =
+            settings_model.refresh_network_status(&network_root, &network_route, &network_resolver)
+        {
             eprintln!("aqua_settings_network_status_available=false error={error}");
         }
         Ok(Self {
@@ -10444,22 +10452,36 @@ pub fn run_aqua_settings_client(
         state
             .settings_model
             .as_ref()
-            .is_some_and(|model| model.network_status_available)
+            .is_some_and(|model| model.network.status_available())
     );
     println!(
         "aqua_settings_network_interface_count={}",
         state
             .settings_model
             .as_ref()
-            .map_or(0, |model| model.network_interfaces.len())
+            .map_or(0, |model| model.network.interfaces().len())
     );
     if let Some(interface) = state
         .settings_model
         .as_ref()
-        .and_then(|model| model.network_interfaces.first())
+        .and_then(|model| model.network.primary_interface())
     {
-        println!("aqua_settings_network_interface={}", interface.name);
-        println!("aqua_settings_network_state={}", interface.state);
+        println!("aqua_settings_network_interface={}", interface.name());
+        println!("aqua_settings_network_state={}", interface.link().id());
+    }
+    if let Some(model) = state.settings_model.as_ref() {
+        println!(
+            "aqua_settings_network_health={}",
+            model.network.health().id()
+        );
+        println!(
+            "aqua_settings_network_default_route={}",
+            model.network.default_route().unwrap_or("none")
+        );
+        println!(
+            "aqua_settings_network_dns_count={}",
+            model.network.dns_servers().len()
+        );
     }
     for _ in 0..32 {
         event_queue.blocking_dispatch(&mut state)?;

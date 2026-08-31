@@ -374,8 +374,15 @@ Pass criteria:
 - Service failure cannot silently hang the shell; bounded restart, user-visible
   degradation, logs, and recovery paths are tested.
 
-The concrete networking implementation must be selected by an ADR before
-packaging. [ADR 0004](adr-0004-audio-service-stack.md) selects ALSA,
+The concrete network stack is selected by
+[ADR 0005](adr-0005-network-service-stack.md): eudev plus Linux provide device
+and link state, BusyBox `udhcpc` remains the initial Ethernet DHCP client, and
+`wpa_supplicant` is reserved for gated Wi-Fi targets. The new unprivileged
+adapter reports bounded typed interface, default-route, DNS, and
+offline/configuring/online/degraded state without spawning management commands.
+Settings consumes that state but remains read-only; the root-owned supervisor,
+authenticated broker, opt-in Wi-Fi package rehearsal, reconnect behavior, and
+QEMU and physical evidence remain open. [ADR 0004](adr-0004-audio-service-stack.md) selects ALSA,
 PipeWire, WirePlumber, and eudev for audio. Buildroot 2025.02.17 now supplies
 the supported LTS baseline. The locked `aqua` UID/GID 1000 session,
 user-owned `/run/user/1000`, and explicit `video`, `audio`, and `input` groups
