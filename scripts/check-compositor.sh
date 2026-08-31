@@ -421,6 +421,14 @@ check_output_contains "turkish_commit_delivered=true" cargo run -p aqua-composit
 check_output_contains "serial_synchronized=true" cargo run -p aqua-compositor -- probe-text-input
 check_output_contains "focus_handoff_deactivates_input_method=true" cargo run -p aqua-compositor -- probe-text-input
 check_output_contains "popup_repositioned=true" cargo run -p aqua-compositor -- probe-text-input
+check_output_contains "[AQUA-COMPOSITOR] stage=v1-client-buffer-contract status=ok" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
+check_output_contains "application_model=first-party-wl-shm-v1" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
+check_output_contains "required_buffer_protocol=wl_shm" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
+check_output_contains "argb8888_visible_to_all_clients=true" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
+check_output_contains "linux_dmabuf_advertised=false" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
+check_output_contains "drm_syncobj_advertised=false" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
+check_output_contains "explicit_sync_advertised=false" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
+check_output_contains "accelerated_clients_supported=false" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
 check_output_contains "[AQUA-COMPOSITOR] stage=wayland-output-matrix status=ok" cargo run -p aqua-compositor -- probe-wayland-output-matrix
 check_output_contains "outputs_visible_to_both_clients=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
 check_output_contains "modes_match_supported_matrix=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix

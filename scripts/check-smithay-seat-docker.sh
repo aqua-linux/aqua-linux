@@ -102,6 +102,24 @@ docker run --rm --platform linux/amd64 \
         printf "%s\n" "$text_input_output" | grep -Fq "payload_limit_bytes=4000"
         printf "%s\n" "$text_input_output" | grep -Fq "host_stub=false"
         printf "%s\n" "$text_input_output" | grep -Fq "[AQUA-COMPOSITOR] stage=text-input status=ok"
+        buffer_contract_output="$(cargo run --quiet -p aqua-compositor --features smithay-smoke -- probe-v1-client-buffer-contract)" || {
+            printf "%s\n" "$buffer_contract_output"
+            exit 1
+        }
+        printf "%s\n" "$buffer_contract_output"
+        printf "%s\n" "$buffer_contract_output" | grep -Fq "application_model=first-party-wl-shm-v1"
+        printf "%s\n" "$buffer_contract_output" | grep -Fq "required_buffer_protocol=wl_shm"
+        printf "%s\n" "$buffer_contract_output" | grep -Fq "required_shm_format=argb8888"
+        printf "%s\n" "$buffer_contract_output" | grep -Fq "client_count=2"
+        printf "%s\n" "$buffer_contract_output" | grep -Fq "wl_shm_visible_to_all_clients=true"
+        printf "%s\n" "$buffer_contract_output" | grep -Fq "argb8888_visible_to_all_clients=true"
+        printf "%s\n" "$buffer_contract_output" | grep -Fq "linux_dmabuf_advertised=false"
+        printf "%s\n" "$buffer_contract_output" | grep -Fq "drm_syncobj_advertised=false"
+        printf "%s\n" "$buffer_contract_output" | grep -Fq "explicit_sync_advertised=false"
+        printf "%s\n" "$buffer_contract_output" | grep -Fq "accelerated_clients_supported=false"
+        printf "%s\n" "$buffer_contract_output" | grep -Fq "synchronization_scope=wl_buffer.release+wl_surface.frame"
+        printf "%s\n" "$buffer_contract_output" | grep -Fq "host_stub=false"
+        printf "%s\n" "$buffer_contract_output" | grep -Fq "[AQUA-COMPOSITOR] stage=v1-client-buffer-contract status=ok"
         output_matrix="$(cargo run --quiet -p aqua-compositor --features smithay-smoke -- probe-wayland-output-matrix)" || {
             printf "%s\n" "$output_matrix"
             exit 1
@@ -134,6 +152,8 @@ docker run --rm --platform linux/amd64 \
             smithay_drag_and_drop_is_focus_safe_and_bounded
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_text_input_is_focus_and_authorization_safe
+        cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
+            v1_client_buffer_contract_excludes_accelerated_clients
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_output_matrix_is_discoverable_scaled_and_hotpluggable
     '

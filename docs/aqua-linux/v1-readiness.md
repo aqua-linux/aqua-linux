@@ -273,8 +273,16 @@ and viewporter v1 to two independent clients. It verifies current/preferred
 fallbacks, a 1.25 preference encoded as 150/120, committed viewport crop and
 destination state, and second-output global removal while the first remains
 usable. Hardware-driven connector hotplug and the complete scale, transform,
-and application matrix remain open. Broader application interoperability and
-dma-buf import also remain part of R3 acceptance. The
+and application matrix remain open. The v1 application model is explicitly
+limited to first-party and independently tested `wl_shm` ARGB8888 clients.
+Accelerated client buffers are outside that model: the compositor does not
+advertise `zwp_linux_dmabuf_v1`, `wp_linux_drm_syncobj_manager_v1`, or
+`zwp_linux_explicit_synchronization_v1`. A two-client Linux registry probe and
+the packaged-rootfs contract verify that boundary while retaining
+`wl_buffer.release` and `wl_surface.frame` as the shared-memory lifecycle and
+presentation synchronization scope. Compositor-owned GBM dma-buf scanout is a
+separate output implementation detail and does not expand the client contract.
+Broader application interoperability remains part of R3 acceptance. The
 three-client text-input probe separately publishes text-input v3 to normal
 clients while hiding input-method v2 from them and exposing it only to an
 authorized client. It proves keyboard-focus activation, stale-client
