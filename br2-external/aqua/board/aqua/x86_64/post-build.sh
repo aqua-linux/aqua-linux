@@ -305,10 +305,30 @@ fi
 if [ -x "${TARGET_DIR}/usr/bin/weston-simple-shm" ] || \
     [ -x "${TARGET_DIR}/usr/libexec/aqua-tests/weston-simple-shm" ]; then
     mkdir -p "${TARGET_DIR}/usr/libexec/aqua-tests"
-    for fixture in weston-simple-shm weston-simple-damage; do
+    for fixture in weston-simple-shm weston-simple-damage weston-simple-touch; do
         if [ -x "${TARGET_DIR}/usr/bin/${fixture}" ]; then
             mv "${TARGET_DIR}/usr/bin/${fixture}" \
                 "${TARGET_DIR}/usr/libexec/aqua-tests/${fixture}"
+        fi
+        # Buildroot finalization is re-entrant: a prior pass has already moved
+        # installed fixtures out of /usr/bin. Recover a newly added fixture
+        # from the one active Weston build directory without pinning its path.
+        if [ ! -x "${TARGET_DIR}/usr/libexec/aqua-tests/${fixture}" ]; then
+            fixture_build_path=""
+            for candidate in \
+                "$(dirname "${TARGET_DIR}")"/build/weston-*/buildroot-build/clients/"${fixture}"; do
+                [ -x "${candidate}" ] || continue
+                if [ -n "${fixture_build_path}" ]; then
+                    echo "multiple upstream Wayland fixture builds found: ${fixture}" >&2
+                    exit 1
+                fi
+                fixture_build_path="${candidate}"
+            done
+            if [ -n "${fixture_build_path}" ]; then
+                cp "${fixture_build_path}" \
+                    "${TARGET_DIR}/usr/libexec/aqua-tests/${fixture}"
+                chmod +x "${TARGET_DIR}/usr/libexec/aqua-tests/${fixture}"
+            fi
         fi
         if [ ! -x "${TARGET_DIR}/usr/libexec/aqua-tests/${fixture}" ]; then
             echo "missing required upstream Wayland fixture: ${fixture}" >&2
@@ -326,10 +346,11 @@ if [ -x "${TARGET_DIR}/usr/bin/weston-simple-shm" ] || \
     cat > "${TARGET_DIR}/usr/share/doc/aqua/wayland-compat-client.txt" <<'EOF'
 source=upstream-weston-14.0.1-simple-clients
 role=third-party-wayland-compatibility-fixtures
-fixtures=weston-simple-shm,weston-simple-damage
+fixtures=weston-simple-shm,weston-simple-damage,weston-simple-touch
 simple_shm_path=/usr/libexec/aqua-tests/weston-simple-shm
 simple_damage_path=/usr/libexec/aqua-tests/weston-simple-damage
-protocol_scope=xdg-shell+wl_shm+wl_surface.damage_buffer
+simple_touch_path=/usr/libexec/aqua-tests/weston-simple-touch
+protocol_scope=xdg-shell+wl_shm+wl_surface.damage_buffer+wl_touch
 weston_compositor_packaged=false
 autostart=false
 EOF

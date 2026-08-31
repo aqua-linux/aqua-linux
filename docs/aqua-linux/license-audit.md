@@ -24,7 +24,7 @@ is outside this audit.
 - Reviewed Aqua Core SVGs use resvg 0.45.1 without its default text,
   system-font, memory-map, or raster-image features. The pure-Rust parsing and
   raster graph is MIT, Apache-2.0, or BSD-3-Clause licensed.
-- The Weston simple-shm and simple-damage compatibility fixtures are MIT
+- The Weston simple-shm, simple-damage, and simple-touch compatibility fixtures are MIT
   licensed and are isolated from the Aqua desktop product stack. The Weston
   compositor, shells, backends, and desktop runtime are not packaged.
 - No private keys or environment-secret files were found in the OS source tree.

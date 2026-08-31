@@ -438,11 +438,15 @@ check_output_contains "cancelled_compose_rejected_for_all_locales=true" cargo ru
 check_output_contains "repeat_info_matches=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
 check_output_contains "[AQUA-COMPOSITOR] stage=independent-application-matrix status=ok" cargo run -p aqua-compositor -- probe-independent-application-matrix
 check_output_contains "application_matrix_status=independent-application-matrix" cargo run -p aqua-compositor -- probe-independent-application-matrix
-check_output_contains "client_count=2" cargo run -p aqua-compositor -- probe-independent-application-matrix
+check_output_contains "client_count=3" cargo run -p aqua-compositor -- probe-independent-application-matrix
 check_output_contains "simple_shm_app_id_seen=true" cargo run -p aqua-compositor -- probe-independent-application-matrix
 check_output_contains "simple_damage_app_id_seen=true" cargo run -p aqua-compositor -- probe-independent-application-matrix
+check_output_contains "simple_touch_app_id_seen=true" cargo run -p aqua-compositor -- probe-independent-application-matrix
 check_output_contains "damage_sequence_progressed=true" cargo run -p aqua-compositor -- probe-independent-application-matrix
 check_output_contains "frame_callback_sequence_progressed=true" cargo run -p aqua-compositor -- probe-independent-application-matrix
+check_output_contains "touch_damage_commit_count=2" cargo run -p aqua-compositor -- probe-independent-application-matrix
+check_output_contains "touch_damage_sequence_progressed=true" cargo run -p aqua-compositor -- probe-independent-application-matrix
+check_output_contains "touch_pixels_changed_exact=true" cargo run -p aqua-compositor -- probe-independent-application-matrix
 check_output_contains "remaining_surface_count=0" cargo run -p aqua-compositor -- probe-independent-application-matrix
 check_output_contains "host_stub=true" cargo run -p aqua-compositor -- probe-independent-application-matrix
 check_output_contains "[AQUA-COMPOSITOR] stage=privileged-protocol-boundary status=ok" cargo run -p aqua-compositor -- probe-privileged-protocol-boundary

@@ -373,13 +373,16 @@ use calloop::{
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use smithay::{
-    backend::input::{Axis, AxisSource, ButtonState, KeyState, Keycode},
+    backend::input::{Axis, AxisSource, ButtonState, KeyState, Keycode, TouchSlot},
     delegate_compositor, delegate_data_device, delegate_fractional_scale,
     delegate_input_method_manager, delegate_output, delegate_primary_selection, delegate_seat,
     delegate_shm, delegate_text_input_manager, delegate_viewporter, delegate_xdg_shell,
     input::{
         keyboard::{xkb, FilterResult, XkbConfig},
         pointer::{AxisFrame, ButtonEvent, CursorImageStatus, MotionEvent},
+        touch::{
+            DownEvent as TouchDownEvent, MotionEvent as TouchMotionEvent, UpEvent as TouchUpEvent,
+        },
         Seat, SeatHandler, SeatState,
     },
     output::{Mode as OutputMode, Output, PhysicalProperties, Scale, Subpixel},
@@ -6615,6 +6618,7 @@ struct ServerSurfaceRecord {
     sample_grid: [[u8; 4]; CLIENT_SAMPLE_GRID_PIXELS],
     buffer_rgba: Vec<u8>,
     buffer_opaque: bool,
+    damage_commit_count: usize,
     width: u32,
     height: u32,
     stride: u32,
@@ -6716,6 +6720,7 @@ impl WaylandSmokeState {
         let mut seat_state = SeatState::new();
         let mut seat = seat_state.new_wl_seat(display_handle, "Aqua Seat");
         seat.add_pointer();
+        seat.add_touch();
         seat.add_keyboard(
             XkbConfig {
                 layout: keyboard_layout.xkb_layout,
@@ -9239,6 +9244,7 @@ impl SmithayDrmSession {
         self.session.wayland_state.seat_global_created
             && self.session.wayland_state.seat.get_keyboard().is_some()
             && self.session.wayland_state.seat.get_pointer().is_some()
+            && self.session.wayland_state.seat.get_touch().is_some()
     }
 
     pub fn dispatch_keyboard_key(&mut self, code: u32, pressed: bool, time: u32) -> bool {
@@ -9840,7 +9846,7 @@ impl SmithayDrmSession {
                 sample_grid: surface.sample_grid,
                 buffer_rgba: surface.buffer_rgba.clone(),
                 buffer_opaque: surface.buffer_opaque,
-                damage_commit_count: state.damage_commit_count,
+                damage_commit_count: surface.damage_commit_count,
                 damage_rect_count: state.damage_rect_count,
                 pending_frame_callback_count: state.pending_frame_callbacks.len(),
                 frame_callbacks_sent: state.frame_callbacks_sent,
@@ -9981,6 +9987,80 @@ impl SmithayDrmSession {
         self.session.wayland_state.active_workspace = record.workspace;
         self.session.wayland_state.mapped_surface = Some(record.surface.clone());
         self.session.wayland_state.mapped_surfaces.push(record);
+        true
+    }
+
+    pub fn dispatch_touch_sequence_to_app_id(
+        &mut self,
+        expected_app_id: &str,
+        start: (u32, u32),
+        end: (u32, u32),
+        time: u32,
+    ) -> bool {
+        if !self.raise_surface_with_app_id(expected_app_id) {
+            return false;
+        }
+        let Some(surface) = self.session.wayland_state.mapped_surface.clone() else {
+            return false;
+        };
+        let Some((origin_x, origin_y, width, height)) = self
+            .session
+            .wayland_state
+            .mapped_surfaces
+            .iter()
+            .find(|record| record.surface == surface)
+            .map(|record| (record.x, record.y, record.width, record.height))
+        else {
+            return false;
+        };
+        if start.0 >= width || start.1 >= height || end.0 >= width || end.1 >= height {
+            return false;
+        }
+        let Some(touch) = self.session.wayland_state.seat.get_touch() else {
+            return false;
+        };
+        let origin = (f64::from(origin_x), f64::from(origin_y)).into();
+        let start_location = (
+            f64::from(origin_x.saturating_add(start.0)),
+            f64::from(origin_y.saturating_add(start.1)),
+        )
+            .into();
+        let end_location = (
+            f64::from(origin_x.saturating_add(end.0)),
+            f64::from(origin_y.saturating_add(end.1)),
+        )
+            .into();
+        let slot = TouchSlot::from(Some(0));
+        touch.down(
+            &mut self.session.wayland_state,
+            Some((surface.clone(), origin)),
+            &TouchDownEvent {
+                slot,
+                location: start_location,
+                serial: Serial::from(time.max(1)),
+                time,
+            },
+        );
+        touch.frame(&mut self.session.wayland_state);
+        touch.motion(
+            &mut self.session.wayland_state,
+            Some((surface, origin)),
+            &TouchMotionEvent {
+                slot,
+                location: end_location,
+                time: time.saturating_add(1),
+            },
+        );
+        touch.frame(&mut self.session.wayland_state);
+        touch.up(
+            &mut self.session.wayland_state,
+            &TouchUpEvent {
+                slot,
+                serial: Serial::from(time.saturating_add(2).max(1)),
+                time: time.saturating_add(2),
+            },
+        );
+        touch.frame(&mut self.session.wayland_state);
         true
     }
 
@@ -10865,7 +10945,8 @@ impl CompositorHandler for WaylandSmokeState {
                 .cached_state
                 .get::<smithay::wayland::compositor::SurfaceAttributes>();
             let attributes = guard.current();
-            if !attributes.damage.is_empty() {
+            let surface_damage_committed = !attributes.damage.is_empty();
+            if surface_damage_committed {
                 self.damage_commit_count += 1;
                 self.damage_rect_count += attributes.damage.len();
                 attributes.damage.clear();
@@ -10974,6 +11055,7 @@ impl CompositorHandler for WaylandSmokeState {
                             sample_grid,
                             buffer_rgba: self.shm_buffer_rgba.clone(),
                             buffer_opaque,
+                            damage_commit_count: usize::from(surface_damage_committed),
                             width: buffer_width,
                             height: buffer_height,
                             stride: buffer_stride,
@@ -10994,8 +11076,11 @@ impl CompositorHandler for WaylandSmokeState {
                             let display_height = existing.display_height;
                             let restore_geometry = existing.restore_geometry;
                             let workspace = existing.workspace;
+                            let damage_commit_count = existing.damage_commit_count;
                             *existing = record;
                             existing.workspace = workspace;
+                            existing.damage_commit_count =
+                                damage_commit_count.saturating_add(existing.damage_commit_count);
                             existing.x = x;
                             existing.y = y;
                             existing.display_width = display_width;

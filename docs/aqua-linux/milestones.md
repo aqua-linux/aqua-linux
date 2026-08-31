@@ -237,11 +237,12 @@ Current compatibility extension:
   exported to graphical clients through `XCOMPOSEFILE`. Physical keyboard
   behavior remains open.
 - A packaged-rootfs matrix launches the upstream Weston 14.0.1
-  `weston-simple-shm` and `weston-simple-damage` C clients as two external
-  processes. It proves distinct exact-size `wl_shm` buffers, both standard app
-  IDs, `damage_buffer` and frame-callback progress, independent compositor
-  close delivery, clean exits, and zero stale surfaces without packaging or
-  starting the Weston compositor. Broader toolkit coverage remains open.
+  `weston-simple-shm`, `weston-simple-damage`, and `weston-simple-touch` C
+  clients as three external processes. It proves distinct exact-size `wl_shm`
+  buffers, all app IDs, `damage_buffer` and frame-callback progress, plus exact
+  client-painted changes after `wl_touch` down/motion/up delivery. All clients
+  close cleanly with zero stale surfaces without packaging or starting the
+  Weston compositor. Physical touch and broader toolkit coverage remain open.
 - A native-Wayland application compatibility boundary disables Xorg and
   XWayland in both Buildroot profiles, omits `DISPLAY`, rejects X11 server
   artifacts and sockets from the rootfs, and publicly marks X11-only
