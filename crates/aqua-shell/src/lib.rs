@@ -7,7 +7,13 @@ use aqua_components::{
     WorkspaceSwitcher,
 };
 use aqua_scene::Rect;
-use aqua_service_adapters::network_broker::{request_wifi_broker, WifiBrokerOperation};
+use aqua_service_adapters::network_broker::{
+    request_wifi_broker, request_wifi_connect, request_wifi_scan, WifiBrokerOperation,
+};
+use aqua_service_adapters::wifi_control::{
+    WifiPassphrase, WifiScanNetwork, WifiScanSecurity, MAX_WIFI_PASSPHRASE_BYTES,
+    MIN_WIFI_PASSPHRASE_BYTES,
+};
 use aqua_service_adapters::{
     read_network_snapshot, AudioAdapterError, AudioAuthoritativeState, AudioBackend,
     AudioBackendDriveError, AudioBackendDriveOutcome, AudioRequest, AudioServiceAdapter,
@@ -29,6 +35,76 @@ pub struct WifiSettingsControl {
     network_id: Option<u16>,
     authoritative: bool,
     last_error: Option<String>,
+    networks: Vec<WifiScanNetwork>,
+    selected_network: Option<usize>,
+    credential_entry: bool,
+    passphrase: WifiSecretInput,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct WifiSecretInput {
+    bytes: [u8; MAX_WIFI_PASSPHRASE_BYTES],
+    length: usize,
+}
+
+impl Default for WifiSecretInput {
+    fn default() -> Self {
+        Self {
+            bytes: [0; MAX_WIFI_PASSPHRASE_BYTES],
+            length: 0,
+        }
+    }
+}
+
+impl std::fmt::Debug for WifiSecretInput {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("WifiSecretInput")
+            .field("bytes", &"[redacted]")
+            .field("length", &self.length)
+            .finish()
+    }
+}
+
+impl Drop for WifiSecretInput {
+    fn drop(&mut self) {
+        self.clear();
+    }
+}
+
+impl WifiSecretInput {
+    fn push(&mut self, character: char) -> bool {
+        if self.length >= MAX_WIFI_PASSPHRASE_BYTES || !character.is_ascii() {
+            return false;
+        }
+        let byte = character as u8;
+        if !(0x20..=0x7e).contains(&byte) {
+            return false;
+        }
+        self.bytes[self.length] = byte;
+        self.length += 1;
+        true
+    }
+
+    fn pop(&mut self) -> bool {
+        if self.length == 0 {
+            return false;
+        }
+        self.length -= 1;
+        unsafe { std::ptr::write_volatile(&mut self.bytes[self.length], 0) };
+        true
+    }
+
+    fn with_bytes<T>(&self, operation: impl FnOnce(&[u8]) -> T) -> T {
+        operation(&self.bytes[..self.length])
+    }
+
+    fn clear(&mut self) {
+        for byte in &mut self.bytes {
+            unsafe { std::ptr::write_volatile(byte, 0) };
+        }
+        self.length = 0;
+    }
 }
 
 impl Default for WifiSettingsControl {
@@ -39,6 +115,10 @@ impl Default for WifiSettingsControl {
             network_id: None,
             authoritative: false,
             last_error: None,
+            networks: Vec::new(),
+            selected_network: None,
+            credential_entry: false,
+            passphrase: WifiSecretInput::default(),
         }
     }
 }
@@ -58,6 +138,27 @@ impl WifiSettingsControl {
 
     pub fn status_label(&self) -> &str {
         self.last_error.as_deref().unwrap_or(&self.state)
+    }
+
+    pub fn networks(&self) -> &[WifiScanNetwork] {
+        &self.networks
+    }
+
+    pub const fn credential_entry(&self) -> bool {
+        self.credential_entry
+    }
+
+    pub fn selected_network(&self) -> Option<&WifiScanNetwork> {
+        self.selected_network
+            .and_then(|index| self.networks.get(index))
+    }
+
+    pub fn masked_passphrase(&self) -> String {
+        "*".repeat(self.passphrase.length)
+    }
+
+    pub fn passphrase_ready(&self) -> bool {
+        (MIN_WIFI_PASSPHRASE_BYTES..=MAX_WIFI_PASSPHRASE_BYTES).contains(&self.passphrase.length)
     }
 
     pub fn refresh(&mut self, socket_path: &Path) -> bool {
@@ -91,6 +192,98 @@ impl WifiSettingsControl {
             WifiBrokerOperation::Disconnect
         };
         match request_wifi_broker(socket_path, operation) {
+            Ok(status) => {
+                self.state = status.state;
+                self.network_id = status.network_id;
+                self.authoritative = status.authoritative;
+                self.last_error = None;
+                true
+            }
+            Err(error) => {
+                self.last_error = Some(error.to_string());
+                false
+            }
+        }
+    }
+
+    pub fn scan(&mut self, socket_path: &Path) -> bool {
+        if !self.available {
+            return false;
+        }
+        match request_wifi_scan(socket_path) {
+            Ok(networks) => {
+                self.networks = networks;
+                self.selected_network = None;
+                self.credential_entry = false;
+                self.passphrase.clear();
+                self.last_error = None;
+                true
+            }
+            Err(error) => {
+                self.networks.clear();
+                self.last_error = Some(error.to_string());
+                false
+            }
+        }
+    }
+
+    pub fn begin_credential_entry(&mut self, index: usize) -> bool {
+        let Some(network) = self.networks.get(index) else {
+            return false;
+        };
+        if network.security != WifiScanSecurity::Wpa2Personal {
+            self.last_error = Some("unsupported-security".to_owned());
+            return false;
+        }
+        self.passphrase.clear();
+        self.selected_network = Some(index);
+        self.credential_entry = true;
+        self.last_error = None;
+        true
+    }
+
+    pub fn input_passphrase_character(&mut self, character: char) -> bool {
+        self.credential_entry && self.passphrase.push(character)
+    }
+
+    pub fn remove_passphrase_character(&mut self) -> bool {
+        self.credential_entry && self.passphrase.pop()
+    }
+
+    pub fn cancel_credential_entry(&mut self) -> bool {
+        if !self.credential_entry {
+            return false;
+        }
+        self.passphrase.clear();
+        self.credential_entry = false;
+        self.selected_network = None;
+        true
+    }
+
+    pub fn connect_selected(&mut self, socket_path: &Path) -> bool {
+        if !self.available || !self.credential_entry || !self.passphrase_ready() {
+            self.last_error = Some("invalid-passphrase".to_owned());
+            return false;
+        }
+        let Some(network) = self.selected_network().cloned() else {
+            self.last_error = Some("missing-network".to_owned());
+            return false;
+        };
+        let passphrase = self
+            .passphrase
+            .with_bytes(WifiPassphrase::from_bytes)
+            .map_err(|error| error.to_string());
+        let result = match passphrase {
+            Ok(passphrase) => request_wifi_connect(socket_path, &network.ssid, &passphrase),
+            Err(error) => {
+                self.last_error = Some(error);
+                return false;
+            }
+        };
+        self.passphrase.clear();
+        self.credential_entry = false;
+        self.selected_network = None;
+        match result {
             Ok(status) => {
                 self.state = status.state;
                 self.network_id = status.network_id;
@@ -1660,8 +1853,28 @@ impl SettingsWindowModel {
         self.wifi.refresh(socket_path)
     }
 
+    pub fn refresh_wifi_networks(&mut self, socket_path: &Path) -> bool {
+        self.wifi.scan(socket_path)
+    }
+
     pub fn apply_wifi_control(&mut self, socket_path: &Path, connected: bool) -> bool {
         self.wifi.set_connected(socket_path, connected)
+    }
+
+    pub fn apply_wifi_connection(&mut self, socket_path: &Path) -> bool {
+        self.wifi.connect_selected(socket_path)
+    }
+
+    pub fn input_wifi_passphrase(&mut self, character: char) -> bool {
+        self.selected_category == 3 && self.wifi.input_passphrase_character(character)
+    }
+
+    pub fn remove_wifi_passphrase_character(&mut self) -> bool {
+        self.selected_category == 3 && self.wifi.remove_passphrase_character()
+    }
+
+    pub fn cancel_wifi_credential_entry(&mut self) -> bool {
+        self.wifi.cancel_credential_entry()
     }
 
     pub fn reconcile_audio_state(
@@ -1869,6 +2082,19 @@ impl SettingsWindowModel {
                 };
             }
         }
+        if self.selected_category == 3 && !self.wifi.credential_entry() {
+            for index in 0..self.wifi.networks().len().min(3) {
+                let row = self.section_group().row_rect(index + 1);
+                if x >= row.x
+                    && x < row.x.saturating_add(row.width)
+                    && y >= row.y
+                    && y < row.y.saturating_add(row.height)
+                    && self.wifi.begin_credential_entry(index)
+                {
+                    return SettingsUpdate::WifiNetworkSelected(index);
+                }
+            }
+        }
         if self.selected_category == 4 {
             if let Some(value) = self.audio_slider().value_for_pointer(x, y) {
                 let value = value as u8;
@@ -1900,6 +2126,16 @@ impl SettingsWindowModel {
     pub fn handle_key(&mut self, key: SettingsKey) -> SettingsUpdate {
         self.keyboard_focus = true;
         match key {
+            SettingsKey::Activate
+                if self.selected_category == 3 && self.wifi.credential_entry() =>
+            {
+                SettingsUpdate::WifiConnectRequested
+            }
+            SettingsKey::Up | SettingsKey::Down
+                if self.selected_category == 3 && self.wifi.credential_entry() =>
+            {
+                SettingsUpdate::None
+            }
             SettingsKey::Home => {
                 self.selected_category = 0;
                 SettingsUpdate::CategorySelected(self.selected_category)
@@ -2115,6 +2351,8 @@ pub enum SettingsUpdate {
     DesktopIconsChanged(bool),
     KeyRepeatChanged(bool),
     WifiControlRequested(bool),
+    WifiNetworkSelected(usize),
+    WifiConnectRequested,
     ThemeChanged(AquaTheme),
     AudioVolumeChanged(u8),
     AudioMutedChanged(bool),
@@ -4313,6 +4551,78 @@ mod tests {
         );
         assert!(model.apply_wifi_control(&socket, true));
         assert!(model.wifi.connected());
+
+        server.join().expect("join broker fixture");
+        fs::remove_file(socket).expect("remove broker fixture");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn settings_wifi_discovery_and_secret_entry_are_bounded_and_redacted() {
+        use std::io::{Read as _, Write as _};
+        use std::os::unix::net::UnixListener;
+        use std::thread;
+
+        let socket = PathBuf::from(format!(
+            "/tmp/aqua-settings-wifi-discovery-{}-{}.sock",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock")
+                .as_nanos()
+        ));
+        let _ = fs::remove_file(&socket);
+        let listener = UnixListener::bind(&socket).expect("bind broker fixture");
+        let server = thread::spawn(move || {
+            let exchanges = [
+                (
+                    "AQUA-NETWORK/1 WIFI_STATUS wlan0\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0 state=disconnected network_id=none authoritative=false\n",
+                ),
+                (
+                    "AQUA-NETWORK/1 WIFI_SCAN wlan0\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=1 authoritative=true network_0=417175612d51454d55,-28,wpa2-personal\n",
+                ),
+                (
+                    "AQUA-NETWORK/1 WIFI_CONNECT wlan0 417175612d51454d55 70617373776f7264\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-connect interface=wlan0 network_id=9 authoritative=true credential_saved=true\n",
+                ),
+            ];
+            for (expected, response) in exchanges {
+                let (mut stream, _) = listener.accept().expect("accept Settings request");
+                let mut request = String::new();
+                stream
+                    .read_to_string(&mut request)
+                    .expect("read Settings request");
+                assert_eq!(request, expected);
+                stream
+                    .write_all(response.as_bytes())
+                    .expect("write broker response");
+            }
+        });
+
+        let mut model = SettingsWindowModel::default();
+        assert!(model.refresh_wifi_control(&socket));
+        assert!(model.refresh_wifi_networks(&socket));
+        assert_eq!(model.wifi.networks().len(), 1);
+        model.selected_category = 3;
+        let row = model.section_group().row_rect(1);
+        assert_eq!(
+            model.handle_pointer(row.x + 1, row.y + 1),
+            SettingsUpdate::WifiNetworkSelected(0)
+        );
+        for character in "password".chars() {
+            assert!(model.input_wifi_passphrase(character));
+        }
+        assert_eq!(model.wifi.masked_passphrase(), "********");
+        assert!(!format!("{model:?}").contains("password"));
+        assert_eq!(
+            model.handle_key(SettingsKey::Activate),
+            SettingsUpdate::WifiConnectRequested
+        );
+        assert!(model.apply_wifi_connection(&socket));
+        assert!(model.wifi.connected());
+        assert!(!model.wifi.credential_entry());
 
         server.join().expect("join broker fixture");
         fs::remove_file(socket).expect("remove broker fixture");

@@ -25,6 +25,7 @@ fn main() -> ExitCode {
             b"AQUA-NETWORK/1 WIFI_STATUS wlan0\n",
             "AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0",
         ),
+        Some("broker-scan") => probe_broker_scan(),
         Some("broker-disconnect") => probe_broker_request(
             b"AQUA-NETWORK/1 WIFI_DISCONNECT wlan0\n",
             "AQUA-NETWORK/1 OK operation=wifi-disconnect interface=wlan0 authoritative=true",
@@ -34,7 +35,7 @@ fn main() -> ExitCode {
             "AQUA-NETWORK/1 OK operation=wifi-reconnect interface=wlan0 network_id=",
         ),
         _ => Err(
-            "usage: aqua-wifi-native-probe native|broker|broker-status|broker-disconnect|broker-reconnect",
+            "usage: aqua-wifi-native-probe native|broker|broker-status|broker-scan|broker-disconnect|broker-reconnect",
         ),
     };
     #[cfg(not(target_os = "linux"))]
@@ -88,19 +89,24 @@ fn probe_broker() -> Result<(), &'static str> {
 }
 
 #[cfg(target_os = "linux")]
+fn probe_broker_scan() -> Result<(), &'static str> {
+    let response = broker_exchange(b"AQUA-NETWORK/1 WIFI_SCAN wlan0\n")?;
+    if !response.starts_with(
+        "AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=1 authoritative=true",
+    ) || !response.contains("network_0=49454545,")
+        || !response.contains(",wpa2-personal")
+    {
+        return Err("broker-scan-response");
+    }
+    println!(
+        "[AQUA-NETWORK] stage=wifi-broker-scan status=ok bounded=true count=1 security=wpa2-personal"
+    );
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
 fn probe_broker_request(request: &[u8], expected: &str) -> Result<(), &'static str> {
-    let mut stream =
-        UnixStream::connect("/run/aqua-network/control.sock").map_err(|_| "broker-connect")?;
-    stream.write_all(request).map_err(|_| "broker-write")?;
-    stream
-        .shutdown(std::net::Shutdown::Write)
-        .map_err(|_| "broker-shutdown")?;
-    let mut response = Vec::new();
-    stream
-        .take(513)
-        .read_to_end(&mut response)
-        .map_err(|_| "broker-read")?;
-    let response = std::str::from_utf8(&response).map_err(|_| "broker-response-utf8")?;
+    let response = broker_exchange(request)?;
     if !response.starts_with(expected) {
         return Err("broker-response");
     }
@@ -115,4 +121,20 @@ fn probe_broker_request(request: &[u8], expected: &str) -> Result<(), &'static s
         return Err("broker-connect-acknowledgement");
     }
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn broker_exchange(request: &[u8]) -> Result<String, &'static str> {
+    let mut stream =
+        UnixStream::connect("/run/aqua-network/control.sock").map_err(|_| "broker-connect")?;
+    stream.write_all(request).map_err(|_| "broker-write")?;
+    stream
+        .shutdown(std::net::Shutdown::Write)
+        .map_err(|_| "broker-shutdown")?;
+    let mut response = Vec::new();
+    stream
+        .take(513)
+        .read_to_end(&mut response)
+        .map_err(|_| "broker-read")?;
+    String::from_utf8(response).map_err(|_| "broker-response-utf8")
 }

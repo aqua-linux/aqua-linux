@@ -8,7 +8,7 @@ use aqua_service_adapters::network_broker::{
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]
 use aqua_service_adapters::wifi_control::{
     validate_credential_metadata, WifiControlRequest, WifiControlResponse, WifiControlStatus,
-    WifiCredentialMetadata, WifiCredentialRecord, WifiSecurity, WifiSsid,
+    WifiCredentialMetadata, WifiCredentialRecord, WifiScanNetwork, WifiSecurity, WifiSsid,
     MAX_WIFI_CREDENTIAL_RECORD_BYTES, WIFI_CREDENTIAL_DIRECTORY, WIFI_CREDENTIAL_DIRECTORY_MODE,
     WIFI_CREDENTIAL_FILE_MODE, WIFI_CREDENTIAL_PATH, WIFI_CREDENTIAL_TEMP_PATH,
 };
@@ -43,7 +43,7 @@ const IO_TIMEOUT: Duration = Duration::from_secs(2);
 const RENEW_TIMEOUT: Duration = Duration::from_secs(8);
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]
 const BROKER_OPERATIONS: &str =
-    "status,renew-dhcp,wifi-status,wifi-connect,wifi-reconnect,wifi-disconnect";
+    "status,renew-dhcp,wifi-status,wifi-scan,wifi-connect,wifi-reconnect,wifi-disconnect";
 #[cfg(not(all(feature = "wifi-native", target_os = "linux")))]
 const BROKER_OPERATIONS: &str = "status,renew-dhcp";
 
@@ -170,6 +170,7 @@ fn handle_wifi_request(stream: &mut UnixStream, _request: WifiBrokerRequest) -> 
 fn handle_wifi_request(stream: &mut UnixStream, request: WifiBrokerRequest) -> io::Result<()> {
     let result = match request {
         WifiBrokerRequest::Status => wifi_status(),
+        WifiBrokerRequest::Scan => wifi_scan(),
         WifiBrokerRequest::Connect { ssid, passphrase } => wifi_connect(ssid, passphrase),
         WifiBrokerRequest::Reconnect => wifi_reconnect(),
         WifiBrokerRequest::Disconnect => wifi_disconnect(),
@@ -178,6 +179,50 @@ fn handle_wifi_request(stream: &mut UnixStream, request: WifiBrokerRequest) -> i
         Ok(response) => write_response(stream, &response),
         Err(reason) => write_response(stream, &format!("{PROTOCOL_VERSION} ERROR {reason}\n")),
     }
+}
+
+#[cfg(all(feature = "wifi-native", target_os = "linux"))]
+fn wifi_scan() -> Result<String, &'static str> {
+    let mut control = WifiNativeControl::connect().map_err(native_reason)?;
+    expect_acknowledgement(control.request(&WifiControlRequest::Scan)).map_err(native_reason)?;
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        thread::sleep(Duration::from_millis(100));
+        let results = match control
+            .request(&WifiControlRequest::ScanResults)
+            .map_err(native_reason)?
+        {
+            WifiControlResponse::ScanResults(results) => results,
+            _ => return Err("invalid-scan-results"),
+        };
+        if !results.is_empty() || Instant::now() >= deadline {
+            return encode_wifi_scan_response(&results);
+        }
+    }
+}
+
+#[cfg(all(feature = "wifi-native", target_os = "linux"))]
+fn encode_wifi_scan_response(results: &[WifiScanNetwork]) -> Result<String, &'static str> {
+    let mut response = format!(
+        "{PROTOCOL_VERSION} OK operation=wifi-scan interface={FIXED_WIFI_INTERFACE} count={} authoritative=true",
+        results.len()
+    );
+    for (index, network) in results.iter().enumerate() {
+        response.push_str(&format!(" network_{index}="));
+        for byte in network.ssid.bytes() {
+            use std::fmt::Write as _;
+            write!(&mut response, "{byte:02x}").map_err(|_| "scan-encode-failed")?;
+        }
+        response.push_str(&format!(
+            ",{},{}",
+            network.signal_dbm,
+            network.security.id()
+        ));
+    }
+    response.push('\n');
+    (response.len() <= MAX_RESPONSE_BYTES)
+        .then_some(response)
+        .ok_or("scan-response-too-large")
 }
 
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]

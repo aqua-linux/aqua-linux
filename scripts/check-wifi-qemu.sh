@@ -20,7 +20,7 @@ mkdir -p "$(dirname "$SERIAL_LOG")"
 rm -f "$SERIAL_LOG"
 export ROOT_DIR KERNEL ROOTFS SERIAL_LOG MEMORY CPUS TIMEOUT_SECONDS
 expect "$ROOT_DIR/scripts/check-wifi-qemu.exp"
-grep -Fq '[AQUA-WIFI] stage=qemu-hwsim-acceptance status=ok radios=2 association=true dhcp=true disconnect=true reconnect=true service_recovery=true disable=true broker_auth=true default_wifi=false recovery_shell=true' "$SERIAL_LOG"
+grep -Fq '[AQUA-WIFI] stage=qemu-hwsim-acceptance status=ok radios=2 discovery=true new_credential=true association=true dhcp=true disconnect=true reconnect=true service_recovery=true disable=true broker_auth=true default_wifi=false recovery_shell=true' "$SERIAL_LOG"
 
 echo 'Aqua Linux opt-in mac80211_hwsim Wi-Fi QEMU acceptance passed.'
 echo "Serial log: $SERIAL_LOG"

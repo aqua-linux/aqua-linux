@@ -381,8 +381,13 @@ and link state, BusyBox `udhcpc` remains the initial Ethernet DHCP client, and
 adapter reports bounded typed interface, default-route, DNS, and
 offline/configuring/online/degraded state without spawning management commands.
 Settings consumes that state and remains read-only unless the authenticated
-Wi-Fi broker is present. In that gated profile it exposes only disconnect and
-root-owned saved-credential reconnect, with no secret entering the UI. The opt-in Wi-Fi profile
+Wi-Fi broker is present. In that gated profile it exposes bounded discovery,
+WPA2-Personal credential entry, disconnect, and root-owned saved-credential
+reconnect. Scan input is capped at 4096 bytes and 32 rows, deduplicated by SSID,
+and reduced to four typed results; the broker response remains capped at 512
+bytes. Settings renders at most three results, blocks unsupported security, and
+keeps the 8-63-byte printable-ASCII passphrase in a masked, redacted, fixed-size
+buffer that is wiped on cancel or after submission. The opt-in Wi-Fi profile
 now proves the exact wpa_supplicant 2.12, libnl 3.11.0, and OpenSSL 3.5.7
 package and legal closure together with the MIT-licensed `aqua-wifi-native`
 bridge, without changing the default image or starting a service. The bridge
@@ -391,10 +396,11 @@ The authenticated broker admits only Aqua UID/GID 1000, requires authoritative
 association before atomically writing a root-owned `0600` PSK-only record, and
 wipes transient request buffers. A deterministic fake-control-socket fixture
 proves the exact request sequence, PSK vector, authentication, redaction, and
-storage contract. Packaged mac80211_hwsim now proves the supervised daemon
-lifecycle and saved-credential reconnect path. This is virtual-radio evidence,
-not physical-radio evidence; network discovery, new credential entry, default
-network ownership, WPA3 association, and physical support remain gated. The
+storage contract. Packaged mac80211_hwsim now proves broker discovery of the
+isolated WPA2 fixture, new-credential association, the supervised daemon
+lifecycle, and saved-credential reconnect path. This is virtual-radio evidence,
+not physical-radio evidence; explicit rescan/forget UX, default network
+ownership, WPA3 association, and physical support remain gated. The
 root-owned DHCP supervisor is
 now packaged with a finite readiness timeout, three-restart budget, lease-loss
 grace period, atomic non-secret state, a checked hook around Buildroot's default

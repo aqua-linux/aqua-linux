@@ -15,6 +15,8 @@ pub const MAX_WIFI_NETWORK_ID: u16 = 4095;
 pub const MAX_WIFI_CONTROL_COMMAND_BYTES: usize = 192;
 pub const MAX_WIFI_CONTROL_RESPONSE_BYTES: usize = 4096;
 pub const MAX_WIFI_CREDENTIAL_RECORD_BYTES: usize = 256;
+pub const MAX_WIFI_SCAN_RESULTS: usize = 4;
+const MAX_WIFI_SCAN_ROWS: usize = 32;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct WifiSsid(Vec<u8>);
@@ -306,6 +308,7 @@ pub fn validate_credential_metadata(
 pub enum WifiControlRequest<'a> {
     Status,
     Scan,
+    ScanResults,
     AddNetwork,
     SetSsid { network_id: u16, ssid: &'a WifiSsid },
     SetPsk { network_id: u16, psk: &'a WifiPsk },
@@ -321,6 +324,7 @@ impl fmt::Debug for WifiControlRequest<'_> {
         formatter.write_str(match self {
             Self::Status => "WifiControlRequest::Status",
             Self::Scan => "WifiControlRequest::Scan",
+            Self::ScanResults => "WifiControlRequest::ScanResults",
             Self::AddNetwork => "WifiControlRequest::AddNetwork",
             Self::SetSsid { .. } => "WifiControlRequest::SetSsid([redacted])",
             Self::SetPsk { .. } => "WifiControlRequest::SetPsk([redacted])",
@@ -338,6 +342,7 @@ impl WifiControlRequest<'_> {
         let command = match self {
             Self::Status => "STATUS".to_owned(),
             Self::Scan => "SCAN".to_owned(),
+            Self::ScanResults => "SCAN_RESULTS".to_owned(),
             Self::AddNetwork => "ADD_NETWORK".to_owned(),
             Self::SetSsid { network_id, ssid } => {
                 validate_network_id(*network_id)?;
@@ -381,6 +386,7 @@ impl WifiControlRequest<'_> {
         }
         match self {
             Self::Status => parse_status(bytes).map(WifiControlResponse::Status),
+            Self::ScanResults => parse_scan_results(bytes).map(WifiControlResponse::ScanResults),
             Self::AddNetwork => parse_network_id(bytes).map(WifiControlResponse::NetworkAdded),
             _ if bytes == b"OK\n" => Ok(WifiControlResponse::Acknowledged),
             _ if bytes == b"FAIL\n" => Err(WifiControlError::SupplicantRejected),
@@ -459,10 +465,33 @@ impl WifiControlStatus {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WifiScanSecurity {
+    Wpa2Personal,
+    Unsupported,
+}
+
+impl WifiScanSecurity {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Wpa2Personal => "wpa2-personal",
+            Self::Unsupported => "unsupported",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WifiScanNetwork {
+    pub ssid: WifiSsid,
+    pub signal_dbm: i16,
+    pub security: WifiScanSecurity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WifiControlResponse {
     Acknowledged,
     NetworkAdded(u16),
     Status(WifiControlStatus),
+    ScanResults(Vec<WifiScanNetwork>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -563,6 +592,92 @@ fn parse_status(bytes: &[u8]) -> Result<WifiControlStatus, WifiControlError> {
     Ok(status)
 }
 
+fn parse_scan_results(bytes: &[u8]) -> Result<Vec<WifiScanNetwork>, WifiControlError> {
+    let text = std::str::from_utf8(bytes).map_err(|_| WifiControlError::InvalidResponse)?;
+    if text.contains(['\r', '\0']) || !text.ends_with('\n') {
+        return Err(WifiControlError::InvalidResponse);
+    }
+    let mut lines = text.lines();
+    if lines.next() != Some("bssid / frequency / signal level / flags / ssid") {
+        return Err(WifiControlError::InvalidResponse);
+    }
+    let mut networks = Vec::<WifiScanNetwork>::new();
+    for (index, line) in lines.enumerate() {
+        if index >= MAX_WIFI_SCAN_ROWS || line.len() > 256 {
+            return Err(WifiControlError::InvalidResponse);
+        }
+        let fields = line.split('\t').collect::<Vec<_>>();
+        if fields.len() != 5
+            || !valid_bssid(fields[0])
+            || fields[3].is_empty()
+            || fields[3].len() > 96
+            || !fields[3]
+                .bytes()
+                .all(|byte| byte.is_ascii_graphic() && byte != b'\\')
+        {
+            return Err(WifiControlError::InvalidResponse);
+        }
+        let frequency = fields[1]
+            .parse::<u16>()
+            .map_err(|_| WifiControlError::InvalidResponse)?;
+        if !(2_300..=7_125).contains(&frequency) {
+            return Err(WifiControlError::InvalidResponse);
+        }
+        let signal_dbm = fields[2]
+            .parse::<i16>()
+            .map_err(|_| WifiControlError::InvalidResponse)?;
+        if !(-127..=0).contains(&signal_dbm) {
+            return Err(WifiControlError::InvalidResponse);
+        }
+        if fields[4].is_empty()
+            || fields[4].len() > MAX_WIFI_SSID_BYTES
+            || !fields[4].bytes().all(|byte| (0x20..=0x7e).contains(&byte))
+        {
+            continue;
+        }
+        let ssid = WifiSsid::new(fields[4].as_bytes().to_vec())?;
+        let security = if fields[3].contains("[WPA2-PSK-") {
+            WifiScanSecurity::Wpa2Personal
+        } else {
+            WifiScanSecurity::Unsupported
+        };
+        if let Some(existing) = networks
+            .iter_mut()
+            .find(|network| network.ssid.bytes() == ssid.bytes())
+        {
+            if signal_dbm > existing.signal_dbm {
+                existing.signal_dbm = signal_dbm;
+                existing.security = security;
+            }
+        } else {
+            networks.push(WifiScanNetwork {
+                ssid,
+                signal_dbm,
+                security,
+            });
+        }
+    }
+    networks.sort_by(|left, right| {
+        right
+            .signal_dbm
+            .cmp(&left.signal_dbm)
+            .then_with(|| left.ssid.bytes().cmp(right.ssid.bytes()))
+    });
+    networks.truncate(MAX_WIFI_SCAN_RESULTS);
+    Ok(networks)
+}
+
+fn valid_bssid(value: &str) -> bool {
+    value.len() == 17
+        && value.bytes().enumerate().all(|(index, byte)| {
+            if matches!(index, 2 | 5 | 8 | 11 | 14) {
+                byte == b':'
+            } else {
+                byte.is_ascii_hexdigit()
+            }
+        })
+}
+
 fn parse_association_state(value: &str) -> Result<WifiAssociationState, WifiControlError> {
     match value {
         "DISCONNECTED" => Ok(WifiAssociationState::Disconnected),
@@ -644,6 +759,13 @@ mod tests {
                 .bytes(),
             b"SET_NETWORK 7 key_mgmt WPA-PSK"
         );
+        assert_eq!(
+            WifiControlRequest::ScanResults
+                .encode()
+                .expect("scan results command")
+                .bytes(),
+            b"SCAN_RESULTS"
+        );
         assert!(matches!(
             WifiControlRequest::RemoveNetwork { network_id: 4096 }.encode(),
             Err(WifiControlError::InvalidNetworkId)
@@ -676,6 +798,31 @@ mod tests {
             WifiControlRequest::Scan
                 .parse_response(&vec![b'x'; MAX_WIFI_CONTROL_RESPONSE_BYTES + 1]),
             Err(WifiControlError::ResponseTooLarge)
+        );
+    }
+
+    #[test]
+    fn scan_results_are_bounded_deduplicated_and_security_typed() {
+        let response = b"bssid / frequency / signal level / flags / ssid\n\
+02:00:00:00:01:00\t2412\t-40\t[WPA2-PSK-CCMP][ESS]\tAqua-QEMU\n\
+02:00:00:00:01:01\t2412\t-28\t[WPA2-PSK-CCMP][ESS]\tAqua-QEMU\n\
+02:00:00:00:02:00\t5180\t-55\t[WPA3-SAE-CCMP][ESS]\tFuture-Net\n";
+        let WifiControlResponse::ScanResults(results) = WifiControlRequest::ScanResults
+            .parse_response(response)
+            .expect("strict scan results")
+        else {
+            panic!("scan result response expected");
+        };
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].ssid.bytes(), b"Aqua-QEMU");
+        assert_eq!(results[0].signal_dbm, -28);
+        assert_eq!(results[0].security, WifiScanSecurity::Wpa2Personal);
+        assert_eq!(results[1].security, WifiScanSecurity::Unsupported);
+        assert_eq!(
+            WifiControlRequest::ScanResults.parse_response(
+                b"bssid / frequency / signal level / flags / ssid\nnot-a-bssid\t2412\t-40\t[ESS]\tbad\n"
+            ),
+            Err(WifiControlError::InvalidResponse)
         );
     }
 
