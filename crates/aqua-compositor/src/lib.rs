@@ -7804,7 +7804,9 @@ impl XdgSmokeClientState {
             .unwrap_or_else(|| PathBuf::from(aqua_shell::SETTINGS_WIFI_BROKER_SOCKET_PATH));
         #[cfg(not(test))]
         let wifi_socket_path = PathBuf::from(aqua_shell::SETTINGS_WIFI_BROKER_SOCKET_PATH);
-        settings_model.refresh_wifi_control(&wifi_socket_path);
+        if settings_model.refresh_wifi_control(&wifi_socket_path) {
+            settings_model.refresh_wifi_networks(&wifi_socket_path);
+        }
         Ok(Self {
             buffer_width: 600,
             buffer_height: 400,
@@ -8541,6 +8543,23 @@ impl XdgSmokeClientState {
         println!(
             "aqua_settings_wifi_control requested={} applied={} available={} connected={} status={}",
             if connected { "reconnect" } else { "disconnect" },
+            applied,
+            model.wifi.available(),
+            model.wifi.connected(),
+            model.wifi.status_label()
+        );
+    }
+
+    fn apply_settings_wifi_connection(&mut self) {
+        let (Some(model), Some(socket_path)) = (
+            self.settings_model.as_mut(),
+            self.settings_wifi_socket_path.as_deref(),
+        ) else {
+            return;
+        };
+        let applied = model.apply_wifi_connection(socket_path);
+        println!(
+            "aqua_settings_wifi_new_network applied={} available={} connected={} status={}",
             applied,
             model.wifi.available(),
             model.wifi.connected(),
@@ -11032,6 +11051,63 @@ fn launcher_key_character(code: u32) -> Option<char> {
         48 => 'b',
         49 => 'n',
         50 => 'm',
+        _ => return None,
+    })
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn settings_passphrase_character(code: u32, shift: bool) -> Option<char> {
+    if let Some(character) = launcher_key_character(code) {
+        return Some(if shift {
+            character.to_ascii_uppercase()
+        } else {
+            character
+        });
+    }
+    Some(match (code, shift) {
+        (2, false) => '1',
+        (3, false) => '2',
+        (4, false) => '3',
+        (5, false) => '4',
+        (6, false) => '5',
+        (7, false) => '6',
+        (8, false) => '7',
+        (9, false) => '8',
+        (10, false) => '9',
+        (11, false) => '0',
+        (2, true) => '!',
+        (3, true) => '@',
+        (4, true) => '#',
+        (5, true) => '$',
+        (6, true) => '%',
+        (7, true) => '^',
+        (8, true) => '&',
+        (9, true) => '*',
+        (10, true) => '(',
+        (11, true) => ')',
+        (12, false) => '-',
+        (12, true) => '_',
+        (13, false) => '=',
+        (13, true) => '+',
+        (26, false) => '[',
+        (26, true) => '{',
+        (27, false) => ']',
+        (27, true) => '}',
+        (39, false) => ';',
+        (39, true) => ':',
+        (40, false) => '\'',
+        (40, true) => '"',
+        (41, false) => '`',
+        (41, true) => '~',
+        (43, false) => '\\',
+        (43, true) => '|',
+        (51, false) => ',',
+        (51, true) => '<',
+        (52, false) => '.',
+        (52, true) => '>',
+        (53, false) => '/',
+        (53, true) => '?',
+        (57, _) => ' ',
         _ => return None,
     })
 }
@@ -13660,6 +13736,43 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
                     state.redraw_files_buffer(qh);
                 }
             }
+            let wifi_credential_entry = state
+                .settings_model
+                .as_ref()
+                .is_some_and(|model| model.wifi.credential_entry());
+            if wifi_credential_entry && key == 1 {
+                if state
+                    .settings_model
+                    .as_mut()
+                    .is_some_and(aqua_shell::SettingsWindowModel::cancel_wifi_credential_entry)
+                {
+                    state.redraw_settings_buffer(qh);
+                }
+                return;
+            }
+            if wifi_credential_entry && key == 14 {
+                if state
+                    .settings_model
+                    .as_mut()
+                    .is_some_and(|model| model.remove_wifi_passphrase_character())
+                {
+                    state.redraw_settings_buffer(qh);
+                }
+                return;
+            }
+            if wifi_credential_entry && key != 28 {
+                if let Some(character) = settings_passphrase_character(key, state.keyboard_shift) {
+                    if state
+                        .settings_model
+                        .as_mut()
+                        .is_some_and(|model| model.input_wifi_passphrase(character))
+                    {
+                        println!("aqua_settings_wifi_secret_input=redacted");
+                        state.redraw_settings_buffer(qh);
+                    }
+                }
+                return;
+            }
             let settings_key = match key {
                 102 => Some(aqua_shell::SettingsKey::Home),
                 103 => Some(aqua_shell::SettingsKey::Up),
@@ -13679,6 +13792,9 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
                 }
                 if let aqua_shell::SettingsUpdate::WifiControlRequested(connected) = update {
                     state.apply_settings_wifi_control(connected);
+                }
+                if update == aqua_shell::SettingsUpdate::WifiConnectRequested {
+                    state.apply_settings_wifi_connection();
                 }
                 if matches!(
                     update,

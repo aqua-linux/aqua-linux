@@ -5,7 +5,9 @@ use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::time::Duration;
 
-use crate::wifi_control::{WifiPassphrase, WifiSsid};
+use crate::wifi_control::{
+    WifiPassphrase, WifiScanNetwork, WifiScanSecurity, WifiSsid, MAX_WIFI_SCAN_RESULTS,
+};
 
 pub const PROTOCOL_VERSION: &str = "AQUA-NETWORK/1";
 pub const FIXED_INTERFACE: &str = "eth0";
@@ -15,6 +17,7 @@ pub const MAX_RESPONSE_BYTES: usize = 512;
 pub const MAX_STATE_BYTES: usize = 4096;
 pub const NETWORK_BROKER_SOCKET_PATH: &str = "/run/aqua-network/control.sock";
 const CLIENT_IO_TIMEOUT: Duration = Duration::from_secs(2);
+const CLIENT_SCAN_TIMEOUT: Duration = Duration::from_secs(6);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetworkBrokerOperation {
@@ -49,6 +52,7 @@ impl NetworkBrokerRequest {
 
 pub enum WifiBrokerRequest {
     Status,
+    Scan,
     Connect {
         ssid: WifiSsid,
         passphrase: WifiPassphrase,
@@ -61,6 +65,7 @@ impl fmt::Debug for WifiBrokerRequest {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::Status => "WifiBrokerRequest::Status",
+            Self::Scan => "WifiBrokerRequest::Scan",
             Self::Connect { .. } => "WifiBrokerRequest::Connect([redacted])",
             Self::Reconnect => "WifiBrokerRequest::Reconnect",
             Self::Disconnect => "WifiBrokerRequest::Disconnect",
@@ -168,6 +173,10 @@ pub fn parse_authenticated_request(
             validate_wifi_interface(fields[2])?;
             Ok(AuthenticatedNetworkRequest::Wifi(WifiBrokerRequest::Status))
         }
+        "WIFI_SCAN" if fields.len() == 3 => {
+            validate_wifi_interface(fields[2])?;
+            Ok(AuthenticatedNetworkRequest::Wifi(WifiBrokerRequest::Scan))
+        }
         "WIFI_DISCONNECT" if fields.len() == 3 => {
             validate_wifi_interface(fields[2])?;
             Ok(AuthenticatedNetworkRequest::Wifi(
@@ -194,7 +203,7 @@ pub fn parse_authenticated_request(
                 WifiBrokerRequest::Connect { ssid, passphrase },
             ))
         }
-        "WIFI_STATUS" | "WIFI_DISCONNECT" | "WIFI_RECONNECT" | "WIFI_CONNECT" => {
+        "WIFI_STATUS" | "WIFI_SCAN" | "WIFI_DISCONNECT" | "WIFI_RECONNECT" | "WIFI_CONNECT" => {
             Err(NetworkBrokerError::InvalidRequest)
         }
         _ => Err(NetworkBrokerError::UnsupportedOperation),
@@ -277,16 +286,60 @@ pub fn request_wifi_broker(
     socket_path: &Path,
     operation: WifiBrokerOperation,
 ) -> Result<WifiBrokerStatus, WifiBrokerClientError> {
+    let response = exchange_wifi_request(socket_path, operation.encode().as_bytes())?;
+    parse_wifi_broker_response(&response, operation)
+}
+
+pub fn request_wifi_scan(
+    socket_path: &Path,
+) -> Result<Vec<WifiScanNetwork>, WifiBrokerClientError> {
+    let request = format!("{PROTOCOL_VERSION} WIFI_SCAN {FIXED_WIFI_INTERFACE}\n");
+    let response =
+        exchange_wifi_request_with_timeout(socket_path, request.as_bytes(), CLIENT_SCAN_TIMEOUT)?;
+    parse_wifi_scan_response(&response)
+}
+
+pub fn request_wifi_connect(
+    socket_path: &Path,
+    ssid: &WifiSsid,
+    passphrase: &WifiPassphrase,
+) -> Result<WifiBrokerStatus, WifiBrokerClientError> {
+    let mut request = format!("{PROTOCOL_VERSION} WIFI_CONNECT {FIXED_WIFI_INTERFACE} ");
+    write_hex(ssid.bytes(), &mut request);
+    request.push(' ');
+    passphrase.with_bytes(|bytes| write_hex(bytes, &mut request));
+    request.push('\n');
+    let mut request = request.into_bytes();
+    let response = exchange_wifi_request(socket_path, &request);
+    wipe_bytes(&mut request);
+    parse_wifi_connect_response(&response?)
+}
+
+fn exchange_wifi_request(
+    socket_path: &Path,
+    request: &[u8],
+) -> Result<Vec<u8>, WifiBrokerClientError> {
+    exchange_wifi_request_with_timeout(socket_path, request, CLIENT_IO_TIMEOUT)
+}
+
+fn exchange_wifi_request_with_timeout(
+    socket_path: &Path,
+    request: &[u8],
+    timeout: Duration,
+) -> Result<Vec<u8>, WifiBrokerClientError> {
+    if request.len() > MAX_REQUEST_BYTES {
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
     let mut stream = UnixStream::connect(socket_path)?;
-    stream.set_read_timeout(Some(CLIENT_IO_TIMEOUT))?;
+    stream.set_read_timeout(Some(timeout))?;
     stream.set_write_timeout(Some(CLIENT_IO_TIMEOUT))?;
-    stream.write_all(operation.encode().as_bytes())?;
+    stream.write_all(request)?;
     stream.shutdown(std::net::Shutdown::Write)?;
     let mut response = Vec::with_capacity(MAX_RESPONSE_BYTES + 1);
     Read::by_ref(&mut stream)
         .take((MAX_RESPONSE_BYTES + 1) as u64)
         .read_to_end(&mut response)?;
-    parse_wifi_broker_response(&response, operation)
+    Ok(response)
 }
 
 pub fn parse_wifi_broker_response(
@@ -418,12 +471,137 @@ pub fn parse_wifi_broker_response(
     })
 }
 
+pub fn parse_wifi_scan_response(
+    bytes: &[u8],
+) -> Result<Vec<WifiScanNetwork>, WifiBrokerClientError> {
+    let values = parse_client_response_fields(bytes)?;
+    if values.get("operation") != Some(&"wifi-scan")
+        || values.get("interface") != Some(&FIXED_WIFI_INTERFACE)
+        || values.get("authoritative") != Some(&"true")
+    {
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
+    let count = values
+        .get("count")
+        .ok_or(WifiBrokerClientError::InvalidResponse)?
+        .parse::<usize>()
+        .map_err(|_| WifiBrokerClientError::InvalidResponse)?;
+    if count > MAX_WIFI_SCAN_RESULTS || values.len() != count + 4 {
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
+    let mut networks = Vec::with_capacity(count);
+    for index in 0..count {
+        let key = format!("network_{index}");
+        let fields = values
+            .get(key.as_str())
+            .ok_or(WifiBrokerClientError::InvalidResponse)?
+            .split(',')
+            .collect::<Vec<_>>();
+        if fields.len() != 3 {
+            return Err(WifiBrokerClientError::InvalidResponse);
+        }
+        let ssid_bytes =
+            decode_hex(fields[0]).map_err(|_| WifiBrokerClientError::InvalidResponse)?;
+        if !ssid_bytes.iter().all(|byte| (0x20..=0x7e).contains(byte)) {
+            return Err(WifiBrokerClientError::InvalidResponse);
+        }
+        let signal_dbm = fields[1]
+            .parse::<i16>()
+            .map_err(|_| WifiBrokerClientError::InvalidResponse)?;
+        if !(-127..=0).contains(&signal_dbm) {
+            return Err(WifiBrokerClientError::InvalidResponse);
+        }
+        let security = match fields[2] {
+            "wpa2-personal" => WifiScanSecurity::Wpa2Personal,
+            "unsupported" => WifiScanSecurity::Unsupported,
+            _ => return Err(WifiBrokerClientError::InvalidResponse),
+        };
+        networks.push(WifiScanNetwork {
+            ssid: WifiSsid::new(ssid_bytes).map_err(|_| WifiBrokerClientError::InvalidResponse)?,
+            signal_dbm,
+            security,
+        });
+    }
+    Ok(networks)
+}
+
+fn parse_wifi_connect_response(bytes: &[u8]) -> Result<WifiBrokerStatus, WifiBrokerClientError> {
+    let values = parse_client_response_fields(bytes)?;
+    let allowed = [
+        "operation",
+        "interface",
+        "network_id",
+        "authoritative",
+        "credential_saved",
+    ];
+    if values.len() != allowed.len()
+        || values.keys().any(|key| !allowed.contains(key))
+        || values.get("operation") != Some(&"wifi-connect")
+        || values.get("interface") != Some(&FIXED_WIFI_INTERFACE)
+        || values.get("authoritative") != Some(&"true")
+        || values.get("credential_saved") != Some(&"true")
+    {
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
+    let network_id = values
+        .get("network_id")
+        .ok_or(WifiBrokerClientError::InvalidResponse)?
+        .parse::<u16>()
+        .map_err(|_| WifiBrokerClientError::InvalidResponse)?;
+    if network_id > crate::wifi_control::MAX_WIFI_NETWORK_ID {
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
+    Ok(WifiBrokerStatus {
+        state: "completed".to_owned(),
+        network_id: Some(network_id),
+        authoritative: true,
+    })
+}
+
+fn parse_client_response_fields(
+    bytes: &[u8],
+) -> Result<std::collections::HashMap<&str, &str>, WifiBrokerClientError> {
+    if bytes.len() > MAX_RESPONSE_BYTES {
+        return Err(WifiBrokerClientError::ResponseTooLarge);
+    }
+    let line = std::str::from_utf8(bytes).map_err(|_| WifiBrokerClientError::InvalidResponse)?;
+    let line = line
+        .strip_suffix('\n')
+        .ok_or(WifiBrokerClientError::InvalidResponse)?;
+    if line.contains(['\r', '\n', '\0']) {
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
+    if let Some(reason) = line.strip_prefix(&format!("{PROTOCOL_VERSION} ERROR ")) {
+        if valid_response_value(reason) {
+            return Err(WifiBrokerClientError::Rejected(reason.to_owned()));
+        }
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
+    let fields = line.split(' ').collect::<Vec<_>>();
+    if fields.len() < 5 || fields[0] != PROTOCOL_VERSION || fields[1] != "OK" {
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
+    let mut values = std::collections::HashMap::new();
+    for field in &fields[2..] {
+        let (key, value) = field
+            .split_once('=')
+            .ok_or(WifiBrokerClientError::InvalidResponse)?;
+        if !valid_response_key(key)
+            || !valid_response_value(value)
+            || values.insert(key, value).is_some()
+        {
+            return Err(WifiBrokerClientError::InvalidResponse);
+        }
+    }
+    Ok(values)
+}
+
 fn valid_response_value(value: &str) -> bool {
     !value.is_empty()
-        && value.len() <= 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        && value.len() <= 96
+        && value.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b',')
+        })
 }
 
 fn valid_response_key(value: &str) -> bool {
@@ -431,7 +609,7 @@ fn valid_response_key(value: &str) -> bool {
         && value.len() <= 32
         && value
             .bytes()
-            .all(|byte| byte.is_ascii_lowercase() || byte == b'_')
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
 }
 
 impl std::error::Error for NetworkBrokerError {}
@@ -486,6 +664,14 @@ fn decode_hex(value: &str) -> Result<Vec<u8>, NetworkBrokerError> {
             Ok((high << 4) | low)
         })
         .collect()
+}
+
+fn write_hex(bytes: &[u8], output: &mut String) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for byte in bytes {
+        output.push(HEX[(byte >> 4) as usize] as char);
+        output.push(HEX[(byte & 0x0f) as usize] as char);
+    }
 }
 
 fn decode_hex_digit(value: u8) -> Result<u8, NetworkBrokerError> {
@@ -682,6 +868,10 @@ mod tests {
             Ok(AuthenticatedNetworkRequest::Wifi(WifiBrokerRequest::Status))
         ));
         assert!(matches!(
+            parse_authenticated_request(b"AQUA-NETWORK/1 WIFI_SCAN wlan0\n"),
+            Ok(AuthenticatedNetworkRequest::Wifi(WifiBrokerRequest::Scan))
+        ));
+        assert!(matches!(
             parse_authenticated_request(b"AQUA-NETWORK/1 WIFI_DISCONNECT wlan0\n"),
             Ok(AuthenticatedNetworkRequest::Wifi(
                 WifiBrokerRequest::Disconnect
@@ -720,6 +910,15 @@ mod tests {
         .expect("valid reconnect");
         assert!(reconnected.connected());
 
+        let scanned = parse_wifi_scan_response(
+            b"AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=2 authoritative=true network_0=417175612d51454d55,-28,wpa2-personal network_1=4675747572652d4e6574,-55,unsupported\n",
+        )
+        .expect("valid scan response");
+        assert_eq!(scanned.len(), 2);
+        assert_eq!(scanned[0].ssid.bytes(), b"Aqua-QEMU");
+        assert_eq!(scanned[0].security, WifiScanSecurity::Wpa2Personal);
+        assert_eq!(scanned[1].security, WifiScanSecurity::Unsupported);
+
         assert!(matches!(
             parse_wifi_broker_response(
                 b"AQUA-NETWORK/1 ERROR credential-read-failed\n",
@@ -731,6 +930,12 @@ mod tests {
             parse_wifi_broker_response(
                 b"AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0 state=completed network_id=7 authoritative=true injected=value\n",
                 WifiBrokerOperation::Status,
+            ),
+            Err(WifiBrokerClientError::InvalidResponse)
+        ));
+        assert!(matches!(
+            parse_wifi_scan_response(
+                b"AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=5 authoritative=true\n"
             ),
             Err(WifiBrokerClientError::InvalidResponse)
         ));

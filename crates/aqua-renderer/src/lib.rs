@@ -2576,6 +2576,8 @@ pub struct SettingsWindowProbe {
     pub wifi_control_available: bool,
     pub wifi_controls_enabled: bool,
     pub wifi_connected: bool,
+    pub wifi_scan_result_count: usize,
+    pub wifi_credential_entry: bool,
     pub primitive_count: usize,
     pub checksum: u64,
 }
@@ -4270,6 +4272,8 @@ pub fn render_settings_window_rgba(
                 wifi_control_available: model.wifi.available(),
                 wifi_controls_enabled: model.wifi.controls_enabled(),
                 wifi_connected: model.wifi.connected(),
+                wifi_scan_result_count: model.wifi.networks().len(),
+                wifi_credential_entry: model.wifi.credential_entry(),
                 primitive_count: 0,
                 checksum: 0,
             },
@@ -4454,24 +4458,6 @@ pub fn render_settings_window_rgba(
             model.active_switch().expect("network switch"),
             model.theme,
         );
-        let (adapter, state) = if !model.network.status_available() {
-            ("STATUS UNAVAILABLE".to_string(), "READ ONLY".to_string())
-        } else if let Some(interface) = model.network.primary_interface() {
-            (
-                interface.name().chars().take(20).collect(),
-                interface.link().id().to_ascii_uppercase(),
-            )
-        } else {
-            ("NO ADAPTER".to_string(), "READ ONLY".to_string())
-        };
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (section.row_rect(1).x, section.row_rect(1).y + 18),
-            &format!("{adapter}  {state}"),
-            palette.text,
-            1,
-        );
         let wifi_status = model
             .wifi
             .status_label()
@@ -4479,27 +4465,90 @@ pub fn render_settings_window_rgba(
             .take(42)
             .collect::<String>()
             .to_ascii_uppercase();
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (section.row_rect(2).x, section.row_rect(2).y + 18),
-            &format!("WI-FI {wifi_status}"),
-            palette.accent,
-            1,
-        );
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (section.row_rect(3).x, section.row_rect(3).y + 18),
-            &format!(
-                "{}  ROUTE {}  DNS {}",
-                model.network.health().id().to_ascii_uppercase(),
-                model.network.default_route().unwrap_or("NONE"),
-                model.network.dns_servers().len()
-            ),
-            palette.secondary_text,
-            1,
-        );
+        if model.wifi.credential_entry() {
+            let selected = model
+                .wifi
+                .selected_network()
+                .and_then(|network| std::str::from_utf8(network.ssid.bytes()).ok())
+                .unwrap_or("UNKNOWN")
+                .chars()
+                .take(28)
+                .collect::<String>();
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (section.row_rect(1).x, section.row_rect(1).y + 18),
+                &format!("NETWORK  {selected}"),
+                palette.text,
+                1,
+            );
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (section.row_rect(2).x, section.row_rect(2).y + 18),
+                &format!("PASSWORD  {}", model.wifi.masked_passphrase()),
+                palette.accent,
+                1,
+            );
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (section.row_rect(3).x, section.row_rect(3).y + 18),
+                if model.wifi.passphrase_ready() {
+                    "ENTER TO CONNECT  ESC TO CANCEL"
+                } else {
+                    "8-63 CHARACTERS  ESC TO CANCEL"
+                },
+                palette.secondary_text,
+                1,
+            );
+        } else if model.wifi.networks().is_empty() {
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (section.row_rect(1).x, section.row_rect(1).y + 18),
+                &format!("WI-FI {wifi_status}"),
+                palette.accent,
+                1,
+            );
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (section.row_rect(2).x, section.row_rect(2).y + 18),
+                "NO DISCOVERED NETWORKS",
+                palette.secondary_text,
+                1,
+            );
+        } else {
+            for (index, network) in model.wifi.networks().iter().take(3).enumerate() {
+                let ssid = std::str::from_utf8(network.ssid.bytes())
+                    .unwrap_or("UNKNOWN")
+                    .chars()
+                    .take(22)
+                    .collect::<String>();
+                draw_bitmap_text(
+                    &mut buffer,
+                    (width, height),
+                    (
+                        section.row_rect(index + 1).x,
+                        section.row_rect(index + 1).y + 18,
+                    ),
+                    &format!(
+                        "{ssid}  {} DBM  {}",
+                        network.signal_dbm,
+                        network.security.id().to_ascii_uppercase()
+                    ),
+                    if network.security
+                        == aqua_service_adapters::wifi_control::WifiScanSecurity::Wpa2Personal
+                    {
+                        palette.text
+                    } else {
+                        palette.secondary_text
+                    },
+                    1,
+                );
+            }
+        }
         primitives += 6;
     } else if model.selected_category == 4 {
         draw_bitmap_text(
@@ -4592,6 +4641,8 @@ pub fn render_settings_window_rgba(
             wifi_control_available: model.wifi.available(),
             wifi_controls_enabled: model.wifi.controls_enabled(),
             wifi_connected: model.wifi.connected(),
+            wifi_scan_result_count: model.wifi.networks().len(),
+            wifi_credential_entry: model.wifi.credential_entry(),
             primitive_count: primitives,
             checksum,
         },
