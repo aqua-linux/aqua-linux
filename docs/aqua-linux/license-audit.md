@@ -34,8 +34,10 @@ is outside this audit.
 - ADR 0005 selects the already packaged BusyBox `udhcpc` path for initial
   Ethernet DHCP and reserves `wpa_supplicant` for a future opt-in Wi-Fi
   rehearsal. No network package or dependency closure changed in the default
-  image; `wpa_supplicant` requires generated `legal-info` review before it can
-  be enabled.
+  image. The project-authored fixed-argument `aqua-udhcpc-client` launcher,
+  resolver normalization, supervisor health checks, and QEMU acceptance
+  harness add no runtime dependency; `wpa_supplicant` requires generated
+  `legal-info` review before it can be enabled.
 - No private keys or environment-secret files were found in the OS source tree.
 - The OS baseline is pinned to Buildroot 2025.02.17 LTS by SHA-256. Its audio
   package metadata records PipeWire 1.2.8 (MIT/LGPL-2.1+/GPL-2.0 components),

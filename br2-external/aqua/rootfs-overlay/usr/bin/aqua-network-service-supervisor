@@ -11,6 +11,10 @@ READY_FILE="${AQUA_NETWORK_READY_FILE:-${CONTROL_DIR}/lease.ready}"
 DRY_RUN="${AQUA_NETWORK_SUPERVISOR_DRY_RUN:-false}"
 TEST_MODE="${AQUA_NETWORK_SUPERVISOR_TEST_MODE:-false}"
 INTERFACE_ROOT="${AQUA_NETWORK_SYS_CLASS_NET:-/sys/class/net}"
+ROUTE_TABLE="${AQUA_NETWORK_ROUTE_TABLE:-/proc/net/route}"
+RESOLVER_FILE="${AQUA_NETWORK_RESOLVER_FILE:-/etc/resolv.conf}"
+MAX_ROUTE_BYTES="${AQUA_NETWORK_MAX_ROUTE_BYTES:-16384}"
+MAX_RESOLVER_BYTES="${AQUA_NETWORK_MAX_RESOLVER_BYTES:-4096}"
 
 config_value() {
     key="$1"
@@ -24,7 +28,7 @@ config_value() {
 
 ENABLED="${AQUA_NETWORK_SERVICES_ENABLED:-$(config_value enabled false)}"
 INTERFACE="${AQUA_NETWORK_INTERFACE:-$(config_value interface eth0)}"
-UDHCPC_BIN="${AQUA_UDHCPC_BIN:-$(config_value udhcpc_binary /sbin/udhcpc)}"
+UDHCPC_BIN="${AQUA_UDHCPC_BIN:-$(config_value udhcpc_binary /usr/bin/aqua-udhcpc-client)}"
 UDHCPC_HOOK="${AQUA_UDHCPC_HOOK:-/usr/bin/aqua-udhcpc-hook}"
 UDHCPC_DEFAULT_SCRIPT="${AQUA_UDHCPC_DEFAULT_SCRIPT:-$(config_value udhcpc_default_script /usr/share/udhcpc/default.script)}"
 LEGACY_OWNER_DISABLED="${AQUA_NETWORK_LEGACY_OWNER_DISABLED:-$(config_value legacy_owner_disabled false)}"
@@ -59,6 +63,74 @@ valid_binary() {
         [ -x "${path}" ] && [ ! -L "${path}" ]
 }
 
+bounded_file() {
+    path="$1"
+    limit="$2"
+    [ -f "${path}" ] || return 1
+    bytes="$(wc -c < "${path}" 2>/dev/null)" || return 1
+    bytes="$(printf '%s' "${bytes}" | tr -d '[:space:]')"
+    valid_unsigned "${bytes}" && [ "${bytes}" -le "${limit}" ]
+}
+
+route_ready() {
+    bounded_file "${ROUTE_TABLE}" "${MAX_ROUTE_BYTES}" || return 1
+    while read -r route_interface destination gateway flags remainder; do
+        [ "${route_interface}" = "${INTERFACE}" ] || continue
+        [ "${destination}" = 00000000 ] || continue
+        case "${flags}" in
+            ????) last_flag="${flags#???}" ;;
+            ????????) last_flag="${flags#???????}" ;;
+            *) continue ;;
+        esac
+        case "${flags}" in *[!0123456789abcdefABCDEF]*) continue ;; esac
+        case "${last_flag}" in
+            1|3|5|7|9|b|B|d|D|f|F) return 0 ;;
+        esac
+    done < "${ROUTE_TABLE}"
+    return 1
+}
+
+valid_ipv4() {
+    old_ifs="${IFS}"
+    IFS=.
+    set -- $1
+    IFS="${old_ifs}"
+    [ "$#" -eq 4 ] || return 1
+    for octet in "$@"; do
+        valid_unsigned "${octet}" && [ "${octet}" -le 255 ] || return 1
+    done
+}
+
+valid_dns_address() {
+    address="$1"
+    if valid_ipv4 "${address}"; then
+        return 0
+    fi
+    case "${address}" in
+        *:*)
+            [ "${#address}" -le 45 ] || return 1
+            case "${address}" in *[!0123456789abcdefABCDEF:.]*) return 1 ;; esac
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+dns_ready() {
+    bounded_file "${RESOLVER_FILE}" "${MAX_RESOLVER_BYTES}" || return 1
+    while read -r directive address remainder; do
+        [ "${directive}" = nameserver ] || continue
+        valid_dns_address "${address:-}" && return 0
+    done < "${RESOLVER_FILE}"
+    return 1
+}
+
+network_health_failure() {
+    route_ready || { echo route; return; }
+    dns_ready || { echo dns; return; }
+    echo none
+}
+
 write_state() {
     state="$1"
     attempts="$2"
@@ -75,6 +147,8 @@ write_state() {
         echo "failure=${failure}"
         echo "client_pid=${client_pid}"
         echo "lease_ready=$([ -f "${READY_FILE}" ] && [ ! -L "${READY_FILE}" ] && echo true || echo false)"
+        echo "route_ready=$(route_ready && echo true || echo false)"
+        echo "dns_ready=$(dns_ready && echo true || echo false)"
         echo "service_owner_uid=$(id -u)"
         echo 'policy_owner=aqua-network-service-supervisor'
         echo "legacy_owner_disabled=${LEGACY_OWNER_DISABLED}"
@@ -115,14 +189,16 @@ trap 'termination_requested=true' HUP INT TERM
 trap cleanup EXIT
 
 for value in "${MAX_RESTARTS}" "${RESTART_DELAY}" "${READY_TIMEOUT}" \
-    "${LEASE_GRACE}" "${MONITOR_INTERVAL}" "${STOP_TIMEOUT}"; do
+    "${LEASE_GRACE}" "${MONITOR_INTERVAL}" "${STOP_TIMEOUT}" \
+    "${MAX_ROUTE_BYTES}" "${MAX_RESOLVER_BYTES}"; do
     if ! valid_unsigned "${value}"; then
         mark blocked "reason=invalid-policy"
         exit 2
     fi
 done
 if [ "${READY_TIMEOUT}" -eq 0 ] || [ "${MONITOR_INTERVAL}" -eq 0 ] ||
-   [ "${STOP_TIMEOUT}" -eq 0 ] || ! valid_interface "${INTERFACE}"; then
+   [ "${STOP_TIMEOUT}" -eq 0 ] || [ "${MAX_ROUTE_BYTES}" -eq 0 ] ||
+   [ "${MAX_RESOLVER_BYTES}" -eq 0 ] || ! valid_interface "${INTERFACE}"; then
     mark blocked "reason=invalid-policy"
     exit 2
 fi
@@ -193,6 +269,7 @@ echo "$$" > "${PID_FILE}"
 
 export AQUA_NETWORK_INTERFACE="${INTERFACE}"
 export AQUA_NETWORK_READY_FILE="${READY_FILE}"
+export AQUA_NETWORK_RESOLVER_FILE="${RESOLVER_FILE}"
 export AQUA_UDHCPC_DEFAULT_SCRIPT="${UDHCPC_DEFAULT_SCRIPT}"
 
 attempts=0
@@ -217,11 +294,18 @@ while :; do
     elif [ ! -f "${READY_FILE}" ] || [ -L "${READY_FILE}" ]; then
         failure=dhcp-readiness
     else
-        write_state running "${attempts}" "${restarts}" none
-        mark running "interface=${INTERFACE} attempt=${attempts} restart=${restarts} client_pid=${client_pid}"
+        health_failure="$(network_health_failure)"
+        if [ "${health_failure}" != none ]; then
+            failure="${health_failure}-readiness"
+        else
+            write_state running "${attempts}" "${restarts}" none
+            mark running "interface=${INTERFACE} attempt=${attempts} restart=${restarts} client_pid=${client_pid} route=true dns=true"
+        fi
     fi
 
     lease_missing=0
+    health_missing=0
+    health_failure=none
     while [ "${failure}" = none ]; do
         if [ "${termination_requested}" = true ] || [ -f "${STOP_FILE}" ]; then
             stop_client
@@ -242,6 +326,18 @@ while :; do
             fi
         else
             lease_missing=0
+        fi
+        current_health_failure="$(network_health_failure)"
+        if [ "${current_health_failure}" != none ]; then
+            health_failure="${current_health_failure}"
+            health_missing=$((health_missing + MONITOR_INTERVAL))
+            if [ "${health_missing}" -ge "${LEASE_GRACE}" ]; then
+                failure="${health_failure}-lost"
+                break
+            fi
+        else
+            health_missing=0
+            health_failure=none
         fi
         sleep "${MONITOR_INTERVAL}"
     done

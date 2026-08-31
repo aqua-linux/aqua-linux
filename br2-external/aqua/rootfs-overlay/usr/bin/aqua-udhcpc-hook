@@ -5,6 +5,7 @@ set -u
 DEFAULT_SCRIPT="${AQUA_UDHCPC_DEFAULT_SCRIPT:-/usr/share/udhcpc/default.script}"
 EXPECTED_INTERFACE="${AQUA_NETWORK_INTERFACE:-eth0}"
 READY_FILE="${AQUA_NETWORK_READY_FILE:-/run/aqua-network/lease.ready}"
+RESOLVER_FILE="${AQUA_NETWORK_RESOLVER_FILE:-/etc/resolv.conf}"
 EVENT="${1:-}"
 
 mark() {
@@ -47,6 +48,21 @@ case "${EVENT}" in
             mark degraded
             exit 1
         fi
+        if [ ! -f "${RESOLVER_FILE}" ]; then
+            mark degraded
+            exit 1
+        fi
+        resolver_tmp="${READY_FILE}.resolver.$$"
+        if ! awk -v interface="${EXPECTED_INTERFACE}" '
+            NF >= 3 && $(NF - 1) == "#" && $NF == interface { NF -= 2 }
+            { print }
+        ' "${RESOLVER_FILE}" > "${resolver_tmp}" ||
+           ! cat "${resolver_tmp}" > "${RESOLVER_FILE}"; then
+            rm -f "${resolver_tmp}" 2>/dev/null || true
+            mark degraded
+            exit 1
+        fi
+        rm -f "${resolver_tmp}"
         tmp="${READY_FILE}.tmp.$$"
         {
             echo 'product=Aqua Linux'
@@ -62,6 +78,12 @@ case "${EVENT}" in
         ;;
     *)
         rm -f "${READY_FILE}" 2>/dev/null || true
+        if [ -f "${RESOLVER_FILE}" ]; then
+            : > "${RESOLVER_FILE}" || {
+                mark degraded
+                exit 1
+            }
+        fi
         mark offline
         ;;
 esac

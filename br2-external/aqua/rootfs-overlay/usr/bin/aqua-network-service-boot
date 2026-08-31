@@ -35,7 +35,7 @@ if [ ! -f "${PROFILE_PATH}" ] || [ -L "${PROFILE_PATH}" ] ||
    [ "${profile_lines}" != 12 ] ||
    ! profile_has_once 'enabled=true' ||
    ! profile_has_once 'interface=eth0' ||
-   ! profile_has_once 'udhcpc_binary=/sbin/udhcpc' ||
+   ! profile_has_once 'udhcpc_binary=/usr/bin/aqua-udhcpc-client' ||
    ! profile_has_once 'udhcpc_default_script=/usr/share/udhcpc/default.script' ||
    ! profile_has_once 'legacy_owner_disabled=true' ||
    ! profile_has_once 'max_restarts=3' ||

@@ -16,7 +16,7 @@ done
 
 grep -Fq 'QEMU x86_64 is the only validated machine' "${STATUS_FILE}"
 grep -Fq 'MSI Sword 17 is the planned physical validation target' "${STATUS_FILE}"
-grep -Fq '| Network adapter | Present, unvalidated |' "${STATUS_FILE}"
+grep -Fq '| Network adapter | Validated |' "${STATUS_FILE}"
 grep -Fq '| Audio | Not tested |' "${STATUS_FILE}"
 grep -Fq '| Suspend and resume | Deferred |' "${STATUS_FILE}"
 grep -Fq 'No MSI Sword 17 hardware validation has started.' "${STATUS_FILE}"
@@ -30,7 +30,7 @@ for evidence in \
     scripts/check-installer-transaction-qemu.sh \
     scripts/check-public-runtime-qemu.sh \
     scripts/check-terminal-qemu.sh \
-    br2-external/aqua/board/aqua/x86_64/linux.config; do
+    scripts/check-network-qemu.sh; do
     test -s "${ROOT_DIR}/${evidence}"
     grep -Fq "${evidence}" "${STATUS_FILE}"
 done
