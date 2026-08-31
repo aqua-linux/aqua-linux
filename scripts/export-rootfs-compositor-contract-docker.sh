@@ -97,6 +97,11 @@ docker run --rm \
         "${tmp_dir}/rootfs/usr/bin/aqua-network-service-supervisor" > "${CONTRACT_DIR}/network-service-supervisor.txt"
         printf "%s\n" "console=ttyS0" > "${tmp_dir}/cmdline-default"
         AQUA_CMDLINE_PATH="${tmp_dir}/cmdline-default" \
+        AQUA_NETWORK_BOOT_PROFILE="${tmp_dir}/rootfs/etc/aqua/network-services-qemu.conf" \
+        AQUA_NETWORK_SUPERVISOR_BIN="${tmp_dir}/rootfs/usr/bin/aqua-network-service-supervisor" \
+        AQUA_NETWORK_CONTROL_DIR="${tmp_dir}/run/aqua-network-boot" \
+        "${tmp_dir}/rootfs/usr/bin/aqua-network-service-boot" > "${CONTRACT_DIR}/network-service-boot.txt"
+        AQUA_CMDLINE_PATH="${tmp_dir}/cmdline-default" \
         AQUA_GRAPHICS_BOOT_PROFILE="${tmp_dir}/rootfs/etc/aqua/compositor-session-graphics.conf" \
         AQUA_GRAPHICS_SUPERVISOR_BIN="${tmp_dir}/rootfs/usr/bin/aqua-graphical-session-supervisor" \
         AQUA_RUNTIME_DIR="${tmp_dir}/run/aqua-boot" \

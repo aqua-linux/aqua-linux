@@ -386,8 +386,11 @@ QEMU and physical evidence remain open. The root-owned DHCP supervisor is now
 packaged with a finite readiness timeout, three-restart budget, lease-loss
 grace period, atomic non-secret state, a checked hook around Buildroot's default
 lease script, and deterministic start/failure/stop fixtures. Its fail-closed
-configuration keeps it disabled and rejects activation while Buildroot
-`S40network` remains the policy owner; no second DHCP client is started.
+configuration keeps it disabled. Aqua's custom `rcS` does not invoke the
+generated Buildroot `S40network`, so default boot has no DHCP policy owner. The
+new boot gate requires both `aqua.boot_network=1` and a separate QEMU-only
+profile before dispatching the supervisor; DHCP, DNS, renewal, and reconnect
+still require QEMU evidence.
 [ADR 0004](adr-0004-audio-service-stack.md) selects ALSA,
 PipeWire, WirePlumber, and eudev for audio. Buildroot 2025.02.17 now supplies
 the supported LTS baseline. The locked `aqua` UID/GID 1000 session,
