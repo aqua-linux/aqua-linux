@@ -244,6 +244,7 @@ fn main() {
             args.next().map(PathBuf::from),
             args.next().map(PathBuf::from),
             args.next().map(PathBuf::from),
+            args.next().map(PathBuf::from),
         ),
         "probe-privileged-protocol-boundary" => probe_privileged_protocol_boundary_cli(),
         "probe-v1-client-buffer-contract" => probe_v1_client_buffer_contract_cli(),
@@ -286,7 +287,7 @@ fn main() {
         _ => {
             eprintln!("unknown command: {command}");
             eprintln!(
-                "usage: aqua-compositor [status|probe-assets <runtime-asset-root>|probe-renderer-backend [auto|gpu|software]|probe-gpu-offscreen-frame [device]|smoke-loop|smoke-wayland|smoke-socket|smoke-calloop-socket|probe-session-config|probe-session-env|probe-session-bootstrap <config-path> <prepared-runtime-dir>|probe-session|probe-output-plan|dump-output-plan|probe-display-output-handoff|probe-display-activation-plan|probe-drm-device [device]|probe-drm-dumb-buffer [device]|probe-drm-gbm-scanout-buffer [device]|present-drm-gbm-scanout [device]|present-drm-kms [device]|present-drm-page-flip [device]|run-drm-frame-loop [device]|run-drm-session-loop [device]|run-wayland-test-client [socket]|smoke-display-output|smoke-nested-output-surface|probe-visible-preview-plan|probe-visible-preview-export|export-visible-preview-html <path>|probe-fbdev-frame <width> <height> <bits-per-pixel>|present-fbdev [device]|smoke-nested-preview-loop|probe-manual-nested-preview-backend|run-manual-nested-preview-execution|probe-client-window-model|probe-client-surface-lifecycle|probe-client-surface-registry|probe-xdg-shell-binding|probe-xdg-toplevel-client|probe-selection-ownership|probe-drag-and-drop|probe-text-input|probe-keyboard-locale-matrix|probe-independent-application-matrix <simple-shm> <simple-damage> <simple-touch> <weston-terminal>|probe-privileged-protocol-boundary|probe-v1-client-buffer-contract|probe-wayland-output-matrix|probe-popup-subsurface-matrix|probe-xdg-toplevel-window-model|probe-launcher-model|probe-launcher-input-scene|probe-smithay-launcher-seat|probe-evdev-aqua-seat <keyboard-event> <pointer-event>|probe-scene|dump-scene|probe-render-plan|dump-render-plan|probe-renderer-surface-sources|probe-client-layer-pipeline|probe-paint-plan|dump-paint-plan|probe-frame-plan|dump-frame-plan|probe-frame-buffer|dump-frame-buffer|probe-raster|dump-raster|probe-raster-export|dump-raster-export|export-raster-ppm <path>|probe-raster-png-export|dump-raster-png-export|export-raster-png <path>|smoke-run-once|smoke-session-loop]"
+                "usage: aqua-compositor [status|probe-assets <runtime-asset-root>|probe-renderer-backend [auto|gpu|software]|probe-gpu-offscreen-frame [device]|smoke-loop|smoke-wayland|smoke-socket|smoke-calloop-socket|probe-session-config|probe-session-env|probe-session-bootstrap <config-path> <prepared-runtime-dir>|probe-session|probe-output-plan|dump-output-plan|probe-display-output-handoff|probe-display-activation-plan|probe-drm-device [device]|probe-drm-dumb-buffer [device]|probe-drm-gbm-scanout-buffer [device]|present-drm-gbm-scanout [device]|present-drm-kms [device]|present-drm-page-flip [device]|run-drm-frame-loop [device]|run-drm-session-loop [device]|run-wayland-test-client [socket]|smoke-display-output|smoke-nested-output-surface|probe-visible-preview-plan|probe-visible-preview-export|export-visible-preview-html <path>|probe-fbdev-frame <width> <height> <bits-per-pixel>|present-fbdev [device]|smoke-nested-preview-loop|probe-manual-nested-preview-backend|run-manual-nested-preview-execution|probe-client-window-model|probe-client-surface-lifecycle|probe-client-surface-registry|probe-xdg-shell-binding|probe-xdg-toplevel-client|probe-selection-ownership|probe-drag-and-drop|probe-text-input|probe-keyboard-locale-matrix|probe-independent-application-matrix <simple-shm> <simple-damage> <simple-touch> <weston-terminal> <glfw-wayland-probe>|probe-privileged-protocol-boundary|probe-v1-client-buffer-contract|probe-wayland-output-matrix|probe-popup-subsurface-matrix|probe-xdg-toplevel-window-model|probe-launcher-model|probe-launcher-input-scene|probe-smithay-launcher-seat|probe-evdev-aqua-seat <keyboard-event> <pointer-event>|probe-scene|dump-scene|probe-render-plan|dump-render-plan|probe-renderer-surface-sources|probe-client-layer-pipeline|probe-paint-plan|dump-paint-plan|probe-frame-plan|dump-frame-plan|probe-frame-buffer|dump-frame-buffer|probe-raster|dump-raster|probe-raster-export|dump-raster-export|export-raster-ppm <path>|probe-raster-png-export|dump-raster-png-export|export-raster-png <path>|smoke-run-once|smoke-session-loop]"
             );
             std::process::exit(2);
         }
@@ -10642,11 +10643,13 @@ fn probe_independent_application_matrix_cli(
     simple_damage_path: Option<PathBuf>,
     simple_touch_path: Option<PathBuf>,
     weston_terminal_path: Option<PathBuf>,
+    glfw_wayland_probe_path: Option<PathBuf>,
 ) {
     const SIMPLE_SHM_APP_ID: &str = "org.freedesktop.weston.simple-shm";
     const SIMPLE_DAMAGE_APP_ID: &str = "org.freedesktop.weston.simple-damage";
     const SIMPLE_TOUCH_APP_ID: &str = "simple-touch";
     const WESTON_TERMINAL_APP_ID: &str = "org.freedesktop.weston.wayland-terminal";
+    const GLFW_WAYLAND_PROBE_APP_ID: &str = "aqua.glfw-wayland-probe";
     const TOUCH_START: (u32, u32) = (120, 140);
     const TOUCH_END: (u32, u32) = (180, 200);
 
@@ -10663,6 +10666,9 @@ fn probe_independent_application_matrix_cli(
         terminal_damage_commit_count: usize,
         terminal_width: u32,
         terminal_height: u32,
+        glfw_initial_checksum: u64,
+        glfw_final_checksum: u64,
+        glfw_damage_commit_count: usize,
     }
 
     let result = (|| -> Result<ApplicationMatrixResult, Box<dyn std::error::Error>> {
@@ -10670,11 +10676,14 @@ fn probe_independent_application_matrix_cli(
         let simple_damage_path = simple_damage_path.ok_or("missing weston-simple-damage path")?;
         let simple_touch_path = simple_touch_path.ok_or("missing weston-simple-touch path")?;
         let weston_terminal_path = weston_terminal_path.ok_or("missing weston-terminal path")?;
+        let glfw_wayland_probe_path =
+            glfw_wayland_probe_path.ok_or("missing aqua-glfw-wayland-probe path")?;
         for (path, expected_name) in [
             (&simple_shm_path, "weston-simple-shm"),
             (&simple_damage_path, "weston-simple-damage"),
             (&simple_touch_path, "weston-simple-touch"),
             (&weston_terminal_path, "weston-terminal"),
+            (&glfw_wayland_probe_path, "aqua-glfw-wayland-probe"),
         ] {
             let metadata = fs::symlink_metadata(path)?;
             if !metadata.is_file()
@@ -10719,12 +10728,19 @@ fn probe_independent_application_matrix_cli(
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .spawn()?,
+            Command::new(&glfw_wayland_probe_path)
+                .env("XDG_RUNTIME_DIR", runtime_dir.path())
+                .env("WAYLAND_DISPLAY", display_name)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()?,
         ];
 
         let probe_result = (|| -> Result<ApplicationMatrixResult, Box<dyn std::error::Error>> {
-            let mut streams = Vec::with_capacity(4);
+            let mut streams = Vec::with_capacity(5);
             let accept_deadline = std::time::Instant::now() + Duration::from_secs(2);
-            while streams.len() < 4 {
+            while streams.len() < 5 {
                 if let Some(stream) = listener.accept()? {
                     streams.push(stream);
                 } else if std::time::Instant::now() >= accept_deadline {
@@ -10748,7 +10764,9 @@ fn probe_independent_application_matrix_cli(
                 let snapshots = session.client_surface_snapshots();
                 let terminal_snapshot =
                     session.client_surface_snapshot_for_app_id(WESTON_TERMINAL_APP_ID);
-                let expected_sizes = snapshots.len() == 4
+                let glfw_snapshot =
+                    session.client_surface_snapshot_for_app_id(GLFW_WAYLAND_PROBE_APP_ID);
+                let expected_sizes = snapshots.len() == 5
                     && snapshots
                         .iter()
                         .any(|snapshot| (snapshot.width, snapshot.height) == (250, 250))
@@ -10758,13 +10776,16 @@ fn probe_independent_application_matrix_cli(
                     && snapshots
                         .iter()
                         .any(|snapshot| (snapshot.width, snapshot.height) == (600, 500))
+                    && glfw_snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| (snapshot.width, snapshot.height) == (400, 240))
                     && terminal_snapshot.as_ref().is_some_and(|snapshot| {
                         snapshot.width > 320
                             && snapshot.height > 200
                             && snapshot.width <= 1280
                             && snapshot.height <= 800
                     });
-                let independent_buffers = snapshots.len() == 4
+                let independent_buffers = snapshots.len() == 5
                     && snapshots.iter().enumerate().all(|(index, snapshot)| {
                         snapshots
                             .iter()
@@ -10778,6 +10799,7 @@ fn probe_independent_application_matrix_cli(
                     && session.has_toplevel_app_id(SIMPLE_DAMAGE_APP_ID)
                     && session.has_toplevel_app_id(SIMPLE_TOUCH_APP_ID)
                     && session.has_toplevel_app_id(WESTON_TERMINAL_APP_ID)
+                    && session.has_toplevel_app_id(GLFW_WAYLAND_PROBE_APP_ID)
                 {
                     break snapshots;
                 }
@@ -10788,6 +10810,7 @@ fn probe_independent_application_matrix_cli(
                             "weston-simple-damage",
                             "weston-simple-touch",
                             "weston-terminal",
+                            "aqua-glfw-wayland-probe",
                         ][index];
                         return Err(format!(
                             "independent client {name} exited before mapping its surface: {status}"
@@ -10810,11 +10833,12 @@ fn probe_independent_application_matrix_cli(
                         .collect::<Vec<_>>()
                         .join(",");
                     return Err(format!(
-                        "independent client surfaces did not settle before timeout: surfaces=[{surface_state}] simple_shm_app_id={} simple_damage_app_id={} simple_touch_app_id={} weston_terminal_app_id={}",
+                        "independent client surfaces did not settle before timeout: surfaces=[{surface_state}] simple_shm_app_id={} simple_damage_app_id={} simple_touch_app_id={} weston_terminal_app_id={} glfw_wayland_probe_app_id={}",
                         session.has_toplevel_app_id(SIMPLE_SHM_APP_ID),
                         session.has_toplevel_app_id(SIMPLE_DAMAGE_APP_ID),
                         session.has_toplevel_app_id(SIMPLE_TOUCH_APP_ID),
-                        session.has_toplevel_app_id(WESTON_TERMINAL_APP_ID)
+                        session.has_toplevel_app_id(WESTON_TERMINAL_APP_ID),
+                        session.has_toplevel_app_id(GLFW_WAYLAND_PROBE_APP_ID)
                     )
                     .into());
                 }
@@ -10987,7 +11011,51 @@ fn probe_independent_application_matrix_cli(
             let terminal_width = terminal_after_sequence.width;
             let terminal_height = terminal_after_sequence.height;
 
+            let glfw_before_sequence = session
+                .client_surface_snapshot_for_app_id(GLFW_WAYLAND_PROBE_APP_ID)
+                .ok_or("missing GLFW Wayland snapshot before keyboard input")?;
+            let glfw_initial_checksum = checksum_bytes(&glfw_before_sequence.buffer_rgba);
+            let glfw_baseline_damage = glfw_before_sequence.damage_commit_count;
+            if !session.focus_keyboard_surface_with_app_id(GLFW_WAYLAND_PROBE_APP_ID, frame_time) {
+                return Err("could not focus GLFW Wayland keyboard surface".into());
+            }
+            frame_time = frame_time.saturating_add(16);
+            session.flush_clients()?;
+            if !session.dispatch_keyboard_key(34, true, frame_time)
+                || !session.dispatch_keyboard_key(34, false, frame_time.saturating_add(1))
+            {
+                return Err("could not dispatch G key to GLFW Wayland client".into());
+            }
+            session.flush_clients()?;
+            let glfw_input_deadline = std::time::Instant::now() + Duration::from_secs(2);
+            let glfw_after_sequence = loop {
+                session.dispatch_clients()?;
+                session.flush_clients()?;
+                let snapshot = session
+                    .client_surface_snapshot_for_app_id(GLFW_WAYLAND_PROBE_APP_ID)
+                    .ok_or("GLFW Wayland surface disappeared after keyboard input")?;
+                if checksum_bytes(&snapshot.buffer_rgba) != glfw_initial_checksum
+                    && snapshot.damage_commit_count > glfw_baseline_damage
+                {
+                    break snapshot;
+                }
+                if std::time::Instant::now() >= glfw_input_deadline {
+                    return Err(format!(
+                        "GLFW Wayland client did not redraw after G key: checksum_changed={} damage_baseline={glfw_baseline_damage} damage_commits={}",
+                        checksum_bytes(&snapshot.buffer_rgba) != glfw_initial_checksum,
+                        snapshot.damage_commit_count
+                    )
+                    .into());
+                }
+                thread::sleep(Duration::from_millis(5));
+            };
+            let glfw_final_checksum = checksum_bytes(&glfw_after_sequence.buffer_rgba);
+            let glfw_damage_commit_count = glfw_after_sequence
+                .damage_commit_count
+                .saturating_sub(glfw_baseline_damage);
+
             for (app_id, expected_surfaces) in [
+                (GLFW_WAYLAND_PROBE_APP_ID, 4_usize),
                 (WESTON_TERMINAL_APP_ID, 3_usize),
                 (SIMPLE_TOUCH_APP_ID, 2_usize),
                 (SIMPLE_DAMAGE_APP_ID, 1_usize),
@@ -11063,6 +11131,9 @@ fn probe_independent_application_matrix_cli(
                 terminal_damage_commit_count,
                 terminal_width,
                 terminal_height,
+                glfw_initial_checksum,
+                glfw_final_checksum,
+                glfw_damage_commit_count,
             })
         })();
 
@@ -11082,16 +11153,22 @@ fn probe_independent_application_matrix_cli(
             println!("[AQUA-COMPOSITOR] stage=independent-application-matrix status=running");
             println!("application_matrix_status=independent-application-matrix");
             println!("upstream_project=weston-14.0.1");
-            println!("client_count=4");
-            println!("fixture_count=4");
+            println!("independent_toolkit=glfw-3.4-wayland");
+            println!("client_count=5");
+            println!("fixture_count=5");
+            println!("toolkit_count=2");
             println!("simple_shm_app_id_seen=true");
             println!("simple_damage_app_id_seen=true");
             println!("simple_touch_app_id_seen=true");
             println!("weston_terminal_app_id_seen=true");
+            println!("glfw_wayland_probe_app_id_seen=true");
             println!("simple_damage_mode=wl_surface.damage_buffer");
             println!("touch_capability_advertised=true");
             println!("touch_sequence=down,motion,up");
             println!("terminal_keyboard_sequence=echo_aqua+enter");
+            println!("glfw_keyboard_sequence=g");
+            println!("glfw_client_api=none");
+            println!("glfw_wayland_backend=true");
             println!("wl_shm_buffers_imported=true");
             println!("independent_buffer_sizes=true");
             println!("independent_buffer_checksums=true");
@@ -11114,6 +11191,11 @@ fn probe_independent_application_matrix_cli(
             );
             println!("weston_terminal_width={}", result.terminal_width);
             println!("weston_terminal_height={}", result.terminal_height);
+            println!(
+                "glfw_initial_checksum={:016x}",
+                result.glfw_initial_checksum
+            );
+            println!("glfw_final_checksum={:016x}", result.glfw_final_checksum);
             println!("buffer_bytes={}", result.buffer_bytes);
             println!("damage_commit_count={}", result.damage_commit_count);
             println!("damage_sequence_progressed=true");
@@ -11130,6 +11212,11 @@ fn probe_independent_application_matrix_cli(
                 result.terminal_damage_commit_count
             );
             println!("terminal_pty_redraw=true");
+            println!(
+                "glfw_damage_commit_count={}",
+                result.glfw_damage_commit_count
+            );
+            println!("glfw_shm_redraw=true");
             println!("compositor_close_reached_all_clients=true");
             println!("remaining_surface_count=0");
             println!("clients_exited_successfully=true");
@@ -11150,15 +11237,19 @@ fn probe_independent_application_matrix_cli(
     _simple_damage_path: Option<PathBuf>,
     _simple_touch_path: Option<PathBuf>,
     _weston_terminal_path: Option<PathBuf>,
+    _glfw_wayland_probe_path: Option<PathBuf>,
 ) {
     println!("[AQUA-COMPOSITOR] stage=independent-application-matrix status=running");
     println!("application_matrix_status=independent-application-matrix");
-    println!("client_count=4");
-    println!("fixture_count=4");
+    println!("independent_toolkit=glfw-3.4-wayland");
+    println!("client_count=5");
+    println!("fixture_count=5");
+    println!("toolkit_count=2");
     println!("simple_shm_app_id_seen=true");
     println!("simple_damage_app_id_seen=true");
     println!("simple_touch_app_id_seen=true");
     println!("weston_terminal_app_id_seen=true");
+    println!("glfw_wayland_probe_app_id_seen=true");
     println!("touch_capability_advertised=true");
     println!("touch_sequence=down,motion,up");
     println!("damage_sequence_progressed=true");
@@ -11167,8 +11258,13 @@ fn probe_independent_application_matrix_cli(
     println!("touch_damage_sequence_progressed=true");
     println!("touch_pixels_changed_exact=true");
     println!("terminal_keyboard_sequence=echo_aqua+enter");
+    println!("glfw_keyboard_sequence=g");
+    println!("glfw_client_api=none");
+    println!("glfw_wayland_backend=true");
     println!("terminal_damage_commit_count=1");
     println!("terminal_pty_redraw=true");
+    println!("glfw_damage_commit_count=1");
+    println!("glfw_shm_redraw=true");
     println!("compositor_close_reached_all_clients=true");
     println!("remaining_surface_count=0");
     println!("clients_exited_successfully=true");

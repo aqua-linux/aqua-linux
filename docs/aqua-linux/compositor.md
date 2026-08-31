@@ -571,14 +571,19 @@ Implemented now:
 - Packaged-rootfs independent-application matrix that runs the upstream Weston
   14.0.1 `weston-simple-shm`, `weston-simple-damage`, and
   `weston-simple-touch`, plus the fuller `weston-terminal` C client as separate
-  processes. Aqua discovers all four app IDs, imports distinct 250x250,
-  320x200, 600x500, and 726x443 shared-memory
+  processes, alongside an Aqua-authored GLFW 3.4 client using GLFW's native
+  Wayland window and keyboard lifecycle. Aqua discovers all five app IDs,
+  imports distinct 250x250, 320x200, 600x500, 726x443, and 400x240 shared-memory
   buffers, advances damage and frame callbacks, and sends a real `wl_touch`
   down/motion/up sequence. The touch client must paint exact red points at
   120,140 and 180,200 through two new damage commits. Aqua closes each
   toplevel independently, observes all clean process exits, and finishes with
   no client surfaces. The terminal opens a real PTY on the packaged shell and
   redraws after Aqua delivers `echo aqua` plus Enter through `wl_keyboard`.
+  The GLFW client uses no OpenGL API, attaches two ARGB8888 buffers at distinct
+  offsets in one shm pool, and redraws through its GLFW key callback after Aqua
+  delivers `G`. This also proves that compositor sampling honors each
+  `wl_buffer` pool offset.
   Four required MIT-licensed Weston frame PNGs are isolated as fixture assets;
   the Weston compositor, shells, and desktop runtime are neither packaged nor
   started. Physical touchscreen behavior remains unproven.
@@ -590,7 +595,7 @@ Implemented now:
 
 Not implemented yet:
 
-- Broader third-party toolkit coverage beyond the four packaged upstream Weston
+- General third-party toolkit coverage beyond the bounded Weston and GLFW
   xdg-toplevel compatibility fixtures.
 - Additional Aqua-owned icon artwork for later first-party applications.
 - Runtime visual convergence with the canonical Aqua visual/UI contracts.

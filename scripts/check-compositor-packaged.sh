@@ -25,6 +25,8 @@ tar -tf "${ROOTFS_TAR}" ./usr/libexec/aqua-tests/weston-simple-shm >/dev/null
 tar -tf "${ROOTFS_TAR}" ./usr/libexec/aqua-tests/weston-simple-damage >/dev/null
 tar -tf "${ROOTFS_TAR}" ./usr/libexec/aqua-tests/weston-simple-touch >/dev/null
 tar -tf "${ROOTFS_TAR}" ./usr/libexec/aqua-tests/weston-terminal >/dev/null
+tar -tf "${ROOTFS_TAR}" ./usr/libexec/aqua-tests/aqua-glfw-wayland-probe >/dev/null
+tar -tf "${ROOTFS_TAR}" ./usr/lib/libglfw.so.3 >/dev/null
 for frame_asset in icon_window.png sign_close.png sign_maximize.png sign_minimize.png; do
     tar -tf "${ROOTFS_TAR}" "./usr/share/weston/${frame_asset}" >/dev/null
 done
@@ -41,11 +43,19 @@ fi
 tar -tf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt >/dev/null
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "source=upstream-weston-14.0.1-simple-clients"
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "fixtures=weston-simple-shm,weston-simple-damage,weston-simple-touch,weston-terminal"
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "matrix_fixtures=weston-simple-shm,weston-simple-damage,weston-simple-touch,weston-terminal,aqua-glfw-wayland-probe"
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "fixture_count=5"
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "independent_toolkit=glfw-3.4-wayland"
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "glfw_probe_path=/usr/libexec/aqua-tests/aqua-glfw-wayland-probe"
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "glfw_client_api=none"
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "glfw_render_path=wl_shm-argb8888"
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "frame_assets=icon_window.png,sign_close.png,sign_maximize.png,sign_minimize.png"
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "weston_compositor_packaged=false"
 tar -tf "${ROOTFS_TAR}" ./usr/share/doc/aqua/application-compatibility.txt >/dev/null
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/application-compatibility.txt | grep -Fq "application_model=native-wayland"
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/application-compatibility.txt | grep -Fq "x11_applications_supported=false"
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/application-compatibility.txt | grep -Fq "independently_tested_toolkits=weston-client-toolkit,glfw-3.4-wayland"
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/application-compatibility.txt | grep -Fq "broader_toolkit_coverage=bounded-not-general"
 tar -tf "${ROOTFS_TAR}" ./usr/bin/aqua-files >/dev/null
 tar -tf "${ROOTFS_TAR}" ./usr/share/doc/aqua/files-binary.txt >/dev/null
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/files-binary.txt | grep -Fq "aqua-files packaged=true"

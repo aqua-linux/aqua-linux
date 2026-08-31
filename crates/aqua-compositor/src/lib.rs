@@ -3251,6 +3251,24 @@ fn copy_shm_buffer_rgba(
     rgba
 }
 
+#[cfg_attr(
+    not(all(target_os = "linux", feature = "smithay-smoke")),
+    allow(dead_code)
+)]
+fn shm_buffer_bounds(
+    pool_len: usize,
+    offset: i32,
+    stride: i32,
+    height: i32,
+) -> Option<(usize, usize)> {
+    let offset = usize::try_from(offset).ok()?;
+    let stride = usize::try_from(stride).ok()?;
+    let height = usize::try_from(height).ok()?;
+    let byte_count = stride.checked_mul(height)?;
+    let end = offset.checked_add(byte_count)?;
+    (end <= pool_len && byte_count > 0).then_some((offset, byte_count))
+}
+
 fn checksum_bytes(bytes: &[u8]) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
     for byte in bytes {
@@ -11030,10 +11048,9 @@ impl CompositorHandler for WaylandSmokeState {
                     buffer_height,
                     buffer_stride,
                 )) = with_buffer_contents(&buffer, |ptr, len, metadata| {
-                    let byte_count = (metadata.height as usize)
-                        .saturating_mul(metadata.stride as usize)
-                        .min(len);
-                    if byte_count == 0 {
+                    let Some((buffer_offset, byte_count)) =
+                        shm_buffer_bounds(len, metadata.offset, metadata.stride, metadata.height)
+                    else {
                         return (
                             0,
                             [0, 0, 0, 0],
@@ -11043,7 +11060,9 @@ impl CompositorHandler for WaylandSmokeState {
                             0,
                             0,
                         );
-                    }
+                    };
+                    let ptr = unsafe { ptr.add(buffer_offset) };
+                    let len = byte_count;
 
                     // Copy a tiny prefix while the shm mapping is valid; do not retain pointers.
                     let sample_len = byte_count.min(64);
@@ -14012,6 +14031,17 @@ delegate_noop!(SubsurfaceLifecycleClientState: ignore client_wl_subsurface::WlSu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shm_buffer_bounds_honor_nonzero_pool_offsets() {
+        assert_eq!(
+            shm_buffer_bounds(768_000, 384_000, 1_600, 240),
+            Some((384_000, 384_000))
+        );
+        assert_eq!(shm_buffer_bounds(767_999, 384_000, 1_600, 240), None);
+        assert_eq!(shm_buffer_bounds(768_000, -1, 1_600, 240), None);
+        assert_eq!(shm_buffer_bounds(768_000, 0, 0, 240), None);
+    }
 
     #[test]
     fn shared_window_frame_routes_controls_move_and_resize_without_overlap() {

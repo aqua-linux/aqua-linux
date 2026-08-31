@@ -1569,6 +1569,10 @@ grep -Fq 'weston-simple-touch' scripts/export-rootfs-compositor-contract-docker.
 grep -Fq 'weston-simple-touch' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'weston-terminal' scripts/export-rootfs-compositor-contract-docker.sh
 grep -Fq 'weston-terminal' br2-external/aqua/board/aqua/x86_64/post-build.sh
+grep -Fq 'aqua-glfw-wayland-probe' scripts/export-rootfs-compositor-contract-docker.sh
+grep -Fq 'BR2_PACKAGE_AQUA_GLFW_WAYLAND_PROBE=y' br2-external/aqua/configs/aqua_x86_64_defconfig
+grep -Fq 'GLFW_PLATFORM_WAYLAND' br2-external/aqua/package/aqua-glfw-wayland-probe/src/aqua_glfw_wayland_probe.c
+grep -Fq 'metadata.offset' crates/aqua-compositor/src/lib.rs
 grep -Fq 'sign_close.png' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'compose_key_available_for_all_layouts=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'dead_key_utf8_matches_for_all_clients=true' scripts/check-compositor-rootfs-docker.sh
