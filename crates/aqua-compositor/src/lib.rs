@@ -5446,7 +5446,7 @@ fn probe_text_input_impl() -> Result<TextInputProbe, Box<dyn std::error::Error>>
     event_queue_two.blocking_dispatch(&mut client_two)?;
     event_queue_ime.blocking_dispatch(&mut input_method)?;
     let focus_handoff_deactivates_input_method = input_method.deactivate_count
-        >= deactivate_count_before_handoff + 1
+        > deactivate_count_before_handoff
         && client_one.leave_count == 1
         && session.wayland_state.input_method_popup_dismiss_count == 1;
     let focus_handoff_enters_new_client =
@@ -11691,6 +11691,7 @@ delegate_viewporter!(WaylandSmokeState);
 delegate_xdg_shell!(WaylandSmokeState);
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+#[derive(Default)]
 struct WaylandSmokeClientState {
     compositor_state: CompositorClientState,
     disconnected_clients: Option<Arc<Mutex<Vec<ClientId>>>>,
@@ -11717,17 +11718,6 @@ impl WaylandSmokeClientState {
 
     fn compositor_state(&self) -> &CompositorClientState {
         &self.compositor_state
-    }
-}
-
-#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
-impl Default for WaylandSmokeClientState {
-    fn default() -> Self {
-        Self {
-            compositor_state: CompositorClientState::default(),
-            disconnected_clients: None,
-            input_method_authorized: false,
-        }
     }
 }
 
@@ -13078,16 +13068,12 @@ impl ClientDispatch<client_wl_data_offer::WlDataOffer, ()> for DndSmokeClientSta
     ) {
         match event {
             client_wl_data_offer::Event::Offer { mime_type } => state.offered_mimes.push(mime_type),
-            client_wl_data_offer::Event::SourceActions { source_actions } => {
-                if let WEnum::Value(actions) = source_actions {
-                    state.source_actions = Some(actions);
-                }
-            }
-            client_wl_data_offer::Event::Action { dnd_action } => {
-                if let WEnum::Value(action) = dnd_action {
-                    state.chosen_action = Some(action);
-                }
-            }
+            client_wl_data_offer::Event::SourceActions {
+                source_actions: WEnum::Value(actions),
+            } => state.source_actions = Some(actions),
+            client_wl_data_offer::Event::Action {
+                dnd_action: WEnum::Value(action),
+            } => state.chosen_action = Some(action),
             _ => {}
         }
     }
@@ -13115,11 +13101,9 @@ impl ClientDispatch<client_wl_data_source::WlDataSource, ()> for DndSmokeClientS
             client_wl_data_source::Event::Cancelled => state.source_cancelled = true,
             client_wl_data_source::Event::DndDropPerformed => state.source_drop_performed = true,
             client_wl_data_source::Event::DndFinished => state.source_finished = true,
-            client_wl_data_source::Event::Action { dnd_action } => {
-                if let WEnum::Value(action) = dnd_action {
-                    state.source_chosen_action = Some(action);
-                }
-            }
+            client_wl_data_source::Event::Action {
+                dnd_action: WEnum::Value(action),
+            } => state.source_chosen_action = Some(action),
             _ => {}
         }
     }
