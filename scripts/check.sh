@@ -31,6 +31,7 @@ scripts/check-motion-fixtures.sh
 scripts/check-component-fixtures.sh
 scripts/check-unprivileged-session.sh
 scripts/check-media-service-supervisor.sh
+scripts/check-network-service-supervisor.sh
 scripts/check-graphical-session-supervisor.sh
 scripts/check-default-recovery-safety.sh
 scripts/check-graphical-session-stop.sh

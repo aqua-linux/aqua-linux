@@ -175,6 +175,7 @@ grep -Fq "session_started=false" "${CONTRACT_DIR}/graphical-session-supervisor.t
 grep -Fq "[AQUA-MEDIA] stage=media-service-supervisor status=ok mode=dry-run enabled=false" "${CONTRACT_DIR}/media-service-supervisor.txt"
 grep -Fq "ordered_start=pipewire,wireplumber" "${CONTRACT_DIR}/media-service-supervisor.txt"
 grep -Fq "ordered_stop=wireplumber,pipewire" "${CONTRACT_DIR}/media-service-supervisor.txt"
+grep -Fq "[AQUA-NETWORK] stage=network-service-supervisor status=ok mode=dry-run enabled=false interface=eth0 legacy_owner_disabled=false" "${CONTRACT_DIR}/network-service-supervisor.txt"
 grep -Fq "[AQUA-BOOT] stage=graphical-session-activation status=disabled" "${CONTRACT_DIR}/graphical-session-boot.txt"
 grep -Fq "reason=kernel-flag-absent" "${CONTRACT_DIR}/graphical-session-boot.txt"
 grep -Fq "boot_graphics=false" "${CONTRACT_DIR}/graphical-session-boot.txt"

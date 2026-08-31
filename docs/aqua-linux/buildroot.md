@@ -147,6 +147,17 @@ budget, stops WirePlumber before PipeWire, and records disabled, running,
 restarting, stopped, or degraded state under `/run/aqua`. Media failure does
 not block the compositor or remove the independent recovery TTY.
 
+The rootfs also packages `/usr/bin/aqua-network-service-supervisor`, its
+bounded stop tool, and the `aqua-udhcpc-hook` wrapper selected by ADR 0005. The
+supervisor requires root ownership, a fixed valid interface, absolute
+non-symlink service paths, finite DHCP readiness and lease-loss waits, and a
+three-restart budget. It publishes only non-secret state under
+`/run/aqua-network`. `/etc/aqua/network-services.conf` keeps both `enabled` and
+`legacy_owner_disabled` false, so the supervisor refuses activation while
+Buildroot `S40network` owns the existing `udhcpc` lifecycle. This packages and
+tests the transition target without creating two DHCP policy owners or
+changing default boot networking.
+
 The image also writes the derived session environment to:
 
 `/etc/aqua/session.env`

@@ -90,6 +90,11 @@ docker run --rm \
         AQUA_MEDIA_SUPERVISOR_STATE_FILE="${tmp_dir}/run/aqua-media/media-service-supervisor.state" \
         AQUA_MEDIA_SUPERVISOR_DRY_RUN=true \
         "${tmp_dir}/rootfs/usr/bin/aqua-media-service-supervisor" > "${CONTRACT_DIR}/media-service-supervisor.txt"
+        AQUA_NETWORK_SERVICES_CONFIG="${tmp_dir}/rootfs/etc/aqua/network-services.conf" \
+        AQUA_NETWORK_CONTROL_DIR="${tmp_dir}/run/aqua-network" \
+        AQUA_NETWORK_SUPERVISOR_STATE_FILE="${tmp_dir}/run/aqua-network/network-service-supervisor.state" \
+        AQUA_NETWORK_SUPERVISOR_DRY_RUN=true \
+        "${tmp_dir}/rootfs/usr/bin/aqua-network-service-supervisor" > "${CONTRACT_DIR}/network-service-supervisor.txt"
         printf "%s\n" "console=ttyS0" > "${tmp_dir}/cmdline-default"
         AQUA_CMDLINE_PATH="${tmp_dir}/cmdline-default" \
         AQUA_GRAPHICS_BOOT_PROFILE="${tmp_dir}/rootfs/etc/aqua/compositor-session-graphics.conf" \
