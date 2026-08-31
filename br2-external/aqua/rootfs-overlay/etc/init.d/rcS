@@ -49,6 +49,17 @@ else
     mark '[AQUA-BOOT] stage=network-service-activation status=blocked boot_network=false network_started=false'
 fi
 
+if [ -x /usr/bin/aqua-wifi-service-boot ] &&
+   /usr/bin/aqua-wifi-service-boot >/run/aqua-wifi-service-boot.log 2>/run/aqua-wifi-service-boot.err; then
+    if grep -Fq 'status=started' /run/aqua-wifi-service-boot.log; then
+        mark '[AQUA-BOOT] stage=wifi-service-activation status=started mode=supervised-root target=qemu-hwsim interface=wlan0 boot_wifi=true default_wifi=false recovery_tty=true'
+    else
+        mark '[AQUA-BOOT] stage=wifi-service-activation status=disabled boot_wifi=false wifi_started=false default_wifi=false'
+    fi
+else
+    mark '[AQUA-BOOT] stage=wifi-service-activation status=absent boot_wifi=false wifi_started=false default_wifi=false'
+fi
+
 if [ -c /dev/fb0 ] && \
    [ -r /sys/class/graphics/fb0/virtual_size ] && \
    [ -r /sys/class/graphics/fb0/bits_per_pixel ]; then

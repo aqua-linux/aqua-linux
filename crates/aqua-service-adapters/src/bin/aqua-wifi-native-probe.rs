@@ -21,7 +21,15 @@ fn main() -> ExitCode {
     let result = match std::env::args().nth(1).as_deref() {
         Some("native") => probe_native(),
         Some("broker") => probe_broker(),
-        _ => Err("usage: aqua-wifi-native-probe native|broker"),
+        Some("broker-status") => probe_broker_request(
+            b"AQUA-NETWORK/1 WIFI_STATUS wlan0\n",
+            "AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0",
+        ),
+        Some("broker-disconnect") => probe_broker_request(
+            b"AQUA-NETWORK/1 WIFI_DISCONNECT wlan0\n",
+            "AQUA-NETWORK/1 OK operation=wifi-disconnect interface=wlan0 authoritative=true",
+        ),
+        _ => Err("usage: aqua-wifi-native-probe native|broker|broker-status|broker-disconnect"),
     };
     #[cfg(not(target_os = "linux"))]
     let result: Result<(), &'static str> = Err("Linux native Wi-Fi probe required");
@@ -63,11 +71,21 @@ fn probe_native() -> Result<(), &'static str> {
 
 #[cfg(target_os = "linux")]
 fn probe_broker() -> Result<(), &'static str> {
+    probe_broker_request(
+        b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 49454545 70617373776f7264\n",
+        "AQUA-NETWORK/1 OK operation=wifi-connect interface=wlan0 network_id=",
+    )?;
+    println!(
+        "[AQUA-NETWORK] stage=wifi-broker-probe status=ok peer_uid=1000 typed_connect=true credential_acknowledged=true"
+    );
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn probe_broker_request(request: &[u8], expected: &str) -> Result<(), &'static str> {
     let mut stream =
         UnixStream::connect("/run/aqua-network/control.sock").map_err(|_| "broker-connect")?;
-    stream
-        .write_all(b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 49454545 70617373776f7264\n")
-        .map_err(|_| "broker-write")?;
+    stream.write_all(request).map_err(|_| "broker-write")?;
     stream
         .shutdown(std::net::Shutdown::Write)
         .map_err(|_| "broker-shutdown")?;
@@ -77,13 +95,15 @@ fn probe_broker() -> Result<(), &'static str> {
         .read_to_end(&mut response)
         .map_err(|_| "broker-read")?;
     let response = std::str::from_utf8(&response).map_err(|_| "broker-response-utf8")?;
-    if !response.starts_with(
-        "AQUA-NETWORK/1 OK operation=wifi-connect interface=wlan0 network_id=7 authoritative=true credential_saved=true",
-    ) {
+    if !response.starts_with(expected) {
         return Err("broker-response");
     }
-    println!(
-        "[AQUA-NETWORK] stage=wifi-broker-probe status=ok peer_uid=1000 typed_connect=true credential_acknowledged=true"
-    );
+    if request
+        .windows(b"WIFI_CONNECT".len())
+        .any(|value| value == b"WIFI_CONNECT")
+        && !response.contains(" authoritative=true credential_saved=true")
+    {
+        return Err("broker-connect-acknowledgement");
+    }
     Ok(())
 }

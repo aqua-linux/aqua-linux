@@ -1,6 +1,6 @@
 # Aqua Linux License Audit
 
-Audit date: 2026-08-30
+Audit date: 2026-09-01
 
 Scope: the OS repository, Rust workspace, Buildroot external tree, committed
 fonts/icons, and design assets. The separately maintained `website/` repository
@@ -38,6 +38,11 @@ is outside this audit.
   (MIT), wpa_supplicant 2.12 (BSD-3-Clause), libnl 3.11.0 (LGPL-2.1+),
   libopenssl 3.5.7 (Apache-2.0), and the virtual `openssl` provider. No network
   package or dependency closure changed in the default image. The
+  2026-09-01 QEMU-only runtime profile additionally completed `legal-info`
+  with hostapd 2.11 (BSD-3-Clause), used solely as the isolated
+  `mac80211_hwsim` access-point fixture. It adds no package to the default
+  image.
+  The
   project-authored fixed-argument `aqua-udhcpc-client` launcher,
   resolver normalization, supervisor health checks, authenticated network
   broker, and QEMU acceptance harness add no system package. The broker uses

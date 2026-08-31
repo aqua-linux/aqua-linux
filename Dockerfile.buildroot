@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     file \
     git \
     libelf-dev \
+    libssl-dev \
     locales \
     patch \
     perl \

@@ -6,6 +6,9 @@ DEFAULT_SCRIPT="${AQUA_UDHCPC_DEFAULT_SCRIPT:-/usr/share/udhcpc/default.script}"
 EXPECTED_INTERFACE="${AQUA_NETWORK_INTERFACE:-eth0}"
 READY_FILE="${AQUA_NETWORK_READY_FILE:-/run/aqua-network/lease.ready}"
 RESOLVER_FILE="${AQUA_NETWORK_RESOLVER_FILE:-/etc/resolv.conf}"
+ROUTE_TABLE="${AQUA_NETWORK_ROUTE_TABLE:-/proc/net/route}"
+IP_BINARY="${AQUA_NETWORK_IP_BINARY:-/sbin/ip}"
+ENSURE_ONLINK_ROUTE="${AQUA_NETWORK_ENSURE_ONLINK_ROUTE:-false}"
 EVENT="${1:-}"
 
 mark() {
@@ -17,6 +20,45 @@ valid_interface() {
         ''|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-]*|????????????????*) return 1 ;;
         *) return 0 ;;
     esac
+}
+
+valid_ipv4() {
+    old_ifs="${IFS}"
+    IFS=.
+    set -- $1
+    IFS="${old_ifs}"
+    [ "$#" -eq 4 ] || return 1
+    for octet in "$@"; do
+        case "${octet}" in ''|*[!0-9]*) return 1 ;; esac
+        [ "${octet}" -le 255 ] || return 1
+    done
+}
+
+default_route_ready() {
+    [ -f "${ROUTE_TABLE}" ] && [ ! -L "${ROUTE_TABLE}" ] || return 1
+    while read -r route_interface destination gateway flags remainder; do
+        [ "${route_interface}" = "${EXPECTED_INTERFACE}" ] || continue
+        [ "${destination}" = 00000000 ] || continue
+        case "${flags}" in *[!0123456789abcdefABCDEF]*) continue ;; esac
+        case "${flags}" in
+            ????) last_flag="${flags#???}" ;;
+            ????????) last_flag="${flags#???????}" ;;
+            *) continue ;;
+        esac
+        case "${last_flag}" in 1|3|5|7|9|b|B|d|D|f|F) return 0 ;; esac
+    done < "${ROUTE_TABLE}"
+    return 1
+}
+
+valid_ip_binary() {
+    [ "${IP_BINARY#/}" != "${IP_BINARY}" ] && [ -x "${IP_BINARY}" ] || return 1
+    if [ -L "${IP_BINARY}" ]; then
+        [ "${IP_BINARY}" = /sbin/ip ] &&
+            [ "$(readlink "${IP_BINARY}" 2>/dev/null || true)" = ../bin/busybox ] &&
+            [ -f /bin/busybox ] && [ -x /bin/busybox ] && [ ! -L /bin/busybox ]
+    else
+        [ -f "${IP_BINARY}" ]
+    fi
 }
 
 if ! valid_interface "${EXPECTED_INTERFACE}" ||
@@ -43,6 +85,18 @@ fi
 
 case "${EVENT}" in
     bound|renew)
+        if [ "${ENSURE_ONLINK_ROUTE}" = true ] && ! default_route_ready; then
+            gateway="${router%% *}"
+            if ! valid_ipv4 "${gateway}" || ! valid_ip_binary ||
+               ! "${IP_BINARY}" route replace "${gateway}/32" \
+                    dev "${EXPECTED_INTERFACE}" ||
+               ! "${IP_BINARY}" route replace default via "${gateway}" \
+                    dev "${EXPECTED_INTERFACE}"; then
+                rm -f "${READY_FILE}" 2>/dev/null || true
+                mark degraded
+                exit 1
+            fi
+        fi
         ready_dir="$(dirname "${READY_FILE}")"
         if [ -L "${ready_dir}" ] || [ ! -d "${ready_dir}" ]; then
             mark degraded

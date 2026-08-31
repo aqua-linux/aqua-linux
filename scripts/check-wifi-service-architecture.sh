@@ -1,0 +1,41 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT_DIR="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
+OVERLAY="$ROOT_DIR/br2-external/aqua/wifi-rootfs-overlay"
+SUPERVISOR="$OVERLAY/usr/bin/aqua-wifi-service-supervisor"
+BOOT_TOOL="$OVERLAY/usr/bin/aqua-wifi-service-boot"
+STOP_TOOL="$OVERLAY/usr/bin/aqua-wifi-service-stop"
+CLIENT="$OVERLAY/usr/bin/aqua-wifi-udhcpc-client"
+PROFILE="$OVERLAY/etc/aqua/wifi-services.conf"
+QEMU_CONFIG="$ROOT_DIR/br2-external/aqua/configs/aqua_x86_64_wifi_qemu_defconfig"
+DEFAULT_CONFIG="$ROOT_DIR/br2-external/aqua/configs/aqua_x86_64_defconfig"
+KERNEL_FRAGMENT="$ROOT_DIR/br2-external/aqua/board/aqua/x86_64/linux-wifi-qemu.config"
+BROKER="$ROOT_DIR/crates/aqua-service-adapters/src/bin/aqua-network-broker.rs"
+
+for file in "$SUPERVISOR" "$BOOT_TOOL" "$STOP_TOOL" "$CLIENT"; do test -x "$file"; done
+for file in "$PROFILE" "$QEMU_CONFIG" "$KERNEL_FRAGMENT"; do test -s "$file"; done
+grep -Fxq 'enabled=true' "$PROFILE"
+grep -Fxq 'interface=wlan0' "$PROFILE"
+grep -Fxq 'profile_scope=qemu-hwsim-only' "$PROFILE"
+grep -Fq 'aqua.boot_wifi=1' "$BOOT_TOOL"
+grep -Fq 'association_ready' "$SUPERVISOR"
+grep -Fq 'carrier_ready' "$SUPERVISOR"
+grep -Fq 'service=wpa_supplicant' "$SUPERVISOR"
+grep -Fq 'service=udhcpc' "$SUPERVISOR"
+grep -Fq 'default_wifi=false' "$SUPERVISOR"
+grep -Fq 'persist_wifi_association_marker' "$BROKER"
+grep -Fq 'remove_wifi_association_marker' "$BROKER"
+grep -Fxq 'CONFIG_MAC80211_HWSIM=y' "$KERNEL_FRAGMENT"
+grep -Fxq 'BR2_PACKAGE_HOSTAPD=y' "$QEMU_CONFIG"
+grep -Fq 'linux-wifi-qemu.config' "$QEMU_CONFIG"
+grep -Fq 'wifi-rootfs-overlay' "$QEMU_CONFIG"
+! grep -Fq 'linux-wifi-qemu.config' "$DEFAULT_CONFIG"
+! grep -Fq 'wifi-rootfs-overlay' "$DEFAULT_CONFIG"
+! grep -Fxq 'BR2_PACKAGE_WPA_SUPPLICANT=y' "$DEFAULT_CONFIG"
+test -x "$ROOT_DIR/scripts/build-wifi-qemu-runtime.sh"
+test -x "$ROOT_DIR/scripts/check-wifi-qemu.sh"
+test -x "$ROOT_DIR/scripts/check-wifi-qemu.exp"
+grep -Fq 'stage=qemu-hwsim-acceptance status=ok' "$ROOT_DIR/scripts/check-wifi-qemu.sh"
+
+echo 'Aqua Linux Wi-Fi service architecture checks passed.'

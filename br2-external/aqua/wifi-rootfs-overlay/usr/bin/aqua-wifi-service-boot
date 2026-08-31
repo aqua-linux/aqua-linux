@@ -1,0 +1,117 @@
+#!/bin/sh
+
+set -u
+
+CMDLINE_PATH="${AQUA_CMDLINE_PATH:-/proc/cmdline}"
+PROFILE_PATH="${AQUA_WIFI_BOOT_PROFILE:-/etc/aqua/wifi-services.conf}"
+SUPERVISOR_BIN="${AQUA_WIFI_SUPERVISOR_BIN:-/usr/bin/aqua-wifi-service-supervisor}"
+BROKER_BIN="${AQUA_NETWORK_BROKER_BIN:-/usr/bin/aqua-network-broker}"
+WIFI_CONTROL_DIR="${AQUA_WIFI_CONTROL_DIR:-/run/aqua-wifi}"
+NETWORK_CONTROL_DIR="${AQUA_NETWORK_CONTROL_DIR:-/run/aqua-network}"
+WPA_CONTROL_SOCKET="${AQUA_WIFI_WPA_CONTROL_SOCKET:-/run/wpa_supplicant/wlan0}"
+PID_FILE="${AQUA_WIFI_PID_FILE:-${WIFI_CONTROL_DIR}/wifi-service.pid}"
+LOG_FILE="${AQUA_WIFI_LOG_FILE:-${WIFI_CONTROL_DIR}/wifi-service.log}"
+BROKER_PID_FILE="${AQUA_WIFI_BROKER_PID_FILE:-${WIFI_CONTROL_DIR}/network-privilege-broker.pid}"
+BROKER_SOCKET="${AQUA_NETWORK_BROKER_SOCKET:-${NETWORK_CONTROL_DIR}/control.sock}"
+BROKER_LOG="${AQUA_WIFI_BROKER_LOG_FILE:-${WIFI_CONTROL_DIR}/network-privilege-broker.log}"
+
+mark() {
+    echo "[AQUA-BOOT] stage=wifi-service-activation status=$1 $2"
+}
+
+profile_has_once() {
+    [ "$(grep -Fxc "$1" "${PROFILE_PATH}" 2>/dev/null || true)" -eq 1 ]
+}
+
+cmdline=""
+[ -r "${CMDLINE_PATH}" ] && cmdline="$(cat "${CMDLINE_PATH}")"
+case " ${cmdline} " in
+    *' aqua.boot_wifi=1 '*) ;;
+    *) mark disabled 'reason=kernel-flag-absent boot_wifi=false wifi_started=false'; exit 0 ;;
+esac
+
+profile_lines=""
+if [ -f "${PROFILE_PATH}" ] && [ ! -L "${PROFILE_PATH}" ]; then
+    profile_lines="$(wc -l < "${PROFILE_PATH}" | tr -d ' ')"
+fi
+if [ "${profile_lines}" != 12 ] ||
+   ! profile_has_once 'enabled=true' ||
+   ! profile_has_once 'interface=wlan0' ||
+   ! profile_has_once 'wpa_binary=/usr/sbin/wpa_supplicant' ||
+   ! profile_has_once 'wpa_config=/etc/aqua/wpa_supplicant-aqua.conf' ||
+   ! profile_has_once 'udhcpc_binary=/usr/bin/aqua-wifi-udhcpc-client' ||
+   ! profile_has_once 'udhcpc_default_script=/usr/share/udhcpc/default.script' ||
+   ! profile_has_once 'max_restarts=3' ||
+   ! profile_has_once 'restart_delay_seconds=2' ||
+   ! profile_has_once 'readiness_timeout_seconds=20' ||
+   ! profile_has_once 'monitor_interval_seconds=1' ||
+   ! profile_has_once 'stop_timeout_seconds=5' ||
+   ! profile_has_once 'profile_scope=qemu-hwsim-only'; then
+    mark blocked 'reason=invalid-qemu-wifi-profile wifi_started=false'
+    exit 1
+fi
+for binary in "${SUPERVISOR_BIN}" "${BROKER_BIN}"; do
+    if [ ! -f "${binary}" ] || [ ! -x "${binary}" ] || [ -L "${binary}" ]; then
+        mark blocked "reason=runtime-binary-missing binary=${binary} wifi_started=false"
+        exit 1
+    fi
+done
+for directory in "${WIFI_CONTROL_DIR}" "${NETWORK_CONTROL_DIR}"; do
+    if [ -L "${directory}" ]; then
+        mark blocked 'reason=unsafe-control-directory wifi_started=false'
+        exit 1
+    fi
+    mkdir -p "${directory}" || { mark blocked 'reason=control-directory wifi_started=false'; exit 1; }
+    chmod 755 "${directory}" 2>/dev/null || true
+done
+for tracked_pid_file in "${PID_FILE}" "${BROKER_PID_FILE}"; do
+    if [ -f "${tracked_pid_file}" ]; then
+        old_pid="$(cat "${tracked_pid_file}" 2>/dev/null || true)"
+        case "${old_pid}" in
+            ''|*[!0-9]*) ;;
+            *) kill -0 "${old_pid}" 2>/dev/null && { mark duplicate "pid=${old_pid} wifi_started=false"; exit 1; } ;;
+        esac
+        rm -f "${tracked_pid_file}"
+    fi
+done
+rm -f "${BROKER_SOCKET}"
+
+AQUA_WIFI_SERVICES_CONFIG="${PROFILE_PATH}" \
+AQUA_WIFI_CONTROL_DIR="${WIFI_CONTROL_DIR}" \
+AQUA_NETWORK_CONTROL_DIR="${NETWORK_CONTROL_DIR}" \
+AQUA_WIFI_PID_FILE="${PID_FILE}" \
+"${SUPERVISOR_BIN}" >> "${LOG_FILE}" 2>&1 &
+supervisor_pid="$!"
+waited=0
+while [ "${waited}" -lt 20 ] && [ ! -S "${WPA_CONTROL_SOCKET}" ] &&
+      kill -0 "${supervisor_pid}" 2>/dev/null; do
+    sleep 1
+    waited=$((waited + 1))
+done
+if [ ! -S "${WPA_CONTROL_SOCKET}" ] || ! kill -0 "${supervisor_pid}" 2>/dev/null; then
+    kill "${supervisor_pid}" 2>/dev/null || true
+    wait "${supervisor_pid}" 2>/dev/null || true
+    rm -f "${PID_FILE}"
+    mark blocked 'reason=wifi-supervisor-startup wifi_started=false'
+    exit 1
+fi
+
+"${BROKER_BIN}" serve >> "${BROKER_LOG}" 2>&1 &
+broker_pid="$!"
+echo "${broker_pid}" > "${BROKER_PID_FILE}"
+waited=0
+while [ "${waited}" -lt 5 ] && [ ! -S "${BROKER_SOCKET}" ] &&
+      kill -0 "${broker_pid}" 2>/dev/null; do
+    sleep 1
+    waited=$((waited + 1))
+done
+if [ ! -S "${BROKER_SOCKET}" ] || ! kill -0 "${broker_pid}" 2>/dev/null; then
+    kill "${broker_pid}" "${supervisor_pid}" 2>/dev/null || true
+    wait "${broker_pid}" 2>/dev/null || true
+    wait "${supervisor_pid}" 2>/dev/null || true
+    rm -f "${BROKER_PID_FILE}" "${BROKER_SOCKET}" "${PID_FILE}"
+    mark blocked 'reason=wifi-broker-startup wifi_started=false'
+    exit 1
+fi
+
+mark started "mode=supervised-root target=qemu-hwsim interface=wlan0 supervisor_pid=${supervisor_pid} broker_pid=${broker_pid} boot_wifi=true default_wifi=false recovery_tty=true"
