@@ -1,0 +1,63 @@
+#!/bin/sh
+
+set -u
+
+CONTROL_DIR="${AQUA_WIFI_CONTROL_DIR:-/run/aqua-wifi}"
+PID_FILE="${AQUA_WIFI_PID_FILE:-${CONTROL_DIR}/wifi-service.pid}"
+STATE_FILE="${AQUA_WIFI_STATE_FILE:-${CONTROL_DIR}/wifi-service.state}"
+STOP_FILE="${AQUA_WIFI_STOP_FILE:-${CONTROL_DIR}/wifi-service.stop}"
+TIMEOUT="${AQUA_WIFI_STOP_TIMEOUT_SECONDS:-10}"
+BROKER_PID_FILE="${AQUA_WIFI_BROKER_PID_FILE:-${CONTROL_DIR}/network-privilege-broker.pid}"
+BROKER_SOCKET="${AQUA_NETWORK_BROKER_SOCKET:-/run/aqua-network/control.sock}"
+
+mark() {
+    echo "[AQUA-WIFI] stage=wifi-service-stop status=$1 $2"
+}
+
+case "${TIMEOUT}" in ''|*[!0-9]*) mark error 'reason=invalid-timeout'; exit 2 ;; esac
+broker_stopped=true
+if [ -f "${BROKER_PID_FILE}" ]; then
+    broker_pid="$(cat "${BROKER_PID_FILE}" 2>/dev/null || true)"
+    case "${broker_pid}" in ''|*[!0-9]*) mark error 'reason=invalid-broker-pid'; exit 1 ;; esac
+    if kill -0 "${broker_pid}" 2>/dev/null; then
+        kill "${broker_pid}" 2>/dev/null || true
+        broker_waited=0
+        while kill -0 "${broker_pid}" 2>/dev/null && [ "${broker_waited}" -lt "${TIMEOUT}" ]; do
+            sleep 1
+            broker_waited=$((broker_waited + 1))
+        done
+        kill -0 "${broker_pid}" 2>/dev/null && { mark timeout "broker_pid=${broker_pid}"; exit 1; }
+    fi
+    rm -f "${BROKER_PID_FILE}" "${BROKER_SOCKET}"
+fi
+if [ ! -f "${PID_FILE}" ]; then
+    state="$(sed -n 's/^state=//p' "${STATE_FILE}" 2>/dev/null | tail -n 1)"
+    mark idle "reason=supervisor-not-running state=${state:-unknown}"
+    exit 0
+fi
+pid="$(cat "${PID_FILE}" 2>/dev/null || true)"
+case "${pid}" in ''|*[!0-9]*) mark error 'reason=invalid-supervisor-pid'; exit 1 ;; esac
+if ! kill -0 "${pid}" 2>/dev/null; then
+    rm -f "${PID_FILE}"
+    mark idle 'reason=stale-supervisor-pid-removed'
+    exit 0
+fi
+tmp="${STOP_FILE}.tmp.$$"
+printf '%s\n' 'product=Aqua Linux' "supervisor_pid=${pid}" > "${tmp}" &&
+    mv "${tmp}" "${STOP_FILE}" || { mark error 'reason=stop-request-write-failed'; exit 1; }
+mark requested "supervisor_pid=${pid}"
+waited=0
+while kill -0 "${pid}" 2>/dev/null && [ "${waited}" -lt "${TIMEOUT}" ]; do
+    sleep 1
+    waited=$((waited + 1))
+done
+if kill -0 "${pid}" 2>/dev/null; then
+    mark timeout "supervisor_pid=${pid} waited_seconds=${waited}"
+    exit 1
+fi
+if [ -f "${PID_FILE}" ] || ! grep -Fq 'state=stopped' "${STATE_FILE}" 2>/dev/null; then
+    mark error 'reason=incomplete-service-cleanup'
+    exit 1
+fi
+rm -f "${STOP_FILE}" "${tmp}"
+mark ok "wpa_supplicant_stopped=true dhcp_stopped=true broker_stopped=${broker_stopped}"

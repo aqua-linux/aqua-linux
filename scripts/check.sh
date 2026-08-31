@@ -33,6 +33,8 @@ scripts/check-unprivileged-session.sh
 scripts/check-media-service-supervisor.sh
 scripts/check-network-service-supervisor.sh
 scripts/check-network-service-boot.sh
+scripts/check-wifi-service-supervisor.sh
+scripts/check-wifi-service-boot.sh
 scripts/check-graphical-session-supervisor.sh
 scripts/check-default-recovery-safety.sh
 scripts/check-graphical-session-stop.sh
@@ -1247,6 +1249,7 @@ scripts/check-audio-buildroot-rehearsal.sh
 scripts/check-wifi-buildroot-rehearsal.sh
 scripts/check-wifi-control-contract.sh
 scripts/check-wifi-native-binding.sh
+scripts/check-wifi-service-architecture.sh
 scripts/check-audio-native-binding.sh
 scripts/check-audio-rootfs-contract.sh
 scripts/check-audio-qemu-device-contract.sh

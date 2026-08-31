@@ -35,6 +35,8 @@ use std::time::{Duration, SystemTime};
 const SOCKET_PATH: &str = "/run/aqua-network/control.sock";
 const STATE_PATH: &str = "/run/aqua-network/network-service-supervisor.state";
 const READY_PATH: &str = "/run/aqua-network/lease.ready";
+#[cfg(all(feature = "wifi-native", target_os = "linux"))]
+const WIFI_ASSOCIATION_PATH: &str = "/run/aqua-network/wifi.associated";
 const AQUA_UID: u32 = 1000;
 const AQUA_GID: u32 = 1000;
 const IO_TIMEOUT: Duration = Duration::from_secs(2);
@@ -199,6 +201,7 @@ fn wifi_disconnect() -> Result<String, &'static str> {
     control
         .request(&WifiControlRequest::Disconnect)
         .map_err(native_reason)?;
+    remove_wifi_association_marker().map_err(|_| "association-state-write-failed")?;
     Ok(format!(
         "{PROTOCOL_VERSION} OK operation=wifi-disconnect interface={FIXED_WIFI_INTERFACE} authoritative=true\n"
     ))
@@ -209,6 +212,7 @@ fn wifi_connect(
     ssid: WifiSsid,
     passphrase: aqua_service_adapters::wifi_control::WifiPassphrase,
 ) -> Result<String, &'static str> {
+    remove_wifi_association_marker().map_err(|_| "association-state-write-failed")?;
     let psk = derive_wpa2_psk(&ssid, &passphrase).map_err(native_reason)?;
     drop(passphrase);
     let mut control = WifiNativeControl::connect().map_err(native_reason)?;
@@ -244,11 +248,56 @@ fn wifi_connect(
     };
     let record = WifiCredentialRecord::new(ssid, WifiSecurity::Wpa2Personal, psk);
     persist_wifi_credential(&record).map_err(|_| "credential-write-failed")?;
+    persist_wifi_association_marker(
+        status
+            .network_id
+            .expect("authoritative status includes network id"),
+    )
+    .map_err(|_| "association-state-write-failed")?;
     Ok(format!(
         "{PROTOCOL_VERSION} OK operation=wifi-connect interface={FIXED_WIFI_INTERFACE} network_id={} authoritative={} credential_saved=true\n",
         status.network_id.expect("authoritative status includes network id"),
         status.authoritative_association()
     ))
+}
+
+#[cfg(all(feature = "wifi-native", target_os = "linux"))]
+fn persist_wifi_association_marker(network_id: u16) -> io::Result<()> {
+    let path = Path::new(WIFI_ASSOCIATION_PATH);
+    let directory = path.parent().expect("fixed association marker parent");
+    validate_control_directory(directory)?;
+    let temporary = directory.join(format!(".wifi.associated.{}", std::process::id()));
+    let mut transaction = CredentialTransaction::new(&temporary);
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o644)
+        .open(&temporary)?;
+    writeln!(file, "product=Aqua Linux")?;
+    writeln!(file, "interface={FIXED_WIFI_INTERFACE}")?;
+    writeln!(file, "network_id={network_id}")?;
+    writeln!(file, "authoritative=true")?;
+    fs::set_permissions(&temporary, fs::Permissions::from_mode(0o644))?;
+    file.sync_all()?;
+    fs::rename(&temporary, path)?;
+    fs::File::open(directory)?.sync_all()?;
+    transaction.commit();
+    Ok(())
+}
+
+#[cfg(all(feature = "wifi-native", target_os = "linux"))]
+fn remove_wifi_association_marker() -> io::Result<()> {
+    match fs::symlink_metadata(WIFI_ASSOCIATION_PATH) {
+        Ok(metadata) if metadata.file_type().is_file() && !metadata.file_type().is_symlink() => {
+            fs::remove_file(WIFI_ASSOCIATION_PATH)
+        }
+        Ok(_) => Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "unsafe Wi-Fi association marker",
+        )),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]

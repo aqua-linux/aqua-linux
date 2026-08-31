@@ -53,6 +53,11 @@ chmod +x "${TARGET_DIR}/usr/bin/aqua-recovery"
 [ -f "${TARGET_DIR}/usr/bin/aqua-network-service-supervisor" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-network-service-supervisor"
 [ -f "${TARGET_DIR}/usr/bin/aqua-network-service-boot" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-network-service-boot"
 [ -f "${TARGET_DIR}/usr/bin/aqua-network-service-stop" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-network-service-stop"
+[ -f "${TARGET_DIR}/usr/bin/aqua-wifi-service-supervisor" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-wifi-service-supervisor"
+[ -f "${TARGET_DIR}/usr/bin/aqua-wifi-service-boot" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-wifi-service-boot"
+[ -f "${TARGET_DIR}/usr/bin/aqua-wifi-service-stop" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-wifi-service-stop"
+[ -f "${TARGET_DIR}/usr/bin/aqua-wifi-udhcpc-client" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-wifi-udhcpc-client"
+[ -f "${TARGET_DIR}/etc/aqua/wpa_supplicant-aqua.conf" ] && chmod 600 "${TARGET_DIR}/etc/aqua/wpa_supplicant-aqua.conf"
 [ -f "${TARGET_DIR}/usr/bin/aqua-udhcpc-hook" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-udhcpc-hook"
 [ -f "${TARGET_DIR}/usr/bin/aqua-compositor-manual-launch" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-compositor-manual-launch"
 [ -f "${TARGET_DIR}/usr/bin/aqua-compositor-guarded-run" ] && chmod +x "${TARGET_DIR}/usr/bin/aqua-compositor-guarded-run"
@@ -92,6 +97,7 @@ AQUA_COMPONENT_ACCEPTANCE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/r
 AQUA_INSTALLER_PROBE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-installer-probe"
 AQUA_AUDIO_ADAPTER_PROBE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-audio-adapter-probe"
 AQUA_NETWORK_BROKER_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-network-broker"
+AQUA_WIFI_NATIVE_PROBE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-wifi-native-probe"
 mkdir -p "${TARGET_DIR}/usr/bin" "${TARGET_DIR}/usr/libexec/aqua-tests" "${TARGET_DIR}/usr/share/doc/aqua"
 if [ -f "${AQUA_COMPOSITOR_BINARY}" ]; then
     cp "${AQUA_COMPOSITOR_BINARY}" "${TARGET_DIR}/usr/bin/aqua-compositor"
@@ -144,6 +150,13 @@ autostart=false
 default_network=false
 build_hint=scripts/build-compositor-linux-docker.sh
 EOF
+fi
+
+if [ -f "${AQUA_WIFI_NATIVE_PROBE_BINARY}" ] &&
+   [ -f "${TARGET_DIR}/etc/aqua/wifi-services.conf" ]; then
+    cp "${AQUA_WIFI_NATIVE_PROBE_BINARY}" \
+        "${TARGET_DIR}/usr/libexec/aqua-tests/aqua-wifi-native-probe"
+    chmod 755 "${TARGET_DIR}/usr/libexec/aqua-tests/aqua-wifi-native-probe"
 fi
 
 if [ -f "${AQUA_INSTALLER_BINARY}" ]; then
