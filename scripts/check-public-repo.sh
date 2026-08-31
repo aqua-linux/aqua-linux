@@ -108,8 +108,9 @@ if grep -Eiq 'Ubuntu|Debian|KDE|GNOME|XFCE|LXQt|Chromium OS' README.md; then
     echo 'README must describe Aqua Linux without competitor references.' >&2
     exit 1
 fi
-if grep -Eq '^!\[[^]]*\]\([^)]*\)' README.md; then
-    echo 'README must not embed runtime screenshots or decorative images.' >&2
+if grep -E '!\[[^]]*\]\([^)]*\)' README.md |
+    grep -Ev 'actions/workflows/ci\.yml/badge\.svg|img\.shields\.io/badge/'; then
+    echo 'README may embed approved status badges only; runtime screenshots are not allowed.' >&2
     exit 1
 fi
 grep -Fq 'excluded from Git' docs/aqua-linux/ui-contract.md

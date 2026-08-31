@@ -1,5 +1,9 @@
 # Aqua Linux
 
+[![CI](https://github.com/aqua-linux/aqua-linux/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aqua-linux/aqua-linux/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-1769aa.svg)](LICENSE)
+[![Stage](https://img.shields.io/badge/stage-active%20prototype-0f766e.svg)](docs/aqua-linux/progress.md)
+
 Aqua Linux is an independent, Buildroot-based graphical operating system built
 around a custom Wayland compositor written in Rust with Smithay. The project
 focuses on a controlled system image, a coherent first-party desktop, explicit
@@ -103,6 +107,21 @@ Public-repository boundaries can be checked independently:
 ```sh
 scripts/check-public-repo.sh
 ```
+
+<details>
+<summary>Validation layers</summary>
+
+The validation stack is intentionally layered so a fast source check and a
+full image check answer different questions:
+
+| Layer | Scope |
+| --- | --- |
+| Rust checks | Formatting, Clippy, workspace tests, and doc tests |
+| Repository checks | Licensing, asset provenance, public-file boundaries, and generated-report consistency |
+| Runtime contracts | Boot markers, recovery behavior, compositor/session probes, and service supervisors |
+| QEMU acceptance | Declared virtual hardware, installer transactions, and opt-in graphical workflows |
+
+</details>
 
 ### Build The Image
 
