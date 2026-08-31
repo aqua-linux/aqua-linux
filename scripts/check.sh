@@ -1567,6 +1567,9 @@ grep -Fq 'weston-simple-damage' scripts/export-rootfs-compositor-contract-docker
 grep -Fq 'weston-simple-damage' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'weston-simple-touch' scripts/export-rootfs-compositor-contract-docker.sh
 grep -Fq 'weston-simple-touch' br2-external/aqua/board/aqua/x86_64/post-build.sh
+grep -Fq 'weston-terminal' scripts/export-rootfs-compositor-contract-docker.sh
+grep -Fq 'weston-terminal' br2-external/aqua/board/aqua/x86_64/post-build.sh
+grep -Fq 'sign_close.png' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'compose_key_available_for_all_layouts=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'dead_key_utf8_matches_for_all_clients=true' scripts/check-compositor-rootfs-docker.sh
 grep -Fq 'cancelled_compose_rejected_for_all_locales=true' scripts/check-compositor.sh

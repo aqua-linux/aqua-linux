@@ -570,14 +570,18 @@ Implemented now:
 - Optional Linux-target Rust check for the real Smithay path.
 - Packaged-rootfs independent-application matrix that runs the upstream Weston
   14.0.1 `weston-simple-shm`, `weston-simple-damage`, and
-  `weston-simple-touch` C clients as separate processes. Aqua discovers all
-  three app IDs, imports distinct 250x250, 320x200, and 600x500 shared-memory
+  `weston-simple-touch`, plus the fuller `weston-terminal` C client as separate
+  processes. Aqua discovers all four app IDs, imports distinct 250x250,
+  320x200, 600x500, and 726x443 shared-memory
   buffers, advances damage and frame callbacks, and sends a real `wl_touch`
   down/motion/up sequence. The touch client must paint exact red points at
   120,140 and 180,200 through two new damage commits. Aqua closes each
   toplevel independently, observes all clean process exits, and finishes with
-  no client surfaces. The Weston compositor is neither packaged nor started;
-  physical touchscreen behavior remains unproven.
+  no client surfaces. The terminal opens a real PTY on the packaged shell and
+  redraws after Aqua delivers `echo aqua` plus Enter through `wl_keyboard`.
+  Four required MIT-licensed Weston frame PNGs are isolated as fixture assets;
+  the Weston compositor, shells, and desktop runtime are neither packaged nor
+  started. Physical touchscreen behavior remains unproven.
 - Native-Wayland application compatibility is a fail-closed image contract.
   Both Buildroot profiles disable Xorg and XWayland, Aqua session environments
   omit `DISPLAY`, and rootfs validation rejects X11 server binaries, modules,
@@ -586,7 +590,7 @@ Implemented now:
 
 Not implemented yet:
 
-- Broader third-party toolkit coverage beyond the three packaged upstream Weston
+- Broader third-party toolkit coverage beyond the four packaged upstream Weston
   xdg-toplevel compatibility fixtures.
 - Additional Aqua-owned icon artwork for later first-party applications.
 - Runtime visual convergence with the canonical Aqua visual/UI contracts.

@@ -24,9 +24,10 @@ is outside this audit.
 - Reviewed Aqua Core SVGs use resvg 0.45.1 without its default text,
   system-font, memory-map, or raster-image features. The pure-Rust parsing and
   raster graph is MIT, Apache-2.0, or BSD-3-Clause licensed.
-- The Weston simple-shm, simple-damage, and simple-touch compatibility fixtures are MIT
-  licensed and are isolated from the Aqua desktop product stack. The Weston
-  compositor, shells, backends, and desktop runtime are not packaged.
+- The Weston simple-shm, simple-damage, simple-touch, and terminal compatibility
+  fixtures are MIT licensed and are isolated from the Aqua desktop product
+  stack. The four Weston terminal frame PNGs are retained only for that fixture.
+  The Weston compositor, shells, backends, and desktop runtime are not packaged.
 - No private keys or environment-secret files were found in the OS source tree.
 - The OS baseline is pinned to Buildroot 2025.02.17 LTS by SHA-256. Its audio
   package metadata records PipeWire 1.2.8 (MIT/LGPL-2.1+/GPL-2.0 components),

@@ -4,9 +4,12 @@ Aqua v1 is a native Wayland system. Its declared application model is limited
 to first-party applications and independently tested Wayland clients using
 `wl_shm` ARGB8888 buffers. The current external compatibility fixtures are
 Weston 14.0.1 `weston-simple-shm`, `weston-simple-damage`, and
-`weston-simple-touch`. The touch fixture covers protocol-level `wl_touch`
+`weston-simple-touch`, plus the fuller `weston-terminal` client. The touch
+fixture covers protocol-level `wl_touch`
 down, motion, up, frame delivery and exact client-painted buffer changes; it
-does not constitute physical touchscreen evidence.
+does not constitute physical touchscreen evidence. The terminal fixture opens
+a real PTY backed by the packaged shell and proves keyboard-driven client
+redrawing, but does not broaden the claim beyond the Weston client toolkit.
 
 XWayland and an Xorg server are not packaged, the graphical session does not
 export `DISPLAY`, and Aqua does not claim support for X11-only applications.
