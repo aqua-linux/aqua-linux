@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -u
+
+if [ "$#" -ne 6 ] || [ "$1" != -f ] || [ "$2" != -n ] ||
+   [ "$3" != -i ] || [ "$4" != eth0 ] || [ "$5" != -s ] ||
+   [ "$6" != /usr/bin/aqua-udhcpc-hook ]; then
+    echo '[AQUA-NETWORK] stage=udhcpc-client status=blocked reason=invalid-arguments' >&2
+    exit 2
+fi
+if [ ! -x /sbin/udhcpc ]; then
+    echo '[AQUA-NETWORK] stage=udhcpc-client status=blocked reason=busybox-applet-missing' >&2
+    exit 2
+fi
+
+exec /sbin/udhcpc -f -n -i eth0 -s /usr/bin/aqua-udhcpc-hook

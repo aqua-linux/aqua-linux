@@ -70,6 +70,18 @@ cat > "${TMP_DIR}/bin/default.script" <<'EOF'
 #!/bin/sh
 set -eu
 printf '%s %s\n' "$1" "${interface}" >> "${AQUA_TEST_EVENT_FILE}"
+case "$1" in
+    bound|renew)
+        printf '%s\n' \
+            'Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT' \
+            'eth0 00000000 0202000A 0003 0 0 0 00000000 0 0 0' > "${AQUA_TEST_ROUTE_FILE}"
+        printf '%s\n' 'nameserver 10.0.2.3 # eth0' > "${AQUA_TEST_RESOLVER_FILE}"
+        ;;
+    *)
+        : > "${AQUA_TEST_ROUTE_FILE}"
+        : > "${AQUA_TEST_RESOLVER_FILE}"
+        ;;
+esac
 EOF
 cat > "${TMP_DIR}/bin/udhcpc" <<'EOF'
 #!/bin/sh
@@ -108,18 +120,24 @@ chmod +x "${TMP_DIR}/bin/default.script" "${TMP_DIR}/bin/udhcpc"
 
 event_file="${TMP_DIR}/events"
 attempt_file="${TMP_DIR}/attempts"
+route_file="${TMP_DIR}/route"
+resolver_file="${TMP_DIR}/resolv.conf"
 : > "${event_file}"
 AQUA_TEST_EVENT_FILE="${event_file}" \
 AQUA_TEST_ATTEMPT_FILE="${attempt_file}" \
+AQUA_TEST_ROUTE_FILE="${route_file}" \
+AQUA_TEST_RESOLVER_FILE="${resolver_file}" \
 AQUA_NETWORK_CONTROL_DIR="${control_dir}" \
 AQUA_NETWORK_SERVICES_ENABLED=true \
 AQUA_NETWORK_LEGACY_OWNER_DISABLED=true \
 AQUA_NETWORK_SUPERVISOR_TEST_MODE=true \
 AQUA_NETWORK_SYS_CLASS_NET="${interface_root}" \
+AQUA_NETWORK_ROUTE_TABLE="${route_file}" \
+AQUA_NETWORK_RESOLVER_FILE="${resolver_file}" \
 AQUA_UDHCPC_BIN="${TMP_DIR}/bin/udhcpc" \
 AQUA_UDHCPC_HOOK="${HOOK}" \
 AQUA_UDHCPC_DEFAULT_SCRIPT="${TMP_DIR}/bin/default.script" \
-AQUA_NETWORK_MAX_RESTARTS=2 \
+AQUA_NETWORK_MAX_RESTARTS=3 \
 AQUA_NETWORK_RESTART_DELAY_SECONDS=0 \
 AQUA_NETWORK_READY_TIMEOUT_SECONDS=4 \
 AQUA_NETWORK_LEASE_LOSS_GRACE_SECONDS=1 \
@@ -141,8 +159,39 @@ grep -Fq 'state=running' "${control_dir}/network-service-supervisor.state"
 grep -Fq 'attempts=2' "${control_dir}/network-service-supervisor.state"
 grep -Fq 'restarts=1' "${control_dir}/network-service-supervisor.state"
 grep -Fq 'lease_ready=true' "${control_dir}/network-service-supervisor.state"
+grep -Fq 'route_ready=true' "${control_dir}/network-service-supervisor.state"
+grep -Fq 'dns_ready=true' "${control_dir}/network-service-supervisor.state"
+grep -Fxq 'nameserver 10.0.2.3' "${resolver_file}"
 grep -Fq 'policy_owner=aqua-network-service-supervisor' "${control_dir}/network-service-supervisor.state"
 grep -Fq 'status=restarting failure=dhcp-client next_restart=1' "${TMP_DIR}/supervisor.log"
+
+: > "${route_file}"
+waited=0
+while [ "${waited}" -lt 20 ]; do
+    if grep -Fq 'state=running' "${control_dir}/network-service-supervisor.state" 2>/dev/null &&
+       grep -Fq 'attempts=3' "${control_dir}/network-service-supervisor.state" 2>/dev/null; then
+        break
+    fi
+    sleep 1
+    waited=$((waited + 1))
+done
+grep -Fq 'attempts=3' "${control_dir}/network-service-supervisor.state"
+grep -Fq 'restarts=2' "${control_dir}/network-service-supervisor.state"
+grep -Fq 'status=restarting failure=route-lost next_restart=2' "${TMP_DIR}/supervisor.log"
+
+: > "${resolver_file}"
+waited=0
+while [ "${waited}" -lt 20 ]; do
+    if grep -Fq 'state=running' "${control_dir}/network-service-supervisor.state" 2>/dev/null &&
+       grep -Fq 'attempts=4' "${control_dir}/network-service-supervisor.state" 2>/dev/null; then
+        break
+    fi
+    sleep 1
+    waited=$((waited + 1))
+done
+grep -Fq 'attempts=4' "${control_dir}/network-service-supervisor.state"
+grep -Fq 'restarts=3' "${control_dir}/network-service-supervisor.state"
+grep -Fq 'status=restarting failure=dns-lost next_restart=3' "${TMP_DIR}/supervisor.log"
 
 AQUA_NETWORK_CONTROL_DIR="${control_dir}" \
 AQUA_NETWORK_STOP_TIMEOUT_SECONDS=8 \
@@ -162,12 +211,16 @@ rm -f "${attempt_file}" "${control_dir}/network-service-supervisor.state"
 set +e
 AQUA_TEST_EVENT_FILE="${event_file}" \
 AQUA_TEST_ATTEMPT_FILE="${attempt_file}" \
+AQUA_TEST_ROUTE_FILE="${route_file}" \
+AQUA_TEST_RESOLVER_FILE="${resolver_file}" \
 AQUA_TEST_ALWAYS_FAIL=true \
 AQUA_NETWORK_CONTROL_DIR="${control_dir}" \
 AQUA_NETWORK_SERVICES_ENABLED=true \
 AQUA_NETWORK_LEGACY_OWNER_DISABLED=true \
 AQUA_NETWORK_SUPERVISOR_TEST_MODE=true \
 AQUA_NETWORK_SYS_CLASS_NET="${interface_root}" \
+AQUA_NETWORK_ROUTE_TABLE="${route_file}" \
+AQUA_NETWORK_RESOLVER_FILE="${resolver_file}" \
 AQUA_UDHCPC_BIN="${TMP_DIR}/bin/udhcpc" \
 AQUA_UDHCPC_HOOK="${HOOK}" \
 AQUA_UDHCPC_DEFAULT_SCRIPT="${TMP_DIR}/bin/default.script" \

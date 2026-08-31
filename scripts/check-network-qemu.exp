@@ -1,0 +1,91 @@
+#!/usr/bin/expect -f
+
+set timeout $env(TIMEOUT_SECONDS)
+log_file -noappend $env(SERIAL_LOG)
+
+proc shell {command description} {
+    send -- "$command\r"
+    expect {
+        -exact {# } {}
+        timeout { puts stderr "Timed out while $description"; exit 1 }
+        eof { puts stderr "QEMU exited while $description"; exit 1 }
+    }
+}
+
+spawn qemu-system-x86_64 \
+    -machine accel=tcg \
+    -cpu max \
+    -smp $env(CPUS) \
+    -m $env(MEMORY) \
+    -kernel $env(KERNEL) \
+    -drive file=$env(ROOTFS),if=virtio,format=raw,snapshot=on \
+    -append {root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.boot_network=1} \
+    -serial stdio \
+    -display none \
+    -vga none \
+    -device virtio-vga \
+    -netdev user,id=net0 \
+    -device virtio-net-pci,netdev=net0 \
+    -device virtio-rng-pci \
+    -no-reboot
+
+expect {
+    -exact {[AQUA-BOOT] stage=network-service-activation status=started mode=supervised-root target=qemu interface=eth0} {}
+    timeout { puts stderr "Opt-in network activation marker missing"; exit 1 }
+    eof { puts stderr "QEMU exited before network activation"; exit 1 }
+}
+
+expect {
+    -exact {aqua-linux login: } {}
+    timeout { puts stderr "Timed out waiting for the recovery login"; exit 1 }
+    eof { puts stderr "QEMU exited before the recovery login"; exit 1 }
+}
+send -- "root\r"
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Timed out waiting for the recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited before the recovery shell"; exit 1 }
+}
+
+shell {stty -echo} {disabling recovery-shell command echo}
+
+shell {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'state=running' /run/aqua-network/network-service-supervisor.state 2>/dev/null; do sleep 1; i=$((i + 1)); done} {waiting for DHCP readiness}
+send -- {if grep -Fq 'state=running' /run/aqua-network/network-service-supervisor.state 2>/dev/null; then echo '[AQUA-NETWORK] stage=qemu-readiness status=ok'; else cat /run/aqua-network/network-service-supervisor.state /run/aqua-network/network-service-supervisor.log /run/aqua-network/udhcpc.log 2>/dev/null; echo '[AQUA-NETWORK] stage=qemu-readiness status=failed'; fi}
+send -- "\r"
+expect {
+    -exact {[AQUA-NETWORK] stage=qemu-readiness status=ok} {}
+    -exact {[AQUA-NETWORK] stage=qemu-readiness status=failed} { puts stderr "DHCP did not reach authoritative readiness"; exit 1 }
+    timeout { puts stderr "DHCP readiness result missing"; exit 1 }
+    eof { puts stderr "QEMU exited during DHCP readiness"; exit 1 }
+}
+expect {
+    -exact {# } {}
+    timeout { puts stderr "DHCP readiness did not return to the recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after DHCP readiness"; exit 1 }
+}
+shell {network_ok=1; grep -Fq 'attempts=1' /run/aqua-network/network-service-supervisor.state || network_ok=0; grep -Fq 'lease_ready=true' /run/aqua-network/network-service-supervisor.state || network_ok=0; grep -Fq 'route_ready=true' /run/aqua-network/network-service-supervisor.state || network_ok=0; grep -Fq 'dns_ready=true' /run/aqua-network/network-service-supervisor.state || network_ok=0} {checking authoritative network readiness}
+shell {grep -Eq '^eth0[[:space:]]+00000000[[:space:]]+' /proc/net/route || network_ok=0; grep -Eq '^nameserver[[:space:]]+[0-9a-fA-F:.]+([[:space:]]+#.*)?$' /etc/resolv.conf || network_ok=0} {checking the default route and resolver state}
+shell {nslookup example.com >/run/aqua-network/nslookup.log 2>&1 || network_ok=0; cat /run/aqua-network/nslookup.log} {performing a DNS lookup through QEMU user networking}
+
+shell {client_pid="$(sed -n 's/^client_pid=//p' /run/aqua-network/network-service-supervisor.state)"; kill -USR1 "$client_pid"} {requesting a real DHCP lease renewal}
+shell {i=0; while [ "$i" -lt 20 ] && ! grep -Fq 'event=renew' /run/aqua-network/lease.ready 2>/dev/null; do sleep 1; i=$((i + 1)); done; grep -Fq 'event=renew' /run/aqua-network/lease.ready || network_ok=0} {waiting for DHCP renewal}
+
+shell {ip route del default dev eth0} {removing the active default route}
+shell {i=0; while [ "$i" -lt 30 ]; do state="$(cat /run/aqua-network/network-service-supervisor.state 2>/dev/null || true)"; printf '%s\n' "$state" | grep -Fq 'state=running' && printf '%s\n' "$state" | grep -Fq 'attempts=2' && break; sleep 1; i=$((i + 1)); done} {waiting for bounded route-loss recovery}
+shell {grep -Fq 'attempts=2' /run/aqua-network/network-service-supervisor.state || network_ok=0; grep -Fq 'restarts=1' /run/aqua-network/network-service-supervisor.state || network_ok=0; grep -Fq 'route_ready=true' /run/aqua-network/network-service-supervisor.state || network_ok=0; grep -Fq 'status=restarting failure=route-lost next_restart=1' /run/aqua-network/network-service-supervisor.log || network_ok=0} {checking route-loss recovery evidence}
+
+shell {client_pid="$(sed -n 's/^client_pid=//p' /run/aqua-network/network-service-supervisor.state)"; kill -KILL "$client_pid"} {forcing DHCP client failure}
+shell {i=0; while [ "$i" -lt 30 ]; do state="$(cat /run/aqua-network/network-service-supervisor.state 2>/dev/null || true)"; printf '%s\n' "$state" | grep -Fq 'state=running' && printf '%s\n' "$state" | grep -Fq 'attempts=3' && break; sleep 1; i=$((i + 1)); done} {waiting for bounded service recovery}
+shell {grep -Fq 'attempts=3' /run/aqua-network/network-service-supervisor.state || network_ok=0; grep -Fq 'restarts=2' /run/aqua-network/network-service-supervisor.state || network_ok=0; grep -Fq 'status=restarting failure=dhcp-client next_restart=2' /run/aqua-network/network-service-supervisor.log || network_ok=0; grep -Fq 'route_ready=true' /run/aqua-network/network-service-supervisor.state || network_ok=0; grep -Fq 'dns_ready=true' /run/aqua-network/network-service-supervisor.state || network_ok=0} {checking forced-service recovery evidence}
+
+send -- {[ "$network_ok" = 1 ] && echo '[AQUA-NETWORK] stage=qemu-acceptance status=ok dhcp=true default_route=true dns_lookup=true renewal=true route_recovery=true service_recovery=true recovery_shell=true' || echo '[AQUA-NETWORK] stage=qemu-acceptance status=failed'}
+send -- "\r"
+expect {
+    -exact {[AQUA-NETWORK] stage=qemu-acceptance status=ok dhcp=true default_route=true dns_lookup=true renewal=true route_recovery=true service_recovery=true recovery_shell=true} {}
+    -exact {[AQUA-NETWORK] stage=qemu-acceptance status=failed} { puts stderr "Network QEMU acceptance failed"; exit 1 }
+    timeout { puts stderr "Final network acceptance marker missing"; exit 1 }
+    eof { puts stderr "QEMU exited before the final network marker"; exit 1 }
+}
+
+send -- "poweroff -f\r"
+expect eof

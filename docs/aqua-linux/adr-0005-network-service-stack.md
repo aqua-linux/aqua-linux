@@ -75,23 +75,25 @@ Aqua Linux will use this network stack:
 
 Network management must remain disabled until all of these are satisfied:
 
-1. **Partially satisfied on 2026-08-31:** a packaged root-owned supervisor
+1. **Satisfied on 2026-08-31:** a packaged root-owned supervisor
    provides finite DHCP startup/readiness, lease-loss detection, restart,
    shutdown, public non-secret state, and deterministic recovery behavior.
    Aqua's custom `rcS` does not invoke Buildroot's generated `S40network`, so
    the default boot currently has no DHCP policy owner. The supervisor remains
    disabled by default. An exact `aqua.boot_network=1` kernel flag plus the
    separate QEMU-only profile can opt into the transition without changing the
-   recovery boot; DHCP acceptance and real lease renewal remain open.
+   recovery boot. A validated regular-file launcher supplies the fixed BusyBox
+   `udhcpc` invocation without weakening executable preflight.
 2. The privilege broker authenticates the Aqua session and accepts only typed,
    allowlisted operations without accepting arbitrary commands or paths.
 3. An opt-in Buildroot profile resolves `wpa_supplicant` and its exact legal
    closure while the default profile remains unchanged.
-4. Deterministic fixtures prove offline, configuring, online, DNS loss, route
-   loss, malformed input, bounded source sizes, and recovery without hanging
-   Settings or the shell.
-5. QEMU proves Ethernet DHCP, default routing, DNS lookup, lease renewal,
-   forced service failure, bounded reconnect, and recovery-shell availability.
+4. **Satisfied on 2026-08-31:** deterministic fixtures prove offline,
+   configuring, online, DNS loss, route loss, malformed input, bounded source
+   sizes, and recovery without hanging Settings or the shell.
+5. **Satisfied on 2026-08-31:** packaged QEMU proves Ethernet DHCP, default
+   routing, external DNS lookup, lease renewal, forced service failure, route
+   loss, bounded reconnect, and recovery-shell availability.
 6. Wi-Fi is reported only on a target with an applicable radio. Association,
    secret handling, DHCP, DNS, reconnect, radio disable, and failure recovery
    require evidence for that target.

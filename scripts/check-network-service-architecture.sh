@@ -11,6 +11,7 @@ SUPERVISOR="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-network-ser
 BOOT_TOOL="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-network-service-boot"
 STOP_TOOL="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-network-service-stop"
 UDHCPC_HOOK="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-udhcpc-hook"
+UDHCPC_CLIENT="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-udhcpc-client"
 NETWORK_CONFIG="$REPO_ROOT/br2-external/aqua/rootfs-overlay/etc/aqua/network-services.conf"
 QEMU_NETWORK_CONFIG="$REPO_ROOT/br2-external/aqua/rootfs-overlay/etc/aqua/network-services-qemu.conf"
 RCS="$REPO_ROOT/br2-external/aqua/rootfs-overlay/etc/init.d/rcS"
@@ -40,6 +41,7 @@ test -x "$SUPERVISOR"
 test -x "$BOOT_TOOL"
 test -x "$STOP_TOOL"
 test -x "$UDHCPC_HOOK"
+test -x "$UDHCPC_CLIENT"
 grep -Fxq 'enabled=false' "$NETWORK_CONFIG"
 grep -Fxq 'legacy_owner_disabled=false' "$NETWORK_CONFIG"
 grep -Fxq 'enabled=true' "$QEMU_NETWORK_CONFIG"
@@ -52,6 +54,15 @@ grep -Fq 'policy_owner=aqua-network-service-supervisor' "$SUPERVISOR"
 grep -Fq 'settings_management=false' "$SUPERVISOR"
 grep -Fq 'wifi_packaged=false' "$SUPERVISOR"
 grep -Fq 'AQUA_UDHCPC_DEFAULT_SCRIPT' "$UDHCPC_HOOK"
+grep -Fq 'exec /sbin/udhcpc -f -n -i eth0 -s /usr/bin/aqua-udhcpc-hook' "$UDHCPC_CLIENT"
+grep -Fxq 'udhcpc_binary=/usr/bin/aqua-udhcpc-client' "$NETWORK_CONFIG"
+grep -Fxq 'udhcpc_binary=/usr/bin/aqua-udhcpc-client' "$QEMU_NETWORK_CONFIG"
+set +e
+client_output="$("${UDHCPC_CLIENT}" 2>&1)"
+client_status="$?"
+set -e
+test "${client_status}" -eq 2
+printf '%s\n' "${client_output}" | grep -Fq 'status=blocked reason=invalid-arguments'
 grep -Fq 'aqua.boot_network=1' "$BOOT_TOOL"
 grep -Fq 'reason=invalid-qemu-network-profile' "$BOOT_TOOL"
 grep -Fq '/usr/bin/aqua-network-service-boot' "$RCS"
@@ -82,7 +93,9 @@ grep -Fq 'read_network_snapshot' "$SHELL_MODEL"
 grep -Fq 'aqua_settings_network_health={}' "$SETTINGS_CLIENT"
 grep -Fq 'aqua_settings_network_default_route={}' "$SETTINGS_CLIENT"
 grep -Fq 'aqua_settings_network_dns_count={}' "$SETTINGS_CLIENT"
-grep -Fq '| Network adapter | Present, unvalidated |' \
+grep -Fq '| Network adapter | Validated |' \
+    "$REPO_ROOT/docs/aqua-linux/hardware-support.md"
+grep -Fq '`scripts/check-network-qemu.sh`' \
     "$REPO_ROOT/docs/aqua-linux/hardware-support.md"
 grep -Fq '| Wi-Fi and Bluetooth | Not tested |' \
     "$REPO_ROOT/docs/aqua-linux/hardware-support.md"

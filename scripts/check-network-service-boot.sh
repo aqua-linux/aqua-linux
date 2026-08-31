@@ -9,7 +9,7 @@ trap 'if [ -f "${TMP_DIR}/run/network-service-supervisor.pid" ]; then kill "$(ca
 cat > "${TMP_DIR}/qemu.conf" <<'EOF'
 enabled=true
 interface=eth0
-udhcpc_binary=/sbin/udhcpc
+udhcpc_binary=/usr/bin/aqua-udhcpc-client
 udhcpc_default_script=/usr/share/udhcpc/default.script
 legacy_owner_disabled=true
 max_restarts=3
@@ -52,7 +52,7 @@ test ! -e "${TMP_DIR}/missing-started"
 cat > "${TMP_DIR}/unsafe.conf" <<'EOF'
 enabled=true
 interface=eth0
-udhcpc_binary=/sbin/udhcpc
+udhcpc_binary=/usr/bin/aqua-udhcpc-client
 udhcpc_default_script=/usr/share/udhcpc/default.script
 legacy_owner_disabled=false
 max_restarts=3
