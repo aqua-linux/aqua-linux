@@ -383,8 +383,12 @@ offline/configuring/online/degraded state without spawning management commands.
 Settings consumes that state but remains read-only. The opt-in Wi-Fi profile
 now proves the exact wpa_supplicant 2.12, libnl 3.11.0, and OpenSSL 3.5.7
 package and legal closure without changing the default image or starting a
-service. Typed Wi-Fi control, credential storage, default ownership, Settings
-controls, and physical evidence remain open. The root-owned DHCP supervisor is
+service. The adapter now defines a typed, bounded WPA2-Personal command and
+PSK-only root-owned credential-record contract with redacted secret types and
+strict authoritative response parsing. It does not yet call `libwpa_client`,
+derive or write a credential, expose Settings controls, change default network
+ownership, support WPA3 association, or provide physical evidence. The
+root-owned DHCP supervisor is
 now packaged with a finite readiness timeout, three-restart budget, lease-loss
 grace period, atomic non-secret state, a checked hook around Buildroot's default
 lease script, and deterministic start/failure/stop fixtures. Its fail-closed

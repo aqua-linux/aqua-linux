@@ -4,6 +4,7 @@ use std::fmt;
 mod network;
 pub mod network_broker;
 mod pipewire;
+pub mod wifi_control;
 #[cfg(all(feature = "wireplumber-native", any(target_os = "linux", test)))]
 mod wireplumber_native;
 
