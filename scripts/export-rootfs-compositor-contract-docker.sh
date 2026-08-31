@@ -35,13 +35,18 @@ docker run --rm \
             "exec \"${tmp_dir}/rootfs/lib/ld-musl-x86_64.so.1\" --library-path \"${tmp_dir}/rootfs/lib:${tmp_dir}/rootfs/usr/lib\" \"${tmp_dir}/aqua-compositor.real\" \"\$@\"" \
             > "${tmp_dir}/aqua-compositor"
         chmod +x "${tmp_dir}/aqua-compositor"
-        for fixture in weston-simple-shm weston-simple-damage weston-simple-touch; do
+        for fixture in weston-simple-shm weston-simple-damage weston-simple-touch weston-terminal; do
             printf "%s\n" \
                 "#!/bin/sh" \
                 "exec \"${tmp_dir}/rootfs/lib/ld-musl-x86_64.so.1\" --library-path \"${tmp_dir}/rootfs/lib:${tmp_dir}/rootfs/usr/lib\" \"${tmp_dir}/rootfs/usr/libexec/aqua-tests/${fixture}\" \"\$@\"" \
                 > "${tmp_dir}/${fixture}"
             chmod +x "${tmp_dir}/${fixture}"
         done
+        printf "%s\n" \
+            "#!/bin/sh" \
+            "exec \"${tmp_dir}/rootfs/lib/ld-musl-x86_64.so.1\" --library-path \"${tmp_dir}/rootfs/lib:${tmp_dir}/rootfs/usr/lib\" \"${tmp_dir}/rootfs/bin/sh\" \"\$@\"" \
+            > "${tmp_dir}/rootfs-shell"
+        chmod +x "${tmp_dir}/rootfs-shell"
         "${tmp_dir}/aqua-compositor" status > "${CONTRACT_DIR}/status.txt"
         "${tmp_dir}/aqua-compositor" probe-session-config "${tmp_dir}/compositor-session.conf" > "${CONTRACT_DIR}/session-config.txt"
         "${tmp_dir}/aqua-compositor" probe-session-env "${tmp_dir}/compositor-session.conf" > "${CONTRACT_DIR}/session-env.txt"
@@ -360,10 +365,16 @@ EOF
         "${tmp_dir}/aqua-compositor" probe-drag-and-drop > "${CONTRACT_DIR}/drag-and-drop-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-text-input > "${CONTRACT_DIR}/text-input-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-keyboard-locale-matrix > "${CONTRACT_DIR}/keyboard-locale-matrix-probe.txt"
+        SHELL="${tmp_dir}/rootfs-shell" \
+        WESTON_DATA_DIR="${tmp_dir}/rootfs/usr/share/weston" \
+        FONTCONFIG_SYSROOT="${tmp_dir}/rootfs" \
+        FONTCONFIG_FILE="/etc/fonts/fonts.conf" \
+        XCOMPOSEFILE="${tmp_dir}/rootfs/usr/share/aqua/compose/Compose" \
         "${tmp_dir}/aqua-compositor" probe-independent-application-matrix \
             "${tmp_dir}/weston-simple-shm" \
             "${tmp_dir}/weston-simple-damage" \
             "${tmp_dir}/weston-simple-touch" \
+            "${tmp_dir}/weston-terminal" \
             > "${CONTRACT_DIR}/independent-application-matrix-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-privileged-protocol-boundary > "${CONTRACT_DIR}/privileged-protocol-boundary-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-v1-client-buffer-contract > "${CONTRACT_DIR}/v1-client-buffer-contract-probe.txt"

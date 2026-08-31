@@ -24,9 +24,24 @@ tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/compositor-binary.txt | grep -Fq "
 tar -tf "${ROOTFS_TAR}" ./usr/libexec/aqua-tests/weston-simple-shm >/dev/null
 tar -tf "${ROOTFS_TAR}" ./usr/libexec/aqua-tests/weston-simple-damage >/dev/null
 tar -tf "${ROOTFS_TAR}" ./usr/libexec/aqua-tests/weston-simple-touch >/dev/null
+tar -tf "${ROOTFS_TAR}" ./usr/libexec/aqua-tests/weston-terminal >/dev/null
+for frame_asset in icon_window.png sign_close.png sign_maximize.png sign_minimize.png; do
+    tar -tf "${ROOTFS_TAR}" "./usr/share/weston/${frame_asset}" >/dev/null
+done
+weston_fixture_asset_count="$(
+    tar -tf "${ROOTFS_TAR}" \
+        | grep -E '^\./usr/share/weston/[^/]+$' \
+        | wc -l \
+        | tr -d '[:space:]'
+)"
+if [ "${weston_fixture_asset_count}" != "4" ]; then
+    echo "Unexpected Weston fixture asset count: ${weston_fixture_asset_count}" >&2
+    exit 1
+fi
 tar -tf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt >/dev/null
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "source=upstream-weston-14.0.1-simple-clients"
-tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "fixtures=weston-simple-shm,weston-simple-damage,weston-simple-touch"
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "fixtures=weston-simple-shm,weston-simple-damage,weston-simple-touch,weston-terminal"
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "frame_assets=icon_window.png,sign_close.png,sign_maximize.png,sign_minimize.png"
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "weston_compositor_packaged=false"
 tar -tf "${ROOTFS_TAR}" ./usr/share/doc/aqua/application-compatibility.txt >/dev/null
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/application-compatibility.txt | grep -Fq "application_model=native-wayland"

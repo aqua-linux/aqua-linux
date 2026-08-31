@@ -305,7 +305,11 @@ fi
 if [ -x "${TARGET_DIR}/usr/bin/weston-simple-shm" ] || \
     [ -x "${TARGET_DIR}/usr/libexec/aqua-tests/weston-simple-shm" ]; then
     mkdir -p "${TARGET_DIR}/usr/libexec/aqua-tests"
-    for fixture in weston-simple-shm weston-simple-damage weston-simple-touch; do
+    for fixture in \
+        weston-simple-shm \
+        weston-simple-damage \
+        weston-simple-touch \
+        weston-terminal; do
         if [ -x "${TARGET_DIR}/usr/bin/${fixture}" ]; then
             mv "${TARGET_DIR}/usr/bin/${fixture}" \
                 "${TARGET_DIR}/usr/libexec/aqua-tests/${fixture}"
@@ -335,6 +339,31 @@ if [ -x "${TARGET_DIR}/usr/bin/weston-simple-shm" ] || \
             exit 1
         fi
     done
+    frame_asset_stage="${TARGET_DIR}/usr/libexec/aqua-tests/weston-frame-assets"
+    rm -rf "${frame_asset_stage}"
+    mkdir -p "${frame_asset_stage}"
+    for asset in icon_window.png sign_close.png sign_maximize.png sign_minimize.png; do
+        if [ -f "${TARGET_DIR}/usr/share/weston/${asset}" ]; then
+            cp "${TARGET_DIR}/usr/share/weston/${asset}" \
+                "${frame_asset_stage}/${asset}"
+            continue
+        fi
+        asset_build_path=""
+        for candidate in \
+            "$(dirname "${TARGET_DIR}")"/build/weston-*/data/"${asset}"; do
+            [ -f "${candidate}" ] || continue
+            if [ -n "${asset_build_path}" ]; then
+                echo "multiple upstream Weston frame assets found: ${asset}" >&2
+                exit 1
+            fi
+            asset_build_path="${candidate}"
+        done
+        if [ -z "${asset_build_path}" ]; then
+            echo "missing required upstream Weston frame asset: ${asset}" >&2
+            exit 1
+        fi
+        cp "${asset_build_path}" "${frame_asset_stage}/${asset}"
+    done
     rm -f "${TARGET_DIR}/usr/bin/weston" "${TARGET_DIR}/usr/bin/weston-"*
     rm -rf \
         "${TARGET_DIR}/usr/lib/libweston-"* \
@@ -343,14 +372,19 @@ if [ -x "${TARGET_DIR}/usr/bin/weston-simple-shm" ] || \
         "${TARGET_DIR}/usr/share/libweston-"* \
         "${TARGET_DIR}/usr/share/wayland-sessions/weston.desktop" \
         "${TARGET_DIR}/usr/share/weston"
+    mkdir -p "${TARGET_DIR}/usr/share/weston"
+    mv "${frame_asset_stage}"/* "${TARGET_DIR}/usr/share/weston/"
+    rmdir "${frame_asset_stage}"
     cat > "${TARGET_DIR}/usr/share/doc/aqua/wayland-compat-client.txt" <<'EOF'
 source=upstream-weston-14.0.1-simple-clients
 role=third-party-wayland-compatibility-fixtures
-fixtures=weston-simple-shm,weston-simple-damage,weston-simple-touch
+fixtures=weston-simple-shm,weston-simple-damage,weston-simple-touch,weston-terminal
 simple_shm_path=/usr/libexec/aqua-tests/weston-simple-shm
 simple_damage_path=/usr/libexec/aqua-tests/weston-simple-damage
 simple_touch_path=/usr/libexec/aqua-tests/weston-simple-touch
-protocol_scope=xdg-shell+wl_shm+wl_surface.damage_buffer+wl_touch
+weston_terminal_path=/usr/libexec/aqua-tests/weston-terminal
+frame_assets=icon_window.png,sign_close.png,sign_maximize.png,sign_minimize.png
+protocol_scope=xdg-shell+wl_shm+wl_surface.damage_buffer+wl_touch+wl_keyboard+pty
 weston_compositor_packaged=false
 autostart=false
 EOF

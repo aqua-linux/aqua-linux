@@ -9990,6 +9990,60 @@ impl SmithayDrmSession {
         true
     }
 
+    pub fn client_surface_snapshot_for_app_id(
+        &self,
+        expected_app_id: &str,
+    ) -> Option<SmithayClientSurfaceSnapshot> {
+        let surface = self
+            .session
+            .wayland_state
+            .toplevel_surfaces
+            .iter()
+            .find(|surface| {
+                with_states(surface.wl_surface(), |states| {
+                    states
+                        .data_map
+                        .get::<XdgToplevelSurfaceData>()
+                        .and_then(|data| data.lock().ok())
+                        .and_then(|attributes| attributes.app_id.clone())
+                        .as_deref()
+                        == Some(expected_app_id)
+                })
+            })?
+            .wl_surface();
+        let index = self
+            .session
+            .wayland_state
+            .mapped_surfaces
+            .iter()
+            .position(|record| record.surface == *surface)?;
+        self.client_surface_snapshots().into_iter().nth(index)
+    }
+
+    pub fn focus_keyboard_surface_with_app_id(&mut self, expected_app_id: &str, time: u32) -> bool {
+        if !self.raise_surface_with_app_id(expected_app_id) {
+            return false;
+        }
+        let Some(surface) = self.session.wayland_state.mapped_surface.clone() else {
+            return false;
+        };
+        let Some(keyboard) = self.session.wayland_state.seat.get_keyboard() else {
+            return false;
+        };
+        keyboard.set_focus(
+            &mut self.session.wayland_state,
+            Some(surface),
+            Serial::from(time.max(1)),
+        );
+        self.session.wayland_state.keyboard_focus_assigned = true;
+        let callbacks = std::mem::take(&mut self.session.wayland_state.pending_frame_callbacks);
+        self.session.wayland_state.frame_callbacks_sent += callbacks.len();
+        for callback in callbacks {
+            callback.done(time);
+        }
+        true
+    }
+
     pub fn dispatch_touch_sequence_to_app_id(
         &mut self,
         expected_app_id: &str,
