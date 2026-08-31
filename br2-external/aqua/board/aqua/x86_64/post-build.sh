@@ -91,6 +91,7 @@ AQUA_TYPOGRAPHY_ACCEPTANCE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/
 AQUA_COMPONENT_ACCEPTANCE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-component-acceptance"
 AQUA_INSTALLER_PROBE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-installer-probe"
 AQUA_AUDIO_ADAPTER_PROBE_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-audio-adapter-probe"
+AQUA_NETWORK_BROKER_BINARY="${REPO_DIR}/target/x86_64-unknown-linux-musl/release/aqua-network-broker"
 mkdir -p "${TARGET_DIR}/usr/bin" "${TARGET_DIR}/usr/libexec/aqua-tests" "${TARGET_DIR}/usr/share/doc/aqua"
 if [ -f "${AQUA_COMPOSITOR_BINARY}" ]; then
     cp "${AQUA_COMPOSITOR_BINARY}" "${TARGET_DIR}/usr/bin/aqua-compositor"
@@ -116,6 +117,33 @@ if [ -f "${AQUA_AUDIO_ADAPTER_PROBE_BINARY}" ] &&
     cp "${AQUA_AUDIO_ADAPTER_PROBE_BINARY}" \
         "${TARGET_DIR}/usr/libexec/aqua-tests/aqua-audio-adapter-probe"
     chmod +x "${TARGET_DIR}/usr/libexec/aqua-tests/aqua-audio-adapter-probe"
+fi
+
+if [ -f "${AQUA_NETWORK_BROKER_BINARY}" ]; then
+    cp "${AQUA_NETWORK_BROKER_BINARY}" "${TARGET_DIR}/usr/bin/aqua-network-broker"
+    chmod 755 "${TARGET_DIR}/usr/bin/aqua-network-broker"
+    cat > "${TARGET_DIR}/usr/share/doc/aqua/network-broker-binary.txt" <<'EOF'
+aqua-network-broker packaged=true
+path=/usr/bin/aqua-network-broker
+owner_uid=0
+client_uid=1000
+protocol=AQUA-NETWORK/1
+operations=status,renew-dhcp
+autostart=false
+default_network=false
+EOF
+else
+    cat > "${TARGET_DIR}/usr/share/doc/aqua/network-broker-binary.txt" <<'EOF'
+aqua-network-broker packaged=false
+path=/usr/bin/aqua-network-broker
+owner_uid=0
+client_uid=1000
+protocol=AQUA-NETWORK/1
+operations=status,renew-dhcp
+autostart=false
+default_network=false
+build_hint=scripts/build-compositor-linux-docker.sh
+EOF
 fi
 
 if [ -f "${AQUA_INSTALLER_BINARY}" ]; then

@@ -2,9 +2,10 @@
 
 ## Status
 
-Accepted on 2026-08-31. The observation boundary and disabled root-owned DHCP
-supervisor are implemented; ownership migration, privileged Settings requests,
-Wi-Fi packaging, and end-to-end runtime evidence remain gated.
+Accepted on 2026-08-31. The observation boundary, disabled root-owned DHCP
+supervisor, authenticated privilege broker, and opt-in QEMU runtime acceptance
+are implemented. Default ownership, Settings configuration controls, Wi-Fi
+packaging, and physical runtime evidence remain gated.
 
 ## Context
 
@@ -45,7 +46,7 @@ Aqua Linux will use this network stack:
    `configuring`, `online`, or `degraded`. `online` requires an up interface,
    an up default route bound to that interface, and at least one valid DNS
    server. Missing route data or a route without usable DNS fails visibly.
-7. Future configuration requests cross a narrow authenticated privilege broker
+7. Configuration requests cross a narrow authenticated privilege broker
    with an operation allowlist, target interface binding, bounded timeouts,
    secret redaction, and authoritative acknowledgement. The current Settings
    surface remains read-only and exposes no configuration request path.
@@ -84,8 +85,13 @@ Network management must remain disabled until all of these are satisfied:
    separate QEMU-only profile can opt into the transition without changing the
    recovery boot. A validated regular-file launcher supplies the fixed BusyBox
    `udhcpc` invocation without weakening executable preflight.
-2. The privilege broker authenticates the Aqua session and accepts only typed,
-   allowlisted operations without accepting arbitrary commands or paths.
+2. **Satisfied on 2026-08-31:** the privilege broker authenticates the Aqua
+   UID/GID from kernel Unix-socket peer credentials and accepts only the fixed,
+   versioned `status` and `renew-dhcp` operations for `eth0`. Requests,
+   responses, state input, I/O waits, and renewal acknowledgement are bounded.
+   Root and other peers are rejected; no arbitrary command or path crosses the
+   protocol. The broker is packaged but starts only with the opt-in network
+   profile, and Settings still has no configuration control.
 3. An opt-in Buildroot profile resolves `wpa_supplicant` and its exact legal
    closure while the default profile remains unchanged.
 4. **Satisfied on 2026-08-31:** deterministic fixtures prove offline,
@@ -104,7 +110,8 @@ deterministic observation tests are not hardware evidence.
 ## Consequences
 
 The existing small Buildroot architecture gains one explicit network policy
-owner without enabling a large general-purpose network daemon. Aqua can now
-present truthful route and DNS health before privileged management exists. The
-tradeoff is that advanced network features remain deliberately unavailable
-until their broker, packaging, and runtime evidence are complete.
+owner without enabling a large general-purpose network daemon. Aqua can present
+truthful route and DNS health and can cross a narrowly authenticated control
+boundary when the opt-in profile is active. The tradeoff is that advanced
+network features remain deliberately unavailable until their packaging and
+runtime evidence are complete.

@@ -68,6 +68,11 @@ docker run --rm \
             cp /src/target/x86_64-unknown-linux-musl/release/aqua-installer-probe \
                 /work/target/x86_64-unknown-linux-musl/release/aqua-installer-probe
         fi
+        if [ -f /src/target/x86_64-unknown-linux-musl/release/aqua-network-broker ]; then
+            mkdir -p /work/target/x86_64-unknown-linux-musl/release
+            cp /src/target/x86_64-unknown-linux-musl/release/aqua-network-broker \
+                /work/target/x86_64-unknown-linux-musl/release/aqua-network-broker
+        fi
         scripts/build-image.sh "$@"
         mkdir -p /src/build/buildroot-output/images
         cp -a /work/build/buildroot-output/images/. /src/build/buildroot-output/images/

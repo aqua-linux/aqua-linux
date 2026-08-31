@@ -102,6 +102,9 @@ version = "0.1.0"
 [[package]]
 name = "aqua-service-adapters"
 version = "0.1.0"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "aqua-shell"

@@ -380,17 +380,20 @@ and link state, BusyBox `udhcpc` remains the initial Ethernet DHCP client, and
 `wpa_supplicant` is reserved for gated Wi-Fi targets. The new unprivileged
 adapter reports bounded typed interface, default-route, DNS, and
 offline/configuring/online/degraded state without spawning management commands.
-Settings consumes that state but remains read-only; the root-owned supervisor,
-authenticated broker, opt-in Wi-Fi package rehearsal, reconnect behavior, and
-QEMU and physical evidence remain open. The root-owned DHCP supervisor is now
+Settings consumes that state but remains read-only; the opt-in Wi-Fi package
+rehearsal, default ownership, Settings controls, and physical evidence remain
+open. The root-owned DHCP supervisor is now
 packaged with a finite readiness timeout, three-restart budget, lease-loss
 grace period, atomic non-secret state, a checked hook around Buildroot's default
 lease script, and deterministic start/failure/stop fixtures. Its fail-closed
 configuration keeps it disabled. Aqua's custom `rcS` does not invoke the
 generated Buildroot `S40network`, so default boot has no DHCP policy owner. The
 new boot gate requires both `aqua.boot_network=1` and a separate QEMU-only
-profile before dispatching the supervisor; DHCP, DNS, renewal, and reconnect
-still require QEMU evidence.
+profile before dispatching the supervisor. The same gate starts a root-owned
+broker whose Unix peer credentials admit only Aqua UID/GID 1000 to fixed,
+bounded `status` and `renew-dhcp` operations for `eth0`. Packaged QEMU proves
+DHCP, DNS, typed renewal, route-loss recovery, forced-client recovery, root
+rejection, and broker availability after both recovery paths.
 [ADR 0004](adr-0004-audio-service-stack.md) selects ALSA,
 PipeWire, WirePlumber, and eudev for audio. Buildroot 2025.02.17 now supplies
 the supported LTS baseline. The locked `aqua` UID/GID 1000 session,

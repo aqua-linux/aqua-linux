@@ -43,6 +43,9 @@ docker run --rm \
         CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=\"\${linker}\" \
         RUSTFLAGS=\"-C target-feature=-crt-static -L native=\${sysroot}/usr/lib\" \
             cargo build -p aqua-installer --release --target ${TARGET_TRIPLE} --bin aqua-installer-probe
+        CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=\"\${linker}\" \
+        RUSTFLAGS=\"-C target-feature=-crt-static -L native=\${sysroot}/usr/lib\" \
+            cargo build -p aqua-service-adapters --release --target ${TARGET_TRIPLE} --bin aqua-network-broker
     "
 
 echo "Aqua compositor Linux binary:"
@@ -57,6 +60,8 @@ echo "Aqua Terminal Linux binary:"
 echo "  ${ROOT_DIR}/target/${TARGET_TRIPLE}/release/aqua-terminal"
 echo "Aqua Installer probe Linux binary:"
 echo "  ${ROOT_DIR}/target/${TARGET_TRIPLE}/release/aqua-installer-probe"
+echo "Aqua network privilege broker Linux binary:"
+echo "  ${ROOT_DIR}/target/${TARGET_TRIPLE}/release/aqua-network-broker"
 echo "Aqua Installer Wayland binary:"
 echo "  ${ROOT_DIR}/target/${TARGET_TRIPLE}/release/aqua-installer"
 echo "Aqua typography acceptance Wayland binary:"
