@@ -267,13 +267,16 @@ pointer grab, routes enter/drop only to the pointer-focused target without
 changing keyboard focus, negotiates UTF-8 text and the copy action, transfers
 an exact bounded payload directly, finishes an accepted drop, and cancels a
 rejected drop without target delivery. The separate output-matrix probe
-publishes two `wl_output` v4 globals plus xdg-output v3, fractional-scale v1,
-and viewporter v1 to two independent clients. It verifies current/preferred
-60 Hz modes, logical coordinates and sizes, scale-1 and scale-2 integer
-fallbacks, a 1.25 preference encoded as 150/120, committed viewport crop and
-destination state, and second-output global removal while the first remains
-usable. Hardware-driven connector hotplug and the complete scale, transform,
-and application matrix remain open. The v1 application model is explicitly
+publishes `wl_output` v4 plus xdg-output v3, fractional-scale v1, and
+viewporter v1 to two independent clients. Both clients first discover a
+1280x800 output and then receive three globals added while they remain
+connected. The resulting four-output matrix verifies current/preferred 60 Hz
+modes, exact logical coordinates and sizes, declared scales 1.0, 1.25, 1.5,
+and 2.0, integer fallbacks 1, 2, 2, and 2, and normal, 90, 180, and 270 degree
+transforms. It also verifies a 1.25 preference encoded as 150/120, committed
+viewport crop and destination state, and fourth-output global removal while
+the original output remains usable. Hardware-driven connector hotplug and
+the broader application matrix remain open. The v1 application model is explicitly
 limited to first-party and independently tested `wl_shm` ARGB8888 clients.
 Accelerated client buffers are outside that model: the compositor does not
 advertise `zwp_linux_dmabuf_v1`, `wp_linux_drm_syncobj_manager_v1`, or

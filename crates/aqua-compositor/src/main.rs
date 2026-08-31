@@ -11026,6 +11026,12 @@ fn probe_wayland_output_matrix_cli() {
             println!("[AQUA-COMPOSITOR] stage=wayland-output-matrix status=running");
             println!("output_matrix_status={}", probe.status);
             println!("client_count={}", probe.client_count);
+            println!("output_count={}", probe.output_count);
+            println!("declared_scale_count={}", probe.declared_scale_count);
+            println!(
+                "declared_transform_count={}",
+                probe.declared_transform_count
+            );
             println!(
                 "outputs_visible_to_both_clients={}",
                 probe.outputs_visible_to_both_clients
@@ -11043,6 +11049,8 @@ fn probe_wayland_output_matrix_cli() {
                 probe.logical_coordinates_match
             );
             println!("integer_scales_match={}", probe.integer_scales_match);
+            println!("fractional_scales_match={}", probe.fractional_scales_match);
+            println!("transforms_match={}", probe.transforms_match);
             println!(
                 "fractional_scale_advertised={}",
                 probe.fractional_scale_advertised
@@ -11052,6 +11060,10 @@ fn probe_wayland_output_matrix_cli() {
             println!(
                 "viewport_destination_applied={}",
                 probe.viewport_destination_applied
+            );
+            println!(
+                "hotplug_add_reaches_both_clients={}",
+                probe.hotplug_add_reaches_both_clients
             );
             println!(
                 "hotplug_remove_reaches_both_clients={}",
