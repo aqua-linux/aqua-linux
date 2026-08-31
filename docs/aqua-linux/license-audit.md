@@ -32,14 +32,17 @@ is outside this audit.
   compatibility dependency. The associated Aqua test fixture is MIT licensed,
   uses no OpenGL client API, and is installed only under `/usr/libexec/aqua-tests`.
 - ADR 0005 selects the already packaged BusyBox `udhcpc` path for initial
-  Ethernet DHCP and reserves `wpa_supplicant` for a future opt-in Wi-Fi
-  rehearsal. No network package or dependency closure changed in the default
+  Ethernet DHCP and reserves `wpa_supplicant` for an opt-in Wi-Fi profile. The
+  2026-08-31 Buildroot rehearsal completed `show-info` and `legal-info` with
+  isolated additions of wpa_supplicant 2.12 (BSD-3-Clause), libnl 3.11.0
+  (LGPL-2.1+), libopenssl 3.5.7 (Apache-2.0), and the virtual `openssl`
+  provider. No network package or dependency closure changed in the default
   image. The project-authored fixed-argument `aqua-udhcpc-client` launcher,
   resolver normalization, supervisor health checks, authenticated network
   broker, and QEMU acceptance harness add no system package. The broker uses
   the already-resolved MIT/Apache-2.0 `libc` Rust crate for Unix peer
-  credentials and signals; `wpa_supplicant` requires generated `legal-info`
-  review before it can be enabled.
+  credentials and signals. Wi-Fi service enablement still requires the typed
+  control, credential-storage, and target-radio evidence gates in ADR 0005.
 - No private keys or environment-secret files were found in the OS source tree.
 - The OS baseline is pinned to Buildroot 2025.02.17 LTS by SHA-256. Its audio
   package metadata records PipeWire 1.2.8 (MIT/LGPL-2.1+/GPL-2.0 components),

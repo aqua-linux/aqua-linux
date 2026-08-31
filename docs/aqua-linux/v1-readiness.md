@@ -380,10 +380,12 @@ and link state, BusyBox `udhcpc` remains the initial Ethernet DHCP client, and
 `wpa_supplicant` is reserved for gated Wi-Fi targets. The new unprivileged
 adapter reports bounded typed interface, default-route, DNS, and
 offline/configuring/online/degraded state without spawning management commands.
-Settings consumes that state but remains read-only; the opt-in Wi-Fi package
-rehearsal, default ownership, Settings controls, and physical evidence remain
-open. The root-owned DHCP supervisor is now
-packaged with a finite readiness timeout, three-restart budget, lease-loss
+Settings consumes that state but remains read-only. The opt-in Wi-Fi profile
+now proves the exact wpa_supplicant 2.12, libnl 3.11.0, and OpenSSL 3.5.7
+package and legal closure without changing the default image or starting a
+service. Typed Wi-Fi control, credential storage, default ownership, Settings
+controls, and physical evidence remain open. The root-owned DHCP supervisor is
+now packaged with a finite readiness timeout, three-restart budget, lease-loss
 grace period, atomic non-secret state, a checked hook around Buildroot's default
 lease script, and deterministic start/failure/stop fixtures. Its fail-closed
 configuration keeps it disabled. Aqua's custom `rcS` does not invoke the

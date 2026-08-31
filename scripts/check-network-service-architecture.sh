@@ -16,6 +16,7 @@ UDHCPC_HOOK="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-udhcpc-hoo
 UDHCPC_CLIENT="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-udhcpc-client"
 NETWORK_CONFIG="$REPO_ROOT/br2-external/aqua/rootfs-overlay/etc/aqua/network-services.conf"
 QEMU_NETWORK_CONFIG="$REPO_ROOT/br2-external/aqua/rootfs-overlay/etc/aqua/network-services-qemu.conf"
+WIFI_REHEARSAL_CONFIG="$REPO_ROOT/br2-external/aqua/configs/aqua_x86_64_wifi_rehearsal_defconfig"
 RCS="$REPO_ROOT/br2-external/aqua/rootfs-overlay/etc/init.d/rcS"
 
 need_adr() {
@@ -39,6 +40,14 @@ if grep -Eq '^BR2_PACKAGE_(WPA_SUPPLICANT|IWD|CONNMAN|NETWORK_MANAGER|DHCPCD)=y$
     echo 'Network management packages must remain disabled until ADR 0005 gates pass.' >&2
     exit 1
 fi
+test -f "$WIFI_REHEARSAL_CONFIG"
+grep -Fxq 'BR2_PACKAGE_WPA_SUPPLICANT=y' "$WIFI_REHEARSAL_CONFIG"
+grep -Fxq 'BR2_PACKAGE_WPA_SUPPLICANT_NL80211=y' "$WIFI_REHEARSAL_CONFIG"
+grep -Fxq 'BR2_PACKAGE_WPA_SUPPLICANT_WPA3=y' "$WIFI_REHEARSAL_CONFIG"
+grep -Fxq 'BR2_PACKAGE_WPA_SUPPLICANT_WPA_CLIENT_SO=y' "$WIFI_REHEARSAL_CONFIG"
+grep -Fxq 'BR2_PACKAGE_WPA_SUPPLICANT_DBUS=n' "$WIFI_REHEARSAL_CONFIG"
+test -x "$REPO_ROOT/scripts/check-wifi-buildroot-rehearsal.sh"
+test -x "$REPO_ROOT/scripts/rehearse-wifi-buildroot-closure.sh"
 
 test -x "$SUPERVISOR"
 test -x "$BOOT_TOOL"
