@@ -475,6 +475,15 @@ check_output_contains "transforms_match=true" cargo run -p aqua-compositor -- pr
 check_output_contains "viewport_destination_applied=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
 check_output_contains "hotplug_add_reaches_both_clients=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
 check_output_contains "hotplug_remove_reaches_both_clients=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
+check_output_contains "[AQUA-COMPOSITOR] stage=popup-subsurface-matrix status=ok" cargo run -p aqua-compositor -- probe-popup-subsurface-matrix
+check_output_contains "xdg_popup_created=true" cargo run -p aqua-compositor -- probe-popup-subsurface-matrix
+check_output_contains "popup_reposition_token=77" cargo run -p aqua-compositor -- probe-popup-subsurface-matrix
+check_output_contains "popup_reposition_acknowledged=true" cargo run -p aqua-compositor -- probe-popup-subsurface-matrix
+check_output_contains "subsurface_position_matches=true" cargo run -p aqua-compositor -- probe-popup-subsurface-matrix
+check_output_contains "synchronized_commit_observed=true" cargo run -p aqua-compositor -- probe-popup-subsurface-matrix
+check_output_contains "desynchronized_commit_observed=true" cargo run -p aqua-compositor -- probe-popup-subsurface-matrix
+check_output_contains "parent_surfaces_remain_independent=true" cargo run -p aqua-compositor -- probe-popup-subsurface-matrix
+check_output_contains "host_stub=true" cargo run -p aqua-compositor -- probe-popup-subsurface-matrix
 check_output_contains "[AQUA-COMPOSITOR] stage=xdg-toplevel-window-model status=ok" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model
 check_output_contains "window_model_status=xdg-toplevel-window-model" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model
 check_output_contains "source_client_ready=ok" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model

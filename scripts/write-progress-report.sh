@@ -73,6 +73,8 @@ lines = [
     "",
     cell(data.get("r3OutputBoundary", "")),
     "",
+    cell(data.get("r3SurfaceLifecycleBoundary", "")),
+    "",
     cell(data.get("r3ProtocolBoundary", "")),
     "",
     cell(data["currentStage"]),

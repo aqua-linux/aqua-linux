@@ -42,15 +42,16 @@ use aqua_compositor::{
     probe_client_window_model, probe_display_activation_plan, probe_display_output_handoff,
     probe_display_output_plan, probe_drag_and_drop, probe_keyboard_locale_matrix,
     probe_launcher_input_scene_binding, probe_manual_nested_preview_backend,
-    probe_privileged_protocol_boundary, probe_renderer_surface_sources, probe_runtime_assets,
-    probe_selection_ownership, probe_session_bootstrap, probe_session_skeleton,
-    probe_smithay_launcher_seat, probe_static_frame_buffer, probe_static_frame_plan,
-    probe_static_paint_plan, probe_static_raster_export, probe_static_raster_png_export,
-    probe_static_render_plan, probe_static_shell_scene, probe_static_software_raster,
-    probe_text_input, probe_v1_client_buffer_contract, probe_visible_preview_plan,
-    probe_wayland_output_matrix, probe_xdg_shell_binding, probe_xdg_toplevel_client,
-    probe_xdg_toplevel_window_model, read_session_config, run_calloop_socket_smoke,
-    run_event_loop_smoke, run_manual_display_output_smoke, run_manual_nested_preview_execution,
+    probe_popup_subsurface_matrix, probe_privileged_protocol_boundary,
+    probe_renderer_surface_sources, probe_runtime_assets, probe_selection_ownership,
+    probe_session_bootstrap, probe_session_skeleton, probe_smithay_launcher_seat,
+    probe_static_frame_buffer, probe_static_frame_plan, probe_static_paint_plan,
+    probe_static_raster_export, probe_static_raster_png_export, probe_static_render_plan,
+    probe_static_shell_scene, probe_static_software_raster, probe_text_input,
+    probe_v1_client_buffer_contract, probe_visible_preview_plan, probe_wayland_output_matrix,
+    probe_xdg_shell_binding, probe_xdg_toplevel_client, probe_xdg_toplevel_window_model,
+    read_session_config, run_calloop_socket_smoke, run_event_loop_smoke,
+    run_manual_display_output_smoke, run_manual_nested_preview_execution,
     run_nested_output_surface_lifecycle, run_nested_preview_frame_loop, run_session_loop_smoke,
     run_session_once_smoke, run_wayland_display_smoke, run_wayland_socket_smoke, status_lines,
     Viewport,
@@ -245,6 +246,7 @@ fn main() {
         "probe-privileged-protocol-boundary" => probe_privileged_protocol_boundary_cli(),
         "probe-v1-client-buffer-contract" => probe_v1_client_buffer_contract_cli(),
         "probe-wayland-output-matrix" => probe_wayland_output_matrix_cli(),
+        "probe-popup-subsurface-matrix" => probe_popup_subsurface_matrix_cli(),
         "probe-xdg-toplevel-window-model" => probe_xdg_toplevel_window_model_cli(),
         "probe-launcher-model" => probe_launcher_model_cli(),
         "probe-launcher-input-scene" => probe_launcher_input_scene_cli(),
@@ -282,7 +284,7 @@ fn main() {
         _ => {
             eprintln!("unknown command: {command}");
             eprintln!(
-                "usage: aqua-compositor [status|probe-assets <runtime-asset-root>|probe-renderer-backend [auto|gpu|software]|probe-gpu-offscreen-frame [device]|smoke-loop|smoke-wayland|smoke-socket|smoke-calloop-socket|probe-session-config|probe-session-env|probe-session-bootstrap <config-path> <prepared-runtime-dir>|probe-session|probe-output-plan|dump-output-plan|probe-display-output-handoff|probe-display-activation-plan|probe-drm-device [device]|probe-drm-dumb-buffer [device]|probe-drm-gbm-scanout-buffer [device]|present-drm-gbm-scanout [device]|present-drm-kms [device]|present-drm-page-flip [device]|run-drm-frame-loop [device]|run-drm-session-loop [device]|run-wayland-test-client [socket]|smoke-display-output|smoke-nested-output-surface|probe-visible-preview-plan|probe-visible-preview-export|export-visible-preview-html <path>|probe-fbdev-frame <width> <height> <bits-per-pixel>|present-fbdev [device]|smoke-nested-preview-loop|probe-manual-nested-preview-backend|run-manual-nested-preview-execution|probe-client-window-model|probe-client-surface-lifecycle|probe-client-surface-registry|probe-xdg-shell-binding|probe-xdg-toplevel-client|probe-selection-ownership|probe-drag-and-drop|probe-text-input|probe-keyboard-locale-matrix|probe-independent-application-matrix <simple-shm> <simple-damage>|probe-privileged-protocol-boundary|probe-v1-client-buffer-contract|probe-wayland-output-matrix|probe-xdg-toplevel-window-model|probe-launcher-model|probe-launcher-input-scene|probe-smithay-launcher-seat|probe-evdev-aqua-seat <keyboard-event> <pointer-event>|probe-scene|dump-scene|probe-render-plan|dump-render-plan|probe-renderer-surface-sources|probe-client-layer-pipeline|probe-paint-plan|dump-paint-plan|probe-frame-plan|dump-frame-plan|probe-frame-buffer|dump-frame-buffer|probe-raster|dump-raster|probe-raster-export|dump-raster-export|export-raster-ppm <path>|probe-raster-png-export|dump-raster-png-export|export-raster-png <path>|smoke-run-once|smoke-session-loop]"
+                "usage: aqua-compositor [status|probe-assets <runtime-asset-root>|probe-renderer-backend [auto|gpu|software]|probe-gpu-offscreen-frame [device]|smoke-loop|smoke-wayland|smoke-socket|smoke-calloop-socket|probe-session-config|probe-session-env|probe-session-bootstrap <config-path> <prepared-runtime-dir>|probe-session|probe-output-plan|dump-output-plan|probe-display-output-handoff|probe-display-activation-plan|probe-drm-device [device]|probe-drm-dumb-buffer [device]|probe-drm-gbm-scanout-buffer [device]|present-drm-gbm-scanout [device]|present-drm-kms [device]|present-drm-page-flip [device]|run-drm-frame-loop [device]|run-drm-session-loop [device]|run-wayland-test-client [socket]|smoke-display-output|smoke-nested-output-surface|probe-visible-preview-plan|probe-visible-preview-export|export-visible-preview-html <path>|probe-fbdev-frame <width> <height> <bits-per-pixel>|present-fbdev [device]|smoke-nested-preview-loop|probe-manual-nested-preview-backend|run-manual-nested-preview-execution|probe-client-window-model|probe-client-surface-lifecycle|probe-client-surface-registry|probe-xdg-shell-binding|probe-xdg-toplevel-client|probe-selection-ownership|probe-drag-and-drop|probe-text-input|probe-keyboard-locale-matrix|probe-independent-application-matrix <simple-shm> <simple-damage>|probe-privileged-protocol-boundary|probe-v1-client-buffer-contract|probe-wayland-output-matrix|probe-popup-subsurface-matrix|probe-xdg-toplevel-window-model|probe-launcher-model|probe-launcher-input-scene|probe-smithay-launcher-seat|probe-evdev-aqua-seat <keyboard-event> <pointer-event>|probe-scene|dump-scene|probe-render-plan|dump-render-plan|probe-renderer-surface-sources|probe-client-layer-pipeline|probe-paint-plan|dump-paint-plan|probe-frame-plan|dump-frame-plan|probe-frame-buffer|dump-frame-buffer|probe-raster|dump-raster|probe-raster-export|dump-raster-export|export-raster-ppm <path>|probe-raster-png-export|dump-raster-png-export|export-raster-png <path>|smoke-run-once|smoke-session-loop]"
             );
             std::process::exit(2);
         }
@@ -11076,6 +11078,58 @@ fn probe_wayland_output_matrix_cli() {
         Err(error) => {
             eprintln!("wayland output matrix probe failed: {error}");
             finish_stage("wayland-output-matrix", false);
+        }
+    }
+}
+
+fn probe_popup_subsurface_matrix_cli() {
+    match probe_popup_subsurface_matrix() {
+        Ok(probe) => {
+            println!("[AQUA-COMPOSITOR] stage=popup-subsurface-matrix status=running");
+            println!("popup_subsurface_status={}", probe.status);
+            println!("client_count={}", probe.client_count);
+            println!("xdg_popup_created={}", probe.xdg_popup_created);
+            println!("popup_parent_bound={}", probe.popup_parent_bound);
+            println!("popup_geometry_matches={}", probe.popup_geometry_matches);
+            println!(
+                "popup_configure_acknowledged={}",
+                probe.popup_configure_acknowledged
+            );
+            println!(
+                "popup_reposition_requested={}",
+                probe.popup_reposition_requested
+            );
+            println!("popup_reposition_token={}", probe.popup_reposition_token);
+            println!(
+                "popup_reposition_acknowledged={}",
+                probe.popup_reposition_acknowledged
+            );
+            println!("popup_destroyed={}", probe.popup_destroyed);
+            println!("subsurface_created={}", probe.subsurface_created);
+            println!("subsurface_parent_bound={}", probe.subsurface_parent_bound);
+            println!(
+                "subsurface_position_matches={}",
+                probe.subsurface_position_matches
+            );
+            println!(
+                "synchronized_commit_observed={}",
+                probe.synchronized_commit_observed
+            );
+            println!(
+                "desynchronized_commit_observed={}",
+                probe.desynchronized_commit_observed
+            );
+            println!("subsurface_destroyed={}", probe.subsurface_destroyed);
+            println!(
+                "parent_surfaces_remain_independent={}",
+                probe.parent_surfaces_remain_independent
+            );
+            println!("host_stub={}", probe.host_stub);
+            finish_stage("popup-subsurface-matrix", probe.is_ready());
+        }
+        Err(error) => {
+            eprintln!("popup/subsurface matrix probe failed: {error}");
+            finish_stage("popup-subsurface-matrix", false);
         }
     }
 }

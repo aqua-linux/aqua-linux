@@ -35,6 +35,8 @@ if data.get("graphicsTarget") != "custom Wayland compositor":
     errors.append("graphicsTarget must stay custom Wayland compositor")
 if not data.get("r3SelectionBoundary"):
     errors.append("r3SelectionBoundary must describe the active compatibility work")
+if not data.get("r3SurfaceLifecycleBoundary"):
+    errors.append("r3SurfaceLifecycleBoundary must describe popup and subsurface evidence")
 if not isinstance(data.get("overallPercent"), int):
     errors.append("overallPercent must be an integer")
 elif not 0 <= data["overallPercent"] <= 100:
@@ -82,6 +84,7 @@ for needle in [
     "exact direct-FD payload transfer",
     "separate two-client drag-and-drop probe",
     "normal, 90, 180, and 270 degree transforms",
+    "synchronized and desynchronized commits",
     "authorized input-method client",
     "weston-simple-damage",
     "| Classification | packaged-QEMU-proven prototype |",
