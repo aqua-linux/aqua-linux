@@ -34,8 +34,12 @@ fn main() -> ExitCode {
             b"AQUA-NETWORK/1 WIFI_RECONNECT wlan0\n",
             "AQUA-NETWORK/1 OK operation=wifi-reconnect interface=wlan0 network_id=",
         ),
+        Some("broker-forget") => probe_broker_request(
+            b"AQUA-NETWORK/1 WIFI_FORGET wlan0\n",
+            "AQUA-NETWORK/1 OK operation=wifi-forget interface=wlan0 authoritative=true credential_saved=false",
+        ),
         _ => Err(
-            "usage: aqua-wifi-native-probe native|broker|broker-status|broker-scan|broker-disconnect|broker-reconnect",
+            "usage: aqua-wifi-native-probe native|broker|broker-status|broker-scan|broker-disconnect|broker-reconnect|broker-forget",
         ),
     };
     #[cfg(not(target_os = "linux"))]

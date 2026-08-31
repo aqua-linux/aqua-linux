@@ -8567,6 +8567,40 @@ impl XdgSmokeClientState {
         );
     }
 
+    fn apply_settings_wifi_scan(&mut self) {
+        let (Some(model), Some(socket_path)) = (
+            self.settings_model.as_mut(),
+            self.settings_wifi_socket_path.as_deref(),
+        ) else {
+            return;
+        };
+        let applied = model.refresh_wifi_networks(socket_path);
+        println!(
+            "aqua_settings_wifi_rescan applied={} available={} count={} status={}",
+            applied,
+            model.wifi.available(),
+            model.wifi.networks().len(),
+            model.wifi.status_label()
+        );
+    }
+
+    fn apply_settings_wifi_forget(&mut self) {
+        let (Some(model), Some(socket_path)) = (
+            self.settings_model.as_mut(),
+            self.settings_wifi_socket_path.as_deref(),
+        ) else {
+            return;
+        };
+        let applied = model.forget_saved_wifi_network(socket_path);
+        println!(
+            "aqua_settings_wifi_forget applied={} available={} credential_saved={} status={}",
+            applied,
+            model.wifi.available(),
+            model.wifi.credential_saved(),
+            model.wifi.status_label()
+        );
+    }
+
     fn init_xdg_surface(&mut self, qh: &QueueHandle<Self>) {
         if self.surface_created {
             return;
@@ -13796,6 +13830,12 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
                 if update == aqua_shell::SettingsUpdate::WifiConnectRequested {
                     state.apply_settings_wifi_connection();
                 }
+                if update == aqua_shell::SettingsUpdate::WifiScanRequested {
+                    state.apply_settings_wifi_scan();
+                }
+                if update == aqua_shell::SettingsUpdate::WifiForgetRequested {
+                    state.apply_settings_wifi_forget();
+                }
                 if matches!(
                     update,
                     aqua_shell::SettingsUpdate::ReducedMotionChanged(_)
@@ -13958,6 +13998,12 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                 }
                 if let aqua_shell::SettingsUpdate::WifiControlRequested(connected) = update {
                     state.apply_settings_wifi_control(connected);
+                }
+                if update == aqua_shell::SettingsUpdate::WifiScanRequested {
+                    state.apply_settings_wifi_scan();
+                }
+                if update == aqua_shell::SettingsUpdate::WifiForgetRequested {
+                    state.apply_settings_wifi_forget();
                 }
                 if matches!(
                     update,

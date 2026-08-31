@@ -108,7 +108,7 @@ docker run --rm \
         wait "${fake_pid}"
         fake_pid=""
         ! grep -Fq password "${sysroot}/run/aqua-network/broker.log"
-        grep -Fq "operations=status,renew-dhcp,wifi-status,wifi-scan,wifi-connect,wifi-reconnect,wifi-disconnect" \
+        grep -Fq "operations=status,renew-dhcp,wifi-status,wifi-scan,wifi-connect,wifi-reconnect,wifi-disconnect,wifi-forget" \
             "${sysroot}/run/aqua-network/broker.log"
         trap - EXIT HUP INT TERM
     '

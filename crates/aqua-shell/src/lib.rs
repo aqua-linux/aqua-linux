@@ -27,6 +27,8 @@ use std::path::{Path, PathBuf};
 pub const SETTINGS_CONFIG_VERSION: u8 = 1;
 pub const SETTINGS_WIFI_BROKER_SOCKET_PATH: &str =
     aqua_service_adapters::network_broker::NETWORK_BROKER_SOCKET_PATH;
+pub const MAX_WIFI_CONNECT_ATTEMPTS: u8 = 2;
+pub const MAX_VISIBLE_WIFI_NETWORKS: usize = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WifiSettingsControl {
@@ -34,11 +36,13 @@ pub struct WifiSettingsControl {
     state: String,
     network_id: Option<u16>,
     authoritative: bool,
+    credential_saved: bool,
     last_error: Option<String>,
     networks: Vec<WifiScanNetwork>,
     selected_network: Option<usize>,
     credential_entry: bool,
     passphrase: WifiSecretInput,
+    connect_attempts: u8,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -114,11 +118,13 @@ impl Default for WifiSettingsControl {
             state: "unavailable".to_owned(),
             network_id: None,
             authoritative: false,
+            credential_saved: false,
             last_error: None,
             networks: Vec::new(),
             selected_network: None,
             credential_entry: false,
             passphrase: WifiSecretInput::default(),
+            connect_attempts: 0,
         }
     }
 }
@@ -134,6 +140,14 @@ impl WifiSettingsControl {
 
     pub fn connected(&self) -> bool {
         self.state == "completed" && self.network_id.is_some() && self.authoritative
+    }
+
+    pub const fn credential_saved(&self) -> bool {
+        self.credential_saved
+    }
+
+    pub const fn connect_attempts_remaining(&self) -> u8 {
+        MAX_WIFI_CONNECT_ATTEMPTS.saturating_sub(self.connect_attempts)
     }
 
     pub fn status_label(&self) -> &str {
@@ -168,6 +182,7 @@ impl WifiSettingsControl {
                 self.state = status.state;
                 self.network_id = status.network_id;
                 self.authoritative = status.authoritative;
+                self.credential_saved = status.credential_saved;
                 self.last_error = None;
                 true
             }
@@ -176,6 +191,7 @@ impl WifiSettingsControl {
                 self.state = "unavailable".to_owned();
                 self.network_id = None;
                 self.authoritative = false;
+                self.credential_saved = false;
                 self.last_error = Some(error.to_string());
                 false
             }
@@ -196,6 +212,7 @@ impl WifiSettingsControl {
                 self.state = status.state;
                 self.network_id = status.network_id;
                 self.authoritative = status.authoritative;
+                self.credential_saved = status.credential_saved;
                 self.last_error = None;
                 true
             }
@@ -216,6 +233,7 @@ impl WifiSettingsControl {
                 self.selected_network = None;
                 self.credential_entry = false;
                 self.passphrase.clear();
+                self.connect_attempts = 0;
                 self.last_error = None;
                 true
             }
@@ -236,6 +254,7 @@ impl WifiSettingsControl {
             return false;
         }
         self.passphrase.clear();
+        self.connect_attempts = 0;
         self.selected_network = Some(index);
         self.credential_entry = true;
         self.last_error = None;
@@ -257,6 +276,7 @@ impl WifiSettingsControl {
         self.passphrase.clear();
         self.credential_entry = false;
         self.selected_network = None;
+        self.connect_attempts = 0;
         true
     }
 
@@ -281,13 +301,47 @@ impl WifiSettingsControl {
             }
         };
         self.passphrase.clear();
-        self.credential_entry = false;
-        self.selected_network = None;
         match result {
             Ok(status) => {
                 self.state = status.state;
                 self.network_id = status.network_id;
                 self.authoritative = status.authoritative;
+                self.credential_saved = status.credential_saved;
+                self.credential_entry = false;
+                self.selected_network = None;
+                self.connect_attempts = 0;
+                self.last_error = None;
+                true
+            }
+            Err(_) => {
+                self.connect_attempts = self.connect_attempts.saturating_add(1);
+                let remaining = self.connect_attempts_remaining();
+                if remaining == 0 {
+                    self.credential_entry = false;
+                    self.selected_network = None;
+                    self.last_error = Some("connection-retry-limit".to_owned());
+                } else {
+                    self.last_error = Some(format!("connection-failed-retry-{remaining}"));
+                }
+                false
+            }
+        }
+    }
+
+    pub fn forget_saved(&mut self, socket_path: &Path) -> bool {
+        if !self.available || !self.credential_saved {
+            return false;
+        }
+        match request_wifi_broker(socket_path, WifiBrokerOperation::Forget) {
+            Ok(status) => {
+                self.state = status.state;
+                self.network_id = status.network_id;
+                self.authoritative = status.authoritative;
+                self.credential_saved = status.credential_saved;
+                self.passphrase.clear();
+                self.credential_entry = false;
+                self.selected_network = None;
+                self.connect_attempts = 0;
                 self.last_error = None;
                 true
             }
@@ -1865,6 +1919,10 @@ impl SettingsWindowModel {
         self.wifi.connect_selected(socket_path)
     }
 
+    pub fn forget_saved_wifi_network(&mut self, socket_path: &Path) -> bool {
+        self.wifi.forget_saved(socket_path)
+    }
+
     pub fn input_wifi_passphrase(&mut self, character: char) -> bool {
         self.selected_category == 3 && self.wifi.input_passphrase_character(character)
     }
@@ -2083,7 +2141,7 @@ impl SettingsWindowModel {
             }
         }
         if self.selected_category == 3 && !self.wifi.credential_entry() {
-            for index in 0..self.wifi.networks().len().min(3) {
+            for index in 0..self.wifi.networks().len().min(MAX_VISIBLE_WIFI_NETWORKS) {
                 let row = self.section_group().row_rect(index + 1);
                 if x >= row.x
                     && x < row.x.saturating_add(row.width)
@@ -2093,6 +2151,24 @@ impl SettingsWindowModel {
                 {
                     return SettingsUpdate::WifiNetworkSelected(index);
                 }
+            }
+            let action_row = self.section_group().row_rect(3);
+            if x >= action_row.x
+                && x < action_row.x.saturating_add(action_row.width / 2)
+                && y >= action_row.y
+                && y < action_row.y.saturating_add(action_row.height)
+                && self.wifi.controls_enabled()
+            {
+                return SettingsUpdate::WifiScanRequested;
+            }
+            if x >= action_row.x.saturating_add(action_row.width / 2)
+                && x < action_row.x.saturating_add(action_row.width)
+                && y >= action_row.y
+                && y < action_row.y.saturating_add(action_row.height)
+                && self.wifi.controls_enabled()
+                && self.wifi.credential_saved()
+            {
+                return SettingsUpdate::WifiForgetRequested;
             }
         }
         if self.selected_category == 4 {
@@ -2167,6 +2243,18 @@ impl SettingsWindowModel {
                 if self.selected_category == 3 && self.wifi.controls_enabled() =>
             {
                 SettingsUpdate::WifiControlRequested(!self.wifi.connected())
+            }
+            SettingsKey::Decrease
+                if self.selected_category == 3 && self.wifi.controls_enabled() =>
+            {
+                SettingsUpdate::WifiScanRequested
+            }
+            SettingsKey::Increase
+                if self.selected_category == 3
+                    && self.wifi.controls_enabled()
+                    && self.wifi.credential_saved() =>
+            {
+                SettingsUpdate::WifiForgetRequested
             }
             SettingsKey::Decrease if self.selected_category == 4 => {
                 self.adjust_audio_volume(SliderKey::Decrease)
@@ -2352,7 +2440,9 @@ pub enum SettingsUpdate {
     KeyRepeatChanged(bool),
     WifiControlRequested(bool),
     WifiNetworkSelected(usize),
+    WifiScanRequested,
     WifiConnectRequested,
+    WifiForgetRequested,
     ThemeChanged(AquaTheme),
     AudioVolumeChanged(u8),
     AudioMutedChanged(bool),
@@ -4509,11 +4599,11 @@ mod tests {
             let exchanges = [
                 (
                     "AQUA-NETWORK/1 WIFI_STATUS wlan0\n",
-                    "AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0 state=completed network_id=7 authoritative=true\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0 state=completed network_id=7 authoritative=true credential_saved=true\n",
                 ),
                 (
                     "AQUA-NETWORK/1 WIFI_DISCONNECT wlan0\n",
-                    "AQUA-NETWORK/1 OK operation=wifi-disconnect interface=wlan0 authoritative=true\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-disconnect interface=wlan0 authoritative=true credential_saved=true\n",
                 ),
                 (
                     "AQUA-NETWORK/1 WIFI_RECONNECT wlan0\n",
@@ -4577,7 +4667,7 @@ mod tests {
             let exchanges = [
                 (
                     "AQUA-NETWORK/1 WIFI_STATUS wlan0\n",
-                    "AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0 state=disconnected network_id=none authoritative=false\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0 state=disconnected network_id=none authoritative=false credential_saved=false\n",
                 ),
                 (
                     "AQUA-NETWORK/1 WIFI_SCAN wlan0\n",
@@ -4623,6 +4713,102 @@ mod tests {
         assert!(model.apply_wifi_connection(&socket));
         assert!(model.wifi.connected());
         assert!(!model.wifi.credential_entry());
+
+        server.join().expect("join broker fixture");
+        fs::remove_file(socket).expect("remove broker fixture");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn settings_wifi_rescan_forget_and_retry_flow_is_bounded() {
+        use std::io::{Read as _, Write as _};
+        use std::os::unix::net::UnixListener;
+        use std::thread;
+
+        let socket = PathBuf::from(format!(
+            "/tmp/aqua-settings-wifi-actions-{}-{}.sock",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock")
+                .as_nanos()
+        ));
+        let _ = fs::remove_file(&socket);
+        let listener = UnixListener::bind(&socket).expect("bind broker fixture");
+        let server = thread::spawn(move || {
+            let exchanges = [
+                (
+                    "AQUA-NETWORK/1 WIFI_STATUS wlan0\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0 state=disconnected network_id=none authoritative=false credential_saved=true\n",
+                ),
+                (
+                    "AQUA-NETWORK/1 WIFI_SCAN wlan0\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=1 authoritative=true network_0=417175612d51454d55,-28,wpa2-personal\n",
+                ),
+                (
+                    "AQUA-NETWORK/1 WIFI_SCAN wlan0\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=1 authoritative=true network_0=417175612d51454d55,-24,wpa2-personal\n",
+                ),
+                (
+                    "AQUA-NETWORK/1 WIFI_CONNECT wlan0 417175612d51454d55 70617373776f7264\n",
+                    "AQUA-NETWORK/1 ERROR wifi-control-timeout\n",
+                ),
+                (
+                    "AQUA-NETWORK/1 WIFI_CONNECT wlan0 417175612d51454d55 70617373776f7264\n",
+                    "AQUA-NETWORK/1 ERROR wifi-control-timeout\n",
+                ),
+                (
+                    "AQUA-NETWORK/1 WIFI_FORGET wlan0\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-forget interface=wlan0 authoritative=true credential_saved=false\n",
+                ),
+            ];
+            for (expected, response) in exchanges {
+                let (mut stream, _) = listener.accept().expect("accept Settings request");
+                let mut request = String::new();
+                stream.read_to_string(&mut request).expect("read request");
+                assert_eq!(request, expected);
+                stream
+                    .write_all(response.as_bytes())
+                    .expect("write response");
+            }
+        });
+
+        let mut model = SettingsWindowModel {
+            selected_category: 3,
+            ..SettingsWindowModel::default()
+        };
+        assert!(model.refresh_wifi_control(&socket));
+        assert!(model.wifi.credential_saved());
+        assert!(model.refresh_wifi_networks(&socket));
+        let action_row = model.section_group().row_rect(3);
+        assert_eq!(
+            model.handle_pointer(action_row.x + 1, action_row.y + 1),
+            SettingsUpdate::WifiScanRequested
+        );
+        assert!(model.refresh_wifi_networks(&socket));
+
+        let network_row = model.section_group().row_rect(1);
+        assert_eq!(
+            model.handle_pointer(network_row.x + 1, network_row.y + 1),
+            SettingsUpdate::WifiNetworkSelected(0)
+        );
+        for _ in 0..MAX_WIFI_CONNECT_ATTEMPTS {
+            for character in "password".chars() {
+                assert!(model.input_wifi_passphrase(character));
+            }
+            assert!(!model.apply_wifi_connection(&socket));
+            assert_eq!(model.wifi.masked_passphrase(), "");
+        }
+        assert!(!model.wifi.credential_entry());
+        assert_eq!(model.wifi.connect_attempts_remaining(), 0);
+        assert_eq!(model.wifi.status_label(), "connection-retry-limit");
+
+        assert_eq!(
+            model.handle_pointer(action_row.x + action_row.width - 1, action_row.y + 1),
+            SettingsUpdate::WifiForgetRequested
+        );
+        assert!(model.forget_saved_wifi_network(&socket));
+        assert!(!model.wifi.credential_saved());
 
         server.join().expect("join broker fixture");
         fs::remove_file(socket).expect("remove broker fixture");

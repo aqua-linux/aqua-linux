@@ -2576,8 +2576,10 @@ pub struct SettingsWindowProbe {
     pub wifi_control_available: bool,
     pub wifi_controls_enabled: bool,
     pub wifi_connected: bool,
+    pub wifi_credential_saved: bool,
     pub wifi_scan_result_count: usize,
     pub wifi_credential_entry: bool,
+    pub wifi_connect_attempts_remaining: u8,
     pub primitive_count: usize,
     pub checksum: u64,
 }
@@ -4272,8 +4274,10 @@ pub fn render_settings_window_rgba(
                 wifi_control_available: model.wifi.available(),
                 wifi_controls_enabled: model.wifi.controls_enabled(),
                 wifi_connected: model.wifi.connected(),
+                wifi_credential_saved: model.wifi.credential_saved(),
                 wifi_scan_result_count: model.wifi.networks().len(),
                 wifi_credential_entry: model.wifi.credential_entry(),
+                wifi_connect_attempts_remaining: model.wifi.connect_attempts_remaining(),
                 primitive_count: 0,
                 checksum: 0,
             },
@@ -4490,15 +4494,21 @@ pub fn render_settings_window_rgba(
                 palette.accent,
                 1,
             );
+            let credential_hint = if model.wifi.status_label().starts_with("connection-failed") {
+                format!(
+                    "RETRY  {} ATTEMPT LEFT  ESC CANCEL",
+                    model.wifi.connect_attempts_remaining()
+                )
+            } else if model.wifi.passphrase_ready() {
+                "ENTER TO CONNECT  ESC TO CANCEL".to_owned()
+            } else {
+                "8-63 CHARACTERS  ESC TO CANCEL".to_owned()
+            };
             draw_bitmap_text(
                 &mut buffer,
                 (width, height),
                 (section.row_rect(3).x, section.row_rect(3).y + 18),
-                if model.wifi.passphrase_ready() {
-                    "ENTER TO CONNECT  ESC TO CANCEL"
-                } else {
-                    "8-63 CHARACTERS  ESC TO CANCEL"
-                },
+                &credential_hint,
                 palette.secondary_text,
                 1,
             );
@@ -4520,7 +4530,13 @@ pub fn render_settings_window_rgba(
                 1,
             );
         } else {
-            for (index, network) in model.wifi.networks().iter().take(3).enumerate() {
+            for (index, network) in model
+                .wifi
+                .networks()
+                .iter()
+                .take(aqua_shell::MAX_VISIBLE_WIFI_NETWORKS)
+                .enumerate()
+            {
                 let ssid = std::str::from_utf8(network.ssid.bytes())
                     .unwrap_or("UNKNOWN")
                     .chars()
@@ -4548,6 +4564,24 @@ pub fn render_settings_window_rgba(
                     1,
                 );
             }
+        }
+        if !model.wifi.credential_entry() {
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (section.row_rect(3).x, section.row_rect(3).y + 18),
+                if model.wifi.credential_saved() {
+                    "LEFT  RESCAN       RIGHT  FORGET SAVED"
+                } else {
+                    "LEFT  RESCAN"
+                },
+                if model.wifi.controls_enabled() {
+                    palette.accent
+                } else {
+                    palette.secondary_text
+                },
+                1,
+            );
         }
         primitives += 6;
     } else if model.selected_category == 4 {
@@ -4641,8 +4675,10 @@ pub fn render_settings_window_rgba(
             wifi_control_available: model.wifi.available(),
             wifi_controls_enabled: model.wifi.controls_enabled(),
             wifi_connected: model.wifi.connected(),
+            wifi_credential_saved: model.wifi.credential_saved(),
             wifi_scan_result_count: model.wifi.networks().len(),
             wifi_credential_entry: model.wifi.credential_entry(),
+            wifi_connect_attempts_remaining: model.wifi.connect_attempts_remaining(),
             primitive_count: primitives,
             checksum,
         },
