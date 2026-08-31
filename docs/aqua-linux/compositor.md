@@ -566,11 +566,17 @@ Implemented now:
 - Bounded QEMU DRM dumb-buffer probe that allocates and maps a 1280x800 Xrgb8888 buffer, copies the composited Aqua frame with the reported pitch, verifies its checksum, destroys the buffer, and returns to recovery without creating a KMS framebuffer or submitting a page flip.
 - Local temp-root validation through the Buildroot post-build script.
 - Optional Linux-target Rust check for the real Smithay path.
+- Packaged-rootfs independent-application matrix that runs the upstream Weston
+  14.0.1 `weston-simple-shm` and `weston-simple-damage` C clients as separate
+  processes. Aqua discovers both app IDs, imports distinct 250x250 and 320x200
+  shared-memory buffers, advances damage and frame callbacks, closes each
+  toplevel independently, observes both clean process exits, and finishes with
+  no client surfaces. The Weston compositor is neither packaged nor started.
 
 Not implemented yet:
 
-- Broader third-party toolkit coverage beyond the packaged upstream
-  `weston-simple-shm` xdg-toplevel compatibility fixture.
+- Broader third-party toolkit coverage beyond the two packaged upstream Weston
+  xdg-toplevel compatibility fixtures.
 - Additional Aqua-owned icon artwork for later first-party applications.
 - Runtime visual convergence with the canonical Aqua visual/UI contracts.
 - MSI Sword 17 DRM, input, suspend, networking, audio, and storage validation.

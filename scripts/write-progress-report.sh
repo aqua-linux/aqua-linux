@@ -69,6 +69,8 @@ lines = [
     "",
     cell(data.get("r3TextInputBoundary", "")),
     "",
+    cell(data.get("r3ApplicationMatrix", "")),
+    "",
     cell(data.get("r3OutputBoundary", "")),
     "",
     cell(data.get("r3ProtocolBoundary", "")),

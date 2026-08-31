@@ -82,6 +82,7 @@ for needle in [
     "exact direct-FD payload transfer",
     "separate two-client drag-and-drop probe",
     "authorized input-method client",
+    "weston-simple-damage",
     "| Classification | packaged-QEMU-proven prototype |",
     "| Daily-use ready | No |",
     "| Hardware-proven | No |",
