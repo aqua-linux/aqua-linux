@@ -4,8 +4,9 @@
 
 Accepted on 2026-08-31. The observation boundary, disabled root-owned DHCP
 supervisor, authenticated privilege broker, and opt-in QEMU runtime acceptance
-are implemented. Default ownership, Settings configuration controls, Wi-Fi
-packaging, and physical runtime evidence remain gated.
+are implemented. The isolated Wi-Fi package and legal closure is rehearsed.
+Default ownership, Settings configuration controls, typed Wi-Fi control and
+credential handling, and physical runtime evidence remain gated.
 
 ## Context
 
@@ -31,8 +32,8 @@ Aqua Linux will use this network stack:
    move under a root-owned Aqua network supervisor before network management is
    enabled in Settings.
 3. `wpa_supplicant` is selected for Wi-Fi association on hardware that requires
-   it. It remains absent from the default image until an opt-in Buildroot
-   rehearsal resolves its dependency and license closure and a typed control
+   it. An opt-in Buildroot rehearsal resolves its dependency and license
+   closure, but it remains absent from the default image until a typed control
    transport, credential-storage contract, and radio evidence pass.
 4. Aqua will not add NetworkManager, ConnMan, or a second DHCP client to the v1
    image. A single policy owner avoids competing route, lease, and resolver
@@ -92,8 +93,13 @@ Network management must remain disabled until all of these are satisfied:
    Root and other peers are rejected; no arbitrary command or path crosses the
    protocol. The broker is packaged but starts only with the opt-in network
    profile, and Settings still has no configuration control.
-3. An opt-in Buildroot profile resolves `wpa_supplicant` and its exact legal
-   closure while the default profile remains unchanged.
+3. **Satisfied on 2026-08-31:** the opt-in
+   `aqua_x86_64_wifi_rehearsal_defconfig` resolves `wpa_supplicant` 2.12,
+   libnl 3.11.0, and OpenSSL 3.5.7 and completes Buildroot `legal-info`.
+   It selects only nl80211, autoscan, WPA3, the control interface, and
+   `libwpa_client`; it excludes alternate network managers, D-Bus, a second
+   DHCP client, CLI/passphrase tools, and unsupported association modes. The
+   default profile and service ownership remain unchanged.
 4. **Satisfied on 2026-08-31:** deterministic fixtures prove offline,
    configuring, online, DNS loss, route loss, malformed input, bounded source
    sizes, and recovery without hanging Settings or the shell.

@@ -1244,6 +1244,7 @@ test -x scripts/check-network-qemu.exp
 grep -Fq 'aqua.boot_network=1' scripts/check-network-qemu.exp
 grep -Fq 'stage=qemu-acceptance status=ok' scripts/check-network-qemu.sh
 scripts/check-audio-buildroot-rehearsal.sh
+scripts/check-wifi-buildroot-rehearsal.sh
 scripts/check-audio-native-binding.sh
 scripts/check-audio-rootfs-contract.sh
 scripts/check-audio-qemu-device-contract.sh
