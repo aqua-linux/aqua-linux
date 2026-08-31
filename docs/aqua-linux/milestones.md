@@ -250,6 +250,12 @@ Current compatibility extension:
   then observe fourth-output removal while the original output stays usable.
   The packaged rootfs runs the same feature-enabled probe. Hardware connector
   events and the broader application matrix remain open.
+- A separate two-client Linux and packaged-rootfs probe creates a real
+  `xdg_popup` on one connection and a real `wl_subsurface` tree on the other.
+  It proves parent binding, exact initial and repositioned popup geometry, two
+  configure acknowledgements, token-matched reposition, parent-relative
+  subsurface placement, synchronized and desynchronized commits, child-role
+  destruction, and continued independence of both parent surfaces.
 
 ## Milestone 6: Boot Aqua Compositor In QEMU
 

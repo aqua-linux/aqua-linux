@@ -1569,6 +1569,7 @@ grep -Fq 'cancelled_compose_rejected_for_all_locales=true' scripts/check-composi
 grep -Fq 'privileged-protocol-boundary-probe.txt' scripts/check-compositor-rootfs-docker.sh
 grep -Fq 'v1-client-buffer-contract-probe.txt' scripts/check-compositor-rootfs-docker.sh
 grep -Fq 'wayland-output-matrix-probe.txt' scripts/check-compositor-rootfs-docker.sh
+grep -Fq 'popup-subsurface-matrix-probe.txt' scripts/check-compositor-rootfs-docker.sh
 grep -Fq 'declared_transform_count=4' scripts/check-compositor-rootfs-docker.sh
 grep -Fq 'hotplug_add_reaches_both_clients=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'smithay_text_input_is_focus_and_authorization_safe' scripts/check-smithay-seat-docker.sh
@@ -1576,6 +1577,7 @@ grep -Fq 'smithay_keyboard_locale_matrix_delivers_compose_and_dead_keys' scripts
 grep -Fq 'smithay_privileged_protocol_boundary_is_narrow_and_unadvertised' scripts/check-smithay-seat-docker.sh
 grep -Fq 'v1_client_buffer_contract_excludes_accelerated_clients' scripts/check-smithay-seat-docker.sh
 grep -Fq 'smithay_output_matrix_is_discoverable_scaled_and_hotpluggable' scripts/check-smithay-seat-docker.sh
+grep -Fq 'smithay_popup_and_subsurface_lifecycles_are_independent' scripts/check-smithay-seat-docker.sh
 grep -Fq 'unfocused_clipboard_rejected=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'unfocused_primary_rejected=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'data_control_global_exposed=false' scripts/check-smithay-seat-docker.sh
@@ -1583,6 +1585,7 @@ grep -Fq 'privileged_wayland_boundary = ' docs/aqua-linux/compositor-foundation.
 grep -Fq 'keyboard_locale_matrix = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'independent_application_matrix = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'wayland_output_matrix = ' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'popup_subsurface_matrix = ' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'clipboard_payload_transferred=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'primary_payload_transferred=true' scripts/check-smithay-seat-docker.sh
 grep -Fq 'owner_disconnect_clears_clipboard=true' scripts/check-smithay-seat-docker.sh

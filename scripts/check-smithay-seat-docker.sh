@@ -185,6 +185,22 @@ docker run --rm --platform linux/amd64 \
         printf "%s\n" "$output_matrix" | grep -Fq "remaining_output_usable=true"
         printf "%s\n" "$output_matrix" | grep -Fq "host_stub=false"
         printf "%s\n" "$output_matrix" | grep -Fq "[AQUA-COMPOSITOR] stage=wayland-output-matrix status=ok"
+        popup_subsurface_matrix="$(cargo run --quiet -p aqua-compositor --features smithay-smoke -- probe-popup-subsurface-matrix)" || {
+            printf "%s\n" "$popup_subsurface_matrix"
+            exit 1
+        }
+        printf "%s\n" "$popup_subsurface_matrix"
+        printf "%s\n" "$popup_subsurface_matrix" | grep -Fq "client_count=2"
+        printf "%s\n" "$popup_subsurface_matrix" | grep -Fq "xdg_popup_created=true"
+        printf "%s\n" "$popup_subsurface_matrix" | grep -Fq "popup_geometry_matches=true"
+        printf "%s\n" "$popup_subsurface_matrix" | grep -Fq "popup_reposition_token=77"
+        printf "%s\n" "$popup_subsurface_matrix" | grep -Fq "popup_reposition_acknowledged=true"
+        printf "%s\n" "$popup_subsurface_matrix" | grep -Fq "subsurface_position_matches=true"
+        printf "%s\n" "$popup_subsurface_matrix" | grep -Fq "synchronized_commit_observed=true"
+        printf "%s\n" "$popup_subsurface_matrix" | grep -Fq "desynchronized_commit_observed=true"
+        printf "%s\n" "$popup_subsurface_matrix" | grep -Fq "parent_surfaces_remain_independent=true"
+        printf "%s\n" "$popup_subsurface_matrix" | grep -Fq "host_stub=false"
+        printf "%s\n" "$popup_subsurface_matrix" | grep -Fq "[AQUA-COMPOSITOR] stage=popup-subsurface-matrix status=ok"
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_launcher_keyboard_is_compositor_owned
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
@@ -207,4 +223,6 @@ docker run --rm --platform linux/amd64 \
             v1_client_buffer_contract_excludes_accelerated_clients
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_output_matrix_is_discoverable_scaled_and_hotpluggable
+        cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
+            smithay_popup_and_subsurface_lifecycles_are_independent
     '

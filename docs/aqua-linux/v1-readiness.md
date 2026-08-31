@@ -276,7 +276,13 @@ and 2.0, integer fallbacks 1, 2, 2, and 2, and normal, 90, 180, and 270 degree
 transforms. It also verifies a 1.25 preference encoded as 150/120, committed
 viewport crop and destination state, and fourth-output global removal while
 the original output remains usable. Hardware-driven connector hotplug and
-the broader application matrix remain open. The v1 application model is explicitly
+the broader application matrix remain open. A separate two-client lifecycle
+probe assigns one connection an `xdg_popup` and the other a `wl_subsurface`.
+It verifies popup parent binding, exact initial and repositioned geometry, two
+configure acknowledgements, reposition token delivery, synchronized and
+desynchronized subsurface commits at the declared parent-relative position,
+child-role destruction, and continued independence of both parent surfaces.
+The packaged rootfs runs the same feature-enabled probe. The v1 application model is explicitly
 limited to first-party and independently tested `wl_shm` ARGB8888 clients.
 Accelerated client buffers are outside that model: the compositor does not
 advertise `zwp_linux_dmabuf_v1`, `wp_linux_drm_syncobj_manager_v1`, or

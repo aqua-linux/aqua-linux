@@ -367,6 +367,7 @@ EOF
         "${tmp_dir}/aqua-compositor" probe-privileged-protocol-boundary > "${CONTRACT_DIR}/privileged-protocol-boundary-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-v1-client-buffer-contract > "${CONTRACT_DIR}/v1-client-buffer-contract-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-wayland-output-matrix > "${CONTRACT_DIR}/wayland-output-matrix-probe.txt"
+        "${tmp_dir}/aqua-compositor" probe-popup-subsurface-matrix > "${CONTRACT_DIR}/popup-subsurface-matrix-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-xdg-toplevel-window-model > "${CONTRACT_DIR}/xdg-toplevel-window-model-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-launcher-model > "${CONTRACT_DIR}/launcher-model-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-launcher-input-scene > "${CONTRACT_DIR}/launcher-input-scene-probe.txt"

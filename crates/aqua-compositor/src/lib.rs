@@ -399,8 +399,9 @@ use smithay::{
     wayland::{
         buffer::BufferHandler,
         compositor::{
-            with_states, BufferAssignment, CompositorClientState, CompositorHandler,
-            CompositorState, RectangleKind,
+            get_children, get_parent, get_role, is_sync_subsurface, with_states, BufferAssignment,
+            CompositorClientState, CompositorHandler, CompositorState, RectangleKind,
+            SubsurfaceCachedState,
         },
         fractional_scale::{
             with_fractional_scale, FractionalScaleHandler, FractionalScaleManagerState,
@@ -439,6 +440,7 @@ use {
             wl_keyboard as client_wl_keyboard, wl_output as client_wl_output,
             wl_pointer as client_wl_pointer, wl_region as client_wl_region, wl_registry,
             wl_seat as client_wl_seat, wl_shm as client_wl_shm, wl_shm_pool as client_wl_shm_pool,
+            wl_subcompositor as client_wl_subcompositor, wl_subsurface as client_wl_subsurface,
             wl_surface,
         },
         Connection as ClientConnection, Dispatch as ClientDispatch, Proxy, QueueHandle, WEnum,
@@ -461,6 +463,7 @@ use {
         wp_viewport as client_viewport, wp_viewporter as client_viewporter,
     },
     wayland_protocols::xdg::shell::client::{
+        xdg_popup as client_xdg_popup, xdg_positioner as client_xdg_positioner,
         xdg_surface as client_xdg_surface, xdg_toplevel as client_xdg_toplevel,
         xdg_wm_base as client_xdg_wm_base,
     },
@@ -1307,6 +1310,52 @@ impl WaylandOutputMatrixProbe {
             && self.hotplug_add_reaches_both_clients
             && self.hotplug_remove_reaches_both_clients
             && self.remaining_output_usable
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PopupSubsurfaceMatrixProbe {
+    pub product: &'static str,
+    pub status: &'static str,
+    pub client_count: usize,
+    pub xdg_popup_created: bool,
+    pub popup_parent_bound: bool,
+    pub popup_geometry_matches: bool,
+    pub popup_configure_acknowledged: bool,
+    pub popup_reposition_requested: bool,
+    pub popup_reposition_token: u32,
+    pub popup_reposition_acknowledged: bool,
+    pub popup_destroyed: bool,
+    pub subsurface_created: bool,
+    pub subsurface_parent_bound: bool,
+    pub subsurface_position_matches: bool,
+    pub synchronized_commit_observed: bool,
+    pub desynchronized_commit_observed: bool,
+    pub subsurface_destroyed: bool,
+    pub parent_surfaces_remain_independent: bool,
+    pub host_stub: bool,
+}
+
+impl PopupSubsurfaceMatrixProbe {
+    pub fn is_ready(&self) -> bool {
+        self.product == PRODUCT
+            && self.status == "popup-subsurface-matrix"
+            && self.client_count == 2
+            && self.xdg_popup_created
+            && self.popup_parent_bound
+            && self.popup_geometry_matches
+            && self.popup_configure_acknowledged
+            && self.popup_reposition_requested
+            && self.popup_reposition_token == 77
+            && self.popup_reposition_acknowledged
+            && self.popup_destroyed
+            && self.subsurface_created
+            && self.subsurface_parent_bound
+            && self.subsurface_position_matches
+            && self.synchronized_commit_observed
+            && self.desynchronized_commit_observed
+            && self.subsurface_destroyed
+            && self.parent_surfaces_remain_independent
     }
 }
 
@@ -2829,6 +2878,11 @@ pub fn probe_v1_client_buffer_contract(
 pub fn probe_wayland_output_matrix() -> Result<WaylandOutputMatrixProbe, Box<dyn std::error::Error>>
 {
     probe_wayland_output_matrix_impl()
+}
+
+pub fn probe_popup_subsurface_matrix(
+) -> Result<PopupSubsurfaceMatrixProbe, Box<dyn std::error::Error>> {
+    probe_popup_subsurface_matrix_impl()
 }
 
 pub fn probe_xdg_toplevel_window_model(
@@ -5706,6 +5760,180 @@ fn probe_wayland_output_matrix_impl() -> Result<WaylandOutputMatrixProbe, Box<dy
     })
 }
 
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn probe_popup_subsurface_matrix_impl(
+) -> Result<PopupSubsurfaceMatrixProbe, Box<dyn std::error::Error>> {
+    let mut session = AquaCompositorSession::new()?;
+    session.wayland_state.close_new_toplevels = false;
+    let (popup_server_stream, popup_client_stream) = std::os::unix::net::UnixStream::pair()?;
+    let (subsurface_server_stream, subsurface_client_stream) =
+        std::os::unix::net::UnixStream::pair()?;
+    session.insert_client(popup_server_stream)?;
+    session.insert_client(subsurface_server_stream)?;
+
+    let popup_connection = ClientConnection::from_socket(popup_client_stream)?;
+    let subsurface_connection = ClientConnection::from_socket(subsurface_client_stream)?;
+    let mut popup_queue = popup_connection.new_event_queue();
+    let mut subsurface_queue = subsurface_connection.new_event_queue();
+    popup_connection
+        .display()
+        .get_registry(&popup_queue.handle(), ());
+    subsurface_connection
+        .display()
+        .get_registry(&subsurface_queue.handle(), ());
+    popup_connection.flush()?;
+    subsurface_connection.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+
+    let mut popup_client = PopupLifecycleClientState::default();
+    let mut subsurface_client = SubsurfaceLifecycleClientState::default();
+    popup_queue.blocking_dispatch(&mut popup_client)?;
+    subsurface_queue.blocking_dispatch(&mut subsurface_client)?;
+    while popup_queue.dispatch_pending(&mut popup_client)? > 0 {}
+    while subsurface_queue.dispatch_pending(&mut subsurface_client)? > 0 {}
+
+    popup_connection.flush()?;
+    subsurface_connection.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    popup_queue.blocking_dispatch(&mut popup_client)?;
+    while popup_queue.dispatch_pending(&mut popup_client)? > 0 {}
+
+    popup_connection.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    popup_queue.blocking_dispatch(&mut popup_client)?;
+    while popup_queue.dispatch_pending(&mut popup_client)? > 0 {}
+
+    popup_connection.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    popup_queue.blocking_dispatch(&mut popup_client)?;
+    while popup_queue.dispatch_pending(&mut popup_client)? > 0 {}
+    popup_connection.flush()?;
+    session.dispatch_clients()?;
+
+    let subsurface = session
+        .wayland_state
+        .committed_surfaces
+        .iter()
+        .find(|surface| get_role(surface) == Some("subsurface"))
+        .cloned()
+        .ok_or("server did not observe the independent wl_subsurface")?;
+    let subsurface_parent = get_parent(&subsurface).ok_or("subsurface parent is missing")?;
+    let subsurface_created = get_children(&subsurface_parent).contains(&subsurface);
+    let subsurface_parent_bound = subsurface_created;
+    let subsurface_position_matches = with_states(&subsurface, |states| {
+        let mut cached = states.cached_state.get::<SubsurfaceCachedState>();
+        let current = cached.current();
+        current.location.x == 24 && current.location.y == 36
+    });
+    let synchronized_commit_observed = is_sync_subsurface(&subsurface)
+        && session
+            .wayland_state
+            .committed_surfaces
+            .contains(&subsurface_parent);
+
+    let commit_count_before_desync = session.wayland_state.surface_commit_count;
+    subsurface_client.set_desynchronized();
+    subsurface_connection.flush()?;
+    session.dispatch_clients()?;
+    let desynchronized_commit_observed = !is_sync_subsurface(&subsurface)
+        && session.wayland_state.surface_commit_count > commit_count_before_desync;
+
+    popup_client.destroy_popup();
+    subsurface_client.destroy_subsurface();
+    popup_connection.flush()?;
+    subsurface_connection.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+
+    let popup_destroyed = session.wayland_state.popup_destroy_count == 1;
+    let subsurface_destroyed = !subsurface.is_alive()
+        && !session
+            .wayland_state
+            .committed_surfaces
+            .iter()
+            .any(|surface| get_role(surface) == Some("subsurface"));
+    let root_clients = session
+        .wayland_state
+        .committed_surfaces
+        .iter()
+        .filter(|surface| surface.is_alive() && get_parent(surface).is_none())
+        .filter_map(Resource::client)
+        .map(|client| client.id())
+        .collect::<Vec<_>>();
+    let parent_surfaces_remain_independent =
+        root_clients.iter().enumerate().any(|(index, client)| {
+            root_clients[index + 1..]
+                .iter()
+                .any(|other| other != client)
+        });
+
+    let popup_geometry_matches = session.wayland_state.popup_geometry_matches
+        && popup_client.popup_geometries.contains(&(32, 48, 240, 120))
+        && popup_client.popup_geometries.contains(&(64, 72, 240, 120));
+    let result = PopupSubsurfaceMatrixProbe {
+        product: PRODUCT,
+        status: "popup-subsurface-matrix",
+        client_count: 2,
+        xdg_popup_created: session.wayland_state.popup_new_count == 1,
+        popup_parent_bound: session.wayland_state.popup_parent_bound,
+        popup_geometry_matches,
+        popup_configure_acknowledged: session.wayland_state.popup_configure_ack_count >= 2
+            && popup_client.popup_configure_ack_count >= 2,
+        popup_reposition_requested: session.wayland_state.popup_reposition_count == 1,
+        popup_reposition_token: session
+            .wayland_state
+            .popup_reposition_token
+            .unwrap_or_default(),
+        popup_reposition_acknowledged: popup_client.repositioned_token == Some(77),
+        popup_destroyed,
+        subsurface_created,
+        subsurface_parent_bound,
+        subsurface_position_matches,
+        synchronized_commit_observed,
+        desynchronized_commit_observed,
+        subsurface_destroyed,
+        parent_surfaces_remain_independent,
+        host_stub: false,
+    };
+
+    popup_client.destroy_parent();
+    subsurface_client.destroy_parent();
+    popup_connection.flush()?;
+    subsurface_connection.flush()?;
+    session.dispatch_clients()?;
+    Ok(result)
+}
+
+#[cfg(not(all(target_os = "linux", feature = "smithay-smoke")))]
+fn probe_popup_subsurface_matrix_impl(
+) -> Result<PopupSubsurfaceMatrixProbe, Box<dyn std::error::Error>> {
+    Ok(PopupSubsurfaceMatrixProbe {
+        product: PRODUCT,
+        status: "popup-subsurface-matrix",
+        client_count: 2,
+        xdg_popup_created: true,
+        popup_parent_bound: true,
+        popup_geometry_matches: true,
+        popup_configure_acknowledged: true,
+        popup_reposition_requested: true,
+        popup_reposition_token: 77,
+        popup_reposition_acknowledged: true,
+        popup_destroyed: true,
+        subsurface_created: true,
+        subsurface_parent_bound: true,
+        subsurface_position_matches: true,
+        synchronized_commit_observed: true,
+        desynchronized_commit_observed: true,
+        subsurface_destroyed: true,
+        parent_surfaces_remain_independent: true,
+        host_stub: true,
+    })
+}
+
 #[cfg(not(all(target_os = "linux", feature = "smithay-smoke")))]
 fn probe_drag_and_drop_impl() -> Result<DragAndDropProbe, Box<dyn std::error::Error>> {
     Ok(DragAndDropProbe {
@@ -6296,6 +6524,14 @@ struct WaylandSmokeState {
     active_workspace: usize,
     toplevel_callbacks_bound: bool,
     popup_callbacks_bound: bool,
+    popup_new_count: usize,
+    popup_parent_bound: bool,
+    popup_geometry_matches: bool,
+    popup_configure_sent_count: usize,
+    popup_configure_ack_count: usize,
+    popup_reposition_count: usize,
+    popup_reposition_token: Option<u32>,
+    popup_destroy_count: usize,
     toplevel_count: usize,
     toplevel_configure_sent: bool,
     toplevel_configure_serial: Option<u32>,
@@ -6561,6 +6797,14 @@ impl WaylandSmokeState {
             active_workspace: 0,
             toplevel_callbacks_bound: true,
             popup_callbacks_bound: true,
+            popup_new_count: 0,
+            popup_parent_bound: false,
+            popup_geometry_matches: false,
+            popup_configure_sent_count: 0,
+            popup_configure_ack_count: 0,
+            popup_reposition_count: 0,
+            popup_reposition_token: None,
+            popup_destroy_count: 0,
             toplevel_count: 0,
             toplevel_configure_sent: false,
             toplevel_configure_serial: None,
@@ -11044,23 +11288,53 @@ impl XdgShellHandler for WaylandSmokeState {
         }
     }
 
-    fn new_popup(&mut self, _surface: PopupSurface, _positioner: PositionerState) {}
+    fn new_popup(&mut self, surface: PopupSurface, positioner: PositionerState) {
+        self.popup_new_count += 1;
+        self.popup_parent_bound = surface.get_parent_surface().is_some();
+        self.popup_geometry_matches = positioner.rect_size.w == 240
+            && positioner.rect_size.h == 120
+            && positioner.anchor_rect.loc.x == 24
+            && positioner.anchor_rect.loc.y == 36
+            && positioner.anchor_rect.size.w == 80
+            && positioner.anchor_rect.size.h == 40;
+        surface.with_pending_state(|state| {
+            state.positioner = positioner;
+            state.geometry = Rectangle::new((32, 48).into(), (240, 120).into());
+        });
+        if surface.send_configure().is_ok() {
+            self.popup_configure_sent_count += 1;
+        }
+    }
 
     fn grab(&mut self, _surface: PopupSurface, _seat: wl_seat::WlSeat, _serial: Serial) {}
 
     fn reposition_request(
         &mut self,
-        _surface: PopupSurface,
-        _positioner: PositionerState,
-        _token: u32,
+        surface: PopupSurface,
+        positioner: PositionerState,
+        token: u32,
     ) {
+        self.popup_reposition_count += 1;
+        self.popup_reposition_token = Some(token);
+        surface.with_pending_state(|state| {
+            state.positioner = positioner;
+            state.geometry = Rectangle::new((64, 72).into(), (240, 120).into());
+        });
+        surface.send_repositioned(token);
     }
 
     fn ack_configure(&mut self, _surface: WlSurface, configure: Configure) {
-        if let Configure::Toplevel(configure) = configure {
-            self.toplevel_configure_ack_count += 1;
-            self.toplevel_configure_serial = Some(u32::from(configure.serial));
+        match configure {
+            Configure::Toplevel(configure) => {
+                self.toplevel_configure_ack_count += 1;
+                self.toplevel_configure_serial = Some(u32::from(configure.serial));
+            }
+            Configure::Popup(_) => self.popup_configure_ack_count += 1,
         }
+    }
+
+    fn popup_destroyed(&mut self, _surface: PopupSurface) {
+        self.popup_destroy_count += 1;
     }
 }
 
@@ -11302,6 +11576,177 @@ struct OutputSmokeRecord {
     logical_position: Option<(i32, i32)>,
     logical_size: Option<(i32, i32)>,
     transform: Option<client_wl_output::Transform>,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+#[derive(Clone, Copy)]
+enum PopupXdgRole {
+    Parent,
+    Popup,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+#[derive(Default)]
+struct PopupLifecycleClientState {
+    registry_bound: bool,
+    compositor: Option<wl_compositor::WlCompositor>,
+    wm_base: Option<client_xdg_wm_base::XdgWmBase>,
+    parent_surface: Option<wl_surface::WlSurface>,
+    parent_xdg_surface: Option<client_xdg_surface::XdgSurface>,
+    toplevel: Option<client_xdg_toplevel::XdgToplevel>,
+    popup_surface: Option<wl_surface::WlSurface>,
+    popup_xdg_surface: Option<client_xdg_surface::XdgSurface>,
+    popup: Option<client_xdg_popup::XdgPopup>,
+    parent_configure_acknowledged: bool,
+    popup_configure_count: usize,
+    popup_configure_ack_count: usize,
+    popup_geometries: Vec<(i32, i32, i32, i32)>,
+    reposition_requested: bool,
+    repositioned_token: Option<u32>,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl PopupLifecycleClientState {
+    fn maybe_create_parent(&mut self, qh: &QueueHandle<Self>) {
+        if self.parent_surface.is_some() {
+            return;
+        }
+        let (Some(compositor), Some(wm_base)) = (&self.compositor, &self.wm_base) else {
+            return;
+        };
+        let surface = compositor.create_surface(qh, ());
+        let xdg_surface = wm_base.get_xdg_surface(&surface, qh, PopupXdgRole::Parent);
+        let toplevel = xdg_surface.get_toplevel(qh, ());
+        toplevel.set_title("Popup lifecycle parent".to_string());
+        toplevel.set_app_id("aqua.test.popup-parent".to_string());
+        surface.commit();
+        self.parent_surface = Some(surface);
+        self.parent_xdg_surface = Some(xdg_surface);
+        self.toplevel = Some(toplevel);
+    }
+
+    fn create_popup(&mut self, qh: &QueueHandle<Self>) {
+        if self.popup.is_some() {
+            return;
+        }
+        let (Some(compositor), Some(wm_base), Some(parent_xdg_surface)) =
+            (&self.compositor, &self.wm_base, &self.parent_xdg_surface)
+        else {
+            return;
+        };
+        let positioner = wm_base.create_positioner(qh, ());
+        positioner.set_size(240, 120);
+        positioner.set_anchor_rect(24, 36, 80, 40);
+        positioner.set_anchor(client_xdg_positioner::Anchor::BottomLeft);
+        positioner.set_gravity(client_xdg_positioner::Gravity::BottomRight);
+        positioner.set_reactive();
+        let surface = compositor.create_surface(qh, ());
+        let xdg_surface = wm_base.get_xdg_surface(&surface, qh, PopupXdgRole::Popup);
+        let popup = xdg_surface.get_popup(Some(parent_xdg_surface), &positioner, qh, ());
+        surface.commit();
+        positioner.destroy();
+        self.popup_surface = Some(surface);
+        self.popup_xdg_surface = Some(xdg_surface);
+        self.popup = Some(popup);
+    }
+
+    fn request_reposition(&mut self, qh: &QueueHandle<Self>) {
+        if self.reposition_requested {
+            return;
+        }
+        let (Some(wm_base), Some(popup)) = (&self.wm_base, &self.popup) else {
+            return;
+        };
+        let positioner = wm_base.create_positioner(qh, ());
+        positioner.set_size(240, 120);
+        positioner.set_anchor_rect(48, 56, 80, 40);
+        positioner.set_anchor(client_xdg_positioner::Anchor::BottomRight);
+        positioner.set_gravity(client_xdg_positioner::Gravity::BottomLeft);
+        positioner.set_reactive();
+        popup.reposition(&positioner, 77);
+        positioner.destroy();
+        self.reposition_requested = true;
+    }
+
+    fn destroy_popup(&mut self) {
+        if let Some(popup) = self.popup.take() {
+            popup.destroy();
+        }
+        if let Some(xdg_surface) = self.popup_xdg_surface.take() {
+            xdg_surface.destroy();
+        }
+        if let Some(surface) = self.popup_surface.take() {
+            surface.destroy();
+        }
+    }
+
+    fn destroy_parent(&mut self) {
+        if let Some(toplevel) = self.toplevel.take() {
+            toplevel.destroy();
+        }
+        if let Some(xdg_surface) = self.parent_xdg_surface.take() {
+            xdg_surface.destroy();
+        }
+        if let Some(surface) = self.parent_surface.take() {
+            surface.destroy();
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+#[derive(Default)]
+struct SubsurfaceLifecycleClientState {
+    registry_bound: bool,
+    compositor: Option<wl_compositor::WlCompositor>,
+    subcompositor: Option<client_wl_subcompositor::WlSubcompositor>,
+    parent_surface: Option<wl_surface::WlSurface>,
+    child_surface: Option<wl_surface::WlSurface>,
+    subsurface: Option<client_wl_subsurface::WlSubsurface>,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl SubsurfaceLifecycleClientState {
+    fn maybe_create_tree(&mut self, qh: &QueueHandle<Self>) {
+        if self.subsurface.is_some() {
+            return;
+        }
+        let (Some(compositor), Some(subcompositor)) = (&self.compositor, &self.subcompositor)
+        else {
+            return;
+        };
+        let parent = compositor.create_surface(qh, ());
+        let child = compositor.create_surface(qh, ());
+        let subsurface = subcompositor.get_subsurface(&child, &parent, qh, ());
+        subsurface.set_position(24, 36);
+        subsurface.set_sync();
+        child.commit();
+        parent.commit();
+        self.parent_surface = Some(parent);
+        self.child_surface = Some(child);
+        self.subsurface = Some(subsurface);
+    }
+
+    fn set_desynchronized(&self) {
+        if let (Some(subsurface), Some(child)) = (&self.subsurface, &self.child_surface) {
+            subsurface.set_desync();
+            child.commit();
+        }
+    }
+
+    fn destroy_subsurface(&mut self) {
+        if let Some(subsurface) = self.subsurface.take() {
+            subsurface.destroy();
+        }
+        if let Some(child) = self.child_surface.take() {
+            child.destroy();
+        }
+    }
+
+    fn destroy_parent(&mut self) {
+        if let Some(parent) = self.parent_surface.take() {
+            parent.destroy();
+        }
+    }
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -13254,6 +13699,177 @@ delegate_noop!(XdgSmokeClientState: ignore client_wl_shm_pool::WlShmPool);
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 delegate_noop!(XdgSmokeClientState: ignore client_wl_buffer::WlBuffer);
 
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<wl_registry::WlRegistry, ()> for PopupLifecycleClientState {
+    fn event(
+        state: &mut Self,
+        registry: &wl_registry::WlRegistry,
+        event: wl_registry::Event,
+        _: &(),
+        _: &ClientConnection,
+        qh: &QueueHandle<Self>,
+    ) {
+        state.registry_bound = true;
+        if let wl_registry::Event::Global {
+            name,
+            interface,
+            version,
+        } = event
+        {
+            match interface.as_str() {
+                "wl_compositor" => {
+                    state.compositor = Some(registry.bind::<wl_compositor::WlCompositor, _, _>(
+                        name,
+                        version.min(4),
+                        qh,
+                        (),
+                    ));
+                }
+                "xdg_wm_base" => {
+                    state.wm_base = Some(registry.bind::<client_xdg_wm_base::XdgWmBase, _, _>(
+                        name,
+                        version.min(6),
+                        qh,
+                        (),
+                    ));
+                }
+                _ => {}
+            }
+            state.maybe_create_parent(qh);
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_xdg_wm_base::XdgWmBase, ()> for PopupLifecycleClientState {
+    fn event(
+        _: &mut Self,
+        wm_base: &client_xdg_wm_base::XdgWmBase,
+        event: client_xdg_wm_base::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let client_xdg_wm_base::Event::Ping { serial } = event {
+            wm_base.pong(serial);
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_xdg_surface::XdgSurface, PopupXdgRole> for PopupLifecycleClientState {
+    fn event(
+        state: &mut Self,
+        surface: &client_xdg_surface::XdgSurface,
+        event: client_xdg_surface::Event,
+        role: &PopupXdgRole,
+        _: &ClientConnection,
+        qh: &QueueHandle<Self>,
+    ) {
+        if let client_xdg_surface::Event::Configure { serial } = event {
+            surface.ack_configure(serial);
+            match role {
+                PopupXdgRole::Parent => {
+                    state.parent_configure_acknowledged = true;
+                    state.create_popup(qh);
+                }
+                PopupXdgRole::Popup => {
+                    state.popup_configure_ack_count += 1;
+                    state.request_reposition(qh);
+                }
+            }
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_xdg_popup::XdgPopup, ()> for PopupLifecycleClientState {
+    fn event(
+        state: &mut Self,
+        _: &client_xdg_popup::XdgPopup,
+        event: client_xdg_popup::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            client_xdg_popup::Event::Configure {
+                x,
+                y,
+                width,
+                height,
+            } => {
+                state.popup_configure_count += 1;
+                state.popup_geometries.push((x, y, width, height));
+            }
+            client_xdg_popup::Event::Repositioned { token } => {
+                state.repositioned_token = Some(token);
+            }
+            _ => {}
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<wl_registry::WlRegistry, ()> for SubsurfaceLifecycleClientState {
+    fn event(
+        state: &mut Self,
+        registry: &wl_registry::WlRegistry,
+        event: wl_registry::Event,
+        _: &(),
+        _: &ClientConnection,
+        qh: &QueueHandle<Self>,
+    ) {
+        state.registry_bound = true;
+        if let wl_registry::Event::Global {
+            name,
+            interface,
+            version,
+        } = event
+        {
+            match interface.as_str() {
+                "wl_compositor" => {
+                    state.compositor = Some(registry.bind::<wl_compositor::WlCompositor, _, _>(
+                        name,
+                        version.min(4),
+                        qh,
+                        (),
+                    ));
+                }
+                "wl_subcompositor" => {
+                    state.subcompositor = Some(
+                        registry.bind::<client_wl_subcompositor::WlSubcompositor, _, _>(
+                            name,
+                            version.min(1),
+                            qh,
+                            (),
+                        ),
+                    );
+                }
+                _ => {}
+            }
+            state.maybe_create_tree(qh);
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(PopupLifecycleClientState: ignore wl_compositor::WlCompositor);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(PopupLifecycleClientState: ignore wl_surface::WlSurface);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(PopupLifecycleClientState: ignore client_xdg_toplevel::XdgToplevel);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(PopupLifecycleClientState: ignore client_xdg_positioner::XdgPositioner);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(SubsurfaceLifecycleClientState: ignore wl_compositor::WlCompositor);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(SubsurfaceLifecycleClientState: ignore wl_surface::WlSurface);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(SubsurfaceLifecycleClientState: ignore client_wl_subcompositor::WlSubcompositor);
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+delegate_noop!(SubsurfaceLifecycleClientState: ignore client_wl_subsurface::WlSubsurface);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -14283,6 +14899,31 @@ mod tests {
         assert!(probe.hotplug_add_reaches_both_clients);
         assert!(probe.hotplug_remove_reaches_both_clients);
         assert!(probe.remaining_output_usable);
+        assert!(!probe.host_stub);
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn smithay_popup_and_subsurface_lifecycles_are_independent() {
+        let probe = probe_popup_subsurface_matrix().expect("popup and subsurface matrix probe");
+
+        assert!(probe.is_ready());
+        assert_eq!(probe.client_count, 2);
+        assert!(probe.xdg_popup_created);
+        assert!(probe.popup_parent_bound);
+        assert!(probe.popup_geometry_matches);
+        assert!(probe.popup_configure_acknowledged);
+        assert!(probe.popup_reposition_requested);
+        assert_eq!(probe.popup_reposition_token, 77);
+        assert!(probe.popup_reposition_acknowledged);
+        assert!(probe.popup_destroyed);
+        assert!(probe.subsurface_created);
+        assert!(probe.subsurface_parent_bound);
+        assert!(probe.subsurface_position_matches);
+        assert!(probe.synchronized_commit_observed);
+        assert!(probe.desynchronized_commit_observed);
+        assert!(probe.subsurface_destroyed);
+        assert!(probe.parent_surfaces_remain_independent);
         assert!(!probe.host_stub);
     }
 
