@@ -1,209 +1,210 @@
 # Aqua Linux
 
-Aqua Linux is an independent Buildroot-based Linux distribution built around
-a custom Rust/Smithay Wayland compositor.
+Aqua Linux is an independent, Buildroot-based graphical operating system built
+around a custom Wayland compositor written in Rust with Smithay. The project
+focuses on a controlled system image, a coherent first-party desktop, explicit
+recovery paths, and evidence-driven engineering.
 
-It is not an Ubuntu or Debian derivative, an existing desktop remix, or a
-KDE/GNOME/XFCE/LXQt theme pack. Ubuntu appears only in
-`Dockerfile.buildroot` as a reproducible Linux build host for Buildroot; it is
-not part of the Aqua Linux runtime image.
+> **Project status: active prototype.** Aqua Linux boots and runs its graphical
+> stack in the declared QEMU x86_64 environment. It is not ready for installation
+> on a daily-use machine. Physical hardware support, production security, update
+> delivery, and release qualification remain incomplete.
 
-> **Development status:** active prototype. The Buildroot image boots in QEMU,
-> provides a recovery shell, runs the custom compositor through an explicit
-> graphics gate, supports real Wayland clients and first-party prototype
-> applications, and exercises a guarded graphical installer. The new visual
-> direction is documented but has not yet fully converged in the runtime shell.
-> Aqua Linux is not ready for installation on a daily-use machine.
+## Project Overview
 
-## What Is Real Today
+Aqua Linux owns the complete path from image construction to the desktop
+session:
 
-- Reproducible Buildroot x86_64 image generation.
-- Linux kernel, BusyBox userspace, serial boot markers, and recovery shell.
-- Custom Smithay Wayland compositor with DRM/KMS, GBM/EGL, libinput, and
-  `xdg-shell` support in QEMU.
-- Focus, stacking, move, resize, maximize, fullscreen, close, and client
-  lifecycle handling.
-- Prototype Aqua Files, Settings, Properties, Terminal, shell surfaces, and
-  process supervision.
-- Graphical installer state machine with target validation, explicit destructive
-  confirmation, disposable-QEMU execution tests, GRUB2 UEFI installation, and
-  recovery checks.
-- Automated Rust, asset, renderer, session, and QEMU-oriented contract tests.
+- Buildroot produces the kernel, root filesystem, boot artifacts, and bounded
+  runtime package set.
+- BusyBox init preserves a serial-observable recovery boot.
+- The Aqua session starts only through explicit, fail-closed activation gates.
+- The custom compositor manages Wayland clients, input, outputs, window
+  lifecycle, rendering, and first-party shell surfaces.
+- Automated contracts cover source quality, boot behavior, session recovery,
+  protocol boundaries, installer safety, and selected QEMU workflows.
 
-## Not Finished
+The default image favors recovery and diagnosability over automatic graphical
+startup. Optional graphics, audio, and network paths remain separately gated
+until their acceptance requirements are satisfied.
 
-- Runtime convergence with the canonical Aqua interface contract.
-- Production login/first-run experience.
-- Audio, Wi-Fi, Bluetooth, battery, suspend/resume, and update UX.
-- MSI Sword 17 hardware validation.
-- Security hardening, accessibility completion, release engineering, and stable
-  binary distribution.
+## Current Capability
 
-The detailed roadmap is in
-[milestones.md](docs/aqua-linux/milestones.md). The generated progress report
-uses explicit implementation-milestone percentages and is available at
-[progress.md](docs/aqua-linux/progress.md). Product readiness is governed
-separately by the mandatory [v1 readiness gates](docs/aqua-linux/v1-readiness.md).
-The current virtual and physical target boundaries are recorded in
-[hardware-support.md](docs/aqua-linux/hardware-support.md).
+| Area | Current state |
+| --- | --- |
+| Image and boot | Reproducible x86_64 Buildroot image with stable serial markers and a recovery shell |
+| Graphics | Custom Smithay compositor with QEMU-tested DRM/KMS, GBM/EGL, libinput, and Wayland session handling |
+| Desktop | Prototype launcher, dock, workspaces, notifications, Files, Settings, Properties, and Terminal surfaces |
+| Wayland | Bounded protocol and interoperability coverage for window lifecycle, input, selection, drag-and-drop, text input, scaling, outputs, popups, and subsurfaces |
+| Installer | Guarded graphical workflow with target validation, explicit destructive confirmation, and disposable-QEMU transaction tests |
+| Services | Typed observation boundaries and supervised, opt-in service lifecycles; default network ownership remains disabled pending QEMU acceptance |
+| Physical hardware | Not validated; no physical installation or daily-use support claim is made |
+
+Detailed status and evidence are maintained in the
+[progress report](docs/aqua-linux/progress.md),
+[hardware support matrix](docs/aqua-linux/hardware-support.md), and
+[v1 readiness gates](docs/aqua-linux/v1-readiness.md). Milestone completion is
+an engineering progress measure, not a release-readiness score.
 
 ## Architecture
 
 ```text
-Firmware / QEMU
-  -> Linux kernel
-  -> Buildroot userspace and BusyBox init
-  -> Aqua session supervisor
-  -> aqua-compositor (Smithay + DRM/KMS)
-  -> aqua-shell / aqua-scene / aqua-renderer
-  -> first-party Wayland clients
+Firmware or QEMU
+└── Linux kernel
+    └── Buildroot userspace and BusyBox init
+        ├── Recovery shell
+        └── Aqua session supervision
+            └── aqua-compositor
+                ├── Wayland protocol and input handling
+                ├── DRM/KMS and renderer integration
+                ├── aqua-shell, aqua-scene, and aqua-renderer
+                └── First-party Wayland applications
 ```
+
+The Rust workspace is divided by responsibility:
 
 | Crate | Responsibility |
 | --- | --- |
-| `aqua-components` | Shared component anatomy, state, input, and accessibility contracts |
-| `aqua-compositor` | Wayland protocols, DRM/KMS output, input, window lifecycle, session integration |
-| `aqua-scene` | Shared scene geometry and surface contracts |
-| `aqua-renderer` | Software and GLES rendering, application surface rasterization |
-| `aqua-shell` | Launcher, dock, desktop, Files/Settings state, notifications, session behavior |
-| `aqua-installer` | Installer model, storage validation, transaction planning and execution gates |
-| `aqua-host-tools` | Bounded host-side preview and development probes |
+| `aqua-compositor` | Wayland protocols, input, outputs, window lifecycle, rendering integration, and session behavior |
+| `aqua-shell` | Desktop state, launcher, dock, workspaces, notifications, and first-party application models |
+| `aqua-renderer` | Software and GLES rendering, rasterization, themes, icons, and shared visual output |
+| `aqua-scene` | Renderer-independent scene geometry and surface contracts |
+| `aqua-components` | Shared component anatomy, interaction state, input, and accessibility semantics |
+| `aqua-text` | Text shaping, fallback, layout, and bounded glyph caching |
+| `aqua-service-adapters` | Typed audio and network observation and reconciliation boundaries |
+| `aqua-installer` | Installer state, storage validation, transaction planning, and execution gates |
+| `aqua-host-tools` | Host-side development probes and bounded preview tooling |
 
-Architecture decisions and implementation details live under
+Architecture decisions and subsystem documentation live in
 [`docs/aqua-linux/`](docs/aqua-linux/).
 
-## Build
+## Development Environment
 
 ### Requirements
 
-- Docker Desktop or a Linux Buildroot host.
-- Rust 1.85 toolchain for local checks.
-- QEMU x86_64 for booting the generated image.
-- `expect`, Python 3, and `jq` for extended validation.
+- Rust 1.85 with `rustfmt` and Clippy
+- Docker Desktop or a compatible Linux container runtime
+- QEMU x86_64
+- Python 3, `expect`, and `jq` for extended validation
 
-Recommended macOS build:
+### Source Validation
+
+Run the same core checks required by continuous integration:
+
+```sh
+cargo fmt --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace
+scripts/check.sh
+```
+
+Public-repository boundaries can be checked independently:
+
+```sh
+scripts/check-public-repo.sh
+```
+
+### Build The Image
+
+The recommended Docker-backed build is:
 
 ```sh
 scripts/build-image-docker-volume.sh
 ```
 
-Alternative Docker and Linux-host paths:
+Alternative build paths are available for standard Docker storage and native
+Linux hosts:
 
 ```sh
 scripts/build-image-docker.sh
 scripts/build-image.sh
 ```
 
-Generated artifacts are written below `build/buildroot-output/images/` and are
-ignored by Git.
-
-## Run In QEMU
-
-Boot the default recovery-safe image:
-
-```sh
-scripts/run-qemu.sh
-```
-
-Serial output is written to `build/qemu-serial.log`. A successful recovery
-boot includes:
-
-```text
-[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh
-```
-
-The default image deliberately keeps `boot_graphics=false` and
-`autostart=false`. The opt-in graphical acceptance path is:
-
-```sh
-scripts/check-graphical-boot-qemu.sh
-```
-
-For the operator-controlled visible runbook:
-
-```sh
-scripts/run-qemu-visible-manual.sh
-```
-
-These scripts use QEMU artifacts only. Installer execution tests are hard-bound
-to disposable QEMU disks; do not weaken their target and confirmation gates.
-
-## Verify
-
-```sh
-scripts/check.sh
-scripts/check-public-repo.sh
-```
-
-After a successful Buildroot build:
+Generated artifacts are written under `build/buildroot-output/images/` and are
+excluded from version control. Validate a completed image with:
 
 ```sh
 scripts/check-image.sh
 ```
 
-The QEMU checks emit serial markers and machine-readable summaries rather than
-requiring trust in screenshots alone.
+### Boot In QEMU
 
-## Design References Versus Runtime Screenshots
+Start the recovery-safe default image:
 
-Private concept boards are kept in the Git-ignored
-`docs/aqua-linux/local-references/` workspace. They are design inputs, not
-screenshots of the current operating system, and are never committed or
-packaged into the root filesystem. The public repository contains the derived
-layout, behavior, token, and component contracts instead.
+```sh
+scripts/run-qemu.sh
+```
 
-Current OS screenshots must be labeled as QEMU captures and generated through
-the QEMU validation/capture scripts. Third-party icons visible in concept boards
-must not be extracted into Aqua Linux.
+Serial output is written to `build/qemu-serial.log`. A successful default boot
+reaches:
 
-### Current QEMU Runtime
+```text
+[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh
+```
 
-![Aqua Files and Aqua Settings running in the Aqua Linux QEMU session](docs/aqua-linux/assets/runtime/qemu-first-party-windows.png)
+The graphical session is intentionally disabled in the default boot profile.
+Run its opt-in acceptance path with:
 
-The [runtime screenshot set](docs/aqua-linux/runtime-screenshots.md) contains
-the clean desktop, Applications, Global Search, and first-party windows. Each
-committed PNG is tied to a successful QEMU marker and SHA-256 manifest.
+```sh
+scripts/check-graphical-boot-qemu.sh
+```
 
-See [visual-reference.md](docs/aqua-linux/visual-reference.md) and
-[ASSET_LICENSE.md](ASSET_LICENSE.md).
+The installer execution path is restricted to disposable QEMU targets. Its
+device identity, confirmation, and recovery gates must not be bypassed.
 
-## Project Status And Claims
+## Engineering Principles
 
-- Completed means the documented milestone's tested engineering contract is
-  complete; it does not mean the whole v1 product is complete.
-- The public roadmap percentage is the rounded arithmetic mean of the thirteen
-  M0-M12 implementation milestone percentages in `progress.json`; it is not a
-  daily-use or release-readiness score.
-- V1 and daily-use claims require the separate performance, compatibility,
-  privilege, service, accessibility, security, recovery, and hardware gates in
-  `v1-readiness.md`.
-- Host-side mockups and website work do not count as OS completion.
-- Hardware support is not claimed until it is validated on the named hardware.
-- QEMU validation applies only to the declared virtual devices and is not a
-  support claim for MSI Sword 17 or other physical machines.
-- Release images are not offered until Buildroot legal information and
-  corresponding-source obligations are reviewed.
+- Preserve the Buildroot base, custom compositor architecture, and independent
+  recovery path.
+- Prefer explicit capability gates and bounded failure behavior over implicit
+  service startup.
+- Treat QEMU results as virtual-target evidence only.
+- Do not claim physical hardware support without recorded device-specific
+  validation.
+- Keep installer and privileged operations target-bound, typed, and auditable.
+- Keep runtime state authentic; mock values belong only in clearly identified
+  design or test fixtures.
+
+## Repository Boundaries
+
+Private concept boards remain in the Git-ignored
+`docs/aqua-linux/local-references/` directory. They are design inputs, not
+redistributable runtime assets or evidence of implemented behavior.
+
+Public runtime captures are maintained separately through the documented QEMU
+validation and provenance flow. The README intentionally avoids embedded
+screenshots; implementation status is represented by reproducible checks and
+linked evidence records.
+
+Build outputs, disk images, logs, temporary evidence, local environment files,
+and the separately maintained `website/` repository must not be committed.
+
+## Roadmap And Documentation
+
+- [Milestones](docs/aqua-linux/milestones.md) — staged implementation plan
+- [Progress report](docs/aqua-linux/progress.md) — generated engineering status
+- [V1 readiness](docs/aqua-linux/v1-readiness.md) — mandatory release gates
+- [Hardware support](docs/aqua-linux/hardware-support.md) — validated target boundaries
+- [Buildroot](docs/aqua-linux/buildroot.md) — image and runtime integration
+- [Compositor](docs/aqua-linux/compositor.md) — compositor architecture and evidence
+- [Installer](docs/aqua-linux/installer.md) — safety model and transaction flow
+- [Application compatibility](docs/aqua-linux/application-compatibility.md) — supported protocol boundary
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Small,
-testable changes that preserve the Buildroot base, recovery path, and custom
-compositor architecture are preferred.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Changes
+should be focused, testable, and preserve the architecture and safety boundaries
+described above. The [contributor workflow](docs/aqua-linux/contributor-workflow.md)
+defines issue intake, ownership, risk classification, and evidence requirements.
 
-Bug, feature, and physical-hardware reports use structured GitHub forms. The
-[contributor workflow](docs/aqua-linux/contributor-workflow.md) defines triage,
-priority, ownership, risk labels, and the evidence required before work is
-marked ready.
-
-Security issues should follow [SECURITY.md](SECURITY.md), not public issue
-threads.
+Report security vulnerabilities through the private process documented in
+[SECURITY.md](SECURITY.md), not through public issue threads.
 
 ## Licensing
 
-Aqua Linux source code is available under the [MIT License](LICENSE).
+Source code is available under the [MIT License](LICENSE).
 
-Logos, wallpapers, screenshots, and promotional artwork are not
-automatically covered by MIT. See [ASSET_LICENSE.md](ASSET_LICENSE.md).
-Third-party notices are listed in
-[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md), and the current audit is in
-[license-audit.md](docs/aqua-linux/license-audit.md).
+Artwork, branding, screenshots, and other media have separate distribution
+terms described in [ASSET_LICENSE.md](ASSET_LICENSE.md). Dependency and asset
+notices are maintained in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)
+and the [license audit](docs/aqua-linux/license-audit.md).

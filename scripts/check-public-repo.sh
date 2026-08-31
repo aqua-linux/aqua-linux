@@ -104,6 +104,14 @@ test "${calculated_percent}" = "${reported_percent}" || {
 }
 
 grep -Fq 'Private concept boards' README.md
+if grep -Eiq 'Ubuntu|Debian|KDE|GNOME|XFCE|LXQt|Chromium OS' README.md; then
+    echo 'README must describe Aqua Linux without competitor references.' >&2
+    exit 1
+fi
+if grep -Eq '^!\[[^]]*\]\([^)]*\)' README.md; then
+    echo 'README must not embed runtime screenshots or decorative images.' >&2
+    exit 1
+fi
 grep -Fq 'excluded from Git' docs/aqua-linux/ui-contract.md
 grep -Fq 'not ready for installation' README.md
 grep -Fq 'daily-use machine' README.md
