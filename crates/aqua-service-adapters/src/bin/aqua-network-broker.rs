@@ -32,7 +32,7 @@ use std::thread;
 use std::time::Instant;
 use std::time::{Duration, SystemTime};
 
-const SOCKET_PATH: &str = "/run/aqua-network/control.sock";
+const SOCKET_PATH: &str = aqua_service_adapters::network_broker::NETWORK_BROKER_SOCKET_PATH;
 const STATE_PATH: &str = "/run/aqua-network/network-service-supervisor.state";
 const READY_PATH: &str = "/run/aqua-network/lease.ready";
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]
@@ -42,7 +42,8 @@ const AQUA_GID: u32 = 1000;
 const IO_TIMEOUT: Duration = Duration::from_secs(2);
 const RENEW_TIMEOUT: Duration = Duration::from_secs(8);
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]
-const BROKER_OPERATIONS: &str = "status,renew-dhcp,wifi-status,wifi-connect,wifi-disconnect";
+const BROKER_OPERATIONS: &str =
+    "status,renew-dhcp,wifi-status,wifi-connect,wifi-reconnect,wifi-disconnect";
 #[cfg(not(all(feature = "wifi-native", target_os = "linux")))]
 const BROKER_OPERATIONS: &str = "status,renew-dhcp";
 
@@ -170,6 +171,7 @@ fn handle_wifi_request(stream: &mut UnixStream, request: WifiBrokerRequest) -> i
     let result = match request {
         WifiBrokerRequest::Status => wifi_status(),
         WifiBrokerRequest::Connect { ssid, passphrase } => wifi_connect(ssid, passphrase),
+        WifiBrokerRequest::Reconnect => wifi_reconnect(),
         WifiBrokerRequest::Disconnect => wifi_disconnect(),
     };
     match result {
@@ -198,9 +200,20 @@ fn wifi_status() -> Result<String, &'static str> {
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]
 fn wifi_disconnect() -> Result<String, &'static str> {
     let mut control = WifiNativeControl::connect().map_err(native_reason)?;
+    let network_id = match control
+        .request(&WifiControlRequest::Status)
+        .map_err(native_reason)?
+    {
+        WifiControlResponse::Status(status) => status.network_id,
+        _ => return Err("invalid-wifi-status"),
+    };
     control
         .request(&WifiControlRequest::Disconnect)
         .map_err(native_reason)?;
+    if let Some(network_id) = network_id {
+        expect_acknowledgement(control.request(&WifiControlRequest::RemoveNetwork { network_id }))
+            .map_err(native_reason)?;
+    }
     remove_wifi_association_marker().map_err(|_| "association-state-write-failed")?;
     Ok(format!(
         "{PROTOCOL_VERSION} OK operation=wifi-disconnect interface={FIXED_WIFI_INTERFACE} authoritative=true\n"
@@ -215,6 +228,33 @@ fn wifi_connect(
     remove_wifi_association_marker().map_err(|_| "association-state-write-failed")?;
     let psk = derive_wpa2_psk(&ssid, &passphrase).map_err(native_reason)?;
     drop(passphrase);
+    let status = wifi_associate(&ssid, &psk)?;
+    let record = WifiCredentialRecord::new(ssid, WifiSecurity::Wpa2Personal, psk);
+    persist_wifi_credential(&record).map_err(|_| "credential-write-failed")?;
+    Ok(format!(
+        "{PROTOCOL_VERSION} OK operation=wifi-connect interface={FIXED_WIFI_INTERFACE} network_id={} authoritative={} credential_saved=true\n",
+        status.network_id.expect("authoritative status includes network id"),
+        status.authoritative_association()
+    ))
+}
+
+#[cfg(all(feature = "wifi-native", target_os = "linux"))]
+fn wifi_reconnect() -> Result<String, &'static str> {
+    remove_wifi_association_marker().map_err(|_| "association-state-write-failed")?;
+    let record = load_wifi_credential().map_err(|_| "credential-read-failed")?;
+    let status = wifi_associate(record.ssid(), record.psk())?;
+    Ok(format!(
+        "{PROTOCOL_VERSION} OK operation=wifi-reconnect interface={FIXED_WIFI_INTERFACE} network_id={} authoritative={} credential_saved=true\n",
+        status.network_id.expect("authoritative status includes network id"),
+        status.authoritative_association()
+    ))
+}
+
+#[cfg(all(feature = "wifi-native", target_os = "linux"))]
+fn wifi_associate(
+    ssid: &WifiSsid,
+    psk: &aqua_service_adapters::wifi_control::WifiPsk,
+) -> Result<WifiControlStatus, &'static str> {
     let mut control = WifiNativeControl::connect().map_err(native_reason)?;
     let network_id = match control
         .request(&WifiControlRequest::AddNetwork)
@@ -224,17 +264,11 @@ fn wifi_connect(
         _ => return Err("invalid-network-id"),
     };
     let association = (|| {
-        expect_acknowledgement(control.request(&WifiControlRequest::SetSsid {
-            network_id,
-            ssid: &ssid,
-        }))?;
+        expect_acknowledgement(control.request(&WifiControlRequest::SetSsid { network_id, ssid }))?;
         expect_acknowledgement(
             control.request(&WifiControlRequest::SetWpa2Personal { network_id }),
         )?;
-        expect_acknowledgement(control.request(&WifiControlRequest::SetPsk {
-            network_id,
-            psk: &psk,
-        }))?;
+        expect_acknowledgement(control.request(&WifiControlRequest::SetPsk { network_id, psk }))?;
         expect_acknowledgement(control.request(&WifiControlRequest::EnableNetwork { network_id }))?;
         expect_acknowledgement(control.request(&WifiControlRequest::SelectNetwork { network_id }))?;
         wait_for_association(&mut control, network_id)
@@ -246,19 +280,13 @@ fn wifi_connect(
             return Err(native_reason(error));
         }
     };
-    let record = WifiCredentialRecord::new(ssid, WifiSecurity::Wpa2Personal, psk);
-    persist_wifi_credential(&record).map_err(|_| "credential-write-failed")?;
     persist_wifi_association_marker(
         status
             .network_id
             .expect("authoritative status includes network id"),
     )
     .map_err(|_| "association-state-write-failed")?;
-    Ok(format!(
-        "{PROTOCOL_VERSION} OK operation=wifi-connect interface={FIXED_WIFI_INTERFACE} network_id={} authoritative={} credential_saved=true\n",
-        status.network_id.expect("authoritative status includes network id"),
-        status.authoritative_association()
-    ))
+    Ok(status)
 }
 
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]
@@ -395,6 +423,31 @@ fn persist_wifi_credential(record: &WifiCredentialRecord) -> io::Result<()> {
     fs::File::open(directory)?.sync_all()?;
     transaction.commit();
     Ok(())
+}
+
+#[cfg(all(feature = "wifi-native", target_os = "linux"))]
+fn load_wifi_credential() -> io::Result<WifiCredentialRecord> {
+    let directory = Path::new(WIFI_CREDENTIAL_DIRECTORY);
+    let path = Path::new(WIFI_CREDENTIAL_PATH);
+    let directory_metadata = fs::symlink_metadata(directory)?;
+    validate_credential_directory(&directory_metadata)?;
+    let metadata = fs::symlink_metadata(path)?;
+    validate_credential_metadata(WifiCredentialMetadata {
+        directory_uid: directory_metadata.uid(),
+        directory_mode: directory_metadata.mode() & 0o777,
+        directory_is_symlink: directory_metadata.file_type().is_symlink(),
+        file_uid: metadata.uid(),
+        file_mode: metadata.mode() & 0o777,
+        file_is_regular: metadata.file_type().is_file(),
+        file_is_symlink: metadata.file_type().is_symlink(),
+        file_bytes: usize::try_from(metadata.len()).unwrap_or(usize::MAX),
+    })
+    .map_err(|_| io::Error::new(io::ErrorKind::PermissionDenied, "unsafe credential storage"))?;
+    let mut bytes = fs::read(path)?;
+    let record = WifiCredentialRecord::parse(&bytes)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "invalid Wi-Fi credential"));
+    wipe_bytes(&mut bytes);
+    record
 }
 
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]

@@ -107,7 +107,8 @@ grep -Fq 'NetworkBrokerOperation::RenewDhcp' "$BROKER_PROTOCOL"
 grep -Fq 'libc::SO_PEERCRED' "$BROKER"
 grep -Fq 'peer.uid != AQUA_UID || peer.gid != AQUA_GID' "$BROKER"
 grep -Fq 'ERROR unauthorized-peer' "$BROKER"
-grep -Fq 'const SOCKET_PATH: &str = "/run/aqua-network/control.sock";' "$BROKER"
+grep -Fq 'pub const NETWORK_BROKER_SOCKET_PATH: &str = "/run/aqua-network/control.sock";' "$BROKER_PROTOCOL"
+grep -Fq 'const SOCKET_PATH: &str = aqua_service_adapters::network_broker::NETWORK_BROKER_SOCKET_PATH;' "$BROKER"
 grep -Fq 'arbitrary_commands=false arbitrary_paths=false' "$BROKER"
 grep -Fq 'aqua-network-broker' "$REPO_ROOT/scripts/build-compositor-linux-docker.sh"
 grep -Fq 'aqua-network-broker' "$REPO_ROOT/scripts/build-image-docker-volume.sh"
@@ -129,14 +130,19 @@ fi
 
 grep -Fq 'NetworkAuthoritativeState' "$SHELL_MODEL"
 grep -Fq 'read_network_snapshot' "$SHELL_MODEL"
+grep -Fq 'WifiControlRequested' "$SHELL_MODEL"
+grep -Fq 'request_wifi_broker' "$SHELL_MODEL"
 grep -Fq 'aqua_settings_network_health={}' "$SETTINGS_CLIENT"
 grep -Fq 'aqua_settings_network_default_route={}' "$SETTINGS_CLIENT"
 grep -Fq 'aqua_settings_network_dns_count={}' "$SETTINGS_CLIENT"
+grep -Fq 'aqua_settings_wifi_control requested={}' "$SETTINGS_CLIENT"
 grep -Fq '| Network adapter | Validated |' \
     "$REPO_ROOT/docs/aqua-linux/hardware-support.md"
 grep -Fq '`scripts/check-network-qemu.sh`' \
     "$REPO_ROOT/docs/aqua-linux/hardware-support.md"
-grep -Fq '| Wi-Fi and Bluetooth | Not tested |' \
+grep -Fq '| Wi-Fi | Validated |' \
+    "$REPO_ROOT/docs/aqua-linux/hardware-support.md"
+grep -Fq '| Bluetooth | Not tested |' \
     "$REPO_ROOT/docs/aqua-linux/hardware-support.md"
 
 echo 'Aqua Linux network service architecture checks passed.'

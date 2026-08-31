@@ -7,6 +7,7 @@ use aqua_components::{
     WorkspaceSwitcher,
 };
 use aqua_scene::Rect;
+use aqua_service_adapters::network_broker::{request_wifi_broker, WifiBrokerOperation};
 use aqua_service_adapters::{
     read_network_snapshot, AudioAdapterError, AudioAuthoritativeState, AudioBackend,
     AudioBackendDriveError, AudioBackendDriveOutcome, AudioRequest, AudioServiceAdapter,
@@ -18,6 +19,92 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 pub const SETTINGS_CONFIG_VERSION: u8 = 1;
+pub const SETTINGS_WIFI_BROKER_SOCKET_PATH: &str =
+    aqua_service_adapters::network_broker::NETWORK_BROKER_SOCKET_PATH;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WifiSettingsControl {
+    available: bool,
+    state: String,
+    network_id: Option<u16>,
+    authoritative: bool,
+    last_error: Option<String>,
+}
+
+impl Default for WifiSettingsControl {
+    fn default() -> Self {
+        Self {
+            available: false,
+            state: "unavailable".to_owned(),
+            network_id: None,
+            authoritative: false,
+            last_error: None,
+        }
+    }
+}
+
+impl WifiSettingsControl {
+    pub const fn available(&self) -> bool {
+        self.available
+    }
+
+    pub const fn controls_enabled(&self) -> bool {
+        self.available
+    }
+
+    pub fn connected(&self) -> bool {
+        self.state == "completed" && self.network_id.is_some() && self.authoritative
+    }
+
+    pub fn status_label(&self) -> &str {
+        self.last_error.as_deref().unwrap_or(&self.state)
+    }
+
+    pub fn refresh(&mut self, socket_path: &Path) -> bool {
+        match request_wifi_broker(socket_path, WifiBrokerOperation::Status) {
+            Ok(status) => {
+                self.available = true;
+                self.state = status.state;
+                self.network_id = status.network_id;
+                self.authoritative = status.authoritative;
+                self.last_error = None;
+                true
+            }
+            Err(error) => {
+                self.available = false;
+                self.state = "unavailable".to_owned();
+                self.network_id = None;
+                self.authoritative = false;
+                self.last_error = Some(error.to_string());
+                false
+            }
+        }
+    }
+
+    pub fn set_connected(&mut self, socket_path: &Path, connected: bool) -> bool {
+        if !self.available {
+            return false;
+        }
+        let operation = if connected {
+            WifiBrokerOperation::Reconnect
+        } else {
+            WifiBrokerOperation::Disconnect
+        };
+        match request_wifi_broker(socket_path, operation) {
+            Ok(status) => {
+                self.state = status.state;
+                self.network_id = status.network_id;
+                self.authoritative = status.authoritative;
+                self.last_error = None;
+                true
+            }
+            Err(error) => {
+                self.last_error = Some(error.to_string());
+                false
+            }
+        }
+    }
+}
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AquaTheme {
@@ -1429,6 +1516,7 @@ pub struct SettingsWindowModel {
     pub key_repeat: bool,
     pub audio: AudioVolumeModel,
     pub network: NetworkAuthoritativeState,
+    pub wifi: WifiSettingsControl,
     pub keyboard_focus: bool,
     pub theme: AquaTheme,
 }
@@ -1452,6 +1540,7 @@ impl Default for SettingsWindowModel {
             key_repeat: true,
             audio: AudioVolumeModel::default(),
             network: NetworkAuthoritativeState::default(),
+            wifi: WifiSettingsControl::default(),
             keyboard_focus: false,
             theme: AquaTheme::default(),
         }
@@ -1462,7 +1551,7 @@ impl SettingsWindowModel {
     pub fn section_group(&self) -> SectionGroup<'static> {
         let (row_count, row_height, row_gap) = match self.selected_category {
             0 => (2, 48, 40),
-            3 => (4, 24, 10),
+            3 => (4, 32, 6),
             4 => (2, 48, 20),
             _ => (1, 48, 0),
         };
@@ -1485,6 +1574,7 @@ impl SettingsWindowModel {
             0 => ("Reduced motion", self.reduced_motion, 0),
             1 => ("Show desktop icons", self.desktop_icons, 0),
             2 => ("Key repeat", self.key_repeat, 0),
+            3 => ("Wi-Fi association", self.wifi.connected(), 0),
             4 => (
                 "Mute output",
                 self.audio
@@ -1501,7 +1591,9 @@ impl SettingsWindowModel {
                 checked,
             )
             .with_state(
-                if !self.audio.controls_enabled() && self.selected_category == 4 {
+                if (self.selected_category == 3 && !self.wifi.controls_enabled())
+                    || (!self.audio.controls_enabled() && self.selected_category == 4)
+                {
                     ComponentState::Disabled
                 } else if self.keyboard_focus {
                     ComponentState::KeyboardFocus
@@ -1562,6 +1654,14 @@ impl SettingsWindowModel {
     ) -> Result<(), NetworkSnapshotError> {
         self.network = read_network_snapshot(class_net, ipv4_route, resolver)?;
         Ok(())
+    }
+
+    pub fn refresh_wifi_control(&mut self, socket_path: &Path) -> bool {
+        self.wifi.refresh(socket_path)
+    }
+
+    pub fn apply_wifi_control(&mut self, socket_path: &Path, connected: bool) -> bool {
+        self.wifi.set_connected(socket_path, connected)
     }
 
     pub fn reconcile_audio_state(
@@ -1757,6 +1857,9 @@ impl SettingsWindowModel {
                         self.key_repeat = !self.key_repeat;
                         SettingsUpdate::KeyRepeatChanged(self.key_repeat)
                     }
+                    3 if self.wifi.controls_enabled() => {
+                        SettingsUpdate::WifiControlRequested(!self.wifi.connected())
+                    }
                     4 => {
                         let muted = !self.audio.muted();
                         self.audio.set_muted(muted);
@@ -1823,6 +1926,11 @@ impl SettingsWindowModel {
             SettingsKey::Activate if self.selected_category == 2 => {
                 self.key_repeat = !self.key_repeat;
                 SettingsUpdate::KeyRepeatChanged(self.key_repeat)
+            }
+            SettingsKey::Activate
+                if self.selected_category == 3 && self.wifi.controls_enabled() =>
+            {
+                SettingsUpdate::WifiControlRequested(!self.wifi.connected())
             }
             SettingsKey::Decrease if self.selected_category == 4 => {
                 self.adjust_audio_volume(SliderKey::Decrease)
@@ -2006,6 +2114,7 @@ pub enum SettingsUpdate {
     ReducedMotionChanged(bool),
     DesktopIconsChanged(bool),
     KeyRepeatChanged(bool),
+    WifiControlRequested(bool),
     ThemeChanged(AquaTheme),
     AudioVolumeChanged(u8),
     AudioMutedChanged(bool),
@@ -4139,6 +4248,74 @@ mod tests {
         assert_eq!(model.handle_pointer(40, 138), SettingsUpdate::None);
         assert!(model.handle_hover(40, 138));
         assert_eq!(model.hovered_category, None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn settings_wifi_control_is_broker_gated_and_drives_typed_actions() {
+        use std::io::{Read as _, Write as _};
+        use std::os::unix::net::UnixListener;
+        use std::thread;
+
+        let socket = PathBuf::from(format!(
+            "/tmp/aqua-settings-wifi-{}-{}.sock",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock")
+                .as_nanos()
+        ));
+        let _ = fs::remove_file(&socket);
+        let listener = UnixListener::bind(&socket).expect("bind broker fixture");
+        let server = thread::spawn(move || {
+            let exchanges = [
+                (
+                    "AQUA-NETWORK/1 WIFI_STATUS wlan0\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0 state=completed network_id=7 authoritative=true\n",
+                ),
+                (
+                    "AQUA-NETWORK/1 WIFI_DISCONNECT wlan0\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-disconnect interface=wlan0 authoritative=true\n",
+                ),
+                (
+                    "AQUA-NETWORK/1 WIFI_RECONNECT wlan0\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-reconnect interface=wlan0 network_id=8 authoritative=true credential_saved=true\n",
+                ),
+            ];
+            for (expected, response) in exchanges {
+                let (mut stream, _) = listener.accept().expect("accept Settings request");
+                let mut request = String::new();
+                stream
+                    .read_to_string(&mut request)
+                    .expect("read Settings request");
+                assert_eq!(request, expected);
+                stream
+                    .write_all(response.as_bytes())
+                    .expect("write broker response");
+            }
+        });
+
+        let mut model = SettingsWindowModel::default();
+        assert!(!model.wifi.controls_enabled());
+        assert!(model.refresh_wifi_control(&socket));
+        assert!(model.wifi.connected());
+        model.selected_category = 3;
+        assert!(model.active_switch().expect("Wi-Fi switch").checked);
+        assert_eq!(
+            model.handle_key(SettingsKey::Activate),
+            SettingsUpdate::WifiControlRequested(false)
+        );
+        assert!(model.apply_wifi_control(&socket, false));
+        assert!(!model.wifi.connected());
+        assert_eq!(
+            model.handle_key(SettingsKey::Activate),
+            SettingsUpdate::WifiControlRequested(true)
+        );
+        assert!(model.apply_wifi_control(&socket, true));
+        assert!(model.wifi.connected());
+
+        server.join().expect("join broker fixture");
+        fs::remove_file(socket).expect("remove broker fixture");
     }
 
     #[test]

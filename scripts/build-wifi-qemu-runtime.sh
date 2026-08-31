@@ -88,9 +88,9 @@ docker run --rm \
         test -x "${output_dir}/target/usr/bin/aqua-wifi-service-supervisor"
         test -x "${output_dir}/target/usr/bin/aqua-network-broker"
         test -x "${output_dir}/target/usr/libexec/aqua-tests/aqua-wifi-native-probe"
-        grep -Fq '"hostapd","2.11","BSD-3-Clause"' \
+        grep -Fq "\"hostapd\",\"2.11\",\"BSD-3-Clause\"" \
             "${output_dir}/legal-info/manifest.csv"
-        grep -Fq '"wpa_supplicant","2.12","BSD-3-Clause"' \
+        grep -Fq "\"wpa_supplicant\",\"2.12\",\"BSD-3-Clause\"" \
             "${output_dir}/legal-info/manifest.csv"
         cp "${output_dir}/images/bzImage" "${evidence}/bzImage"
         cp "${output_dir}/images/rootfs.ext2" "${evidence}/rootfs.ext2"
