@@ -1095,6 +1095,13 @@ pub struct KeyboardLocaleMatrixProbe {
     pub keymaps_delivered_to_all_clients: bool,
     pub keymaps_compile_for_all_layouts: bool,
     pub representative_utf8_matches: bool,
+    pub compose_key_available_for_all_layouts: bool,
+    pub compose_case_count: usize,
+    pub compose_utf8_matches_for_all_clients: bool,
+    pub dead_key_layout_count: usize,
+    pub dead_key_case_count: usize,
+    pub dead_key_utf8_matches_for_all_clients: bool,
+    pub cancelled_compose_rejected_for_all_locales: bool,
     pub repeat_delay_ms: i32,
     pub repeat_rate_hz: i32,
     pub repeat_info_matches: bool,
@@ -1114,6 +1121,13 @@ impl KeyboardLocaleMatrixProbe {
             && self.keymaps_delivered_to_all_clients
             && self.keymaps_compile_for_all_layouts
             && self.representative_utf8_matches
+            && self.compose_key_available_for_all_layouts
+            && self.compose_case_count == DECLARED_LOCALES.len() * DECLARED_KEYBOARD_LAYOUTS.len()
+            && self.compose_utf8_matches_for_all_clients
+            && self.dead_key_layout_count == 2
+            && self.dead_key_case_count == DECLARED_LOCALES.len() * self.dead_key_layout_count
+            && self.dead_key_utf8_matches_for_all_clients
+            && self.cancelled_compose_rejected_for_all_locales
             && self.repeat_delay_ms == 400
             && self.repeat_rate_hz == 25
             && self.repeat_info_matches
@@ -4471,6 +4485,39 @@ fn probe_v1_client_buffer_contract_impl(
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+const AQUA_COMPOSE_TABLE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../br2-external/aqua/rootfs-overlay/usr/share/aqua/compose/Compose"
+));
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn compose_sequence_result(
+    locale: &str,
+    sequence: &[xkb::Keysym],
+) -> Result<(xkb::compose::Status, Option<String>), ()> {
+    const MAX_COMPOSE_SEQUENCE: usize = 8;
+    if sequence.is_empty() || sequence.len() > MAX_COMPOSE_SEQUENCE {
+        return Err(());
+    }
+
+    let context = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
+    let table = xkb::compose::Table::new_from_buffer(
+        &context,
+        AQUA_COMPOSE_TABLE,
+        locale,
+        xkb::compose::FORMAT_TEXT_V1,
+        xkb::compose::COMPILE_NO_FLAGS,
+    )?;
+    let mut state = xkb::compose::State::new(&table, xkb::compose::STATE_NO_FLAGS);
+    for keysym in sequence {
+        if state.feed(*keysym) != xkb::compose::FeedResult::Accepted {
+            return Err(());
+        }
+    }
+    Ok((state.status(), state.utf8()))
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 fn probe_keyboard_locale_matrix_impl(
 ) -> Result<KeyboardLocaleMatrixProbe, Box<dyn std::error::Error>> {
     if !LANGUAGE_OPTIONS
@@ -4487,6 +4534,10 @@ fn probe_keyboard_locale_matrix_impl(
     let mut keymaps_delivered_to_all_clients = true;
     let mut keymaps_compile_for_all_layouts = true;
     let mut representative_utf8_matches = true;
+    let mut compose_key_available_for_all_layouts = true;
+    let mut compose_utf8_matches_for_all_clients = true;
+    let mut dead_key_utf8_matches_for_all_clients = true;
+    let mut cancelled_compose_rejected_for_all_locales = true;
     let mut repeat_info_matches = true;
 
     for (index, keyboard_layout) in KEYBOARD_LAYOUT_SPECS.iter().copied().enumerate() {
@@ -4540,10 +4591,69 @@ fn probe_keyboard_locale_matrix_impl(
                 continue;
             };
             let state = xkb::State::new(&keymap);
-            let keycode = xkb::Keycode::new(keyboard_layout.representative_evdev_key + 8);
+            let keycode =
+                xkb::Keycode::new(keyboard_layout.representative_evdev_key + XKB_KEYCODE_OFFSET);
             representative_utf8_matches &=
                 state.key_get_utf8(keycode) == keyboard_layout.representative_utf8;
+
+            let compose_keysym = state.key_get_one_sym(xkb::Keycode::new(COMPOSE_XKB_KEYCODE));
+            compose_key_available_for_all_layouts &=
+                compose_keysym.raw() == xkb::keysyms::KEY_Multi_key;
+            for locale in DECLARED_LOCALES {
+                compose_utf8_matches_for_all_clients &=
+                    compose_sequence_result(
+                        locale,
+                        &[
+                            compose_keysym,
+                            xkb::Keysym::new(xkb::keysyms::KEY_apostrophe),
+                            xkb::Keysym::new(xkb::keysyms::KEY_e),
+                        ],
+                    ) == Ok((xkb::compose::Status::Composed, Some("é".to_string())));
+            }
+
+            if index < 2 {
+                let mut state = xkb::State::new(&keymap);
+                state.update_key(
+                    xkb::Keycode::new(LEFT_SHIFT_XKB_KEYCODE),
+                    xkb::KeyDirection::Down,
+                );
+                state.update_key(
+                    xkb::Keycode::new(RIGHT_ALT_XKB_KEYCODE),
+                    xkb::KeyDirection::Down,
+                );
+                let dead_acute =
+                    state.key_get_one_sym(xkb::Keycode::new(TURKISH_DEAD_KEY_XKB_KEYCODE));
+                state.update_key(
+                    xkb::Keycode::new(RIGHT_ALT_XKB_KEYCODE),
+                    xkb::KeyDirection::Up,
+                );
+                state.update_key(
+                    xkb::Keycode::new(LEFT_SHIFT_XKB_KEYCODE),
+                    xkb::KeyDirection::Up,
+                );
+                dead_key_utf8_matches_for_all_clients &=
+                    dead_acute.raw() == xkb::keysyms::KEY_dead_acute;
+                for locale in DECLARED_LOCALES {
+                    dead_key_utf8_matches_for_all_clients &=
+                        compose_sequence_result(
+                            locale,
+                            &[dead_acute, xkb::Keysym::new(xkb::keysyms::KEY_e)],
+                        ) == Ok((xkb::compose::Status::Composed, Some("é".to_string())));
+                }
+            }
         }
+    }
+
+    for locale in DECLARED_LOCALES {
+        cancelled_compose_rejected_for_all_locales &=
+            compose_sequence_result(
+                locale,
+                &[
+                    xkb::Keysym::new(xkb::keysyms::KEY_Multi_key),
+                    xkb::Keysym::new(xkb::keysyms::KEY_apostrophe),
+                    xkb::Keysym::new(xkb::keysyms::KEY_x),
+                ],
+            ) == Ok((xkb::compose::Status::Cancelled, None));
     }
 
     Ok(KeyboardLocaleMatrixProbe {
@@ -4557,6 +4667,13 @@ fn probe_keyboard_locale_matrix_impl(
         keymaps_delivered_to_all_clients,
         keymaps_compile_for_all_layouts,
         representative_utf8_matches,
+        compose_key_available_for_all_layouts,
+        compose_case_count: DECLARED_LOCALES.len() * DECLARED_KEYBOARD_LAYOUTS.len(),
+        compose_utf8_matches_for_all_clients,
+        dead_key_layout_count: 2,
+        dead_key_case_count: DECLARED_LOCALES.len() * 2,
+        dead_key_utf8_matches_for_all_clients,
+        cancelled_compose_rejected_for_all_locales,
         repeat_delay_ms: 400,
         repeat_rate_hz: 25,
         repeat_info_matches,
@@ -5311,6 +5428,13 @@ fn probe_keyboard_locale_matrix_impl(
         keymaps_delivered_to_all_clients: true,
         keymaps_compile_for_all_layouts: true,
         representative_utf8_matches: true,
+        compose_key_available_for_all_layouts: true,
+        compose_case_count: DECLARED_LOCALES.len() * DECLARED_KEYBOARD_LAYOUTS.len(),
+        compose_utf8_matches_for_all_clients: true,
+        dead_key_layout_count: 2,
+        dead_key_case_count: DECLARED_LOCALES.len() * 2,
+        dead_key_utf8_matches_for_all_clients: true,
+        cancelled_compose_rejected_for_all_locales: true,
         repeat_delay_ms: 400,
         repeat_rate_hz: 25,
         repeat_info_matches: true,
@@ -6235,6 +6359,17 @@ const KEYBOARD_LAYOUT_SPECS: [KeyboardLayoutSpec; 3] = [
 ];
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+const XKB_KEYCODE_OFFSET: u32 = 8;
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+const COMPOSE_XKB_KEYCODE: u32 = 127 + XKB_KEYCODE_OFFSET;
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+const LEFT_SHIFT_XKB_KEYCODE: u32 = 42 + XKB_KEYCODE_OFFSET;
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+const RIGHT_ALT_XKB_KEYCODE: u32 = 100 + XKB_KEYCODE_OFFSET;
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+const TURKISH_DEAD_KEY_XKB_KEYCODE: u32 = 39 + XKB_KEYCODE_OFFSET;
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl WaylandSmokeState {
     fn new(display_handle: &DisplayHandle) -> Result<Self, Box<dyn std::error::Error>> {
         Self::new_with_keyboard_layout(display_handle, KEYBOARD_LAYOUT_SPECS[2])
@@ -6251,7 +6386,7 @@ impl WaylandSmokeState {
             XkbConfig {
                 layout: keyboard_layout.xkb_layout,
                 variant: keyboard_layout.xkb_variant,
-                options: Some(String::new()),
+                options: Some("compose:menu".to_string()),
                 ..XkbConfig::default()
             },
             400,
@@ -13969,7 +14104,7 @@ mod tests {
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     #[test]
-    fn smithay_keyboard_locale_matrix_delivers_compilable_keymaps() {
+    fn smithay_keyboard_locale_matrix_delivers_compose_and_dead_keys() {
         let probe = probe_keyboard_locale_matrix().expect("keyboard locale matrix probe");
 
         assert!(probe.is_ready());
@@ -13980,6 +14115,13 @@ mod tests {
         assert!(probe.keymaps_delivered_to_all_clients);
         assert!(probe.keymaps_compile_for_all_layouts);
         assert!(probe.representative_utf8_matches);
+        assert!(probe.compose_key_available_for_all_layouts);
+        assert_eq!(probe.compose_case_count, 9);
+        assert!(probe.compose_utf8_matches_for_all_clients);
+        assert_eq!(probe.dead_key_layout_count, 2);
+        assert_eq!(probe.dead_key_case_count, 6);
+        assert!(probe.dead_key_utf8_matches_for_all_clients);
+        assert!(probe.cancelled_compose_rejected_for_all_locales);
         assert_eq!(probe.repeat_delay_ms, 400);
         assert_eq!(probe.repeat_rate_hz, 25);
         assert!(probe.repeat_info_matches);

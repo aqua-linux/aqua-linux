@@ -428,6 +428,13 @@ check_output_contains "supported_combination_count=9" cargo run -p aqua-composit
 check_output_contains "keymaps_delivered_to_all_clients=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
 check_output_contains "keymaps_compile_for_all_layouts=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
 check_output_contains "representative_utf8_matches=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "compose_key_available_for_all_layouts=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "compose_case_count=9" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "compose_utf8_matches_for_all_clients=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "dead_key_layout_count=2" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "dead_key_case_count=6" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "dead_key_utf8_matches_for_all_clients=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "cancelled_compose_rejected_for_all_locales=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
 check_output_contains "repeat_info_matches=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
 check_output_contains "[AQUA-COMPOSITOR] stage=privileged-protocol-boundary status=ok" cargo run -p aqua-compositor -- probe-privileged-protocol-boundary
 check_output_contains "baseline_globals_visible_to_all_clients=true" cargo run -p aqua-compositor -- probe-privileged-protocol-boundary

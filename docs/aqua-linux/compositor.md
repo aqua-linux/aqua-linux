@@ -496,6 +496,17 @@ Implemented now:
   Protocol strings retain the 4000-byte input-method limit. This is a protocol
   boundary, not evidence for the complete keyboard, locale, or application
   compatibility matrix.
+- The declared keyboard matrix configures `compose:menu` in every delivered XKB
+  map. Two clients per Turkish Q, Turkish F, and US layout recompile those real
+  `wl_keyboard` maps and resolve the Compose key. A bounded libxkbcommon table
+  then produces `é` for all nine locale/layout combinations. Turkish Q and F
+  additionally expose their real Shift+Level3 dead-acute symbol and pass six
+  locale/layout dead-key cases; invalid Compose sequences cancel without text
+  for all three locales. The canonical bounded table is packaged under
+  `/usr/share/aqua/compose` and graphical session environments export it as
+  `XCOMPOSEFILE`, so independent clients can consume the same policy. The Linux
+  and packaged-rootfs probes require the behavior with `host_stub=false`; this
+  is not physical-keyboard evidence.
 - A separate three-client registry probe audits sixteen privileged protocol
   names. Two normal clients and the narrowly authorized input-method client
   all retain the eleven baseline desktop globals, while only the authorized

@@ -114,6 +114,13 @@ docker run --rm --platform linux/amd64 \
         printf "%s\n" "$keyboard_matrix_output" | grep -Fq "keymaps_delivered_to_all_clients=true"
         printf "%s\n" "$keyboard_matrix_output" | grep -Fq "keymaps_compile_for_all_layouts=true"
         printf "%s\n" "$keyboard_matrix_output" | grep -Fq "representative_utf8_matches=true"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "compose_key_available_for_all_layouts=true"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "compose_case_count=9"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "compose_utf8_matches_for_all_clients=true"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "dead_key_layout_count=2"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "dead_key_case_count=6"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "dead_key_utf8_matches_for_all_clients=true"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "cancelled_compose_rejected_for_all_locales=true"
         printf "%s\n" "$keyboard_matrix_output" | grep -Fq "repeat_info_matches=true"
         printf "%s\n" "$keyboard_matrix_output" | grep -Fq "host_stub=false"
         printf "%s\n" "$keyboard_matrix_output" | grep -Fq "[AQUA-COMPOSITOR] stage=keyboard-locale-matrix status=ok"
@@ -187,7 +194,7 @@ docker run --rm --platform linux/amd64 \
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_text_input_is_focus_and_authorization_safe
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
-            smithay_keyboard_locale_matrix_delivers_compilable_keymaps
+            smithay_keyboard_locale_matrix_delivers_compose_and_dead_keys
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_privileged_protocol_boundary_is_narrow_and_unadvertised
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \

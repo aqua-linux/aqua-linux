@@ -10596,6 +10596,25 @@ fn probe_keyboard_locale_matrix_cli() {
                 "representative_utf8_matches={}",
                 probe.representative_utf8_matches
             );
+            println!(
+                "compose_key_available_for_all_layouts={}",
+                probe.compose_key_available_for_all_layouts
+            );
+            println!("compose_case_count={}", probe.compose_case_count);
+            println!(
+                "compose_utf8_matches_for_all_clients={}",
+                probe.compose_utf8_matches_for_all_clients
+            );
+            println!("dead_key_layout_count={}", probe.dead_key_layout_count);
+            println!("dead_key_case_count={}", probe.dead_key_case_count);
+            println!(
+                "dead_key_utf8_matches_for_all_clients={}",
+                probe.dead_key_utf8_matches_for_all_clients
+            );
+            println!(
+                "cancelled_compose_rejected_for_all_locales={}",
+                probe.cancelled_compose_rejected_for_all_locales
+            );
             println!("repeat_delay_ms={}", probe.repeat_delay_ms);
             println!("repeat_rate_hz={}", probe.repeat_rate_hz);
             println!("repeat_info_matches={}", probe.repeat_info_matches);
