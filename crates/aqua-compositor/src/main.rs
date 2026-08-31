@@ -40,16 +40,17 @@ use aqua_compositor::{
     design_tokens_include_scene_materials, export_visible_preview_html, parse_session_config,
     probe_client_layer_pipeline, probe_client_surface_lifecycle, probe_client_surface_registry,
     probe_client_window_model, probe_display_activation_plan, probe_display_output_handoff,
-    probe_display_output_plan, probe_drag_and_drop, probe_launcher_input_scene_binding,
-    probe_manual_nested_preview_backend, probe_renderer_surface_sources, probe_runtime_assets,
-    probe_selection_ownership, probe_session_bootstrap, probe_session_skeleton,
-    probe_smithay_launcher_seat, probe_static_frame_buffer, probe_static_frame_plan,
-    probe_static_paint_plan, probe_static_raster_export, probe_static_raster_png_export,
-    probe_static_render_plan, probe_static_shell_scene, probe_static_software_raster,
-    probe_text_input, probe_v1_client_buffer_contract, probe_visible_preview_plan,
-    probe_wayland_output_matrix, probe_xdg_shell_binding, probe_xdg_toplevel_client,
-    probe_xdg_toplevel_window_model, read_session_config, run_calloop_socket_smoke,
-    run_event_loop_smoke, run_manual_display_output_smoke, run_manual_nested_preview_execution,
+    probe_display_output_plan, probe_drag_and_drop, probe_keyboard_locale_matrix,
+    probe_launcher_input_scene_binding, probe_manual_nested_preview_backend,
+    probe_renderer_surface_sources, probe_runtime_assets, probe_selection_ownership,
+    probe_session_bootstrap, probe_session_skeleton, probe_smithay_launcher_seat,
+    probe_static_frame_buffer, probe_static_frame_plan, probe_static_paint_plan,
+    probe_static_raster_export, probe_static_raster_png_export, probe_static_render_plan,
+    probe_static_shell_scene, probe_static_software_raster, probe_text_input,
+    probe_v1_client_buffer_contract, probe_visible_preview_plan, probe_wayland_output_matrix,
+    probe_xdg_shell_binding, probe_xdg_toplevel_client, probe_xdg_toplevel_window_model,
+    read_session_config, run_calloop_socket_smoke, run_event_loop_smoke,
+    run_manual_display_output_smoke, run_manual_nested_preview_execution,
     run_nested_output_surface_lifecycle, run_nested_preview_frame_loop, run_session_loop_smoke,
     run_session_once_smoke, run_wayland_display_smoke, run_wayland_socket_smoke, status_lines,
     Viewport,
@@ -236,6 +237,7 @@ fn main() {
         "probe-selection-ownership" => probe_selection_ownership_cli(),
         "probe-drag-and-drop" => probe_drag_and_drop_cli(),
         "probe-text-input" => probe_text_input_cli(),
+        "probe-keyboard-locale-matrix" => probe_keyboard_locale_matrix_cli(),
         "probe-v1-client-buffer-contract" => probe_v1_client_buffer_contract_cli(),
         "probe-wayland-output-matrix" => probe_wayland_output_matrix_cli(),
         "probe-xdg-toplevel-window-model" => probe_xdg_toplevel_window_model_cli(),
@@ -275,7 +277,7 @@ fn main() {
         _ => {
             eprintln!("unknown command: {command}");
             eprintln!(
-                "usage: aqua-compositor [status|probe-assets <runtime-asset-root>|probe-renderer-backend [auto|gpu|software]|probe-gpu-offscreen-frame [device]|smoke-loop|smoke-wayland|smoke-socket|smoke-calloop-socket|probe-session-config|probe-session-env|probe-session-bootstrap <config-path> <prepared-runtime-dir>|probe-session|probe-output-plan|dump-output-plan|probe-display-output-handoff|probe-display-activation-plan|probe-drm-device [device]|probe-drm-dumb-buffer [device]|probe-drm-gbm-scanout-buffer [device]|present-drm-gbm-scanout [device]|present-drm-kms [device]|present-drm-page-flip [device]|run-drm-frame-loop [device]|run-drm-session-loop [device]|run-wayland-test-client [socket]|smoke-display-output|smoke-nested-output-surface|probe-visible-preview-plan|probe-visible-preview-export|export-visible-preview-html <path>|probe-fbdev-frame <width> <height> <bits-per-pixel>|present-fbdev [device]|smoke-nested-preview-loop|probe-manual-nested-preview-backend|run-manual-nested-preview-execution|probe-client-window-model|probe-client-surface-lifecycle|probe-client-surface-registry|probe-xdg-shell-binding|probe-xdg-toplevel-client|probe-selection-ownership|probe-drag-and-drop|probe-text-input|probe-v1-client-buffer-contract|probe-wayland-output-matrix|probe-xdg-toplevel-window-model|probe-launcher-model|probe-launcher-input-scene|probe-smithay-launcher-seat|probe-evdev-aqua-seat <keyboard-event> <pointer-event>|probe-scene|dump-scene|probe-render-plan|dump-render-plan|probe-renderer-surface-sources|probe-client-layer-pipeline|probe-paint-plan|dump-paint-plan|probe-frame-plan|dump-frame-plan|probe-frame-buffer|dump-frame-buffer|probe-raster|dump-raster|probe-raster-export|dump-raster-export|export-raster-ppm <path>|probe-raster-png-export|dump-raster-png-export|export-raster-png <path>|smoke-run-once|smoke-session-loop]"
+                "usage: aqua-compositor [status|probe-assets <runtime-asset-root>|probe-renderer-backend [auto|gpu|software]|probe-gpu-offscreen-frame [device]|smoke-loop|smoke-wayland|smoke-socket|smoke-calloop-socket|probe-session-config|probe-session-env|probe-session-bootstrap <config-path> <prepared-runtime-dir>|probe-session|probe-output-plan|dump-output-plan|probe-display-output-handoff|probe-display-activation-plan|probe-drm-device [device]|probe-drm-dumb-buffer [device]|probe-drm-gbm-scanout-buffer [device]|present-drm-gbm-scanout [device]|present-drm-kms [device]|present-drm-page-flip [device]|run-drm-frame-loop [device]|run-drm-session-loop [device]|run-wayland-test-client [socket]|smoke-display-output|smoke-nested-output-surface|probe-visible-preview-plan|probe-visible-preview-export|export-visible-preview-html <path>|probe-fbdev-frame <width> <height> <bits-per-pixel>|present-fbdev [device]|smoke-nested-preview-loop|probe-manual-nested-preview-backend|run-manual-nested-preview-execution|probe-client-window-model|probe-client-surface-lifecycle|probe-client-surface-registry|probe-xdg-shell-binding|probe-xdg-toplevel-client|probe-selection-ownership|probe-drag-and-drop|probe-text-input|probe-keyboard-locale-matrix|probe-v1-client-buffer-contract|probe-wayland-output-matrix|probe-xdg-toplevel-window-model|probe-launcher-model|probe-launcher-input-scene|probe-smithay-launcher-seat|probe-evdev-aqua-seat <keyboard-event> <pointer-event>|probe-scene|dump-scene|probe-render-plan|dump-render-plan|probe-renderer-surface-sources|probe-client-layer-pipeline|probe-paint-plan|dump-paint-plan|probe-frame-plan|dump-frame-plan|probe-frame-buffer|dump-frame-buffer|probe-raster|dump-raster|probe-raster-export|dump-raster-export|export-raster-ppm <path>|probe-raster-png-export|dump-raster-png-export|export-raster-png <path>|smoke-run-once|smoke-session-loop]"
             );
             std::process::exit(2);
         }
@@ -10564,6 +10566,44 @@ fn probe_text_input_cli() {
         Err(error) => {
             eprintln!("text-input probe failed: {error}");
             finish_stage("text-input", false);
+        }
+    }
+}
+
+fn probe_keyboard_locale_matrix_cli() {
+    match probe_keyboard_locale_matrix() {
+        Ok(probe) => {
+            println!("[AQUA-COMPOSITOR] stage=keyboard-locale-matrix status=running");
+            println!("keyboard_locale_status={}", probe.status);
+            println!("protocol={}", probe.protocol);
+            println!("locale_count={}", probe.locale_count);
+            println!("keyboard_layout_count={}", probe.keyboard_layout_count);
+            println!(
+                "supported_combination_count={}",
+                probe.supported_combination_count
+            );
+            println!("client_count_per_layout={}", probe.client_count_per_layout);
+            println!(
+                "keymaps_delivered_to_all_clients={}",
+                probe.keymaps_delivered_to_all_clients
+            );
+            println!(
+                "keymaps_compile_for_all_layouts={}",
+                probe.keymaps_compile_for_all_layouts
+            );
+            println!(
+                "representative_utf8_matches={}",
+                probe.representative_utf8_matches
+            );
+            println!("repeat_delay_ms={}", probe.repeat_delay_ms);
+            println!("repeat_rate_hz={}", probe.repeat_rate_hz);
+            println!("repeat_info_matches={}", probe.repeat_info_matches);
+            println!("host_stub={}", probe.host_stub);
+            finish_stage("keyboard-locale-matrix", probe.is_ready());
+        }
+        Err(error) => {
+            eprintln!("keyboard locale matrix probe failed: {error}");
+            finish_stage("keyboard-locale-matrix", false);
         }
     }
 }

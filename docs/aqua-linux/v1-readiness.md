@@ -288,8 +288,16 @@ clients while hiding input-method v2 from them and exposing it only to an
 authorized client. It proves keyboard-focus activation, stale-client
 rejection, bounded surrounding/content/cursor state, synchronized serials,
 Turkish UTF-8 preedit and commit delivery, deletion, focus handoff, and popup
-repositioning. The broader declared keyboard, locale, and independent-client
-matrix remains open.
+repositioning. The declared v1 matrix is now bounded to the installer's
+`tr_TR.UTF-8`, `en_US.UTF-8`, and `de_DE.UTF-8` locales crossed with Turkish Q
+(`trq`), Turkish F (`trf`), and US (`us`) layouts. A separate Linux probe
+creates an Aqua Seat for each layout and requires two independent clients to
+receive the real `wl_keyboard` XKB keymap and the declared 400 ms/25 Hz repeat
+information. Both clients recompile every delivered map and resolve a
+layout-distinguishing UTF-8 key (`ı`, `f`, or `q`), and the packaged-rootfs
+contract runs the same feature-enabled probe. Compose/dead-key coverage,
+hardware keyboard behavior, and broader independent-application
+interoperability remain open and are not implied by this bounded matrix.
 
 XWayland is not automatically required for v1. If it remains excluded, the
 supported application model and incompatibility boundary must be public.

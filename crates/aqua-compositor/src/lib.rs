@@ -33,7 +33,7 @@ use aqua_installer::{
     InstallerFocusTarget, InstallerFormKey, InstallerFormState, InstallerModel, InstallerStep,
     InstallerSummaryKey, InstallerUiAction, InstallerUiKey, InstallerUiState, InstallerUserField,
     InstallerUserFormKey, InstallerWindowLayout, NonExecutingInstallTransactionRunner,
-    StorageProbePaths,
+    StorageProbePaths, KEYBOARD_OPTIONS, LANGUAGE_OPTIONS,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_renderer::{
@@ -378,7 +378,7 @@ use smithay::{
     delegate_input_method_manager, delegate_output, delegate_primary_selection, delegate_seat,
     delegate_shm, delegate_text_input_manager, delegate_viewporter, delegate_xdg_shell,
     input::{
-        keyboard::FilterResult,
+        keyboard::{xkb, FilterResult, XkbConfig},
         pointer::{AxisFrame, ButtonEvent, CursorImageStatus, MotionEvent},
         Seat, SeatHandler, SeatState,
     },
@@ -1078,6 +1078,46 @@ pub struct TextInputProbe {
     pub popup_repositioned: bool,
     pub payload_limit_bytes: usize,
     pub host_stub: bool,
+}
+
+pub const DECLARED_LOCALES: [&str; 3] = ["tr_TR.UTF-8", "en_US.UTF-8", "de_DE.UTF-8"];
+pub const DECLARED_KEYBOARD_LAYOUTS: [&str; 3] = ["trq", "trf", "us"];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyboardLocaleMatrixProbe {
+    pub product: &'static str,
+    pub status: &'static str,
+    pub protocol: &'static str,
+    pub locale_count: usize,
+    pub keyboard_layout_count: usize,
+    pub supported_combination_count: usize,
+    pub client_count_per_layout: usize,
+    pub keymaps_delivered_to_all_clients: bool,
+    pub keymaps_compile_for_all_layouts: bool,
+    pub representative_utf8_matches: bool,
+    pub repeat_delay_ms: i32,
+    pub repeat_rate_hz: i32,
+    pub repeat_info_matches: bool,
+    pub host_stub: bool,
+}
+
+impl KeyboardLocaleMatrixProbe {
+    pub fn is_ready(&self) -> bool {
+        self.product == PRODUCT
+            && self.status == "keyboard-locale-matrix"
+            && self.protocol == "wl_keyboard"
+            && self.locale_count == DECLARED_LOCALES.len()
+            && self.keyboard_layout_count == DECLARED_KEYBOARD_LAYOUTS.len()
+            && self.supported_combination_count
+                == DECLARED_LOCALES.len() * DECLARED_KEYBOARD_LAYOUTS.len()
+            && self.client_count_per_layout == 2
+            && self.keymaps_delivered_to_all_clients
+            && self.keymaps_compile_for_all_layouts
+            && self.representative_utf8_matches
+            && self.repeat_delay_ms == 400
+            && self.repeat_rate_hz == 25
+            && self.repeat_info_matches
+    }
 }
 
 impl TextInputProbe {
@@ -2682,6 +2722,11 @@ pub fn probe_drag_and_drop() -> Result<DragAndDropProbe, Box<dyn std::error::Err
 
 pub fn probe_text_input() -> Result<TextInputProbe, Box<dyn std::error::Error>> {
     probe_text_input_impl()
+}
+
+pub fn probe_keyboard_locale_matrix(
+) -> Result<KeyboardLocaleMatrixProbe, Box<dyn std::error::Error>> {
+    probe_keyboard_locale_matrix_impl()
 }
 
 pub fn probe_v1_client_buffer_contract(
@@ -4360,6 +4405,100 @@ fn probe_v1_client_buffer_contract_impl(
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn probe_keyboard_locale_matrix_impl(
+) -> Result<KeyboardLocaleMatrixProbe, Box<dyn std::error::Error>> {
+    if !LANGUAGE_OPTIONS
+        .iter()
+        .map(|option| option.value)
+        .eq(DECLARED_LOCALES)
+        || !KEYBOARD_OPTIONS
+            .iter()
+            .map(|option| option.value)
+            .eq(DECLARED_KEYBOARD_LAYOUTS)
+    {
+        return Err("installer choices differ from compositor keyboard/locale matrix".into());
+    }
+    let mut keymaps_delivered_to_all_clients = true;
+    let mut keymaps_compile_for_all_layouts = true;
+    let mut representative_utf8_matches = true;
+    let mut repeat_info_matches = true;
+
+    for (index, keyboard_layout) in KEYBOARD_LAYOUT_SPECS.iter().copied().enumerate() {
+        if DECLARED_KEYBOARD_LAYOUTS[index] != keyboard_layout.installer_value {
+            return Err("installer keyboard layout order differs from compositor matrix".into());
+        }
+
+        let mut session = AquaCompositorSession::new_with_keyboard_layout(keyboard_layout)?;
+        let (server_stream_one, client_stream_one) = std::os::unix::net::UnixStream::pair()?;
+        let (server_stream_two, client_stream_two) = std::os::unix::net::UnixStream::pair()?;
+        session.insert_client(server_stream_one)?;
+        session.insert_client(server_stream_two)?;
+
+        let client_one_conn = ClientConnection::from_socket(client_stream_one)?;
+        let client_two_conn = ClientConnection::from_socket(client_stream_two)?;
+        let mut event_queue_one = client_one_conn.new_event_queue();
+        let mut event_queue_two = client_two_conn.new_event_queue();
+        client_one_conn
+            .display()
+            .get_registry(&event_queue_one.handle(), ());
+        client_two_conn
+            .display()
+            .get_registry(&event_queue_two.handle(), ());
+
+        let mut client_one = KeyboardMatrixClientState::default();
+        let mut client_two = KeyboardMatrixClientState::default();
+        for _ in 0..3 {
+            client_one_conn.flush()?;
+            client_two_conn.flush()?;
+            session.dispatch_clients()?;
+            session.flush_clients()?;
+            event_queue_one.blocking_dispatch(&mut client_one)?;
+            event_queue_two.blocking_dispatch(&mut client_two)?;
+        }
+
+        keymaps_delivered_to_all_clients &= client_one.registry_bound
+            && client_two.registry_bound
+            && client_one.seat_seen
+            && client_two.seat_seen
+            && client_one.keyboard_capability_seen
+            && client_two.keyboard_capability_seen
+            && client_one.keymap.is_some()
+            && client_two.keymap.is_some();
+        repeat_info_matches &=
+            client_one.repeat_info == Some((400, 25)) && client_two.repeat_info == Some((400, 25));
+
+        for keymap in [client_one.keymap, client_two.keymap] {
+            let Some(keymap) = keymap else {
+                keymaps_compile_for_all_layouts = false;
+                representative_utf8_matches = false;
+                continue;
+            };
+            let state = xkb::State::new(&keymap);
+            let keycode = xkb::Keycode::new(keyboard_layout.representative_evdev_key + 8);
+            representative_utf8_matches &=
+                state.key_get_utf8(keycode) == keyboard_layout.representative_utf8;
+        }
+    }
+
+    Ok(KeyboardLocaleMatrixProbe {
+        product: PRODUCT,
+        status: "keyboard-locale-matrix",
+        protocol: "wl_keyboard",
+        locale_count: DECLARED_LOCALES.len(),
+        keyboard_layout_count: DECLARED_KEYBOARD_LAYOUTS.len(),
+        supported_combination_count: DECLARED_LOCALES.len() * DECLARED_KEYBOARD_LAYOUTS.len(),
+        client_count_per_layout: 2,
+        keymaps_delivered_to_all_clients,
+        keymaps_compile_for_all_layouts,
+        representative_utf8_matches,
+        repeat_delay_ms: 400,
+        repeat_rate_hz: 25,
+        repeat_info_matches,
+        host_stub: false,
+    })
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 fn probe_selection_ownership_impl() -> Result<SelectionOwnershipProbe, Box<dyn std::error::Error>> {
     const CLIPBOARD_PAYLOAD: &[u8] = b"Aqua clipboard transfer\n";
     const PRIMARY_PAYLOAD: &[u8] = b"Aqua primary selection transfer\n";
@@ -4965,6 +5104,27 @@ fn probe_text_input_impl() -> Result<TextInputProbe, Box<dyn std::error::Error>>
         popup_repositioned,
         payload_limit_bytes: TextInputSmokeClientState::PAYLOAD_LIMIT_BYTES,
         host_stub: false,
+    })
+}
+
+#[cfg(not(all(target_os = "linux", feature = "smithay-smoke")))]
+fn probe_keyboard_locale_matrix_impl(
+) -> Result<KeyboardLocaleMatrixProbe, Box<dyn std::error::Error>> {
+    Ok(KeyboardLocaleMatrixProbe {
+        product: PRODUCT,
+        status: "keyboard-locale-matrix",
+        protocol: "wl_keyboard",
+        locale_count: DECLARED_LOCALES.len(),
+        keyboard_layout_count: DECLARED_KEYBOARD_LAYOUTS.len(),
+        supported_combination_count: DECLARED_LOCALES.len() * DECLARED_KEYBOARD_LAYOUTS.len(),
+        client_count_per_layout: 2,
+        keymaps_delivered_to_all_clients: true,
+        keymaps_compile_for_all_layouts: true,
+        representative_utf8_matches: true,
+        repeat_delay_ms: 400,
+        repeat_rate_hz: 25,
+        repeat_info_matches: true,
+        host_stub: true,
     })
 }
 
@@ -5850,12 +6010,63 @@ fn configured_output(
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+#[derive(Clone, Copy)]
+struct KeyboardLayoutSpec {
+    installer_value: &'static str,
+    xkb_layout: &'static str,
+    xkb_variant: &'static str,
+    representative_evdev_key: u32,
+    representative_utf8: &'static str,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+const KEYBOARD_LAYOUT_SPECS: [KeyboardLayoutSpec; 3] = [
+    KeyboardLayoutSpec {
+        installer_value: "trq",
+        xkb_layout: "tr",
+        xkb_variant: "",
+        representative_evdev_key: 23,
+        representative_utf8: "ı",
+    },
+    KeyboardLayoutSpec {
+        installer_value: "trf",
+        xkb_layout: "tr",
+        xkb_variant: "f",
+        representative_evdev_key: 16,
+        representative_utf8: "f",
+    },
+    KeyboardLayoutSpec {
+        installer_value: "us",
+        xkb_layout: "us",
+        xkb_variant: "",
+        representative_evdev_key: 16,
+        representative_utf8: "q",
+    },
+];
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl WaylandSmokeState {
     fn new(display_handle: &DisplayHandle) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::new_with_keyboard_layout(display_handle, KEYBOARD_LAYOUT_SPECS[2])
+    }
+
+    fn new_with_keyboard_layout(
+        display_handle: &DisplayHandle,
+        keyboard_layout: KeyboardLayoutSpec,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let mut seat_state = SeatState::new();
         let mut seat = seat_state.new_wl_seat(display_handle, "Aqua Seat");
         seat.add_pointer();
-        seat.add_keyboard(Default::default(), 400, 25)?;
+        seat.add_keyboard(
+            XkbConfig {
+                layout: keyboard_layout.xkb_layout,
+                variant: keyboard_layout.xkb_variant,
+                options: Some(String::new()),
+                ..XkbConfig::default()
+            },
+            400,
+            25,
+        )?;
         let mut launcher_scene = static_shell_scene(Viewport::new(1536, 1024));
         launcher_scene.set_surface_visible(SurfaceKind::Launcher, false);
         launcher_scene.set_surface_visible(SurfaceKind::SystemOverview, false);
@@ -6440,6 +6651,113 @@ struct V1BufferRegistryClientState {
     linux_dmabuf_seen: bool,
     drm_syncobj_seen: bool,
     explicit_sync_seen: bool,
+}
+
+#[derive(Default)]
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+struct KeyboardMatrixClientState {
+    registry_bound: bool,
+    seat_seen: bool,
+    keyboard_capability_seen: bool,
+    seat: Option<client_wl_seat::WlSeat>,
+    keyboard: Option<client_wl_keyboard::WlKeyboard>,
+    keymap: Option<xkb::Keymap>,
+    repeat_info: Option<(i32, i32)>,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<wl_registry::WlRegistry, ()> for KeyboardMatrixClientState {
+    fn event(
+        state: &mut Self,
+        registry: &wl_registry::WlRegistry,
+        event: wl_registry::Event,
+        _: &(),
+        _: &ClientConnection,
+        qh: &QueueHandle<Self>,
+    ) {
+        state.registry_bound = true;
+        if let wl_registry::Event::Global {
+            name,
+            interface,
+            version,
+        } = event
+        {
+            if interface == "wl_seat" {
+                state.seat_seen = true;
+                state.seat = Some(registry.bind::<client_wl_seat::WlSeat, _, _>(
+                    name,
+                    version.min(7),
+                    qh,
+                    (),
+                ));
+            }
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_wl_seat::WlSeat, ()> for KeyboardMatrixClientState {
+    fn event(
+        state: &mut Self,
+        seat: &client_wl_seat::WlSeat,
+        event: client_wl_seat::Event,
+        _: &(),
+        _: &ClientConnection,
+        qh: &QueueHandle<Self>,
+    ) {
+        if let client_wl_seat::Event::Capabilities {
+            capabilities: WEnum::Value(capabilities),
+        } = event
+        {
+            if capabilities.contains(client_wl_seat::Capability::Keyboard) {
+                state.keyboard_capability_seen = true;
+                state.keyboard = Some(seat.get_keyboard(qh, ()));
+            }
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for KeyboardMatrixClientState {
+    fn event(
+        state: &mut Self,
+        _: &client_wl_keyboard::WlKeyboard,
+        event: client_wl_keyboard::Event,
+        _: &(),
+        _: &ClientConnection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            client_wl_keyboard::Event::Keymap {
+                format: WEnum::Value(client_wl_keyboard::KeymapFormat::XkbV1),
+                fd,
+                size,
+            } => {
+                const MAX_KEYMAP_BYTES: u64 = 1_048_576;
+                if u64::from(size) > MAX_KEYMAP_BYTES {
+                    return;
+                }
+                let context = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
+                // The owned descriptor and byte count come directly from the
+                // wl_keyboard keymap event and stay valid for this call.
+                state.keymap = unsafe {
+                    xkb::Keymap::new_from_fd(
+                        &context,
+                        fd,
+                        size as usize,
+                        xkb::KEYMAP_FORMAT_TEXT_V1,
+                        xkb::KEYMAP_COMPILE_NO_FLAGS,
+                    )
+                    .ok()
+                    .flatten()
+                };
+            }
+            client_wl_keyboard::Event::RepeatInfo { rate, delay } => {
+                state.repeat_info = Some((delay, rate));
+            }
+            _ => {}
+        }
+    }
 }
 
 #[derive(Default)]
@@ -9563,6 +9881,20 @@ impl AquaCompositorSession {
         Ok(Self {
             display,
             wayland_state: WaylandSmokeState::new(&display_handle)?,
+        })
+    }
+
+    fn new_with_keyboard_layout(
+        keyboard_layout: KeyboardLayoutSpec,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let display = Display::new()?;
+        let display_handle = display.handle();
+        Ok(Self {
+            display,
+            wayland_state: WaylandSmokeState::new_with_keyboard_layout(
+                &display_handle,
+                keyboard_layout,
+            )?,
         })
     }
 
@@ -13380,6 +13712,25 @@ mod tests {
         assert!(probe.popup_parent_bound);
         assert!(probe.popup_repositioned);
         assert_eq!(probe.payload_limit_bytes, 4_000);
+        assert!(!probe.host_stub);
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn smithay_keyboard_locale_matrix_delivers_compilable_keymaps() {
+        let probe = probe_keyboard_locale_matrix().expect("keyboard locale matrix probe");
+
+        assert!(probe.is_ready());
+        assert_eq!(probe.locale_count, 3);
+        assert_eq!(probe.keyboard_layout_count, 3);
+        assert_eq!(probe.supported_combination_count, 9);
+        assert_eq!(probe.client_count_per_layout, 2);
+        assert!(probe.keymaps_delivered_to_all_clients);
+        assert!(probe.keymaps_compile_for_all_layouts);
+        assert!(probe.representative_utf8_matches);
+        assert_eq!(probe.repeat_delay_ms, 400);
+        assert_eq!(probe.repeat_rate_hz, 25);
+        assert!(probe.repeat_info_matches);
         assert!(!probe.host_stub);
     }
 
