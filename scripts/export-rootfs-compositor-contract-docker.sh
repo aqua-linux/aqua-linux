@@ -35,7 +35,7 @@ docker run --rm \
             "exec \"${tmp_dir}/rootfs/lib/ld-musl-x86_64.so.1\" --library-path \"${tmp_dir}/rootfs/lib:${tmp_dir}/rootfs/usr/lib\" \"${tmp_dir}/aqua-compositor.real\" \"\$@\"" \
             > "${tmp_dir}/aqua-compositor"
         chmod +x "${tmp_dir}/aqua-compositor"
-        for fixture in weston-simple-shm weston-simple-damage; do
+        for fixture in weston-simple-shm weston-simple-damage weston-simple-touch; do
             printf "%s\n" \
                 "#!/bin/sh" \
                 "exec \"${tmp_dir}/rootfs/lib/ld-musl-x86_64.so.1\" --library-path \"${tmp_dir}/rootfs/lib:${tmp_dir}/rootfs/usr/lib\" \"${tmp_dir}/rootfs/usr/libexec/aqua-tests/${fixture}\" \"\$@\"" \
@@ -363,6 +363,7 @@ EOF
         "${tmp_dir}/aqua-compositor" probe-independent-application-matrix \
             "${tmp_dir}/weston-simple-shm" \
             "${tmp_dir}/weston-simple-damage" \
+            "${tmp_dir}/weston-simple-touch" \
             > "${CONTRACT_DIR}/independent-application-matrix-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-privileged-protocol-boundary > "${CONTRACT_DIR}/privileged-protocol-boundary-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-v1-client-buffer-contract > "${CONTRACT_DIR}/v1-client-buffer-contract-probe.txt"

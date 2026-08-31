@@ -292,13 +292,16 @@ the packaged-rootfs contract verify that boundary while retaining
 presentation synchronization scope. Compositor-owned GBM dma-buf scanout is a
 separate output implementation detail and does not expand the client contract.
 The packaged-rootfs independent-application matrix now launches the upstream
-Weston 14.0.1 `weston-simple-shm` and `weston-simple-damage` C clients as two
-external processes against one Aqua compositor session. It requires both
-standard app IDs, exact and distinct 250x250 and 320x200 `wl_shm` buffers,
-`wl_surface.damage_buffer` progress, frame-callback progress, independent
-compositor close delivery, clean process exits, and zero remaining surfaces.
-It neither packages nor starts the Weston compositor. Broader toolkit and
-application-category interoperability remains part of R3 acceptance. The
+Weston 14.0.1 `weston-simple-shm`, `weston-simple-damage`, and
+`weston-simple-touch` C clients as three external processes against one Aqua
+compositor session. It requires all three app IDs; exact and distinct 250x250,
+320x200, and 600x500 `wl_shm` buffers; `wl_surface.damage_buffer` and frame
+callback progress; and a real `wl_touch` down/motion/up sequence that paints
+exact red points at 120,140 and 180,200 through two new client commits. All
+three clients receive independent compositor close delivery, exit cleanly,
+and leave zero surfaces. It neither packages nor starts the Weston compositor.
+This is protocol-level touch evidence, not physical touchscreen evidence.
+Broader toolkit interoperability remains part of R3 acceptance. The
 three-client text-input probe separately publishes text-input v3 to normal
 clients while hiding input-method v2 from them and exposing it only to an
 authorized client. It proves keyboard-focus activation, stale-client

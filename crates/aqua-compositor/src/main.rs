@@ -242,6 +242,7 @@ fn main() {
         "probe-independent-application-matrix" => probe_independent_application_matrix_cli(
             args.next().map(PathBuf::from),
             args.next().map(PathBuf::from),
+            args.next().map(PathBuf::from),
         ),
         "probe-privileged-protocol-boundary" => probe_privileged_protocol_boundary_cli(),
         "probe-v1-client-buffer-contract" => probe_v1_client_buffer_contract_cli(),
@@ -284,7 +285,7 @@ fn main() {
         _ => {
             eprintln!("unknown command: {command}");
             eprintln!(
-                "usage: aqua-compositor [status|probe-assets <runtime-asset-root>|probe-renderer-backend [auto|gpu|software]|probe-gpu-offscreen-frame [device]|smoke-loop|smoke-wayland|smoke-socket|smoke-calloop-socket|probe-session-config|probe-session-env|probe-session-bootstrap <config-path> <prepared-runtime-dir>|probe-session|probe-output-plan|dump-output-plan|probe-display-output-handoff|probe-display-activation-plan|probe-drm-device [device]|probe-drm-dumb-buffer [device]|probe-drm-gbm-scanout-buffer [device]|present-drm-gbm-scanout [device]|present-drm-kms [device]|present-drm-page-flip [device]|run-drm-frame-loop [device]|run-drm-session-loop [device]|run-wayland-test-client [socket]|smoke-display-output|smoke-nested-output-surface|probe-visible-preview-plan|probe-visible-preview-export|export-visible-preview-html <path>|probe-fbdev-frame <width> <height> <bits-per-pixel>|present-fbdev [device]|smoke-nested-preview-loop|probe-manual-nested-preview-backend|run-manual-nested-preview-execution|probe-client-window-model|probe-client-surface-lifecycle|probe-client-surface-registry|probe-xdg-shell-binding|probe-xdg-toplevel-client|probe-selection-ownership|probe-drag-and-drop|probe-text-input|probe-keyboard-locale-matrix|probe-independent-application-matrix <simple-shm> <simple-damage>|probe-privileged-protocol-boundary|probe-v1-client-buffer-contract|probe-wayland-output-matrix|probe-popup-subsurface-matrix|probe-xdg-toplevel-window-model|probe-launcher-model|probe-launcher-input-scene|probe-smithay-launcher-seat|probe-evdev-aqua-seat <keyboard-event> <pointer-event>|probe-scene|dump-scene|probe-render-plan|dump-render-plan|probe-renderer-surface-sources|probe-client-layer-pipeline|probe-paint-plan|dump-paint-plan|probe-frame-plan|dump-frame-plan|probe-frame-buffer|dump-frame-buffer|probe-raster|dump-raster|probe-raster-export|dump-raster-export|export-raster-ppm <path>|probe-raster-png-export|dump-raster-png-export|export-raster-png <path>|smoke-run-once|smoke-session-loop]"
+                "usage: aqua-compositor [status|probe-assets <runtime-asset-root>|probe-renderer-backend [auto|gpu|software]|probe-gpu-offscreen-frame [device]|smoke-loop|smoke-wayland|smoke-socket|smoke-calloop-socket|probe-session-config|probe-session-env|probe-session-bootstrap <config-path> <prepared-runtime-dir>|probe-session|probe-output-plan|dump-output-plan|probe-display-output-handoff|probe-display-activation-plan|probe-drm-device [device]|probe-drm-dumb-buffer [device]|probe-drm-gbm-scanout-buffer [device]|present-drm-gbm-scanout [device]|present-drm-kms [device]|present-drm-page-flip [device]|run-drm-frame-loop [device]|run-drm-session-loop [device]|run-wayland-test-client [socket]|smoke-display-output|smoke-nested-output-surface|probe-visible-preview-plan|probe-visible-preview-export|export-visible-preview-html <path>|probe-fbdev-frame <width> <height> <bits-per-pixel>|present-fbdev [device]|smoke-nested-preview-loop|probe-manual-nested-preview-backend|run-manual-nested-preview-execution|probe-client-window-model|probe-client-surface-lifecycle|probe-client-surface-registry|probe-xdg-shell-binding|probe-xdg-toplevel-client|probe-selection-ownership|probe-drag-and-drop|probe-text-input|probe-keyboard-locale-matrix|probe-independent-application-matrix <simple-shm> <simple-damage> <simple-touch>|probe-privileged-protocol-boundary|probe-v1-client-buffer-contract|probe-wayland-output-matrix|probe-popup-subsurface-matrix|probe-xdg-toplevel-window-model|probe-launcher-model|probe-launcher-input-scene|probe-smithay-launcher-seat|probe-evdev-aqua-seat <keyboard-event> <pointer-event>|probe-scene|dump-scene|probe-render-plan|dump-render-plan|probe-renderer-surface-sources|probe-client-layer-pipeline|probe-paint-plan|dump-paint-plan|probe-frame-plan|dump-frame-plan|probe-frame-buffer|dump-frame-buffer|probe-raster|dump-raster|probe-raster-export|dump-raster-export|export-raster-ppm <path>|probe-raster-png-export|dump-raster-png-export|export-raster-png <path>|smoke-run-once|smoke-session-loop]"
             );
             std::process::exit(2);
         }
@@ -10638,53 +10639,72 @@ fn probe_keyboard_locale_matrix_cli() {
 fn probe_independent_application_matrix_cli(
     simple_shm_path: Option<PathBuf>,
     simple_damage_path: Option<PathBuf>,
+    simple_touch_path: Option<PathBuf>,
 ) {
     const SIMPLE_SHM_APP_ID: &str = "org.freedesktop.weston.simple-shm";
     const SIMPLE_DAMAGE_APP_ID: &str = "org.freedesktop.weston.simple-damage";
+    const SIMPLE_TOUCH_APP_ID: &str = "simple-touch";
+    const TOUCH_START: (u32, u32) = (120, 140);
+    const TOUCH_END: (u32, u32) = (180, 200);
 
-    let result = (|| -> Result<(usize, usize, usize, u64, u64), Box<dyn std::error::Error>> {
-        let simple_shm_path = simple_shm_path.ok_or("missing weston-simple-shm path")?;
-        let simple_damage_path = simple_damage_path.ok_or("missing weston-simple-damage path")?;
-        for (path, expected_name) in [
-            (&simple_shm_path, "weston-simple-shm"),
-            (&simple_damage_path, "weston-simple-damage"),
-        ] {
-            let metadata = fs::symlink_metadata(path)?;
-            if !metadata.is_file()
-                || metadata.file_type().is_symlink()
-                || path.file_name().and_then(|name| name.to_str()) != Some(expected_name)
-            {
-                return Err(format!("invalid independent client path: {}", path.display()).into());
+    let result =
+        (|| -> Result<(usize, usize, usize, u64, u64, u64, u64), Box<dyn std::error::Error>> {
+            let simple_shm_path = simple_shm_path.ok_or("missing weston-simple-shm path")?;
+            let simple_damage_path =
+                simple_damage_path.ok_or("missing weston-simple-damage path")?;
+            let simple_touch_path = simple_touch_path.ok_or("missing weston-simple-touch path")?;
+            for (path, expected_name) in [
+                (&simple_shm_path, "weston-simple-shm"),
+                (&simple_damage_path, "weston-simple-damage"),
+                (&simple_touch_path, "weston-simple-touch"),
+            ] {
+                let metadata = fs::symlink_metadata(path)?;
+                if !metadata.is_file()
+                    || metadata.file_type().is_symlink()
+                    || path.file_name().and_then(|name| name.to_str()) != Some(expected_name)
+                {
+                    return Err(
+                        format!("invalid independent client path: {}", path.display()).into(),
+                    );
+                }
             }
-        }
 
-        let runtime_dir = tempfile::tempdir()?;
-        let display_name = "aqua-wayland-app-matrix-0";
-        let socket_path = runtime_dir.path().join(display_name);
-        let listener = ListeningSocket::bind_absolute(socket_path)?;
-        let mut children = vec![
-            Command::new(&simple_shm_path)
-                .env("XDG_RUNTIME_DIR", runtime_dir.path())
-                .env("WAYLAND_DISPLAY", display_name)
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()?,
-            Command::new(&simple_damage_path)
-                .args(["--width=320", "--height=200", "--use-damage-buffer"])
-                .env("XDG_RUNTIME_DIR", runtime_dir.path())
-                .env("WAYLAND_DISPLAY", display_name)
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()?,
-        ];
+            let runtime_dir = tempfile::tempdir()?;
+            let display_name = "aqua-wayland-app-matrix-0";
+            let socket_path = runtime_dir.path().join(display_name);
+            let listener = ListeningSocket::bind_absolute(socket_path)?;
+            let mut children = vec![
+                Command::new(&simple_shm_path)
+                    .env("XDG_RUNTIME_DIR", runtime_dir.path())
+                    .env("WAYLAND_DISPLAY", display_name)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()?,
+                Command::new(&simple_damage_path)
+                    .args(["--width=320", "--height=200", "--use-damage-buffer"])
+                    .env("XDG_RUNTIME_DIR", runtime_dir.path())
+                    .env("WAYLAND_DISPLAY", display_name)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()?,
+                Command::new(&simple_touch_path)
+                    .env("XDG_RUNTIME_DIR", runtime_dir.path())
+                    .env("WAYLAND_DISPLAY", display_name)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()?,
+            ];
 
-        let probe_result =
-            (|| -> Result<(usize, usize, usize, u64, u64), Box<dyn std::error::Error>> {
-                let mut streams = Vec::with_capacity(2);
+            let probe_result = (|| -> Result<
+            (usize, usize, usize, u64, u64, u64, u64),
+            Box<dyn std::error::Error>,
+        > {
+                let mut streams = Vec::with_capacity(3);
                 let accept_deadline = std::time::Instant::now() + Duration::from_secs(2);
-                while streams.len() < 2 {
+                while streams.len() < 3 {
                     if let Some(stream) = listener.accept()? {
                         streams.push(stream);
                     } else if std::time::Instant::now() >= accept_deadline {
@@ -10707,20 +10727,26 @@ fn probe_independent_application_matrix_cli(
                     frame_time = frame_time.saturating_add(16);
                     session.flush_clients()?;
                     let snapshots = session.client_surface_snapshots();
-                    let expected_sizes = snapshots.len() == 2
+                    let expected_sizes = snapshots.len() == 3
                         && snapshots
                             .iter()
                             .any(|snapshot| (snapshot.width, snapshot.height) == (250, 250))
                         && snapshots
                             .iter()
-                            .any(|snapshot| (snapshot.width, snapshot.height) == (320, 200));
-                    let independent_buffers = snapshots.len() == 2
-                        && snapshots[0].buffer_rgba != snapshots[1].buffer_rgba;
+                            .any(|snapshot| (snapshot.width, snapshot.height) == (320, 200))
+                        && snapshots
+                            .iter()
+                            .any(|snapshot| (snapshot.width, snapshot.height) == (600, 500));
+                    let independent_buffers = snapshots.len() == 3
+                        && snapshots[0].buffer_rgba != snapshots[1].buffer_rgba
+                        && snapshots[0].buffer_rgba != snapshots[2].buffer_rgba
+                        && snapshots[1].buffer_rgba != snapshots[2].buffer_rgba;
                     if expected_sizes
                         && independent_buffers
                         && snapshots.iter().all(SmithayClientSurfaceSnapshot::is_ready)
                         && session.has_toplevel_app_id(SIMPLE_SHM_APP_ID)
                         && session.has_toplevel_app_id(SIMPLE_DAMAGE_APP_ID)
+                        && session.has_toplevel_app_id(SIMPLE_TOUCH_APP_ID)
                     {
                         break snapshots;
                     }
@@ -10745,24 +10771,33 @@ fn probe_independent_application_matrix_cli(
                             .collect::<Vec<_>>()
                             .join(",");
                         return Err(format!(
-                        "independent client surfaces did not settle before timeout: surfaces=[{surface_state}] simple_shm_app_id={} simple_damage_app_id={}",
+                        "independent client surfaces did not settle before timeout: surfaces=[{surface_state}] simple_shm_app_id={} simple_damage_app_id={} simple_touch_app_id={}",
                         session.has_toplevel_app_id(SIMPLE_SHM_APP_ID),
-                        session.has_toplevel_app_id(SIMPLE_DAMAGE_APP_ID)
+                        session.has_toplevel_app_id(SIMPLE_DAMAGE_APP_ID),
+                        session.has_toplevel_app_id(SIMPLE_TOUCH_APP_ID)
                     )
                     .into());
                     }
                     thread::sleep(Duration::from_millis(5));
                 };
 
-                let baseline_damage = initial_snapshots[0].damage_commit_count;
-                let baseline_callbacks = initial_snapshots[0].frame_callbacks_sent;
+                let simple_damage_initial = initial_snapshots
+                    .iter()
+                    .find(|snapshot| (snapshot.width, snapshot.height) == (320, 200))
+                    .ok_or("missing initial simple-damage snapshot")?;
+                let baseline_damage = simple_damage_initial.damage_commit_count;
+                let baseline_callbacks = simple_damage_initial.frame_callbacks_sent;
                 let progress_deadline = std::time::Instant::now() + Duration::from_secs(2);
                 let (damage_commit_count, frame_callbacks_sent) = loop {
                     session.present_client_surface(frame_time);
                     frame_time = frame_time.saturating_add(16);
                     session.flush_clients()?;
                     session.dispatch_clients()?;
-                    let snapshot = session.client_surface_snapshot();
+                    let snapshots = session.client_surface_snapshots();
+                    let snapshot = snapshots
+                        .iter()
+                        .find(|snapshot| (snapshot.width, snapshot.height) == (320, 200))
+                        .ok_or("simple-damage surface disappeared during progress")?;
                     if snapshot.damage_commit_count >= baseline_damage.saturating_add(2)
                         && snapshot.frame_callbacks_sent >= baseline_callbacks.saturating_add(2)
                     {
@@ -10776,7 +10811,66 @@ fn probe_independent_application_matrix_cli(
                     thread::sleep(Duration::from_millis(5));
                 };
 
+                let touch_before_sequence = session
+                    .client_surface_snapshots()
+                    .into_iter()
+                    .find(|snapshot| (snapshot.width, snapshot.height) == (600, 500))
+                    .ok_or("missing simple-touch snapshot before touch sequence")?;
+                let simple_touch_initial_checksum =
+                    checksum_bytes(&touch_before_sequence.buffer_rgba);
+                let touch_baseline_damage = touch_before_sequence.damage_commit_count;
+                if !session.dispatch_touch_sequence_to_app_id(
+                    SIMPLE_TOUCH_APP_ID,
+                    TOUCH_START,
+                    TOUCH_END,
+                    frame_time,
+                ) {
+                    return Err("could not dispatch touch sequence to simple-touch".into());
+                }
+                session.flush_clients()?;
+                let touch_deadline = std::time::Instant::now() + Duration::from_secs(2);
+                let (simple_touch_final_checksum, touch_damage_commit_count) = loop {
+                    session.dispatch_clients()?;
+                    session.flush_clients()?;
+                    let snapshots = session.client_surface_snapshots();
+                    let snapshot = snapshots
+                        .iter()
+                        .find(|snapshot| (snapshot.width, snapshot.height) == (600, 500))
+                        .ok_or("simple-touch surface disappeared during touch sequence")?;
+                    let checksum = checksum_bytes(&snapshot.buffer_rgba);
+                    let pixel_at = |x: u32, y: u32| {
+                        let offset = ((y * snapshot.width + x) * 4) as usize;
+                        snapshot.buffer_rgba.get(offset..offset + 4)
+                    };
+                    let exact_pixels = pixel_at(TOUCH_START.0, TOUCH_START.1)
+                        == Some(&[0x00, 0x00, 0xff, 0xff])
+                        && pixel_at(TOUCH_END.0, TOUCH_END.1)
+                            == Some(&[0x00, 0x00, 0xff, 0xff]);
+                    if checksum != simple_touch_initial_checksum
+                        && snapshot.damage_commit_count
+                            == touch_baseline_damage.saturating_add(2)
+                        && exact_pixels
+                    {
+                        break (
+                            checksum,
+                            snapshot
+                                .damage_commit_count
+                                .saturating_sub(touch_baseline_damage),
+                        );
+                    }
+                    if std::time::Instant::now() >= touch_deadline {
+                        return Err(format!(
+                            "simple-touch did not paint exact touch points before timeout: checksum_changed={} damage_baseline={touch_baseline_damage} damage_commits={} exact_pixels={exact_pixels}",
+                            checksum != simple_touch_initial_checksum,
+                            snapshot.damage_commit_count
+                        )
+                        .into());
+                    }
+                    thread::sleep(Duration::from_millis(5));
+                };
+
                 for (app_id, expected_surfaces) in [
+                    (SIMPLE_TOUCH_APP_ID, 2_usize),
                     (SIMPLE_DAMAGE_APP_ID, 1_usize),
                     (SIMPLE_SHM_APP_ID, 0_usize),
                 ] {
@@ -10847,19 +10941,21 @@ fn probe_independent_application_matrix_cli(
                     frame_callbacks_sent,
                     simple_shm_checksum,
                     simple_damage_checksum,
+                    simple_touch_final_checksum,
+                    u64::try_from(touch_damage_commit_count)?,
                 ))
             })();
 
-        if probe_result.is_err() {
-            for child in &mut children {
-                if child.try_wait().ok().flatten().is_none() {
-                    let _ = child.kill();
+            if probe_result.is_err() {
+                for child in &mut children {
+                    if child.try_wait().ok().flatten().is_none() {
+                        let _ = child.kill();
+                    }
+                    let _ = child.wait();
                 }
-                let _ = child.wait();
             }
-        }
-        probe_result
-    })();
+            probe_result
+        })();
 
     match result {
         Ok((
@@ -10868,26 +10964,35 @@ fn probe_independent_application_matrix_cli(
             frame_callbacks_sent,
             simple_shm_checksum,
             simple_damage_checksum,
+            simple_touch_checksum,
+            touch_damage_commit_count,
         )) => {
             println!("[AQUA-COMPOSITOR] stage=independent-application-matrix status=running");
             println!("application_matrix_status=independent-application-matrix");
             println!("upstream_project=weston-14.0.1");
-            println!("client_count=2");
-            println!("fixture_count=2");
+            println!("client_count=3");
+            println!("fixture_count=3");
             println!("simple_shm_app_id_seen=true");
             println!("simple_damage_app_id_seen=true");
+            println!("simple_touch_app_id_seen=true");
             println!("simple_damage_mode=wl_surface.damage_buffer");
+            println!("touch_capability_advertised=true");
+            println!("touch_sequence=down,motion,up");
             println!("wl_shm_buffers_imported=true");
             println!("independent_buffer_sizes=true");
             println!("independent_buffer_checksums=true");
             println!("simple_shm_checksum={simple_shm_checksum:016x}");
             println!("simple_damage_checksum={simple_damage_checksum:016x}");
+            println!("simple_touch_checksum={simple_touch_checksum:016x}");
             println!("buffer_bytes={buffer_bytes}");
             println!("damage_commit_count={damage_commit_count}");
             println!("damage_sequence_progressed=true");
             println!("frame_callbacks_sent={frame_callbacks_sent}");
             println!("frame_callback_sequence_progressed=true");
-            println!("compositor_close_reached_both_clients=true");
+            println!("touch_damage_commit_count={touch_damage_commit_count}");
+            println!("touch_damage_sequence_progressed=true");
+            println!("touch_pixels_changed_exact=true");
+            println!("compositor_close_reached_all_clients=true");
             println!("remaining_surface_count=0");
             println!("clients_exited_successfully=true");
             println!("weston_compositor_started=false");
@@ -10905,16 +11010,23 @@ fn probe_independent_application_matrix_cli(
 fn probe_independent_application_matrix_cli(
     _simple_shm_path: Option<PathBuf>,
     _simple_damage_path: Option<PathBuf>,
+    _simple_touch_path: Option<PathBuf>,
 ) {
     println!("[AQUA-COMPOSITOR] stage=independent-application-matrix status=running");
     println!("application_matrix_status=independent-application-matrix");
-    println!("client_count=2");
-    println!("fixture_count=2");
+    println!("client_count=3");
+    println!("fixture_count=3");
     println!("simple_shm_app_id_seen=true");
     println!("simple_damage_app_id_seen=true");
+    println!("simple_touch_app_id_seen=true");
+    println!("touch_capability_advertised=true");
+    println!("touch_sequence=down,motion,up");
     println!("damage_sequence_progressed=true");
     println!("frame_callback_sequence_progressed=true");
-    println!("compositor_close_reached_both_clients=true");
+    println!("touch_damage_commit_count=2");
+    println!("touch_damage_sequence_progressed=true");
+    println!("touch_pixels_changed_exact=true");
+    println!("compositor_close_reached_all_clients=true");
     println!("remaining_surface_count=0");
     println!("clients_exited_successfully=true");
     println!("weston_compositor_started=false");
