@@ -242,12 +242,14 @@ Current compatibility extension:
   IDs, `damage_buffer` and frame-callback progress, independent compositor
   close delivery, clean exits, and zero stale surfaces without packaging or
   starting the Weston compositor. Broader toolkit coverage remains open.
-- A two-client Linux probe publishes two standard `wl_output` globals with
-  xdg-output logical geometry, current and preferred 60 Hz modes, integer
-  fallback scales, fractional-scale preference, and viewporter state. Both
-  clients observe the second global's removal while the first stays usable.
-  The packaged rootfs runs the same feature-enabled probe; hardware connector
-  events and the broader scale, transform, and application matrix remain open.
+- A two-client Linux probe publishes standard `wl_output` globals with
+  xdg-output logical geometry, current and preferred 60 Hz modes,
+  fractional-scale preference, and viewporter state. Both connected clients
+  observe the live addition of outputs that complete the declared 1.0, 1.25,
+  1.5, and 2.0 scale matrix with normal, 90, 180, and 270 degree transforms,
+  then observe fourth-output removal while the original output stays usable.
+  The packaged rootfs runs the same feature-enabled probe. Hardware connector
+  events and the broader application matrix remain open.
 
 ## Milestone 6: Boot Aqua Compositor In QEMU
 

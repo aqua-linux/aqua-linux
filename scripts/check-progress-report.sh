@@ -81,6 +81,7 @@ for needle in [
     "## Product Readiness",
     "exact direct-FD payload transfer",
     "separate two-client drag-and-drop probe",
+    "normal, 90, 180, and 270 degree transforms",
     "authorized input-method client",
     "weston-simple-damage",
     "| Classification | packaged-QEMU-proven prototype |",

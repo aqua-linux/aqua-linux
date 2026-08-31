@@ -1265,15 +1265,21 @@ pub struct WaylandOutputMatrixProbe {
     pub product: &'static str,
     pub status: &'static str,
     pub client_count: usize,
+    pub output_count: usize,
+    pub declared_scale_count: usize,
+    pub declared_transform_count: usize,
     pub outputs_visible_to_both_clients: bool,
     pub modes_match_supported_matrix: bool,
     pub preferred_modes_advertised: bool,
     pub logical_coordinates_match: bool,
     pub integer_scales_match: bool,
+    pub fractional_scales_match: bool,
+    pub transforms_match: bool,
     pub fractional_scale_advertised: bool,
     pub fractional_scale_120ths: u32,
     pub viewport_source_applied: bool,
     pub viewport_destination_applied: bool,
+    pub hotplug_add_reaches_both_clients: bool,
     pub hotplug_remove_reaches_both_clients: bool,
     pub remaining_output_usable: bool,
     pub host_stub: bool,
@@ -1284,15 +1290,21 @@ impl WaylandOutputMatrixProbe {
         self.product == PRODUCT
             && self.status == "wayland-output-matrix"
             && self.client_count == 2
+            && self.output_count == 4
+            && self.declared_scale_count == 4
+            && self.declared_transform_count == 4
             && self.outputs_visible_to_both_clients
             && self.modes_match_supported_matrix
             && self.preferred_modes_advertised
             && self.logical_coordinates_match
             && self.integer_scales_match
+            && self.fractional_scales_match
+            && self.transforms_match
             && self.fractional_scale_advertised
             && self.fractional_scale_120ths == 150
             && self.viewport_source_applied
             && self.viewport_destination_applied
+            && self.hotplug_add_reaches_both_clients
             && self.hotplug_remove_reaches_both_clients
             && self.remaining_output_usable
     }
@@ -5458,20 +5470,6 @@ fn probe_wayland_output_matrix_impl() -> Result<WaylandOutputMatrixProbe, Box<dy
         Some(Scale::Integer(1)),
         Some((0, 0).into()),
     );
-    let fractional_output = configured_output(
-        "Aqua-2",
-        (2560, 1440),
-        (1280, 0),
-        Scale::Custom {
-            advertised_integer: 2,
-            fractional: 1.25,
-        },
-        (597, 336),
-    );
-    session.wayland_state.output_globals.push(
-        fractional_output.create_global::<WaylandSmokeState>(&session.wayland_state.display_handle),
-    );
-    session.wayland_state.outputs.push(fractional_output);
     let (server_stream_one, client_stream_one) = std::os::unix::net::UnixStream::pair()?;
     let (server_stream_two, client_stream_two) = std::os::unix::net::UnixStream::pair()?;
     session.insert_client(server_stream_one)?;
@@ -5505,7 +5503,66 @@ fn probe_wayland_output_matrix_impl() -> Result<WaylandOutputMatrixProbe, Box<dy
     while event_queue_one.dispatch_pending(&mut client_one)? > 0 {}
     while event_queue_two.dispatch_pending(&mut client_two)? > 0 {}
 
-    let globals_visible_to_both_clients = client_one.globals_ready() && client_two.globals_ready();
+    let initial_output_visible_to_both_clients =
+        client_one.globals_ready(1) && client_two.globals_ready(1);
+
+    for output in [
+        configured_output(
+            "Aqua-2",
+            (2560, 1440),
+            (1280, 0),
+            Scale::Custom {
+                advertised_integer: 2,
+                fractional: 1.25,
+            },
+            Transform::_90,
+            (597, 336),
+        ),
+        configured_output(
+            "Aqua-3",
+            (1920, 1080),
+            (2432, 0),
+            Scale::Custom {
+                advertised_integer: 2,
+                fractional: 1.5,
+            },
+            Transform::_180,
+            (527, 296),
+        ),
+        configured_output(
+            "Aqua-4",
+            (3840, 2160),
+            (3712, 0),
+            Scale::Integer(2),
+            Transform::_270,
+            (708, 399),
+        ),
+    ] {
+        session
+            .wayland_state
+            .output_globals
+            .push(output.create_global::<WaylandSmokeState>(&session.wayland_state.display_handle));
+        session.wayland_state.outputs.push(output);
+    }
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    while event_queue_one.dispatch_pending(&mut client_one)? > 0 {}
+    while event_queue_two.dispatch_pending(&mut client_two)? > 0 {}
+    let hotplug_add_reaches_both_clients =
+        client_one.outputs.len() == 4 && client_two.outputs.len() == 4;
+    client_one_conn.flush()?;
+    client_two_conn.flush()?;
+    session.dispatch_clients()?;
+    session.flush_clients()?;
+    event_queue_one.blocking_dispatch(&mut client_one)?;
+    event_queue_two.blocking_dispatch(&mut client_two)?;
+    while event_queue_one.dispatch_pending(&mut client_one)? > 0 {}
+    while event_queue_two.dispatch_pending(&mut client_two)? > 0 {}
+
+    let globals_visible_to_both_clients = initial_output_visible_to_both_clients
+        && client_one.globals_ready(4)
+        && client_two.globals_ready(4);
     client_one.request_surface_extensions(&qh_one)?;
     client_two.request_surface_extensions(&qh_two)?;
     client_one_conn.flush()?;
@@ -5518,16 +5575,18 @@ fn probe_wayland_output_matrix_impl() -> Result<WaylandOutputMatrixProbe, Box<dy
     while event_queue_two.dispatch_pending(&mut client_two)? > 0 {}
 
     let matrix_matches = |client: &OutputSmokeClientState| {
-        let primary = client
-            .outputs
-            .iter()
-            .find(|record| record.protocol_name.as_deref() == Some("Aqua-1"));
-        let fractional = client
-            .outputs
-            .iter()
-            .find(|record| record.protocol_name.as_deref() == Some("Aqua-2"));
-        primary.is_some_and(|record| record.mode == Some((1280, 800, 60_000)))
-            && fractional.is_some_and(|record| record.mode == Some((2560, 1440, 60_000)))
+        [
+            ("Aqua-1", (1280, 800, 60_000)),
+            ("Aqua-2", (2560, 1440, 60_000)),
+            ("Aqua-3", (1920, 1080, 60_000)),
+            ("Aqua-4", (3840, 2160, 60_000)),
+        ]
+        .iter()
+        .all(|(name, mode)| {
+            client.outputs.iter().any(|record| {
+                record.protocol_name.as_deref() == Some(*name) && record.mode == Some(*mode)
+            })
+        })
     };
     let preferred_matches = |client: &OutputSmokeClientState| {
         client
@@ -5536,42 +5595,64 @@ fn probe_wayland_output_matrix_impl() -> Result<WaylandOutputMatrixProbe, Box<dy
             .all(|record| record.current && record.preferred)
     };
     let logical_matches = |client: &OutputSmokeClientState| {
-        client.outputs.iter().any(|record| {
-            record.protocol_name.as_deref() == Some("Aqua-1")
-                && record.location == Some((0, 0))
-                && record.logical_position == Some((0, 0))
-                && record.logical_size == Some((1280, 800))
-        }) && client.outputs.iter().any(|record| {
-            record.protocol_name.as_deref() == Some("Aqua-2")
-                && record.location == Some((1280, 0))
-                && record.logical_position == Some((1280, 0))
-                && record.logical_size == Some((2048, 1152))
+        [
+            ("Aqua-1", (0, 0), (1280, 800)),
+            ("Aqua-2", (1280, 0), (1152, 2048)),
+            ("Aqua-3", (2432, 0), (1280, 720)),
+            ("Aqua-4", (3712, 0), (1080, 1920)),
+        ]
+        .iter()
+        .all(|(name, position, logical_size)| {
+            client.outputs.iter().any(|record| {
+                record.protocol_name.as_deref() == Some(*name)
+                    && record.location == Some(*position)
+                    && record.logical_position == Some(*position)
+                    && record.logical_size == Some(*logical_size)
+            })
         })
     };
     let scale_matches = |client: &OutputSmokeClientState| {
-        client.outputs.iter().any(|record| {
-            record.protocol_name.as_deref() == Some("Aqua-1") && record.integer_scale == Some(1)
-        }) && client.outputs.iter().any(|record| {
-            record.protocol_name.as_deref() == Some("Aqua-2") && record.integer_scale == Some(2)
+        [("Aqua-1", 1), ("Aqua-2", 2), ("Aqua-3", 2), ("Aqua-4", 2)]
+            .iter()
+            .all(|(name, scale)| {
+                client.outputs.iter().any(|record| {
+                    record.protocol_name.as_deref() == Some(*name)
+                        && record.integer_scale == Some(*scale)
+                })
+            })
+    };
+    let transform_matches = |client: &OutputSmokeClientState| {
+        [
+            ("Aqua-1", client_wl_output::Transform::Normal),
+            ("Aqua-2", client_wl_output::Transform::_90),
+            ("Aqua-3", client_wl_output::Transform::_180),
+            ("Aqua-4", client_wl_output::Transform::_270),
+        ]
+        .iter()
+        .all(|(name, transform)| {
+            client.outputs.iter().any(|record| {
+                record.protocol_name.as_deref() == Some(*name)
+                    && record.transform == Some(*transform)
+            })
         })
     };
 
     let removed_global_one = client_one
         .outputs
         .iter()
-        .find(|record| record.protocol_name.as_deref() == Some("Aqua-2"))
+        .find(|record| record.protocol_name.as_deref() == Some("Aqua-4"))
         .map(|record| record.global_name)
-        .ok_or("first client did not discover Aqua-2")?;
+        .ok_or("first client did not discover Aqua-4")?;
     let removed_global_two = client_two
         .outputs
         .iter()
-        .find(|record| record.protocol_name.as_deref() == Some("Aqua-2"))
+        .find(|record| record.protocol_name.as_deref() == Some("Aqua-4"))
         .map(|record| record.global_name)
-        .ok_or("second client did not discover Aqua-2")?;
+        .ok_or("second client did not discover Aqua-4")?;
     session
         .wayland_state
         .display_handle
-        .disable_global::<WaylandSmokeState>(session.wayland_state.output_globals[1].clone());
+        .disable_global::<WaylandSmokeState>(session.wayland_state.output_globals[3].clone());
     session.flush_clients()?;
     event_queue_one.blocking_dispatch(&mut client_one)?;
     event_queue_two.blocking_dispatch(&mut client_two)?;
@@ -5581,26 +5662,35 @@ fn probe_wayland_output_matrix_impl() -> Result<WaylandOutputMatrixProbe, Box<dy
     let hotplug_remove_reaches_both_clients =
         client_one.removed_globals.contains(&removed_global_one)
             && client_two.removed_globals.contains(&removed_global_two);
-    let remaining_output_usable = session.wayland_state.outputs[0].current_mode()
-        == Some(OutputMode {
-            size: (1280, 800).into(),
-            refresh: 60_000,
-        })
-        && client_one
-            .outputs
-            .iter()
-            .any(|record| record.protocol_name.as_deref() == Some("Aqua-1") && record.current);
+    let remaining_output_usable = session.wayland_state.outputs[..3]
+        .iter()
+        .all(|output| output.current_mode().is_some())
+        && ["Aqua-1", "Aqua-2", "Aqua-3"].iter().all(|name| {
+            client_one
+                .outputs
+                .iter()
+                .any(|record| record.protocol_name.as_deref() == Some(*name) && record.current)
+                && client_two
+                    .outputs
+                    .iter()
+                    .any(|record| record.protocol_name.as_deref() == Some(*name) && record.current)
+        });
 
     Ok(WaylandOutputMatrixProbe {
         product: PRODUCT,
         status: "wayland-output-matrix",
         client_count: 2,
+        output_count: 4,
+        declared_scale_count: 4,
+        declared_transform_count: 4,
         outputs_visible_to_both_clients: globals_visible_to_both_clients,
         modes_match_supported_matrix: matrix_matches(&client_one) && matrix_matches(&client_two),
         preferred_modes_advertised: preferred_matches(&client_one)
             && preferred_matches(&client_two),
         logical_coordinates_match: logical_matches(&client_one) && logical_matches(&client_two),
         integer_scales_match: scale_matches(&client_one) && scale_matches(&client_two),
+        fractional_scales_match: logical_matches(&client_one) && logical_matches(&client_two),
+        transforms_match: transform_matches(&client_one) && transform_matches(&client_two),
         fractional_scale_advertised: client_one.fractional_scale_120ths == Some(150)
             && client_two.fractional_scale_120ths == Some(150)
             && session.wayland_state.fractional_scale_request_count == 2,
@@ -5609,6 +5699,7 @@ fn probe_wayland_output_matrix_impl() -> Result<WaylandOutputMatrixProbe, Box<dy
             == Some((8.0, 12.0, 320.0, 180.0)),
         viewport_destination_applied: session.wayland_state.viewport_destination
             == Some((640, 360)),
+        hotplug_add_reaches_both_clients,
         hotplug_remove_reaches_both_clients,
         remaining_output_usable,
         host_stub: false,
@@ -5683,15 +5774,21 @@ fn probe_wayland_output_matrix_impl() -> Result<WaylandOutputMatrixProbe, Box<dy
         product: PRODUCT,
         status: "wayland-output-matrix",
         client_count: 2,
+        output_count: 4,
+        declared_scale_count: 4,
+        declared_transform_count: 4,
         outputs_visible_to_both_clients: true,
         modes_match_supported_matrix: true,
         preferred_modes_advertised: true,
         logical_coordinates_match: true,
         integer_scales_match: true,
+        fractional_scales_match: true,
+        transforms_match: true,
         fractional_scale_advertised: true,
         fractional_scale_120ths: 150,
         viewport_source_applied: true,
         viewport_destination_applied: true,
+        hotplug_add_reaches_both_clients: true,
         hotplug_remove_reaches_both_clients: true,
         remaining_output_usable: true,
         host_stub: true,
@@ -6298,6 +6395,7 @@ fn configured_output(
     size: (i32, i32),
     location: (i32, i32),
     scale: Scale,
+    transform: Transform,
     physical_size: (i32, i32),
 ) -> Output {
     let output = Output::new(
@@ -6316,7 +6414,7 @@ fn configured_output(
     output.set_preferred(mode);
     output.change_current_state(
         Some(mode),
-        Some(Transform::Normal),
+        Some(transform),
         Some(scale),
         Some(location.into()),
     );
@@ -6411,6 +6509,7 @@ impl WaylandSmokeState {
             (1536, 1024),
             (0, 0),
             Scale::Integer(1),
+            Transform::Normal,
             (346, 231),
         );
         let output_globals =
@@ -11202,6 +11301,7 @@ struct OutputSmokeRecord {
     integer_scale: Option<i32>,
     logical_position: Option<(i32, i32)>,
     logical_size: Option<(i32, i32)>,
+    transform: Option<client_wl_output::Transform>,
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -11254,13 +11354,13 @@ impl OutputSmokeClientState {
         Ok(())
     }
 
-    fn globals_ready(&self) -> bool {
+    fn globals_ready(&self, expected_output_count: usize) -> bool {
         self.registry_bound
             && self.compositor.is_some()
             && self.xdg_output_manager.is_some()
             && self.fractional_scale_manager.is_some()
             && self.viewporter.is_some()
-            && self.outputs.len() == 2
+            && self.outputs.len() == expected_output_count
     }
 }
 
@@ -11331,7 +11431,14 @@ impl ClientDispatch<client_wl_output::WlOutput, ()> for OutputSmokeClientState {
             return;
         };
         match event {
-            client_wl_output::Event::Geometry { x, y, .. } => record.location = Some((x, y)),
+            client_wl_output::Event::Geometry {
+                x, y, transform, ..
+            } => {
+                record.location = Some((x, y));
+                if let WEnum::Value(transform) = transform {
+                    record.transform = Some(transform);
+                }
+            }
             client_wl_output::Event::Mode {
                 flags,
                 width,
@@ -14159,15 +14266,21 @@ mod tests {
 
         assert!(probe.is_ready());
         assert_eq!(probe.client_count, 2);
+        assert_eq!(probe.output_count, 4);
+        assert_eq!(probe.declared_scale_count, 4);
+        assert_eq!(probe.declared_transform_count, 4);
         assert!(probe.outputs_visible_to_both_clients);
         assert!(probe.modes_match_supported_matrix);
         assert!(probe.preferred_modes_advertised);
         assert!(probe.logical_coordinates_match);
         assert!(probe.integer_scales_match);
+        assert!(probe.fractional_scales_match);
+        assert!(probe.transforms_match);
         assert!(probe.fractional_scale_advertised);
         assert_eq!(probe.fractional_scale_120ths, 150);
         assert!(probe.viewport_source_applied);
         assert!(probe.viewport_destination_applied);
+        assert!(probe.hotplug_add_reaches_both_clients);
         assert!(probe.hotplug_remove_reaches_both_clients);
         assert!(probe.remaining_output_usable);
         assert!(!probe.host_stub);

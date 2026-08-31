@@ -463,11 +463,17 @@ check_output_contains "drm_syncobj_advertised=false" cargo run -p aqua-composito
 check_output_contains "explicit_sync_advertised=false" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
 check_output_contains "accelerated_clients_supported=false" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
 check_output_contains "[AQUA-COMPOSITOR] stage=wayland-output-matrix status=ok" cargo run -p aqua-compositor -- probe-wayland-output-matrix
+check_output_contains "output_count=4" cargo run -p aqua-compositor -- probe-wayland-output-matrix
+check_output_contains "declared_scale_count=4" cargo run -p aqua-compositor -- probe-wayland-output-matrix
+check_output_contains "declared_transform_count=4" cargo run -p aqua-compositor -- probe-wayland-output-matrix
 check_output_contains "outputs_visible_to_both_clients=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
 check_output_contains "modes_match_supported_matrix=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
 check_output_contains "logical_coordinates_match=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
 check_output_contains "fractional_scale_120ths=150" cargo run -p aqua-compositor -- probe-wayland-output-matrix
+check_output_contains "fractional_scales_match=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
+check_output_contains "transforms_match=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
 check_output_contains "viewport_destination_applied=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
+check_output_contains "hotplug_add_reaches_both_clients=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
 check_output_contains "hotplug_remove_reaches_both_clients=true" cargo run -p aqua-compositor -- probe-wayland-output-matrix
 check_output_contains "[AQUA-COMPOSITOR] stage=xdg-toplevel-window-model status=ok" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model
 check_output_contains "window_model_status=xdg-toplevel-window-model" cargo run -p aqua-compositor -- probe-xdg-toplevel-window-model
