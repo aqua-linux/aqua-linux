@@ -32,7 +32,7 @@ export ROOT_DIR KERNEL ROOTFS SERIAL_LOG MEMORY CPUS TIMEOUT_SECONDS
 expect "${ROOT_DIR}/scripts/check-network-qemu.exp"
 
 grep -Fq '[AQUA-BOOT] stage=network-service-activation status=started mode=supervised-root target=qemu interface=eth0' "${SERIAL_LOG}"
-grep -Fq '[AQUA-NETWORK] stage=qemu-acceptance status=ok dhcp=true default_route=true dns_lookup=true renewal=true route_recovery=true service_recovery=true recovery_shell=true' "${SERIAL_LOG}"
+grep -Fq '[AQUA-NETWORK] stage=qemu-acceptance status=ok dhcp=true default_route=true dns_lookup=true renewal=true route_recovery=true service_recovery=true broker_auth=true root_rejected=true typed_renewal=true recovery_shell=true' "${SERIAL_LOG}"
 
 echo 'Aqua Linux opt-in network QEMU acceptance passed.'
 echo "Serial log: ${SERIAL_LOG}"

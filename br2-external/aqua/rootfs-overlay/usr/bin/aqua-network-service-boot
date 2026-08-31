@@ -5,9 +5,13 @@ set -u
 CMDLINE_PATH="${AQUA_CMDLINE_PATH:-/proc/cmdline}"
 PROFILE_PATH="${AQUA_NETWORK_BOOT_PROFILE:-/etc/aqua/network-services-qemu.conf}"
 SUPERVISOR_BIN="${AQUA_NETWORK_SUPERVISOR_BIN:-/usr/bin/aqua-network-service-supervisor}"
+BROKER_BIN="${AQUA_NETWORK_BROKER_BIN:-/usr/bin/aqua-network-broker}"
 CONTROL_DIR="${AQUA_NETWORK_CONTROL_DIR:-/run/aqua-network}"
 PID_FILE="${AQUA_NETWORK_SUPERVISOR_PID_FILE:-${CONTROL_DIR}/network-service-supervisor.pid}"
 LOG_FILE="${AQUA_NETWORK_SUPERVISOR_LOG_FILE:-${CONTROL_DIR}/network-service-supervisor.log}"
+BROKER_PID_FILE="${AQUA_NETWORK_BROKER_PID_FILE:-${CONTROL_DIR}/network-privilege-broker.pid}"
+BROKER_SOCKET="${AQUA_NETWORK_BROKER_SOCKET:-${CONTROL_DIR}/control.sock}"
+BROKER_LOG="${AQUA_NETWORK_BROKER_LOG_FILE:-${CONTROL_DIR}/network-privilege-broker.log}"
 
 mark() {
     echo "[AQUA-BOOT] stage=network-service-activation status=$1 $2"
@@ -54,6 +58,10 @@ if [ ! -f "${SUPERVISOR_BIN}" ] || [ ! -x "${SUPERVISOR_BIN}" ] ||
     mark blocked "reason=network-supervisor-missing network_started=false"
     exit 1
 fi
+if [ ! -f "${BROKER_BIN}" ] || [ ! -x "${BROKER_BIN}" ] || [ -L "${BROKER_BIN}" ]; then
+    mark blocked "reason=network-broker-missing network_started=false"
+    exit 1
+fi
 
 if [ -L "${CONTROL_DIR}" ]; then
     mark blocked "reason=unsafe-control-directory network_started=false"
@@ -63,6 +71,7 @@ mkdir -p "${CONTROL_DIR}" || {
     mark blocked "reason=control-directory network_started=false"
     exit 1
 }
+chmod 755 "${CONTROL_DIR}" 2>/dev/null || true
 
 if [ -f "${PID_FILE}" ]; then
     old_pid="$(cat "${PID_FILE}" 2>/dev/null || true)"
@@ -78,11 +87,42 @@ if [ -f "${PID_FILE}" ]; then
     rm -f "${PID_FILE}"
 fi
 
+if [ -f "${BROKER_PID_FILE}" ]; then
+    old_broker_pid="$(cat "${BROKER_PID_FILE}" 2>/dev/null || true)"
+    case "${old_broker_pid}" in
+        ''|*[!0-9]*) ;;
+        *)
+            if kill -0 "${old_broker_pid}" 2>/dev/null; then
+                mark duplicate "broker_pid=${old_broker_pid} network_started=false"
+                exit 1
+            fi
+            ;;
+    esac
+    rm -f "${BROKER_PID_FILE}" "${BROKER_SOCKET}"
+fi
+
+"${BROKER_BIN}" serve >> "${BROKER_LOG}" 2>&1 &
+broker_pid="$!"
+echo "${broker_pid}" > "${BROKER_PID_FILE}"
+waited=0
+while [ "${waited}" -lt 5 ] && [ ! -S "${BROKER_SOCKET}" ] &&
+      kill -0 "${broker_pid}" 2>/dev/null; do
+    sleep 1
+    waited=$((waited + 1))
+done
+if [ ! -S "${BROKER_SOCKET}" ] || ! kill -0 "${broker_pid}" 2>/dev/null; then
+    kill "${broker_pid}" 2>/dev/null || true
+    wait "${broker_pid}" 2>/dev/null || true
+    rm -f "${BROKER_PID_FILE}" "${BROKER_SOCKET}"
+    mark blocked "reason=network-broker-startup network_started=false"
+    exit 1
+fi
+
 AQUA_NETWORK_SERVICES_CONFIG="${PROFILE_PATH}" \
 AQUA_NETWORK_CONTROL_DIR="${CONTROL_DIR}" \
 AQUA_NETWORK_SUPERVISOR_PID_FILE="${PID_FILE}" \
 "${SUPERVISOR_BIN}" >> "${LOG_FILE}" 2>&1 &
 supervisor_pid="$!"
 
-mark started "mode=supervised-root target=qemu interface=eth0 pid=${supervisor_pid} boot_network=true recovery_tty=true"
+mark started "mode=supervised-root target=qemu interface=eth0 pid=${supervisor_pid} broker_pid=${broker_pid} broker=true boot_network=true recovery_tty=true"
 exit 0

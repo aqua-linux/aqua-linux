@@ -101,6 +101,8 @@ docker run --rm \
         AQUA_NETWORK_SUPERVISOR_BIN="${tmp_dir}/rootfs/usr/bin/aqua-network-service-supervisor" \
         AQUA_NETWORK_CONTROL_DIR="${tmp_dir}/run/aqua-network-boot" \
         "${tmp_dir}/rootfs/usr/bin/aqua-network-service-boot" > "${CONTRACT_DIR}/network-service-boot.txt"
+        cp "${tmp_dir}/rootfs/usr/share/doc/aqua/network-broker-binary.txt" \
+            "${CONTRACT_DIR}/network-broker-binary.txt"
         AQUA_CMDLINE_PATH="${tmp_dir}/cmdline-default" \
         AQUA_GRAPHICS_BOOT_PROFILE="${tmp_dir}/rootfs/etc/aqua/compositor-session-graphics.conf" \
         AQUA_GRAPHICS_SUPERVISOR_BIN="${tmp_dir}/rootfs/usr/bin/aqua-graphical-session-supervisor" \

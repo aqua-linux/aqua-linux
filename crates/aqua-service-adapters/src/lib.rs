@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 mod network;
+pub mod network_broker;
 mod pipewire;
 #[cfg(all(feature = "wireplumber-native", any(target_os = "linux", test)))]
 mod wireplumber_native;

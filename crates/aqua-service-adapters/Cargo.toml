@@ -8,6 +8,9 @@ rust-version.workspace = true
 [lib]
 path = "src/lib.rs"
 
+[dependencies]
+libc = "0.2.103"
+
 [features]
 default = []
 wireplumber-native = []
@@ -16,3 +19,7 @@ wireplumber-native = []
 name = "aqua-audio-adapter-probe"
 path = "src/bin/aqua-audio-adapter-probe.rs"
 required-features = ["wireplumber-native"]
+
+[[bin]]
+name = "aqua-network-broker"
+path = "src/bin/aqua-network-broker.rs"

@@ -4,7 +4,7 @@ set -eu
 ROOT_DIR="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 BOOT_TOOL="${ROOT_DIR}/br2-external/aqua/rootfs-overlay/usr/bin/aqua-network-service-boot"
 TMP_DIR="$(mktemp -d)"
-trap 'if [ -f "${TMP_DIR}/run/network-service-supervisor.pid" ]; then kill "$(cat "${TMP_DIR}/run/network-service-supervisor.pid")" 2>/dev/null || true; fi; rm -rf "${TMP_DIR}"' EXIT HUP INT TERM
+trap 'if [ -f "${TMP_DIR}/run/network-service-supervisor.pid" ]; then kill "$(cat "${TMP_DIR}/run/network-service-supervisor.pid")" 2>/dev/null || true; fi; if [ -f "${TMP_DIR}/run/network-privilege-broker.pid" ]; then kill "$(cat "${TMP_DIR}/run/network-privilege-broker.pid")" 2>/dev/null || true; fi; rm -rf "${TMP_DIR}"' EXIT HUP INT TERM
 
 cat > "${TMP_DIR}/qemu.conf" <<'EOF'
 enabled=true
@@ -29,6 +29,12 @@ echo "control_dir=${AQUA_NETWORK_CONTROL_DIR}" >> "${AQUA_TEST_STARTED_FILE}"
 sleep 30
 EOF
 chmod +x "${TMP_DIR}/supervisor"
+
+cat > "${TMP_DIR}/broker" <<'EOF'
+#!/bin/sh
+exec python3 -c 'import os, socket; path=os.environ["AQUA_NETWORK_BROKER_SOCKET"]; server=socket.socket(socket.AF_UNIX); server.bind(path); server.listen(1); server.accept()'
+EOF
+chmod +x "${TMP_DIR}/broker"
 
 echo 'console=ttyS0' > "${TMP_DIR}/cmdline-default"
 disabled_output="$(AQUA_CMDLINE_PATH="${TMP_DIR}/cmdline-default" AQUA_NETWORK_BOOT_PROFILE="${TMP_DIR}/qemu.conf" AQUA_NETWORK_SUPERVISOR_BIN="${TMP_DIR}/supervisor" AQUA_NETWORK_CONTROL_DIR="${TMP_DIR}/disabled-run" AQUA_TEST_STARTED_FILE="${TMP_DIR}/disabled-started" "${BOOT_TOOL}")"
@@ -90,8 +96,18 @@ test "${symlink_status}" -ne 0
 printf '%s\n' "${symlink_output}" | grep -Fq 'status=blocked reason=network-supervisor-missing network_started=false'
 test ! -e "${TMP_DIR}/symlink-started"
 
-enabled_output="$(AQUA_CMDLINE_PATH="${TMP_DIR}/cmdline-enabled" AQUA_NETWORK_BOOT_PROFILE="${TMP_DIR}/qemu.conf" AQUA_NETWORK_SUPERVISOR_BIN="${TMP_DIR}/supervisor" AQUA_NETWORK_CONTROL_DIR="${TMP_DIR}/run" AQUA_TEST_STARTED_FILE="${TMP_DIR}/started" "${BOOT_TOOL}")"
+set +e
+missing_broker_output="$(AQUA_CMDLINE_PATH="${TMP_DIR}/cmdline-enabled" AQUA_NETWORK_BOOT_PROFILE="${TMP_DIR}/qemu.conf" AQUA_NETWORK_SUPERVISOR_BIN="${TMP_DIR}/supervisor" AQUA_NETWORK_BROKER_BIN="${TMP_DIR}/missing-broker" AQUA_NETWORK_CONTROL_DIR="${TMP_DIR}/missing-broker-run" AQUA_TEST_STARTED_FILE="${TMP_DIR}/missing-broker-started" "${BOOT_TOOL}" 2>&1)"
+missing_broker_status="$?"
+set -e
+test "${missing_broker_status}" -ne 0
+printf '%s\n' "${missing_broker_output}" | grep -Fq 'status=blocked reason=network-broker-missing network_started=false'
+test ! -e "${TMP_DIR}/missing-broker-started"
+
+enabled_output="$(AQUA_CMDLINE_PATH="${TMP_DIR}/cmdline-enabled" AQUA_NETWORK_BOOT_PROFILE="${TMP_DIR}/qemu.conf" AQUA_NETWORK_SUPERVISOR_BIN="${TMP_DIR}/supervisor" AQUA_NETWORK_BROKER_BIN="${TMP_DIR}/broker" AQUA_NETWORK_BROKER_SOCKET="${TMP_DIR}/run/control.sock" AQUA_NETWORK_CONTROL_DIR="${TMP_DIR}/run" AQUA_TEST_STARTED_FILE="${TMP_DIR}/started" "${BOOT_TOOL}")"
 printf '%s\n' "${enabled_output}" | grep -Fq 'status=started mode=supervised-root target=qemu interface=eth0'
+printf '%s\n' "${enabled_output}" | grep -Fq 'broker=true'
+test -S "${TMP_DIR}/run/control.sock"
 
 i=0
 while [ ! -f "${TMP_DIR}/started" ] && [ "${i}" -lt 20 ]; do
@@ -102,7 +118,7 @@ grep -Fq "config=${TMP_DIR}/qemu.conf" "${TMP_DIR}/started"
 grep -Fq "control_dir=${TMP_DIR}/run" "${TMP_DIR}/started"
 
 set +e
-duplicate_output="$(AQUA_CMDLINE_PATH="${TMP_DIR}/cmdline-enabled" AQUA_NETWORK_BOOT_PROFILE="${TMP_DIR}/qemu.conf" AQUA_NETWORK_SUPERVISOR_BIN="${TMP_DIR}/supervisor" AQUA_NETWORK_CONTROL_DIR="${TMP_DIR}/run" AQUA_TEST_STARTED_FILE="${TMP_DIR}/started" "${BOOT_TOOL}" 2>&1)"
+duplicate_output="$(AQUA_CMDLINE_PATH="${TMP_DIR}/cmdline-enabled" AQUA_NETWORK_BOOT_PROFILE="${TMP_DIR}/qemu.conf" AQUA_NETWORK_SUPERVISOR_BIN="${TMP_DIR}/supervisor" AQUA_NETWORK_BROKER_BIN="${TMP_DIR}/broker" AQUA_NETWORK_BROKER_SOCKET="${TMP_DIR}/run/control.sock" AQUA_NETWORK_CONTROL_DIR="${TMP_DIR}/run" AQUA_TEST_STARTED_FILE="${TMP_DIR}/started" "${BOOT_TOOL}" 2>&1)"
 duplicate_status="$?"
 set -e
 test "${duplicate_status}" -ne 0

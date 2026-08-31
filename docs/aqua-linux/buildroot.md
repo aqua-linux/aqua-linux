@@ -148,7 +148,8 @@ restarting, stopped, or degraded state under `/run/aqua`. Media failure does
 not block the compositor or remove the independent recovery TTY.
 
 The rootfs also packages `/usr/bin/aqua-network-service-supervisor`, its
-bounded stop tool, and the `aqua-udhcpc-hook` wrapper selected by ADR 0005. The
+bounded stop tool, the `aqua-udhcpc-hook` wrapper, and the
+`/usr/bin/aqua-network-broker` selected by ADR 0005. The
 supervisor requires root ownership, a fixed valid interface, absolute
 non-symlink service paths, finite DHCP readiness and lease-loss waits, and a
 three-restart budget. It publishes only non-secret state under
@@ -159,7 +160,11 @@ DHCP owner. `/usr/bin/aqua-network-service-boot` requires the exact
 `aqua.boot_network=1` kernel flag and a separate non-symlink
 `network-services-qemu.conf` with an explicit legacy-owner-disabled assertion
 before it dispatches the root supervisor. This packages and tests an opt-in
-QEMU transition path without changing default boot networking.
+QEMU transition path without changing default boot networking. In that profile,
+the root-owned broker exposes a mode-0660 Unix socket owned by root and the Aqua
+group. Kernel peer credentials admit only UID/GID 1000 to a bounded versioned
+protocol with fixed `status` and `renew-dhcp` operations for `eth0`; root and
+other peers are rejected. The broker has no independent default autostart.
 
 The image also writes the derived session environment to:
 

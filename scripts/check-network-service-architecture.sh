@@ -5,6 +5,8 @@ REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ADR="$REPO_ROOT/docs/aqua-linux/adr-0005-network-service-stack.md"
 DEFCONFIG="$REPO_ROOT/br2-external/aqua/configs/aqua_x86_64_defconfig"
 ADAPTER="$REPO_ROOT/crates/aqua-service-adapters/src/network.rs"
+BROKER_PROTOCOL="$REPO_ROOT/crates/aqua-service-adapters/src/network_broker.rs"
+BROKER="$REPO_ROOT/crates/aqua-service-adapters/src/bin/aqua-network-broker.rs"
 SHELL_MODEL="$REPO_ROOT/crates/aqua-shell/src/lib.rs"
 SETTINGS_CLIENT="$REPO_ROOT/crates/aqua-compositor/src/lib.rs"
 SUPERVISOR="$REPO_ROOT/br2-external/aqua/rootfs-overlay/usr/bin/aqua-network-service-supervisor"
@@ -29,6 +31,7 @@ need_adr 'BusyBox `udhcpc` remains the initial IPv4 DHCP client'
 need_adr '`wpa_supplicant` is selected for Wi-Fi association'
 need_adr 'will not add NetworkManager, ConnMan, or a second DHCP client'
 need_adr 'narrow authenticated privilege broker'
+need_adr '**Satisfied on 2026-08-31:** the privilege broker authenticates'
 need_adr 'Physical Ethernet and Wi-Fi support remain `Not tested`'
 
 grep -Fxq 'BR2_SYSTEM_DHCP="eth0"' "$DEFCONFIG"
@@ -74,6 +77,25 @@ grep -Fq 'network-service-supervisor.txt' "$REPO_ROOT/scripts/export-rootfs-comp
 grep -Fq 'network-service-supervisor.txt' "$REPO_ROOT/scripts/check-compositor-rootfs-docker.sh"
 grep -Fq 'network-service-boot.txt' "$REPO_ROOT/scripts/export-rootfs-compositor-contract-docker.sh"
 grep -Fq 'network-service-boot.txt' "$REPO_ROOT/scripts/check-compositor-rootfs-docker.sh"
+grep -Fq 'network-broker-binary.txt' "$REPO_ROOT/scripts/export-rootfs-compositor-contract-docker.sh"
+grep -Fq 'network-broker-binary.txt' "$REPO_ROOT/scripts/check-compositor-rootfs-docker.sh"
+
+test -f "$BROKER_PROTOCOL"
+test -f "$BROKER"
+grep -Fq 'pub const MAX_REQUEST_BYTES: usize = 96;' "$BROKER_PROTOCOL"
+grep -Fq 'pub const MAX_RESPONSE_BYTES: usize = 512;' "$BROKER_PROTOCOL"
+grep -Fq 'pub const PROTOCOL_VERSION: &str = "AQUA-NETWORK/1";' "$BROKER_PROTOCOL"
+grep -Fq 'NetworkBrokerOperation::Status' "$BROKER_PROTOCOL"
+grep -Fq 'NetworkBrokerOperation::RenewDhcp' "$BROKER_PROTOCOL"
+grep -Fq 'libc::SO_PEERCRED' "$BROKER"
+grep -Fq 'peer.uid != AQUA_UID || peer.gid != AQUA_GID' "$BROKER"
+grep -Fq 'ERROR unauthorized-peer' "$BROKER"
+grep -Fq 'const SOCKET_PATH: &str = "/run/aqua-network/control.sock";' "$BROKER"
+grep -Fq 'arbitrary_commands=false arbitrary_paths=false' "$BROKER"
+grep -Fq 'aqua-network-broker' "$REPO_ROOT/scripts/build-compositor-linux-docker.sh"
+grep -Fq 'aqua-network-broker' "$REPO_ROOT/scripts/build-image-docker-volume.sh"
+grep -Fq 'aqua-network-broker' "$REPO_ROOT/br2-external/aqua/board/aqua/x86_64/post-build.sh"
+grep -Fq 'broker_auth=true root_rejected=true typed_renewal=true' "$REPO_ROOT/scripts/check-network-qemu.sh"
 
 test -f "$ADAPTER"
 grep -Fq 'pub enum NetworkServiceHealth' "$ADAPTER"
