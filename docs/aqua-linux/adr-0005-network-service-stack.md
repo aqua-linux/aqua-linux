@@ -5,8 +5,9 @@
 Accepted on 2026-08-31. The observation boundary, disabled root-owned DHCP
 supervisor, authenticated privilege broker, and opt-in QEMU runtime acceptance
 are implemented. The isolated Wi-Fi package and legal closure is rehearsed.
-Default ownership, Settings configuration controls, typed Wi-Fi control and
-credential handling, and physical runtime evidence remain gated.
+The typed Wi-Fi control and credential-storage contract is defined. Native
+control execution, default ownership, Settings configuration controls, and
+physical runtime evidence remain gated.
 
 ## Context
 
@@ -33,8 +34,8 @@ Aqua Linux will use this network stack:
    enabled in Settings.
 3. `wpa_supplicant` is selected for Wi-Fi association on hardware that requires
    it. An opt-in Buildroot rehearsal resolves its dependency and license
-   closure, but it remains absent from the default image until a typed control
-   transport, credential-storage contract, and radio evidence pass.
+   closure, but it remains absent from the default image until the typed
+   control contract is bound to the native transport and radio evidence passes.
 4. Aqua will not add NetworkManager, ConnMan, or a second DHCP client to the v1
    image. A single policy owner avoids competing route, lease, and resolver
    writers on the BusyBox system.
@@ -72,6 +73,22 @@ Aqua Linux will use this network stack:
   shell stays responsive and network controls remain absent.
 - SSIDs, passphrases, DHCP options, and resolver search domains are not logged
   or exposed by this observation boundary.
+- The initial personal-network control contract accepts only typed status,
+  scan, add, SSID, derived WPA2 PSK, key-management, enable, select, remove,
+  and disconnect requests. It emits no caller-supplied command name or network
+  identifier above 4095. Commands are capped at 192 bytes; responses are capped
+  at 4096 bytes and association is authoritative only for `COMPLETED` with a
+  validated network identifier.
+- SSIDs and secrets have redacted debug output. An input passphrase is limited
+  to 8-63 printable ASCII bytes and must remain transient. The persisted record
+  contains only the derived 32-byte WPA2 PSK, but that PSK is still treated as
+  a network-equivalent secret. PSK derivation and broker ingress are not yet
+  implemented.
+- The v1 credential record has one versioned, 256-byte-bounded schema at the
+  fixed `/var/lib/aqua-network/wifi.psk` path. Its directory and file must be
+  root-owned normal non-symlink objects with exact `0700` and `0600` modes.
+  Writes must use the fixed sibling temporary path, sync, and atomic rename.
+  This permission boundary is not an encryption-at-rest claim.
 
 ## Packaging And Acceptance Gates
 
@@ -100,13 +117,22 @@ Network management must remain disabled until all of these are satisfied:
    `libwpa_client`; it excludes alternate network managers, D-Bus, a second
    DHCP client, CLI/passphrase tools, and unsupported association modes. The
    default profile and service ownership remain unchanged.
-4. **Satisfied on 2026-08-31:** deterministic fixtures prove offline,
+4. **Satisfied on 2026-08-31:** `aqua-service-adapters` defines a bounded typed
+   WPA2-Personal control and credential-storage contract. Deterministic tests
+   prove exact allowlisted command encoding, strict response parsing,
+   authoritative association, redacted secrets, passphrase bounds, a
+   versioned PSK-only record, and fail-closed root-only storage metadata.
+   This contract does not execute `libwpa_client`, derive a PSK, write a real
+   credential, or enable a service. Settings still exposes no Wi-Fi
+   configuration control, and WPA3 association remains outside this initial
+   control contract even though its package capability is compiled.
+5. **Satisfied on 2026-08-31:** deterministic fixtures prove offline,
    configuring, online, DNS loss, route loss, malformed input, bounded source
    sizes, and recovery without hanging Settings or the shell.
-5. **Satisfied on 2026-08-31:** packaged QEMU proves Ethernet DHCP, default
+6. **Satisfied on 2026-08-31:** packaged QEMU proves Ethernet DHCP, default
    routing, external DNS lookup, lease renewal, forced service failure, route
    loss, bounded reconnect, and recovery-shell availability.
-6. Wi-Fi is reported only on a target with an applicable radio. Association,
+7. Wi-Fi is reported only on a target with an applicable radio. Association,
    secret handling, DHCP, DNS, reconnect, radio disable, and failure recovery
    require evidence for that target.
 
