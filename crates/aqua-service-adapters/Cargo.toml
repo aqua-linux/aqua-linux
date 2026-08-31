@@ -14,6 +14,7 @@ libc = "0.2.103"
 [features]
 default = []
 wireplumber-native = []
+wifi-native = []
 
 [[bin]]
 name = "aqua-audio-adapter-probe"
@@ -23,3 +24,8 @@ required-features = ["wireplumber-native"]
 [[bin]]
 name = "aqua-network-broker"
 path = "src/bin/aqua-network-broker.rs"
+
+[[bin]]
+name = "aqua-wifi-native-probe"
+path = "src/bin/aqua-wifi-native-probe.rs"
+required-features = ["wifi-native"]

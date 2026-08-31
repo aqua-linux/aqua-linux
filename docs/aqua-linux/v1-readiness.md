@@ -382,12 +382,16 @@ adapter reports bounded typed interface, default-route, DNS, and
 offline/configuring/online/degraded state without spawning management commands.
 Settings consumes that state but remains read-only. The opt-in Wi-Fi profile
 now proves the exact wpa_supplicant 2.12, libnl 3.11.0, and OpenSSL 3.5.7
-package and legal closure without changing the default image or starting a
-service. The adapter now defines a typed, bounded WPA2-Personal command and
-PSK-only root-owned credential-record contract with redacted secret types and
-strict authoritative response parsing. It does not yet call `libwpa_client`,
-derive or write a credential, expose Settings controls, change default network
-ownership, support WPA3 association, or provide physical evidence. The
+package and legal closure together with the MIT-licensed `aqua-wifi-native`
+bridge, without changing the default image or starting a service. The bridge
+executes bounded typed `libwpa_client` requests and bounded WPA2 PSK derivation.
+The authenticated broker admits only Aqua UID/GID 1000, requires authoritative
+association before atomically writing a root-owned `0600` PSK-only record, and
+wipes transient request buffers. A deterministic fake-control-socket fixture
+proves the exact request sequence, PSK vector, authentication, redaction, and
+storage contract. This is not radio evidence: Settings controls, daemon
+lifecycle, default network ownership, WPA3 association, reconnect behavior,
+and physical support remain gated. The
 root-owned DHCP supervisor is
 now packaged with a finite readiness timeout, three-restart budget, lease-loss
 grace period, atomic non-secret state, a checked hook around Buildroot's default

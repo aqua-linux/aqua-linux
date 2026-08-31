@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 REQUIRED = {
+    "aqua-wifi-native": "1",
     "libnl": "3.11.0",
     "libopenssl": "3.5.7",
     "wpa_supplicant": "2.12",
@@ -65,8 +66,10 @@ def main() -> None:
         "profile": "aqua_x86_64_wifi_rehearsal_defconfig",
         "default_image_changed": False,
         "service_enabled": False,
-        "credential_storage_implemented": False,
-        "typed_control_transport_implemented": False,
+        "authenticated_broker_integration_implemented": True,
+        "credential_storage_implemented": True,
+        "typed_control_transport_implemented": True,
+        "psk_derivation_implemented": True,
         "required_packages": REQUIRED,
         "wifi_profile_additions": added,
         "forbidden_management_packages": sorted(FORBIDDEN),
