@@ -366,6 +366,7 @@ scripts/check-public-repo.sh
 scripts/check-installer-render.sh
 scripts/write-progress-report.sh
 scripts/check-progress-report.sh
+scripts/check-application-compatibility.sh
 scripts/check-compositor.sh
 
 test -f br2-external/aqua/external.desc
@@ -675,6 +676,7 @@ grep -Fq 'qemu_visible_operator_pass_manual_runbook_pass_report_required' script
 test -f scripts/check-visual-preview.sh
 test -x scripts/write-progress-report.sh
 test -x scripts/check-progress-report.sh
+test -x scripts/check-application-compatibility.sh
 test -x scripts/write-qemu-visible-evidence-bundle.sh
 test -x scripts/prepare-qemu-visible-evidence-apply.sh
 test -x scripts/run-qemu-visible-evidence-flow.sh
@@ -1843,6 +1845,9 @@ grep -Fq 'export-raster-png' scripts/check-compositor.sh
 grep -Fq 'design_tokens_scene_materials=ok' scripts/check-compositor.sh
 grep -Fq '"blurRequired"' scripts/check-runtime-assets.sh
 grep -Fq 'export WAYLAND_DISPLAY=aqua-wayland-0' scripts/check-runtime-assets.sh
+grep -Fq 'BR2_PACKAGE_XORG7=n' br2-external/aqua/configs/aqua_x86_64_defconfig
+grep -Fq 'BR2_PACKAGE_XWAYLAND=n' br2-external/aqua/configs/aqua_x86_64_defconfig
+grep -Fq 'application_compatibility_boundary = "Aqua v1 is native Wayland-only' docs/aqua-linux/compositor-foundation.toml
 grep -Fq '[AQUA-BOOT] stage=os-release id=aqua pretty="Aqua Linux Milestone 1"' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
 grep -Fq '[AQUA-BOOT] stage=runtime-assets-ready milestone=2 status=ok' br2-external/aqua/rootfs-overlay/etc/init.d/rcS
 grep -Fq 'selected = "smithay"' docs/aqua-linux/compositor-foundation.toml

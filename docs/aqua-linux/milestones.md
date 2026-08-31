@@ -242,6 +242,10 @@ Current compatibility extension:
   IDs, `damage_buffer` and frame-callback progress, independent compositor
   close delivery, clean exits, and zero stale surfaces without packaging or
   starting the Weston compositor. Broader toolkit coverage remains open.
+- A native-Wayland application compatibility boundary disables Xorg and
+  XWayland in both Buildroot profiles, omits `DISPLAY`, rejects X11 server
+  artifacts and sockets from the rootfs, and publicly marks X11-only
+  applications unsupported while retaining XKB data for Wayland keyboards.
 - A two-client Linux probe publishes standard `wl_output` globals with
   xdg-output logical geometry, current and preferred 60 Hz modes,
   fractional-scale preference, and viewporter state. Both connected clients
