@@ -574,6 +574,11 @@ Implemented now:
   shared-memory buffers, advances damage and frame callbacks, closes each
   toplevel independently, observes both clean process exits, and finishes with
   no client surfaces. The Weston compositor is neither packaged nor started.
+- Native-Wayland application compatibility is a fail-closed image contract.
+  Both Buildroot profiles disable Xorg and XWayland, Aqua session environments
+  omit `DISPLAY`, and rootfs validation rejects X11 server binaries, modules,
+  and sockets. X11-only applications are unsupported; the packaged XKB tree is
+  retained only for libxkbcommon keyboard handling by Wayland clients.
 
 Not implemented yet:
 

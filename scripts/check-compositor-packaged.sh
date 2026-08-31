@@ -27,6 +27,9 @@ tar -tf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt >/dev/nul
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "source=upstream-weston-14.0.1-simple-clients"
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "fixtures=weston-simple-shm,weston-simple-damage"
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/wayland-compat-client.txt | grep -Fq "weston_compositor_packaged=false"
+tar -tf "${ROOTFS_TAR}" ./usr/share/doc/aqua/application-compatibility.txt >/dev/null
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/application-compatibility.txt | grep -Fq "application_model=native-wayland"
+tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/application-compatibility.txt | grep -Fq "x11_applications_supported=false"
 tar -tf "${ROOTFS_TAR}" ./usr/bin/aqua-files >/dev/null
 tar -tf "${ROOTFS_TAR}" ./usr/share/doc/aqua/files-binary.txt >/dev/null
 tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/files-binary.txt | grep -Fq "aqua-files packaged=true"

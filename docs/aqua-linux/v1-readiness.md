@@ -333,8 +333,13 @@ session-lock globals. Aqua currently publishes none of those privileged
 interfaces, so there is no arbitrary-client capture, activation, or shell
 control path and no broader authorization claim.
 
-XWayland is not automatically required for v1. If it remains excluded, the
-supported application model and incompatibility boundary must be public.
+The v1 application boundary is publicly defined in
+[application-compatibility.md](application-compatibility.md). Both Buildroot
+profiles explicitly disable Xorg and XWayland; the packaged contract rejects
+their server binaries and modules, an X11 socket directory, and any `DISPLAY`
+assignment in Aqua session environments. `/usr/share/X11/xkb` remains only as
+libxkbcommon keyboard data for native Wayland clients. X11-only applications
+are unsupported, while broader Wayland toolkit coverage remains open.
 
 ### R4: Unprivileged Session And Core System Services
 

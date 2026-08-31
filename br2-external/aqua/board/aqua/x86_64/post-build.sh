@@ -335,6 +335,32 @@ autostart=false
 EOF
 fi
 
+# Aqua v1 intentionally exposes a native Wayland-only application session.
+# Fail closed if a future package change introduces an X11 display server.
+for forbidden in \
+    usr/bin/Xwayland \
+    usr/bin/Xorg \
+    usr/libexec/Xwayland; do
+    if [ -e "${TARGET_DIR}/${forbidden}" ]; then
+        echo "unsupported X11 display server leaked into rootfs: /${forbidden}" >&2
+        exit 1
+    fi
+done
+if [ -d "${TARGET_DIR}/usr/lib/xorg" ]; then
+    echo "unsupported Xorg server modules leaked into rootfs: /usr/lib/xorg" >&2
+    exit 1
+fi
+cat > "${TARGET_DIR}/usr/share/doc/aqua/application-compatibility.txt" <<'EOF'
+application_model=native-wayland
+supported_clients=first-party-and-independently-tested-wl_shm-argb8888
+xwayland_packaged=false
+x11_server_packaged=false
+x11_applications_supported=false
+display_environment_exported=false
+xkb_data_scope=wayland-keyboard-layouts
+broader_toolkit_coverage=unproven
+EOF
+
 mkdir -p "${TARGET_DIR}/etc/aqua"
 cat > "${TARGET_DIR}/etc/aqua/milestone" <<'EOF'
 product=Aqua Linux

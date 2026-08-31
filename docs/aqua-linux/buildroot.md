@@ -46,6 +46,13 @@ Expected artifacts:
 
 The image also carries the installer prerequisites selected for Milestone 9: util-linux `sfdisk`, dosfstools `mkfs.fat`, e2fsprogs `mkfs.ext4`, GNU tar, and the BusyBox mount tools. The post-image hook treats their executable paths as an image contract and fails the build when one is absent.
 
+The default and audio-rehearsal profiles explicitly disable Xorg and
+XWayland. Aqua v1 exports only `WAYLAND_DISPLAY`; it does not export `DISPLAY`
+or claim X11 application compatibility. Post-build validation fails if an
+XWayland/Xorg server binary or module enters the image and records the public
+boundary in `/usr/share/doc/aqua/application-compatibility.txt`. The packaged
+XKB data remains required by libxkbcommon for native Wayland keyboard input.
+
 ## Run
 
 ```sh

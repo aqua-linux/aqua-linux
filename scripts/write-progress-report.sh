@@ -71,6 +71,8 @@ lines = [
     "",
     cell(data.get("r3ApplicationMatrix", "")),
     "",
+    cell(data.get("r3ApplicationBoundary", "")),
+    "",
     cell(data.get("r3OutputBoundary", "")),
     "",
     cell(data.get("r3SurfaceLifecycleBoundary", "")),
