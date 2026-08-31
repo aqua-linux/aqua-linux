@@ -352,6 +352,7 @@ EOF
         "${tmp_dir}/aqua-compositor" probe-selection-ownership > "${CONTRACT_DIR}/selection-ownership-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-drag-and-drop > "${CONTRACT_DIR}/drag-and-drop-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-text-input > "${CONTRACT_DIR}/text-input-probe.txt"
+        "${tmp_dir}/aqua-compositor" probe-keyboard-locale-matrix > "${CONTRACT_DIR}/keyboard-locale-matrix-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-v1-client-buffer-contract > "${CONTRACT_DIR}/v1-client-buffer-contract-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-wayland-output-matrix > "${CONTRACT_DIR}/wayland-output-matrix-probe.txt"
         "${tmp_dir}/aqua-compositor" probe-xdg-toplevel-window-model > "${CONTRACT_DIR}/xdg-toplevel-window-model-probe.txt"

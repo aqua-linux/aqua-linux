@@ -102,6 +102,21 @@ docker run --rm --platform linux/amd64 \
         printf "%s\n" "$text_input_output" | grep -Fq "payload_limit_bytes=4000"
         printf "%s\n" "$text_input_output" | grep -Fq "host_stub=false"
         printf "%s\n" "$text_input_output" | grep -Fq "[AQUA-COMPOSITOR] stage=text-input status=ok"
+        keyboard_matrix_output="$(cargo run --quiet -p aqua-compositor --features smithay-smoke -- probe-keyboard-locale-matrix)" || {
+            printf "%s\n" "$keyboard_matrix_output"
+            exit 1
+        }
+        printf "%s\n" "$keyboard_matrix_output"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "locale_count=3"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "keyboard_layout_count=3"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "supported_combination_count=9"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "client_count_per_layout=2"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "keymaps_delivered_to_all_clients=true"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "keymaps_compile_for_all_layouts=true"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "representative_utf8_matches=true"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "repeat_info_matches=true"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "host_stub=false"
+        printf "%s\n" "$keyboard_matrix_output" | grep -Fq "[AQUA-COMPOSITOR] stage=keyboard-locale-matrix status=ok"
         buffer_contract_output="$(cargo run --quiet -p aqua-compositor --features smithay-smoke -- probe-v1-client-buffer-contract)" || {
             printf "%s\n" "$buffer_contract_output"
             exit 1
@@ -152,6 +167,8 @@ docker run --rm --platform linux/amd64 \
             smithay_drag_and_drop_is_focus_safe_and_bounded
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_text_input_is_focus_and_authorization_safe
+        cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
+            smithay_keyboard_locale_matrix_delivers_compilable_keymaps
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             v1_client_buffer_contract_excludes_accelerated_clients
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \

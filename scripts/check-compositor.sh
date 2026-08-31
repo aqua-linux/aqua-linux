@@ -421,6 +421,14 @@ check_output_contains "turkish_commit_delivered=true" cargo run -p aqua-composit
 check_output_contains "serial_synchronized=true" cargo run -p aqua-compositor -- probe-text-input
 check_output_contains "focus_handoff_deactivates_input_method=true" cargo run -p aqua-compositor -- probe-text-input
 check_output_contains "popup_repositioned=true" cargo run -p aqua-compositor -- probe-text-input
+check_output_contains "[AQUA-COMPOSITOR] stage=keyboard-locale-matrix status=ok" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "locale_count=3" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "keyboard_layout_count=3" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "supported_combination_count=9" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "keymaps_delivered_to_all_clients=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "keymaps_compile_for_all_layouts=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "representative_utf8_matches=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
+check_output_contains "repeat_info_matches=true" cargo run -p aqua-compositor -- probe-keyboard-locale-matrix
 check_output_contains "[AQUA-COMPOSITOR] stage=v1-client-buffer-contract status=ok" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
 check_output_contains "application_model=first-party-wl-shm-v1" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
 check_output_contains "required_buffer_protocol=wl_shm" cargo run -p aqua-compositor -- probe-v1-client-buffer-contract
