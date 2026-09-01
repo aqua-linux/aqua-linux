@@ -427,6 +427,13 @@ const FILES_CONTENT_FOCUS_X: u32 = 176;
 const FILES_CONTENT_FOCUS_Y: u32 = 112;
 const FILES_CONTENT_FOCUS_TRAILING_INSET: u32 = 6;
 const FILES_CONTENT_FOCUS_BOTTOM_INSET: u32 = 38;
+const FILES_STATUS_X: u32 = 173;
+const FILES_STATUS_HEIGHT: u32 = 32;
+const FILES_STATUS_BOTTOM_INSET: u32 = 2;
+const FILES_STATUS_LABEL_INSET: u32 = 14;
+const FILES_STATUS_LABEL_Y_OFFSET: u32 = 11;
+const FILES_STATUS_LABEL_HEIGHT: u32 = 8;
+const FILES_STATUS_LABEL_MIN_WIDTH: u32 = 42;
 pub const NOTIFICATION_DEFAULT_TIMEOUT_MS: u64 = 30_000;
 pub const NOTIFICATION_QUEUE_LIMIT: usize = 8;
 pub const SYSTEM_OVERVIEW_REFRESH_MS: u64 = 60_000;
@@ -609,6 +616,37 @@ pub const fn files_toolbar_layout(width: u32, height: u32) -> Option<FilesToolba
         forward,
         location,
     })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesStatusLayout {
+    pub bar: Rect,
+    pub label: Rect,
+}
+
+pub const fn files_status_layout(width: u32, height: u32) -> Option<FilesStatusLayout> {
+    let bar = Rect {
+        x: FILES_STATUS_X,
+        y: height.saturating_sub(FILES_STATUS_HEIGHT + FILES_STATUS_BOTTOM_INSET),
+        width: width.saturating_sub(FILES_STATUS_X + FILES_STATUS_BOTTOM_INSET),
+        height: FILES_STATUS_HEIGHT,
+    };
+    let label = Rect {
+        x: bar.x + FILES_STATUS_LABEL_INSET,
+        y: bar.y + FILES_STATUS_LABEL_Y_OFFSET,
+        width: bar.width.saturating_sub(FILES_STATUS_LABEL_INSET * 2),
+        height: FILES_STATUS_LABEL_HEIGHT,
+    };
+    if bar.y < files_toolbar(width).rect.bottom()
+        || bar.right() > width
+        || bar.bottom() > height
+        || label.width < FILES_STATUS_LABEL_MIN_WIDTH
+        || label.right() > width
+        || label.bottom() > height
+    {
+        return None;
+    }
+    Some(FilesStatusLayout { bar, label })
 }
 
 pub const fn files_back_button() -> IconButton<'static> {
@@ -6707,6 +6745,26 @@ mod tests {
         assert!(files_toolbar_layout(214, 108).is_some());
         assert!(files_toolbar_layout(213, 420).is_none());
         assert!(files_toolbar_layout(640, 107).is_none());
+        assert_eq!(
+            files_status_layout(640, 420),
+            Some(FilesStatusLayout {
+                bar: Rect {
+                    x: 173,
+                    y: 386,
+                    width: 465,
+                    height: 32,
+                },
+                label: Rect {
+                    x: 187,
+                    y: 397,
+                    width: 437,
+                    height: 8,
+                },
+            })
+        );
+        assert!(files_status_layout(245, 142).is_some());
+        assert!(files_status_layout(244, 420).is_none());
+        assert!(files_status_layout(640, 141).is_none());
         let mut toolbar_model = home.clone();
         toolbar_model.can_go_back = true;
         assert_eq!(

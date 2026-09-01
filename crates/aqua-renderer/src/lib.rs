@@ -7,12 +7,12 @@ use aqua_installer::{
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     desktop_context_menu_with_selection, desktop_grid_cell, files_empty_state_layout,
-    files_preview_visible_lines_in_viewport, files_sidebar_navigation, files_toolbar_layout,
-    files_visible_rows_in_viewport, running_app_dock, top_system_bar, workspace_switcher,
-    AquaTheme, AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
-    FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
-    NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
-    TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_SIDEBAR_NAVIGATION,
+    files_preview_visible_lines_in_viewport, files_sidebar_navigation, files_status_layout,
+    files_toolbar_layout, files_visible_rows_in_viewport, running_app_dock, top_system_bar,
+    workspace_switcher, AquaTheme, AudioControlStatus, DesktopIconState, DesktopPropertiesModel,
+    DockItem, DockState, FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode,
+    LauncherState, NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel,
+    SystemOverviewModel, TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_SIDEBAR_NAVIGATION,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -2562,6 +2562,7 @@ fn draw_session_action_icon(
 pub struct FilesWindowProbe {
     pub rendered: bool,
     pub toolbar_rendered: bool,
+    pub status_rendered: bool,
     pub sidebar_item_count: usize,
     pub entry_count: usize,
     pub selected_sidebar: usize,
@@ -4707,6 +4708,7 @@ impl FilesWindowProbe {
     pub fn is_ready(&self) -> bool {
         self.rendered
             && self.toolbar_rendered
+            && self.status_rendered
             && self.sidebar_item_count == 5
             && self.selected_sidebar < self.sidebar_item_count
             && self.primitive_count >= 19
@@ -4735,6 +4737,7 @@ pub fn render_files_window_rgba_with_theme(
             FilesWindowProbe {
                 rendered: false,
                 toolbar_rendered: false,
+                status_rendered: false,
                 sidebar_item_count: model.sidebar_items.len(),
                 entry_count: model.entries.len(),
                 selected_sidebar: model.selected_sidebar,
@@ -5010,23 +5013,19 @@ pub fn render_files_window_rgba_with_theme(
         }
     }
 
-    let status = Rect {
-        x: sidebar_width + 3,
-        y: height.saturating_sub(34),
-        width: width.saturating_sub(sidebar_width + 5),
-        height: 32,
-    };
-    fill_rect(&mut buffer, width, height, status, palette.toolbar, 255);
-    let status_text = format!("{} ITEMS", model.entries.len());
-    draw_bitmap_text(
-        &mut buffer,
-        (width, height),
-        (status.x + 14, status.y + 11),
-        &status_text,
-        palette.secondary_text,
-        1,
-    );
-    primitives += 1;
+    if let Some(status) = files_status_layout(width, height) {
+        fill_rect(&mut buffer, width, height, status.bar, palette.toolbar, 255);
+        let status_text = format!("{} ITEMS", model.entries.len());
+        draw_fitted_bitmap_text(
+            &mut buffer,
+            (width, height),
+            status.label,
+            &status_text,
+            palette.secondary_text,
+            FittedTextOptions::new(TextRole::Caption, OutputScale::One, false),
+        );
+        primitives += 1;
+    }
 
     let checksum = checksum_bytes(&buffer);
     (
@@ -5034,6 +5033,7 @@ pub fn render_files_window_rgba_with_theme(
         FilesWindowProbe {
             rendered: true,
             toolbar_rendered: files_toolbar_layout(width, height).is_some(),
+            status_rendered: files_status_layout(width, height).is_some(),
             sidebar_item_count: model.sidebar_items.len(),
             entry_count: model.entries.len(),
             selected_sidebar: model.selected_sidebar,
@@ -8852,6 +8852,7 @@ mod tests {
         let (home, home_probe) = render_files_window_rgba(640, 420, &FilesWindowModel::default());
         assert!(home_probe.is_ready());
         assert!(home_probe.toolbar_rendered);
+        assert!(home_probe.status_rendered);
         assert_eq!(home_probe.entry_count, 4);
         assert!(!home_probe.empty_state_rendered);
         assert_eq!(home.len(), 640 * 420 * 4);
@@ -8888,6 +8889,29 @@ mod tests {
             render_files_window_rgba(640, 107, &FilesWindowModel::default());
         assert!(short_toolbar_probe.rendered);
         assert!(!short_toolbar_probe.toolbar_rendered);
+
+        let mut more_entries = FilesWindowModel::default();
+        more_entries.entries.push(more_entries.entries[0].clone());
+        let (narrow_status, narrow_status_probe) =
+            render_files_window_rgba(244, 420, &FilesWindowModel::default());
+        let (narrow_status_more, _) = render_files_window_rgba(244, 420, &more_entries);
+        assert!(!narrow_status_probe.status_rendered);
+        assert_eq!(narrow_status, narrow_status_more);
+        let (minimum_status, minimum_status_probe) =
+            render_files_window_rgba(245, 420, &FilesWindowModel::default());
+        let (minimum_status_more, _) = render_files_window_rgba(245, 420, &more_entries);
+        assert!(minimum_status_probe.status_rendered);
+        assert_ne!(minimum_status, minimum_status_more);
+        let (short_status, short_status_probe) =
+            render_files_window_rgba(640, 141, &FilesWindowModel::default());
+        let (short_status_more, _) = render_files_window_rgba(640, 141, &more_entries);
+        assert!(!short_status_probe.status_rendered);
+        assert_eq!(short_status, short_status_more);
+        let (minimum_height_status, minimum_height_status_probe) =
+            render_files_window_rgba(640, 142, &FilesWindowModel::default());
+        let (minimum_height_status_more, _) = render_files_window_rgba(640, 142, &more_entries);
+        assert!(minimum_height_status_probe.status_rendered);
+        assert_ne!(minimum_height_status, minimum_height_status_more);
 
         let preview_model = FilesWindowModel {
             preview: Some(aqua_shell::FilesTextPreview {
