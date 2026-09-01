@@ -488,6 +488,33 @@ pub const SETTINGS_SIDEBAR_NAVIGATION: SidebarNavigation<'static> = SidebarNavig
     },
     50,
 );
+pub const SETTINGS_SIDEBAR_ITEM_COUNT: usize = 6;
+pub const fn settings_sidebar_navigation_in_viewport(
+    width: u32,
+    height: u32,
+) -> Option<SidebarNavigation<'static>> {
+    let navigation = SidebarNavigation::new(
+        Rect {
+            x: SETTINGS_SIDEBAR_NAVIGATION.rect.x,
+            y: SETTINGS_SIDEBAR_NAVIGATION.rect.y,
+            width: SETTINGS_SIDEBAR_NAVIGATION.rect.width,
+            height: height.saturating_sub(62),
+        },
+        SETTINGS_SIDEBAR_NAVIGATION.label,
+        SETTINGS_SIDEBAR_NAVIGATION.first_row,
+        SETTINGS_SIDEBAR_NAVIGATION.row_stride,
+    );
+    if !navigation.is_valid()
+        || navigation.rect.right() > width
+        || navigation
+            .row_rect(SETTINGS_SIDEBAR_ITEM_COUNT - 1)
+            .bottom()
+            > navigation.rect.bottom()
+    {
+        return None;
+    }
+    Some(navigation)
+}
 pub const FILES_SIDEBAR_NAVIGATION: SidebarNavigation<'static> = files_sidebar_navigation(480);
 pub const fn files_sidebar_navigation(height: u32) -> SidebarNavigation<'static> {
     SidebarNavigation::new(
@@ -2570,10 +2597,22 @@ impl SettingsWindowModel {
     }
 
     pub fn handle_pointer(&mut self, x: u32, y: u32) -> SettingsUpdate {
+        self.handle_pointer_in_viewport(600, 400, x, y)
+    }
+
+    pub fn handle_pointer_in_viewport(
+        &mut self,
+        width: u32,
+        height: u32,
+        x: u32,
+        y: u32,
+    ) -> SettingsUpdate {
         self.keyboard_focus = false;
-        if let Some(category) = SETTINGS_SIDEBAR_NAVIGATION.hit_test(x, y, self.categories.len()) {
-            self.selected_category = category;
-            return SettingsUpdate::CategorySelected(category);
+        if let Some(navigation) = settings_sidebar_navigation_in_viewport(width, height) {
+            if let Some(category) = navigation.hit_test(x, y, self.categories.len()) {
+                self.selected_category = category;
+                return SettingsUpdate::CategorySelected(category);
+            }
         }
         if let Some(control) = self.active_switch() {
             if control.pointer_toggles(x, y) {
@@ -2641,13 +2680,27 @@ impl SettingsWindowModel {
     }
 
     pub fn handle_hover(&mut self, x: u32, y: u32) -> bool {
+        self.handle_hover_in_viewport(600, 400, x, y)
+    }
+
+    pub fn handle_hover_in_viewport(&mut self, width: u32, height: u32, x: u32, y: u32) -> bool {
         let previous = self.hovered_category;
         self.hovered_category = None;
-        self.hovered_category = SETTINGS_SIDEBAR_NAVIGATION.hit_test(x, y, self.categories.len());
+        self.hovered_category = settings_sidebar_navigation_in_viewport(width, height)
+            .and_then(|navigation| navigation.hit_test(x, y, self.categories.len()));
         previous != self.hovered_category
     }
 
     pub fn handle_key(&mut self, key: SettingsKey) -> SettingsUpdate {
+        self.handle_key_in_viewport(600, 400, key)
+    }
+
+    pub fn handle_key_in_viewport(
+        &mut self,
+        width: u32,
+        height: u32,
+        key: SettingsKey,
+    ) -> SettingsUpdate {
         self.keyboard_focus = true;
         match key {
             SettingsKey::Activate
@@ -2668,7 +2721,11 @@ impl SettingsWindowModel {
                     SettingsKey::Down => SidebarNavigationKey::Next,
                     _ => unreachable!(),
                 };
-                let Some(selected_category) = SETTINGS_SIDEBAR_NAVIGATION.keyboard_target(
+                let Some(navigation) = settings_sidebar_navigation_in_viewport(width, height)
+                else {
+                    return SettingsUpdate::None;
+                };
+                let Some(selected_category) = navigation.keyboard_target(
                     self.selected_category,
                     self.categories.len(),
                     navigation_key,
@@ -5564,6 +5621,33 @@ mod tests {
 
     #[test]
     fn settings_model_selects_categories_and_toggles_reduced_motion() {
+        assert!(settings_sidebar_navigation_in_viewport(190, 386).is_some());
+        assert!(settings_sidebar_navigation_in_viewport(189, 400).is_none());
+        assert!(settings_sidebar_navigation_in_viewport(600, 385).is_none());
+        let mut viewport_model = SettingsWindowModel::default();
+        assert_eq!(
+            viewport_model.handle_pointer_in_viewport(189, 400, 40, 150),
+            SettingsUpdate::None
+        );
+        assert_eq!(viewport_model.selected_category, 0);
+        assert!(!viewport_model.handle_hover_in_viewport(189, 400, 40, 150));
+        assert_eq!(viewport_model.hovered_category, None);
+        assert_eq!(
+            viewport_model.handle_key_in_viewport(189, 400, SettingsKey::Down),
+            SettingsUpdate::None
+        );
+        assert_eq!(viewport_model.selected_category, 0);
+        assert_eq!(
+            viewport_model.handle_pointer_in_viewport(190, 386, 40, 150),
+            SettingsUpdate::CategorySelected(1)
+        );
+        assert!(viewport_model.handle_hover_in_viewport(190, 386, 40, 200));
+        assert_eq!(viewport_model.hovered_category, Some(2));
+        assert_eq!(
+            viewport_model.handle_key_in_viewport(190, 386, SettingsKey::Down),
+            SettingsUpdate::CategorySelected(2)
+        );
+
         let mut model = SettingsWindowModel::default();
         let appearance = model.section_group();
         assert!(appearance.is_valid());
