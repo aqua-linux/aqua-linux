@@ -3035,6 +3035,7 @@ impl FilesNavigator {
 
     pub fn handle_pointer(&mut self, width: u32, x: u32, y: u32) -> FilesNavigation {
         let previously_selected = self.window.selected_entry;
+        let previously_selected_sidebar = self.window.selected_sidebar;
         let selection = self.window.select_at(width, x, y);
         if selection != FilesSelection::None {
             self.window.keyboard_focus = false;
@@ -3048,7 +3049,12 @@ impl FilesNavigator {
                 let Some(destination) = self.sidebar_destination(index) else {
                     return FilesNavigation::None;
                 };
-                self.navigate(destination, Some(index))
+                let navigation = self.navigate(destination, Some(index));
+                if navigation == FilesNavigation::Blocked {
+                    self.window.selected_sidebar = previously_selected_sidebar;
+                    self.window.selected_entry = previously_selected;
+                }
+                navigation
             }
             FilesSelection::Entry(index) => {
                 let Some(entry) = self.window.entries.get(index).cloned() else {
@@ -6400,6 +6406,12 @@ mod tests {
             FilesNavigation::Selected(0)
         );
         assert_eq!(
+            navigator.handle_pointer(640, 40, 318),
+            FilesNavigation::Blocked
+        );
+        assert_eq!(navigator.window().selected_sidebar, 0);
+        assert_eq!(navigator.window().selected_entry, Some(0));
+        assert_eq!(
             navigator.handle_pointer(640, 220, 140),
             FilesNavigation::Navigated
         );
@@ -6448,6 +6460,7 @@ mod tests {
             FilesNavigation::Blocked
         );
         assert_eq!(navigator.current(), canonical_home.join("Pictures"));
+        assert_eq!(navigator.window().selected_sidebar, 3);
 
         fs::remove_dir_all(root).expect("remove navigation fixture");
     }
