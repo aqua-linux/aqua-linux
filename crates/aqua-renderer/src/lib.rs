@@ -8,8 +8,8 @@ use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     desktop_context_menu_with_selection, desktop_grid_cell, files_empty_state_layout,
     files_preview_visible_lines, files_sidebar_navigation, files_toolbar_layout,
-    files_visible_rows, running_app_dock, top_system_bar, workspace_switcher, AquaTheme,
-    AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
+    files_visible_rows_in_viewport, running_app_dock, top_system_bar, workspace_switcher,
+    AquaTheme, AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
     FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
     NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
     TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_SIDEBAR_NAVIGATION,
@@ -4915,7 +4915,7 @@ pub fn render_files_window_rgba_with_theme(
             .iter()
             .enumerate()
             .skip(model.scroll_offset)
-            .take(files_visible_rows(height))
+            .take(files_visible_rows_in_viewport(width, height))
             .enumerate()
         {
             let row = model

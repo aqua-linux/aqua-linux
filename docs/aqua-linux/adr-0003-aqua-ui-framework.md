@@ -3,7 +3,7 @@
 ## Status
 
 Accepted on 2026-08-29. Framework consolidation began on 2026-09-01 after the
-core desktop functionality supplied real consumers. The first thirty bounded
+core desktop functionality supplied real consumers. The first thirty-one bounded
 slices replaced Settings Network's duplicated Wi-Fi row/action hit geometry,
 Files content-row render/input geometry, and launcher panel/child pointer
 routing with existing shared component contracts, then consolidated Files list
@@ -68,7 +68,8 @@ so compact layouts that cannot contain every location fail closed instead of
 targeting hidden rows;
 Files content rendering, pointer and hover targets, scrolling, scrollbar
 geometry, keyboard reveal, and Enter activation now share the row count derived
-from the actual client height, keeping clipped rows inert below the status bar;
+from the actual client viewport, keeping rows inert when height clips them below
+the status bar or width cannot contain their minimum anatomy;
 Files text-preview rendering, scrolling, scrollbar geometry, and keyboard
 navigation now share the visible-line count derived from that height, with
 compact layouts hiding unavailable lines and rejecting zero-line scroll input;
