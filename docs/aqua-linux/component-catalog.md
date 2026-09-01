@@ -359,7 +359,8 @@ not overlap. Packaged-QEMU component acceptance is covered by the aggregate four
   `SystemOverview` surface into the runtime menu coordinate space, rejects row
   gaps and panel edges, and prevents click-through to client surfaces. Pointer
   activation retains the same second-activation confirmation requirement as
-  keyboard Enter.
+  keyboard Enter. Up, Down, Home, and End resolve through the primitive's
+  keyboard targets; moving to another action clears an armed confirmation.
 
 The deterministic matrix covers menu drawing, gap rejection, keyboard
 navigation, and accessibility semantics in four themes at 800x600, 1280x800,
@@ -677,7 +678,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first eight
+All catalog entries now satisfy the shared primitive contract. The first nine
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -689,7 +690,8 @@ routing now uses the actual viewport's scene geometry for its outer surface and
 local targets. Smithay motion bounds and launcher hover routing now use those
 same active output dimensions. Session-menu pointer routing maps the active
 output panel into the shared menu rows without weakening its confirmation
-gate. Further extractions must continue from real
+gate, and its Up, Down, Home, and End handling now consumes the same shared
+keyboard target contract. Further extractions must continue from real
 first-party consumers and repeat the same geometry, input, accessibility,
 deterministic-fixture, and packaged-QEMU
 evidence path. The actual audio service/backend remains a separate R4 decision

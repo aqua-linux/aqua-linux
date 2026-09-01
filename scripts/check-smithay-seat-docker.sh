@@ -209,6 +209,8 @@ docker run --rm --platform linux/amd64 \
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_session_menu_pointer_uses_actual_output_and_confirmation_gate
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
+            smithay_session_menu_keyboard_uses_shared_home_end_and_confirmation_gate
+        cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_notification_close_promotes_queue_and_timeout_hides_toast
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_first_party_surfaces_raise_and_move_between_workspaces
