@@ -7,12 +7,12 @@ use aqua_installer::{
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     desktop_context_menu_with_selection, desktop_grid_cell, files_back_button,
-    files_forward_button, files_preview_visible_lines, files_sidebar_navigation, files_toolbar,
-    files_visible_rows, running_app_dock, top_system_bar, workspace_switcher, AquaTheme,
-    AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
-    FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
-    NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
-    TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_SIDEBAR_NAVIGATION,
+    files_empty_state_layout, files_forward_button, files_preview_visible_lines,
+    files_sidebar_navigation, files_toolbar, files_visible_rows, running_app_dock, top_system_bar,
+    workspace_switcher, AquaTheme, AudioControlStatus, DesktopIconState, DesktopPropertiesModel,
+    DockItem, DockState, FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode,
+    LauncherState, NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel,
+    SystemOverviewModel, TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_SIDEBAR_NAVIGATION,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -4735,7 +4735,7 @@ pub fn render_files_window_rgba_with_theme(
                 sidebar_item_count: model.sidebar_items.len(),
                 entry_count: model.entries.len(),
                 selected_sidebar: model.selected_sidebar,
-                empty_state_rendered: model.is_empty(),
+                empty_state_rendered: false,
                 primitive_count: 0,
                 checksum: 0,
             },
@@ -4878,23 +4878,25 @@ pub fn render_files_window_rgba_with_theme(
             primitives += 2;
         }
     } else if model.is_empty() {
-        draw_folder_icon(
-            &mut buffer,
-            width,
-            height,
-            width / 2 - 24,
-            190,
-            [0x58, 0xc9, 0xf3, 0xff],
-        );
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (width / 2 - 50, 252),
-            "EMPTY FOLDER",
-            palette.secondary_text,
-            1,
-        );
-        primitives += 2;
+        if let Some(empty_state) = files_empty_state_layout(width, height) {
+            draw_folder_icon(
+                &mut buffer,
+                width,
+                height,
+                empty_state.icon.x,
+                empty_state.icon.y,
+                [0x58, 0xc9, 0xf3, 0xff],
+            );
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (empty_state.label.x, empty_state.label.y),
+                "EMPTY FOLDER",
+                palette.secondary_text,
+                1,
+            );
+            primitives += 2;
+        }
     } else {
         for (row_index, (index, entry)) in model
             .entries
@@ -5021,7 +5023,8 @@ pub fn render_files_window_rgba_with_theme(
             sidebar_item_count: model.sidebar_items.len(),
             entry_count: model.entries.len(),
             selected_sidebar: model.selected_sidebar,
-            empty_state_rendered: model.is_empty(),
+            empty_state_rendered: model.is_empty()
+                && files_empty_state_layout(width, height).is_some(),
             primitive_count: primitives,
             checksum,
         },
@@ -8845,6 +8848,22 @@ mod tests {
         assert!(empty_probe.empty_state_rendered);
         assert_ne!(home_probe.checksum, empty_probe.checksum);
         assert_ne!(home, empty);
+
+        let (compact_empty, compact_empty_probe) =
+            render_files_window_rgba(640, 260, &FilesWindowModel::empty("Aqua / Empty"));
+        assert_eq!(compact_empty.len(), 640 * 260 * 4);
+        assert!(compact_empty_probe.rendered);
+        assert!(compact_empty_probe.empty_state_rendered);
+        let (too_short_empty, too_short_empty_probe) =
+            render_files_window_rgba(640, 219, &FilesWindowModel::empty("Aqua / Empty"));
+        assert_eq!(too_short_empty.len(), 640 * 219 * 4);
+        assert!(too_short_empty_probe.rendered);
+        assert!(!too_short_empty_probe.empty_state_rendered);
+        let (narrow_empty, narrow_empty_probe) =
+            render_files_window_rgba(475, 420, &FilesWindowModel::empty("Aqua / Empty"));
+        assert_eq!(narrow_empty.len(), 475 * 420 * 4);
+        assert!(narrow_empty_probe.rendered);
+        assert!(!narrow_empty_probe.empty_state_rendered);
 
         let mut selected = FilesWindowModel::default();
         selected.select_at(640, 220, 140);

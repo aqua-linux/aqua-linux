@@ -414,6 +414,11 @@ const FILES_PREVIEW_LINE_Y: u32 = 194;
 const FILES_PREVIEW_LINE_HEIGHT: u32 = 8;
 const FILES_PREVIEW_LINE_STRIDE: u32 = 22;
 const FILES_PREVIEW_BOTTOM_INSET: u32 = 96;
+const FILES_EMPTY_STATE_MIN_WIDTH: u32 = 476;
+const FILES_EMPTY_STATE_MIN_HEIGHT: u32 = 220;
+const FILES_EMPTY_STATE_REFERENCE_HEIGHT: u32 = 300;
+const FILES_EMPTY_STATE_ICON_Y: u32 = 190;
+const FILES_EMPTY_STATE_LABEL_Y: u32 = 252;
 pub const NOTIFICATION_DEFAULT_TIMEOUT_MS: u64 = 30_000;
 pub const NOTIFICATION_QUEUE_LIMIT: usize = 8;
 pub const SYSTEM_OVERVIEW_REFRESH_MS: u64 = 60_000;
@@ -496,6 +501,33 @@ pub const fn files_preview_visible_lines(height: u32) -> usize {
     } else {
         lines as usize
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesEmptyStateLayout {
+    pub icon: Rect,
+    pub label: Rect,
+}
+
+pub const fn files_empty_state_layout(width: u32, height: u32) -> Option<FilesEmptyStateLayout> {
+    if width < FILES_EMPTY_STATE_MIN_WIDTH || height < FILES_EMPTY_STATE_MIN_HEIGHT {
+        return None;
+    }
+    let vertical_shift = FILES_EMPTY_STATE_REFERENCE_HEIGHT.saturating_sub(height);
+    Some(FilesEmptyStateLayout {
+        icon: Rect {
+            x: width / 2 - 24,
+            y: FILES_EMPTY_STATE_ICON_Y - vertical_shift,
+            width: 42,
+            height: 33,
+        },
+        label: Rect {
+            x: width / 2 - 50,
+            y: FILES_EMPTY_STATE_LABEL_Y - vertical_shift,
+            width: 100,
+            height: 8,
+        },
+    })
 }
 pub const fn files_toolbar(width: u32) -> Toolbar<'static> {
     Toolbar::new(
@@ -6490,6 +6522,30 @@ mod tests {
         assert_eq!(files_preview_visible_lines(420), 6);
         assert_eq!(files_preview_visible_lines(322), 2);
         assert_eq!(files_preview_visible_lines(297), 0);
+        assert_eq!(
+            files_empty_state_layout(640, 420),
+            Some(FilesEmptyStateLayout {
+                icon: Rect {
+                    x: 296,
+                    y: 190,
+                    width: 42,
+                    height: 33,
+                },
+                label: Rect {
+                    x: 270,
+                    y: 252,
+                    width: 100,
+                    height: 8,
+                },
+            })
+        );
+        let compact_empty_state =
+            files_empty_state_layout(640, 260).expect("compact Files empty-state layout");
+        assert_eq!(compact_empty_state.icon.y, 150);
+        assert_eq!(compact_empty_state.label.y, 212);
+        assert!(compact_empty_state.label.bottom() < 260 - 34);
+        assert!(files_empty_state_layout(640, 219).is_none());
+        assert!(files_empty_state_layout(475, 420).is_none());
         assert!(home.entry_row_in_viewport(640, 300, 1).is_some());
         assert!(home.entry_row_in_viewport(640, 300, 2).is_none());
         let compact_scrollbar = home
