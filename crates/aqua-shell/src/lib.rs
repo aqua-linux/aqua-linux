@@ -1231,6 +1231,13 @@ pub enum DesktopContextAction {
     TrashEmptyConfirmed,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DesktopContextMenuKey {
+    Dismiss,
+    Navigate(MenuNavigationKey),
+    Activate,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DesktopIconUpdate {
     pub redraw_requested: bool,
@@ -1242,6 +1249,7 @@ pub struct DesktopIconUpdate {
 pub struct DesktopIconState {
     selected: Option<usize>,
     context_menu: Option<usize>,
+    context_menu_selected_row: usize,
     trash_empty_confirmation: bool,
     last_primary_click: Option<(usize, u64)>,
 }
@@ -1253,6 +1261,10 @@ impl DesktopIconState {
 
     pub fn context_menu(&self) -> Option<usize> {
         self.context_menu
+    }
+
+    pub fn context_menu_selected_row(&self) -> Option<usize> {
+        self.context_menu.map(|_| self.context_menu_selected_row)
     }
 
     pub fn trash_empty_confirmation(&self) -> bool {
@@ -1275,8 +1287,104 @@ impl DesktopIconState {
 
     fn context_menu_row(&self, x: u32, y: u32) -> Option<(usize, usize)> {
         let icon_index = self.context_menu?;
-        let menu = desktop_context_menu(icon_index)?.translated(DESKTOP_ICON_X, DESKTOP_ICON_Y);
+        let menu = desktop_context_menu_with_selection(icon_index, self.context_menu_selected_row)?
+            .translated(DESKTOP_ICON_X, DESKTOP_ICON_Y);
         menu.item_at(x, y).map(|row| (icon_index, row))
+    }
+
+    fn activate_context_menu_row(&mut self, icon_index: usize, row: usize) -> DesktopIconUpdate {
+        self.context_menu_selected_row = row;
+        self.last_primary_click = None;
+        if row == 0 {
+            self.context_menu = None;
+            self.context_menu_selected_row = 0;
+            self.trash_empty_confirmation = false;
+            return DesktopIconUpdate {
+                redraw_requested: true,
+                launch_request: DESKTOP_ICONS[icon_index].launch.clone(),
+                context_action: None,
+            };
+        }
+        if DESKTOP_ICONS[icon_index].id == "trash" {
+            if self.trash_empty_confirmation {
+                self.context_menu = None;
+                self.context_menu_selected_row = 0;
+                self.trash_empty_confirmation = false;
+                return DesktopIconUpdate {
+                    redraw_requested: true,
+                    launch_request: None,
+                    context_action: Some(DesktopContextAction::TrashEmptyConfirmed),
+                };
+            }
+            self.trash_empty_confirmation = true;
+            return DesktopIconUpdate {
+                redraw_requested: true,
+                launch_request: None,
+                context_action: Some(DesktopContextAction::TrashEmptyConfirmationRequested),
+            };
+        }
+        self.context_menu = None;
+        self.context_menu_selected_row = 0;
+        self.trash_empty_confirmation = false;
+        DesktopIconUpdate {
+            redraw_requested: true,
+            launch_request: None,
+            context_action: Some(DesktopContextAction::Properties(
+                DESKTOP_ICONS[icon_index].id,
+            )),
+        }
+    }
+
+    pub fn handle_context_menu_key(&mut self, key: DesktopContextMenuKey) -> DesktopIconUpdate {
+        let Some(icon_index) = self.context_menu else {
+            return DesktopIconUpdate {
+                redraw_requested: false,
+                launch_request: None,
+                context_action: None,
+            };
+        };
+        match key {
+            DesktopContextMenuKey::Dismiss => {
+                self.context_menu = None;
+                self.context_menu_selected_row = 0;
+                self.trash_empty_confirmation = false;
+                self.last_primary_click = None;
+                DesktopIconUpdate {
+                    redraw_requested: true,
+                    launch_request: None,
+                    context_action: None,
+                }
+            }
+            DesktopContextMenuKey::Navigate(key) => {
+                let Some(row) =
+                    desktop_context_menu_with_selection(icon_index, self.context_menu_selected_row)
+                        .and_then(|menu| menu.keyboard_target(key))
+                else {
+                    return DesktopIconUpdate {
+                        redraw_requested: false,
+                        launch_request: None,
+                        context_action: None,
+                    };
+                };
+                if row == self.context_menu_selected_row {
+                    return DesktopIconUpdate {
+                        redraw_requested: false,
+                        launch_request: None,
+                        context_action: None,
+                    };
+                }
+                self.context_menu_selected_row = row;
+                self.trash_empty_confirmation = false;
+                DesktopIconUpdate {
+                    redraw_requested: true,
+                    launch_request: None,
+                    context_action: None,
+                }
+            }
+            DesktopContextMenuKey::Activate => {
+                self.activate_context_menu_row(icon_index, self.context_menu_selected_row)
+            }
+        }
     }
 
     pub fn pointer_target(x: u32, y: u32) -> Option<usize> {
@@ -1296,43 +1404,7 @@ impl DesktopIconState {
     ) -> DesktopIconUpdate {
         if button == DesktopPointerButton::Primary {
             if let Some((icon_index, row)) = self.context_menu_row(x, y) {
-                self.last_primary_click = None;
-                if row == 0 {
-                    self.context_menu = None;
-                    self.trash_empty_confirmation = false;
-                    let launch_request = DESKTOP_ICONS[icon_index].launch.clone();
-                    return DesktopIconUpdate {
-                        redraw_requested: true,
-                        launch_request,
-                        context_action: None,
-                    };
-                }
-                if DESKTOP_ICONS[icon_index].id == "trash" {
-                    if self.trash_empty_confirmation {
-                        self.context_menu = None;
-                        self.trash_empty_confirmation = false;
-                        return DesktopIconUpdate {
-                            redraw_requested: true,
-                            launch_request: None,
-                            context_action: Some(DesktopContextAction::TrashEmptyConfirmed),
-                        };
-                    }
-                    self.trash_empty_confirmation = true;
-                    return DesktopIconUpdate {
-                        redraw_requested: true,
-                        launch_request: None,
-                        context_action: Some(DesktopContextAction::TrashEmptyConfirmationRequested),
-                    };
-                }
-                self.context_menu = None;
-                self.trash_empty_confirmation = false;
-                return DesktopIconUpdate {
-                    redraw_requested: true,
-                    launch_request: None,
-                    context_action: Some(DesktopContextAction::Properties(
-                        DESKTOP_ICONS[icon_index].id,
-                    )),
-                };
+                return self.activate_context_menu_row(icon_index, row);
             }
         }
         let target = Self::pointer_target(x, y);
@@ -1346,6 +1418,7 @@ impl DesktopIconState {
                     });
                 self.selected = Some(index);
                 self.context_menu = None;
+                self.context_menu_selected_row = 0;
                 self.trash_empty_confirmation = false;
                 self.last_primary_click = (!activate).then_some((index, now_ms));
                 DesktopIconUpdate {
@@ -1359,6 +1432,7 @@ impl DesktopIconState {
             (DesktopPointerButton::Secondary, Some(index)) => {
                 self.selected = Some(index);
                 self.context_menu = Some(index);
+                self.context_menu_selected_row = 0;
                 self.trash_empty_confirmation = false;
                 self.last_primary_click = None;
                 DesktopIconUpdate {
@@ -1370,6 +1444,7 @@ impl DesktopIconState {
             (_, None) => {
                 let had_selection = self.selected.take().is_some();
                 let had_context_menu = self.context_menu.take().is_some();
+                self.context_menu_selected_row = 0;
                 self.trash_empty_confirmation = false;
                 let redraw_requested = had_selection || had_context_menu;
                 self.last_primary_click = None;
@@ -1384,7 +1459,14 @@ impl DesktopIconState {
 }
 
 pub fn desktop_context_menu(icon_index: usize) -> Option<Menu<'static>> {
-    if icon_index >= DESKTOP_ICONS.len() {
+    desktop_context_menu_with_selection(icon_index, 0)
+}
+
+pub fn desktop_context_menu_with_selection(
+    icon_index: usize,
+    selected_row: usize,
+) -> Option<Menu<'static>> {
+    if icon_index >= DESKTOP_ICONS.len() || selected_row >= 2 {
         return None;
     }
     let local_y = (icon_index as u32 * DESKTOP_ICON_ROW_HEIGHT + 32)
@@ -1398,7 +1480,7 @@ pub fn desktop_context_menu(icon_index: usize) -> Option<Menu<'static>> {
         },
         "Desktop icon actions",
         2,
-        0,
+        selected_row,
         0,
         DESKTOP_CONTEXT_MENU_ROW_HEIGHT,
         0,
@@ -4672,6 +4754,55 @@ mod tests {
         let cleared = state.pointer_press(400, 700, DesktopPointerButton::Primary, 3_000);
         assert!(cleared.redraw_requested);
         assert_eq!(state.selected(), None);
+        assert_eq!(state.context_menu(), None);
+    }
+
+    #[test]
+    fn desktop_context_menu_keyboard_uses_shared_rows_and_confirmation_gate() {
+        let mut state = DesktopIconState::default();
+        let closed = state.handle_context_menu_key(DesktopContextMenuKey::Activate);
+        assert!(!closed.redraw_requested);
+
+        state.pointer_press(48, 194, DesktopPointerButton::Secondary, 1_000);
+        assert_eq!(state.context_menu_selected_row(), Some(0));
+        let next =
+            state.handle_context_menu_key(DesktopContextMenuKey::Navigate(MenuNavigationKey::Next));
+        assert!(next.redraw_requested);
+        assert_eq!(state.context_menu_selected_row(), Some(1));
+        let properties = state.handle_context_menu_key(DesktopContextMenuKey::Activate);
+        assert_eq!(
+            properties.context_action,
+            Some(DesktopContextAction::Properties("settings"))
+        );
+        assert_eq!(state.context_menu(), None);
+
+        state.pointer_press(48, 298, DesktopPointerButton::Secondary, 2_000);
+        state.handle_context_menu_key(DesktopContextMenuKey::Navigate(MenuNavigationKey::End));
+        let armed = state.handle_context_menu_key(DesktopContextMenuKey::Activate);
+        assert_eq!(
+            armed.context_action,
+            Some(DesktopContextAction::TrashEmptyConfirmationRequested)
+        );
+        assert!(state.trash_empty_confirmation());
+
+        let home =
+            state.handle_context_menu_key(DesktopContextMenuKey::Navigate(MenuNavigationKey::Home));
+        assert!(home.redraw_requested);
+        assert!(!state.trash_empty_confirmation());
+        assert_eq!(state.context_menu_selected_row(), Some(0));
+
+        state.handle_context_menu_key(DesktopContextMenuKey::Navigate(MenuNavigationKey::End));
+        state.handle_context_menu_key(DesktopContextMenuKey::Activate);
+        let confirmed = state.handle_context_menu_key(DesktopContextMenuKey::Activate);
+        assert_eq!(
+            confirmed.context_action,
+            Some(DesktopContextAction::TrashEmptyConfirmed)
+        );
+        assert_eq!(state.context_menu(), None);
+
+        state.pointer_press(48, 90, DesktopPointerButton::Secondary, 3_000);
+        let dismissed = state.handle_context_menu_key(DesktopContextMenuKey::Dismiss);
+        assert!(dismissed.redraw_requested);
         assert_eq!(state.context_menu(), None);
     }
 

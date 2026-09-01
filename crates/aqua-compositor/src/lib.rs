@@ -57,11 +57,12 @@ pub use aqua_renderer::{
 pub use aqua_scene::{static_shell_scene, Rect, ShellScene, SurfaceKind, Viewport, SCENE_STATUS};
 pub use aqua_shell::{
     dock_pointer_target, properties_launch_request, top_system_bar, workspace_keyboard_target,
-    BottomShellTarget, DesktopContextAction, DesktopIconState, DesktopPointerButton, DockItem,
-    DockState, LaunchRequest, LauncherCategory, LauncherEvent, LauncherPointerTarget,
-    LauncherState, MenuNavigationKey, NotificationCenter, SessionAction, SessionMenuEvent,
-    SessionMenuState, TrashModel, WorkspaceNavigationKey, NOTIFICATION_DEFAULT_TIMEOUT_MS,
-    SESSION_MENU_RUNTIME_HEIGHT, SESSION_MENU_RUNTIME_WIDTH, WORKSPACE_COUNT,
+    BottomShellTarget, DesktopContextAction, DesktopContextMenuKey, DesktopIconState,
+    DesktopIconUpdate, DesktopPointerButton, DockItem, DockState, LaunchRequest, LauncherCategory,
+    LauncherEvent, LauncherPointerTarget, LauncherState, MenuNavigationKey, NotificationCenter,
+    SessionAction, SessionMenuEvent, SessionMenuState, TrashModel, WorkspaceNavigationKey,
+    NOTIFICATION_DEFAULT_TIMEOUT_MS, SESSION_MENU_RUNTIME_HEIGHT, SESSION_MENU_RUNTIME_WIDTH,
+    WORKSPACE_COUNT,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_text::OutputScale;
@@ -6641,6 +6642,7 @@ struct WaylandSmokeState {
     pointer_focus_assigned: bool,
     keyboard_shortcut_intercept_count: usize,
     keyboard_forward_count: usize,
+    desktop_context_menu_pressed_keys: Vec<u32>,
     pointer_hit_test_count: usize,
     pointer_surface_hit_count: usize,
     surface_focus_change_count: usize,
@@ -6916,6 +6918,7 @@ impl WaylandSmokeState {
             pointer_focus_assigned: false,
             keyboard_shortcut_intercept_count: 0,
             keyboard_forward_count: 0,
+            desktop_context_menu_pressed_keys: Vec::new(),
             pointer_hit_test_count: 0,
             pointer_surface_hit_count: 0,
             surface_focus_change_count: 0,
@@ -7114,6 +7117,78 @@ impl WaylandSmokeState {
             );
             self.session_action_request = update.action_request;
         }
+    }
+
+    fn apply_desktop_icon_update(&mut self, update: DesktopIconUpdate) -> bool {
+        let launch_requested = update.launch_request.is_some();
+        if let Some(request) = update.launch_request {
+            println!("desktop_icon_activation_app={}", request.app_id);
+            self.launcher_launch_request = Some(request);
+        }
+        if let Some(action) = update.context_action {
+            match action {
+                DesktopContextAction::MenuOpened => {
+                    println!("desktop_icon_context_action=menu-opened");
+                }
+                DesktopContextAction::Properties(icon_id) => {
+                    println!("desktop_icon_context_action=properties icon={icon_id}");
+                    self.launcher_launch_request = properties_launch_request(icon_id);
+                    self.post_desktop_notification(
+                        "Opening Properties",
+                        &format!("Preparing {icon_id} details."),
+                    );
+                }
+                DesktopContextAction::TrashEmptyConfirmationRequested => {
+                    let refresh = self.trash_model.refresh();
+                    let count = self.trash_model.entries().len();
+                    println!(
+                        "desktop_icon_context_action=trash-empty-confirmation count={count} refresh_ok={}",
+                        refresh.is_ok()
+                    );
+                    let body = if refresh.is_ok() {
+                        format!("Empty {count} item(s)? Select Confirm Empty to continue.")
+                    } else {
+                        "Trash could not be inspected safely.".to_string()
+                    };
+                    self.post_desktop_notification("Empty Trash", &body);
+                }
+                DesktopContextAction::TrashEmptyConfirmed => match self.trash_model.empty() {
+                    Ok(count) => {
+                        println!(
+                            "desktop_icon_context_action=trash-emptied count={count} status=ok"
+                        );
+                        self.post_desktop_notification(
+                            "Trash emptied",
+                            &format!("Removed {count} item(s)."),
+                        );
+                    }
+                    Err(error) => {
+                        println!(
+                            "desktop_icon_context_action=trash-emptied count=0 status=error error={error}"
+                        );
+                        self.post_desktop_notification(
+                            "Trash was not emptied",
+                            "The Trash folder changed or could not be accessed safely.",
+                        );
+                    }
+                },
+            }
+        }
+        if update.redraw_requested {
+            println!(
+                "desktop_icon_selected={}",
+                self.desktop_icon_state
+                    .selected()
+                    .map_or("none".to_string(), |index| index.to_string())
+            );
+            println!(
+                "desktop_context_menu_selected_row={}",
+                self.desktop_icon_state
+                    .context_menu_selected_row()
+                    .map_or("none".to_string(), |index| index.to_string())
+            );
+        }
+        update.redraw_requested || launch_requested
     }
 
     fn sync_notification_visibility(&mut self) {
@@ -9435,6 +9510,41 @@ impl SmithayDrmSession {
             return false;
         };
         let state = &mut self.session.wayland_state;
+        if !pressed {
+            if let Some(index) = state
+                .desktop_context_menu_pressed_keys
+                .iter()
+                .position(|pressed_code| *pressed_code == code)
+            {
+                state.desktop_context_menu_pressed_keys.swap_remove(index);
+                state.keyboard_event_count += 1;
+                state.keyboard_shortcut_intercept_count += 1;
+                return true;
+            }
+        }
+        if state.desktop_icon_state.context_menu().is_some() {
+            state.keyboard_event_count += 1;
+            state.keyboard_shortcut_intercept_count += 1;
+            if pressed {
+                if !state.desktop_context_menu_pressed_keys.contains(&code) {
+                    state.desktop_context_menu_pressed_keys.push(code);
+                }
+                let key = match code {
+                    1 => Some(DesktopContextMenuKey::Dismiss),
+                    28 | 57 => Some(DesktopContextMenuKey::Activate),
+                    102 => Some(DesktopContextMenuKey::Navigate(MenuNavigationKey::Home)),
+                    103 => Some(DesktopContextMenuKey::Navigate(MenuNavigationKey::Previous)),
+                    107 => Some(DesktopContextMenuKey::Navigate(MenuNavigationKey::End)),
+                    108 => Some(DesktopContextMenuKey::Navigate(MenuNavigationKey::Next)),
+                    _ => None,
+                };
+                if let Some(key) = key {
+                    let update = state.desktop_icon_state.handle_context_menu_key(key);
+                    state.apply_desktop_icon_update(update);
+                }
+            }
+            return true;
+        }
         if code == 125 {
             state.keyboard_event_count += 1;
             state.keyboard_shortcut_intercept_count += 1;
@@ -9846,76 +9956,7 @@ impl SmithayDrmSession {
                 desktop_button,
                 u64::from(time),
             );
-            let launch_requested = update.launch_request.is_some();
-            if let Some(request) = update.launch_request {
-                println!("desktop_icon_activation_app={}", request.app_id);
-                self.session.wayland_state.launcher_launch_request = Some(request);
-            }
-            if let Some(action) = update.context_action {
-                match action {
-                    DesktopContextAction::MenuOpened => {
-                        println!("desktop_icon_context_action=menu-opened");
-                    }
-                    DesktopContextAction::Properties(icon_id) => {
-                        println!("desktop_icon_context_action=properties icon={icon_id}");
-                        self.session.wayland_state.launcher_launch_request =
-                            properties_launch_request(icon_id);
-                        self.session.wayland_state.post_desktop_notification(
-                            "Opening Properties",
-                            &format!("Preparing {icon_id} details."),
-                        );
-                    }
-                    DesktopContextAction::TrashEmptyConfirmationRequested => {
-                        let refresh = self.session.wayland_state.trash_model.refresh();
-                        let count = self.session.wayland_state.trash_model.entries().len();
-                        println!(
-                            "desktop_icon_context_action=trash-empty-confirmation count={count} refresh_ok={}",
-                            refresh.is_ok()
-                        );
-                        let body = if refresh.is_ok() {
-                            format!("Empty {count} item(s)? Select Confirm Empty to continue.")
-                        } else {
-                            "Trash could not be inspected safely.".to_string()
-                        };
-                        self.session
-                            .wayland_state
-                            .post_desktop_notification("Empty Trash", &body);
-                    }
-                    DesktopContextAction::TrashEmptyConfirmed => {
-                        match self.session.wayland_state.trash_model.empty() {
-                            Ok(count) => {
-                                println!(
-                                    "desktop_icon_context_action=trash-emptied count={count} status=ok"
-                                );
-                                self.session.wayland_state.post_desktop_notification(
-                                    "Trash emptied",
-                                    &format!("Removed {count} item(s)."),
-                                );
-                            }
-                            Err(error) => {
-                                println!(
-                                    "desktop_icon_context_action=trash-emptied count=0 status=error error={error}"
-                                );
-                                self.session.wayland_state.post_desktop_notification(
-                                    "Trash was not emptied",
-                                    "The Trash folder changed or could not be accessed safely.",
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            if update.redraw_requested {
-                println!(
-                    "desktop_icon_selected={}",
-                    self.session
-                        .wayland_state
-                        .desktop_icon_state
-                        .selected()
-                        .map_or("none".to_string(), |index| index.to_string())
-                );
-            }
-            if update.redraw_requested || launch_requested {
+            if self.session.wayland_state.apply_desktop_icon_update(update) {
                 self.session.wayland_state.pointer_button_count += 1;
                 return true;
             }
@@ -15810,6 +15851,58 @@ mod tests {
             session.take_session_action_request(),
             Some(SessionAction::Recovery)
         );
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn smithay_desktop_context_menu_keyboard_is_compositor_owned() {
+        let mut session = SmithayDrmSession::new().expect("Smithay session should start");
+        let input = session.input_snapshot();
+
+        assert!(session.dispatch_pointer_motion(
+            48.0 - f64::from(input.pointer_x),
+            194.0 - f64::from(input.pointer_y),
+            1,
+        ));
+        assert!(session.dispatch_pointer_button(0x111, true, 2));
+        assert_eq!(
+            session
+                .desktop_icon_state_snapshot()
+                .context_menu_selected_row(),
+            Some(0)
+        );
+
+        assert!(session.dispatch_keyboard_key(125, true, 3));
+        assert!(session.dispatch_keyboard_key(125, false, 4));
+        assert!(!session.launcher_state_snapshot().is_open());
+        assert!(session.dispatch_keyboard_key(108, true, 5));
+        assert!(session.dispatch_keyboard_key(108, false, 6));
+        assert_eq!(
+            session
+                .desktop_icon_state_snapshot()
+                .context_menu_selected_row(),
+            Some(1)
+        );
+        assert!(session.dispatch_keyboard_key(28, true, 7));
+        assert!(session.dispatch_keyboard_key(28, false, 8));
+
+        let snapshot = session.input_snapshot();
+        assert_eq!(snapshot.keyboard_forward_count, 0);
+        assert!(snapshot.keyboard_shortcut_intercept_count >= 6);
+        assert_eq!(
+            session
+                .take_launcher_launch_request()
+                .expect("Properties request should be queued"),
+            LaunchRequest {
+                app_id: "properties",
+                command: "/usr/bin/aqua-properties",
+                target: Some("settings"),
+            }
+        );
+        assert!(session
+            .desktop_icon_state_snapshot()
+            .context_menu()
+            .is_none());
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]

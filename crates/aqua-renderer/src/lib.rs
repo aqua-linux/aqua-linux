@@ -6,9 +6,9 @@ use aqua_installer::{
 };
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
-    desktop_context_menu, desktop_grid_cell, files_back_button, files_forward_button,
-    files_toolbar, running_app_dock, top_system_bar, workspace_switcher, AquaTheme,
-    AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
+    desktop_context_menu_with_selection, desktop_grid_cell, files_back_button,
+    files_forward_button, files_toolbar, running_app_dock, top_system_bar, workspace_switcher,
+    AquaTheme, AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
     FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
     NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
     TerminalView, TopBarState, DESKTOP_ICONS, FILES_PREVIEW_VISIBLE_LINES,
@@ -833,6 +833,7 @@ pub struct DesktopIconsOverlay {
     pub rgba: Vec<u8>,
     pub selected: Option<usize>,
     pub context_menu: Option<usize>,
+    pub context_menu_selected_row: Option<usize>,
     pub primitive_count: usize,
 }
 
@@ -1612,7 +1613,10 @@ fn render_desktop_icons_rgba_base(
     }
     if let Some((index, menu)) = state
         .context_menu()
-        .and_then(|index| desktop_context_menu(index).map(|menu| (index, menu)))
+        .zip(state.context_menu_selected_row())
+        .and_then(|(index, selected_row)| {
+            desktop_context_menu_with_selection(index, selected_row).map(|menu| (index, menu))
+        })
     {
         let first_row = menu.item_rect(0);
         let second_row = menu.item_rect(1);
@@ -1622,6 +1626,14 @@ fn render_desktop_icons_rgba_base(
             height,
             menu.rect,
             [0x03, 0x2c, 0x49, 0xf0],
+        );
+        fill_transparent_rounded_rect(
+            &mut rgba,
+            width,
+            height,
+            menu.item_rect(menu.selected_index),
+            6,
+            [0x25, 0x84, 0xa8, 0x88],
         );
         fill_transparent_rect(
             &mut rgba,
@@ -1679,7 +1691,7 @@ fn render_desktop_icons_rgba_base(
             },
             1,
         );
-        primitives += 5;
+        primitives += 6;
     }
     DesktopIconsOverlay {
         width,
@@ -1687,6 +1699,7 @@ fn render_desktop_icons_rgba_base(
         rgba,
         selected: state.selected(),
         context_menu: state.context_menu(),
+        context_menu_selected_row: state.context_menu_selected_row(),
         primitive_count: primitives,
     }
 }
@@ -8807,6 +8820,7 @@ mod tests {
         );
         assert_eq!(overlay.selected, Some(1));
         assert_eq!(overlay.context_menu, Some(1));
+        assert_eq!(overlay.context_menu_selected_row, Some(0));
         assert_eq!(overlay.width, 232);
         assert_eq!(overlay.height, 312);
         assert!(overlay.primitive_count >= 25);
@@ -8816,6 +8830,16 @@ mod tests {
             &overlay.rgba[files_face..files_face + 4],
             &[0xa8, 0xe8, 0xf8, 0xff]
         );
+        state.handle_context_menu_key(aqua_shell::DesktopContextMenuKey::Navigate(
+            aqua_shell::MenuNavigationKey::Next,
+        ));
+        let second_row = render_desktop_icons_rgba(
+            aqua_shell::DESKTOP_ICON_LAYER_WIDTH,
+            aqua_shell::DESKTOP_ICON_LAYER_HEIGHT,
+            &state,
+        );
+        assert_eq!(second_row.context_menu_selected_row, Some(1));
+        assert_ne!(overlay.rgba, second_row.rgba);
         let png = export_desktop_icons_png(overlay.width, overlay.height, &state);
         assert_eq!(&png[..8], &[137, 80, 78, 71, 13, 10, 26, 10]);
     }

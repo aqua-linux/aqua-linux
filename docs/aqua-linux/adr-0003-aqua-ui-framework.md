@@ -3,7 +3,7 @@
 ## Status
 
 Accepted on 2026-08-29. Framework consolidation began on 2026-09-01 after the
-core desktop functionality supplied real consumers. The first ten bounded
+core desktop functionality supplied real consumers. The first eleven bounded
 slices replaced Settings Network's duplicated Wi-Fi row/action hit geometry,
 Files content-row render/input geometry, and launcher panel/child pointer
 routing with existing shared component contracts, then consolidated Files list
@@ -20,6 +20,10 @@ Session-menu keyboard navigation now delegates Up, Down, Home, and End to the
 same shared `Menu` target contract while preserving that confirmation gate;
 workspace Previous, Next, Home, and End shortcuts now delegate to the shared
 `WorkspaceSwitcher` target contract for both activation and window movement;
+desktop context menus now expose their shared selected row to the renderer and
+consume Up, Down, Home, End, Enter, Space, and Escape in the compositor without
+forwarding those keys to an underlying client, while Trash retains its
+repeat-activation confirmation gate;
 the broader consolidation remains in progress.
 
 ## Context
