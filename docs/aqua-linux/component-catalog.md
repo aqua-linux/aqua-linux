@@ -720,7 +720,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first nineteen
+All catalog entries now satisfy the shared primitive contract. The first twenty
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -755,7 +755,8 @@ Settings Network Left/Right now consumes the shared Rescan/Forget standard
 button keyboard gates, preserving credential ownership and broker-authority
 disabled behavior.
 Launcher Enter now consumes the selected Applications grid-cell or Search
-list-row keyboard gate before emitting the unchanged allowlisted request.
+list-row keyboard gate at the active output viewport before emitting the
+unchanged allowlisted request; invalid compact compositions remain inert.
 Files Enter now consumes the selected visible content-row keyboard gate before
 the existing confined folder navigation or read-only text-preview path; hidden
 and out-of-range selections remain inert.

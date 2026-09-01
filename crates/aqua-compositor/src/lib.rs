@@ -7052,7 +7052,11 @@ impl WaylandSmokeState {
     }
 
     fn apply_launcher_event(&mut self, event: LauncherEvent) {
-        let update = self.launcher_state.handle_event(event);
+        let update = self.launcher_state.handle_event_in_viewport(
+            event,
+            self.output_width,
+            self.output_height,
+        );
         if update.launch_request.is_some() {
             self.launcher_launch_request = update.launch_request;
         }
@@ -9914,13 +9918,9 @@ impl SmithayDrmSession {
                             .launcher_state
                             .select_visible_index(index)
                         {
-                            let update = self
-                                .session
+                            self.session
                                 .wayland_state
-                                .launcher_state
-                                .handle_event(LauncherEvent::Activate);
-                            self.session.wayland_state.launcher_launch_request =
-                                update.launch_request;
+                                .apply_launcher_event(LauncherEvent::Activate);
                             self.session.wayland_state.launcher_app_click_count += 1;
                         }
                     }

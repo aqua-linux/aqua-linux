@@ -3753,6 +3753,9 @@ impl LauncherState {
         }
         let app = *self.visible_apps().get(index)?;
         let overview = self.application_overview(viewport_width, viewport_height);
+        if !overview.is_valid() {
+            return None;
+        }
         Some(
             GridCell::new(
                 overview.cell_rect(index),
@@ -3779,7 +3782,7 @@ impl LauncherState {
         }
         let app = *self.visible_apps().get(index)?;
         let search = self.global_search(viewport_width, viewport_height);
-        if index >= search.visible_result_count() {
+        if !search.is_valid() || index >= search.visible_result_count() {
             return None;
         }
         Some(
@@ -3921,16 +3924,24 @@ impl LauncherState {
     }
 
     pub fn activate_selected(&self) -> Option<LaunchRequest> {
+        self.activate_selected_in_viewport(800, 600)
+    }
+
+    pub fn activate_selected_in_viewport(
+        &self,
+        viewport_width: u32,
+        viewport_height: u32,
+    ) -> Option<LaunchRequest> {
         if !self.open {
             return None;
         }
 
         let can_activate = match self.mode {
             LauncherMode::Applications => self
-                .application_grid_cell(self.selected_index, 800, 600)
+                .application_grid_cell(self.selected_index, viewport_width, viewport_height)
                 .is_some_and(|cell| cell.keyboard_activates(ActivationKey::Enter)),
             LauncherMode::Search => self
-                .search_result_row(self.selected_index, 800, 600)
+                .search_result_row(self.selected_index, viewport_width, viewport_height)
                 .is_some_and(|row| row.keyboard_activates(ActivationKey::Enter)),
         };
         if !can_activate {
@@ -3981,6 +3992,15 @@ impl LauncherState {
     }
 
     pub fn handle_event(&mut self, event: LauncherEvent) -> LauncherUpdate {
+        self.handle_event_in_viewport(event, 800, 600)
+    }
+
+    pub fn handle_event_in_viewport(
+        &mut self,
+        event: LauncherEvent,
+        viewport_width: u32,
+        viewport_height: u32,
+    ) -> LauncherUpdate {
         match event {
             LauncherEvent::Toggle => {
                 self.toggle();
@@ -4054,7 +4074,7 @@ impl LauncherState {
             LauncherEvent::Activate => LauncherUpdate {
                 redraw_requested: false,
                 visibility_changed: false,
-                launch_request: self.activate_selected(),
+                launch_request: self.activate_selected_in_viewport(viewport_width, viewport_height),
             },
         }
     }
@@ -5751,8 +5771,9 @@ mod tests {
         assert!(launcher
             .application_grid_cell(0, 800, 600)
             .is_some_and(|cell| cell.keyboard_activates(ActivationKey::Enter)));
+        assert!(launcher.activate_selected_in_viewport(800, 180).is_none());
         assert_eq!(
-            launcher.activate_selected(),
+            launcher.activate_selected_in_viewport(800, 600),
             Some(LaunchRequest {
                 app_id: "settings",
                 command: "/usr/bin/aqua-settings",
@@ -5762,6 +5783,14 @@ mod tests {
 
         launcher.selected_index = 3;
         assert!(launcher.activate_selected().is_none());
+        launcher.set_query("settings");
+        assert!(launcher.activate_selected_in_viewport(500, 600).is_none());
+        assert_eq!(
+            launcher
+                .activate_selected_in_viewport(800, 600)
+                .map(|request| request.app_id),
+            Some("settings")
+        );
         launcher.set_query("no matching application");
         assert!(launcher.activate_selected().is_none());
     }
