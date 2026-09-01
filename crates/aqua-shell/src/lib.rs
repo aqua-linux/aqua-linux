@@ -399,6 +399,7 @@ pub const LAUNCHER_PANEL_Y: u32 = 70;
 pub const LAUNCHER_PANEL_WIDTH: u32 = 620;
 pub const LAUNCHER_PANEL_HEIGHT: u32 = 460;
 pub const FILES_VISIBLE_ROWS: usize = 4;
+pub const FILES_SIDEBAR_ITEM_COUNT: usize = 5;
 pub const FILES_TEXT_PREVIEW_LIMIT: u64 = 4096;
 pub const FILES_PREVIEW_VISIBLE_LINES: usize = 6;
 const FILES_SCROLLBAR_TRAILING_INSET: u32 = 12;
@@ -505,6 +506,20 @@ pub const fn files_sidebar_navigation(height: u32) -> SidebarNavigation<'static>
         },
         46,
     )
+}
+
+pub const fn files_sidebar_navigation_in_viewport(
+    width: u32,
+    height: u32,
+) -> Option<SidebarNavigation<'static>> {
+    let navigation = files_sidebar_navigation(height);
+    if !navigation.is_valid()
+        || navigation.rect.right() > width
+        || navigation.row_rect(FILES_SIDEBAR_ITEM_COUNT - 1).bottom() > navigation.rect.bottom()
+    {
+        return None;
+    }
+    Some(navigation)
 }
 pub const fn files_visible_rows(height: u32) -> usize {
     let content_bottom = height.saturating_sub(FILES_CONTENT_BOTTOM_INSET);
@@ -3199,14 +3214,17 @@ impl FilesWindowModel {
     }
 
     pub fn sidebar_row(&self, height: u32, index: usize) -> Option<ListRow<'_>> {
+        self.sidebar_row_in_viewport(640, height, index)
+    }
+
+    pub fn sidebar_row_in_viewport(
+        &self,
+        width: u32,
+        height: u32,
+        index: usize,
+    ) -> Option<ListRow<'_>> {
         let item = self.sidebar_items.get(index)?;
-        let navigation = files_sidebar_navigation(height);
-        let last_index = self.sidebar_items.len().checked_sub(1)?;
-        if !navigation.is_valid()
-            || navigation.row_rect(last_index).bottom() > navigation.rect.bottom()
-        {
-            return None;
-        }
+        let navigation = files_sidebar_navigation_in_viewport(width, height)?;
         let state = if self.keyboard_focus && self.focused_sidebar == Some(index) {
             ComponentState::KeyboardFocus
         } else if index == self.selected_sidebar {
@@ -3223,8 +3241,12 @@ impl FilesWindowModel {
     }
 
     pub fn sidebar_at(&self, height: u32, x: u32, y: u32) -> Option<usize> {
+        self.sidebar_at_in_viewport(640, height, x, y)
+    }
+
+    pub fn sidebar_at_in_viewport(&self, width: u32, height: u32, x: u32, y: u32) -> Option<usize> {
         (0..self.sidebar_items.len()).find(|index| {
-            self.sidebar_row(height, *index)
+            self.sidebar_row_in_viewport(width, height, *index)
                 .is_some_and(|row| row.pointer_hit(x, y))
         })
     }
@@ -3322,7 +3344,7 @@ impl FilesWindowModel {
                 return FilesSelection::Forward;
             }
         }
-        if let Some(index) = self.sidebar_at(height, x, y) {
+        if let Some(index) = self.sidebar_at_in_viewport(width, height, x, y) {
             self.selected_sidebar = index;
             self.selected_entry = None;
             return FilesSelection::Sidebar(index);
@@ -3348,7 +3370,7 @@ impl FilesWindowModel {
         let previous = (self.hovered_sidebar, self.hovered_entry);
         self.hovered_sidebar = None;
         self.hovered_entry = None;
-        if let Some(index) = self.sidebar_at(height, x, y) {
+        if let Some(index) = self.sidebar_at_in_viewport(width, height, x, y) {
             self.hovered_sidebar = Some(index);
         } else {
             let visible_rows = files_visible_rows_in_viewport(width, height);
@@ -3577,7 +3599,11 @@ impl FilesNavigator {
         match key {
             FilesKey::Left => {
                 let focused = self.window.selected_sidebar;
-                if self.window.sidebar_row(height, focused).is_none() {
+                if self
+                    .window
+                    .sidebar_row_in_viewport(width, height, focused)
+                    .is_none()
+                {
                     return FilesNavigation::None;
                 }
                 self.window.focused_sidebar = Some(focused);
@@ -3592,16 +3618,16 @@ impl FilesNavigator {
             }
             FilesKey::Right => FilesNavigation::None,
             FilesKey::Up if self.window.focused_sidebar.is_some() => {
-                self.navigate_sidebar(height, SidebarNavigationKey::Previous)
+                self.navigate_sidebar(width, height, SidebarNavigationKey::Previous)
             }
             FilesKey::Down if self.window.focused_sidebar.is_some() => {
-                self.navigate_sidebar(height, SidebarNavigationKey::Next)
+                self.navigate_sidebar(width, height, SidebarNavigationKey::Next)
             }
             FilesKey::Home if self.window.focused_sidebar.is_some() => {
-                self.navigate_sidebar(height, SidebarNavigationKey::Home)
+                self.navigate_sidebar(width, height, SidebarNavigationKey::Home)
             }
             FilesKey::End if self.window.focused_sidebar.is_some() => {
-                self.navigate_sidebar(height, SidebarNavigationKey::End)
+                self.navigate_sidebar(width, height, SidebarNavigationKey::End)
             }
             FilesKey::PageUp | FilesKey::PageDown if self.window.focused_sidebar.is_some() => {
                 FilesNavigation::None
@@ -3616,7 +3642,7 @@ impl FilesNavigator {
                 if let Some(index) = self.window.focused_sidebar {
                     if !self
                         .window
-                        .sidebar_row(height, index)
+                        .sidebar_row_in_viewport(width, height, index)
                         .is_some_and(|row| row.keyboard_activates(ActivationKey::Enter))
                     {
                         return FilesNavigation::None;
@@ -3738,15 +3764,21 @@ impl FilesNavigator {
         FilesNavigation::Selected(selected)
     }
 
-    fn navigate_sidebar(&mut self, height: u32, key: SidebarNavigationKey) -> FilesNavigation {
+    fn navigate_sidebar(
+        &mut self,
+        width: u32,
+        height: u32,
+        key: SidebarNavigationKey,
+    ) -> FilesNavigation {
         let Some(selected) = self.window.focused_sidebar else {
             return FilesNavigation::None;
         };
-        let Some(focused) = files_sidebar_navigation(height).keyboard_target(
-            selected,
-            self.window.sidebar_items.len(),
-            key,
-        ) else {
+        let Some(navigation) = files_sidebar_navigation_in_viewport(width, height) else {
+            return FilesNavigation::None;
+        };
+        let Some(focused) =
+            navigation.keyboard_target(selected, self.window.sidebar_items.len(), key)
+        else {
             return FilesNavigation::None;
         };
         self.window.focused_sidebar = Some(focused);
@@ -6971,6 +7003,19 @@ mod tests {
         let home_sidebar = home.sidebar_row(420, 0).expect("visible Home sidebar row");
         assert_eq!(home_sidebar.role, ListRowRole::Navigation);
         assert_eq!(home_sidebar.state, ComponentState::Selected);
+        assert!(files_sidebar_navigation_in_viewport(172, 350).is_some());
+        assert!(files_sidebar_navigation_in_viewport(171, 420).is_none());
+        assert!(files_sidebar_navigation_in_viewport(640, 349).is_none());
+        assert!(home.sidebar_row_in_viewport(172, 420, 0).is_some());
+        assert!(home.sidebar_row_in_viewport(171, 420, 0).is_none());
+        assert_eq!(
+            home.clone().select_at_in_viewport(171, 420, 40, 134),
+            FilesSelection::None
+        );
+        assert_eq!(
+            home.clone().select_at_in_viewport(172, 420, 40, 134),
+            FilesSelection::Sidebar(0)
+        );
         assert!(home.sidebar_row(349, 0).is_none());
         assert!(home.sidebar_row(420, home.sidebar_items.len()).is_none());
 
@@ -7164,9 +7209,19 @@ mod tests {
         );
         assert_eq!(navigator.window().focused_sidebar, None);
         assert_eq!(
+            navigator.handle_key_in_viewport(171, 420, FilesKey::Left),
+            FilesNavigation::None
+        );
+        assert_eq!(navigator.window().focused_sidebar, None);
+        assert_eq!(
             navigator.handle_key_in_viewport(640, 420, FilesKey::Left),
             FilesNavigation::FocusedSidebar(0)
         );
+        assert_eq!(
+            navigator.handle_key_in_viewport(171, 420, FilesKey::Down),
+            FilesNavigation::None
+        );
+        assert_eq!(navigator.window().focused_sidebar, Some(0));
         assert_eq!(
             navigator.handle_key_in_viewport(640, 420, FilesKey::Up),
             FilesNavigation::FocusedSidebar(4)
