@@ -310,12 +310,36 @@ pub enum WifiControlRequest<'a> {
     Scan,
     ScanResults,
     AddNetwork,
-    SetSsid { network_id: u16, ssid: &'a WifiSsid },
-    SetPsk { network_id: u16, psk: &'a WifiPsk },
-    SetWpa2Personal { network_id: u16 },
-    EnableNetwork { network_id: u16 },
-    SelectNetwork { network_id: u16 },
-    RemoveNetwork { network_id: u16 },
+    SetSsid {
+        network_id: u16,
+        ssid: &'a WifiSsid,
+    },
+    SetPsk {
+        network_id: u16,
+        psk: &'a WifiPsk,
+    },
+    SetSaePassword {
+        network_id: u16,
+        passphrase: &'a WifiPassphrase,
+    },
+    SetWpa2Personal {
+        network_id: u16,
+    },
+    SetWpa3Personal {
+        network_id: u16,
+    },
+    SetPmfRequired {
+        network_id: u16,
+    },
+    EnableNetwork {
+        network_id: u16,
+    },
+    SelectNetwork {
+        network_id: u16,
+    },
+    RemoveNetwork {
+        network_id: u16,
+    },
     Disconnect,
 }
 
@@ -328,7 +352,10 @@ impl fmt::Debug for WifiControlRequest<'_> {
             Self::AddNetwork => "WifiControlRequest::AddNetwork",
             Self::SetSsid { .. } => "WifiControlRequest::SetSsid([redacted])",
             Self::SetPsk { .. } => "WifiControlRequest::SetPsk([redacted])",
+            Self::SetSaePassword { .. } => "WifiControlRequest::SetSaePassword([redacted])",
             Self::SetWpa2Personal { .. } => "WifiControlRequest::SetWpa2Personal",
+            Self::SetWpa3Personal { .. } => "WifiControlRequest::SetWpa3Personal",
+            Self::SetPmfRequired { .. } => "WifiControlRequest::SetPmfRequired",
             Self::EnableNetwork { .. } => "WifiControlRequest::EnableNetwork",
             Self::SelectNetwork { .. } => "WifiControlRequest::SelectNetwork",
             Self::RemoveNetwork { .. } => "WifiControlRequest::RemoveNetwork",
@@ -356,9 +383,26 @@ impl WifiControlRequest<'_> {
                 psk.write_hex(&mut command);
                 command
             }
+            Self::SetSaePassword {
+                network_id,
+                passphrase,
+            } => {
+                validate_network_id(*network_id)?;
+                let mut command = format!("SET_NETWORK {network_id} sae_password ");
+                passphrase.with_bytes(|bytes| write_hex(bytes, &mut command));
+                command
+            }
             Self::SetWpa2Personal { network_id } => {
                 validate_network_id(*network_id)?;
                 format!("SET_NETWORK {network_id} key_mgmt WPA-PSK")
+            }
+            Self::SetWpa3Personal { network_id } => {
+                validate_network_id(*network_id)?;
+                format!("SET_NETWORK {network_id} key_mgmt SAE")
+            }
+            Self::SetPmfRequired { network_id } => {
+                validate_network_id(*network_id)?;
+                format!("SET_NETWORK {network_id} ieee80211w 2")
             }
             Self::EnableNetwork { network_id } => {
                 validate_network_id(*network_id)?;
@@ -467,6 +511,7 @@ impl WifiControlStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WifiScanSecurity {
     Wpa2Personal,
+    Wpa3Personal,
     Unsupported,
 }
 
@@ -474,6 +519,7 @@ impl WifiScanSecurity {
     pub const fn id(self) -> &'static str {
         match self {
             Self::Wpa2Personal => "wpa2-personal",
+            Self::Wpa3Personal => "wpa3-personal",
             Self::Unsupported => "unsupported",
         }
     }
@@ -571,7 +617,7 @@ fn parse_status(bytes: &[u8]) -> Result<WifiControlStatus, WifiControlError> {
             || value.len() > 128
             || !key
                 .bytes()
-                .all(|byte| byte.is_ascii_lowercase() || byte == b'_')
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
             || !seen.insert(key)
         {
             return Err(WifiControlError::InvalidResponse);
@@ -636,7 +682,12 @@ fn parse_scan_results(bytes: &[u8]) -> Result<Vec<WifiScanNetwork>, WifiControlE
             continue;
         }
         let ssid = WifiSsid::new(fields[4].as_bytes().to_vec())?;
-        let security = if fields[3].contains("[WPA2-PSK-") {
+        let security = if fields[3]
+            .split(['[', ']'])
+            .any(|group| group.split(['-', '+']).any(|part| part == "SAE"))
+        {
+            WifiScanSecurity::Wpa3Personal
+        } else if fields[3].contains("[WPA2-PSK-") {
             WifiScanSecurity::Wpa2Personal
         } else {
             WifiScanSecurity::Unsupported
@@ -759,6 +810,30 @@ mod tests {
                 .bytes(),
             b"SET_NETWORK 7 key_mgmt WPA-PSK"
         );
+        let passphrase = WifiPassphrase::new("password").expect("valid passphrase");
+        let sae = WifiControlRequest::SetSaePassword {
+            network_id: 7,
+            passphrase: &passphrase,
+        };
+        assert_eq!(
+            sae.encode().expect("SAE password command").bytes(),
+            b"SET_NETWORK 7 sae_password 70617373776f7264"
+        );
+        assert!(!format!("{sae:?}").contains("password"));
+        assert_eq!(
+            WifiControlRequest::SetWpa3Personal { network_id: 7 }
+                .encode()
+                .expect("WPA3 command")
+                .bytes(),
+            b"SET_NETWORK 7 key_mgmt SAE"
+        );
+        assert_eq!(
+            WifiControlRequest::SetPmfRequired { network_id: 7 }
+                .encode()
+                .expect("PMF command")
+                .bytes(),
+            b"SET_NETWORK 7 ieee80211w 2"
+        );
         assert_eq!(
             WifiControlRequest::ScanResults
                 .encode()
@@ -780,7 +855,9 @@ mod tests {
         );
         assert_eq!(
             WifiControlRequest::Status
-                .parse_response(b"bssid=02:00:00:00:00:01\nid=7\nwpa_state=COMPLETED\n"),
+                .parse_response(
+                    b"bssid=02:00:00:00:00:01\nid=7\nsae_group=19\nsae_h2e=1\nsae_pk=0\nwpa_state=COMPLETED\n"
+                ),
             Ok(WifiControlResponse::Status(WifiControlStatus {
                 state: WifiAssociationState::Completed,
                 network_id: Some(7),
@@ -806,7 +883,7 @@ mod tests {
         let response = b"bssid / frequency / signal level / flags / ssid\n\
 02:00:00:00:01:00\t2412\t-40\t[WPA2-PSK-CCMP][ESS]\tAqua-QEMU\n\
 02:00:00:00:01:01\t2412\t-28\t[WPA2-PSK-CCMP][ESS]\tAqua-QEMU\n\
-02:00:00:00:02:00\t5180\t-55\t[WPA3-SAE-CCMP][ESS]\tFuture-Net\n";
+02:00:00:00:02:00\t5180\t-55\t[WPA2-PSK+SAE-CCMP][ESS]\tFuture-Net\n";
         let WifiControlResponse::ScanResults(results) = WifiControlRequest::ScanResults
             .parse_response(response)
             .expect("strict scan results")
@@ -817,7 +894,7 @@ mod tests {
         assert_eq!(results[0].ssid.bytes(), b"Aqua-QEMU");
         assert_eq!(results[0].signal_dbm, -28);
         assert_eq!(results[0].security, WifiScanSecurity::Wpa2Personal);
-        assert_eq!(results[1].security, WifiScanSecurity::Unsupported);
+        assert_eq!(results[1].security, WifiScanSecurity::Wpa3Personal);
         assert_eq!(
             WifiControlRequest::ScanResults.parse_response(
                 b"bssid / frequency / signal level / flags / ssid\nnot-a-bssid\t2412\t-40\t[ESS]\tbad\n"

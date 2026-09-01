@@ -249,7 +249,10 @@ impl WifiSettingsControl {
         let Some(network) = self.networks.get(index) else {
             return false;
         };
-        if network.security != WifiScanSecurity::Wpa2Personal {
+        if !matches!(
+            network.security,
+            WifiScanSecurity::Wpa2Personal | WifiScanSecurity::Wpa3Personal
+        ) {
             self.last_error = Some("unsupported-security".to_owned());
             return false;
         }
@@ -294,7 +297,9 @@ impl WifiSettingsControl {
             .with_bytes(WifiPassphrase::from_bytes)
             .map_err(|error| error.to_string());
         let result = match passphrase {
-            Ok(passphrase) => request_wifi_connect(socket_path, &network.ssid, &passphrase),
+            Ok(passphrase) => {
+                request_wifi_connect(socket_path, network.security, &network.ssid, &passphrase)
+            }
             Err(error) => {
                 self.last_error = Some(error);
                 return false;
@@ -4671,11 +4676,11 @@ mod tests {
                 ),
                 (
                     "AQUA-NETWORK/1 WIFI_SCAN wlan0\n",
-                    "AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=1 authoritative=true network_0=417175612d51454d55,-28,wpa2-personal\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=1 authoritative=true network_0=417175612d51454d55,-28,wpa3-personal\n",
                 ),
                 (
-                    "AQUA-NETWORK/1 WIFI_CONNECT wlan0 417175612d51454d55 70617373776f7264\n",
-                    "AQUA-NETWORK/1 OK operation=wifi-connect interface=wlan0 network_id=9 authoritative=true credential_saved=true\n",
+                    "AQUA-NETWORK/1 WIFI_CONNECT wlan0 wpa3-personal 417175612d51454d55 70617373776f7264\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-connect interface=wlan0 security=wpa3-personal network_id=9 authoritative=true credential_saved=false\n",
                 ),
             ];
             for (expected, response) in exchanges {
@@ -4712,6 +4717,7 @@ mod tests {
         );
         assert!(model.apply_wifi_connection(&socket));
         assert!(model.wifi.connected());
+        assert!(!model.wifi.credential_saved());
         assert!(!model.wifi.credential_entry());
 
         server.join().expect("join broker fixture");
@@ -4750,11 +4756,11 @@ mod tests {
                     "AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=1 authoritative=true network_0=417175612d51454d55,-24,wpa2-personal\n",
                 ),
                 (
-                    "AQUA-NETWORK/1 WIFI_CONNECT wlan0 417175612d51454d55 70617373776f7264\n",
+                    "AQUA-NETWORK/1 WIFI_CONNECT wlan0 wpa2-personal 417175612d51454d55 70617373776f7264\n",
                     "AQUA-NETWORK/1 ERROR wifi-control-timeout\n",
                 ),
                 (
-                    "AQUA-NETWORK/1 WIFI_CONNECT wlan0 417175612d51454d55 70617373776f7264\n",
+                    "AQUA-NETWORK/1 WIFI_CONNECT wlan0 wpa2-personal 417175612d51454d55 70617373776f7264\n",
                     "AQUA-NETWORK/1 ERROR wifi-control-timeout\n",
                 ),
                 (

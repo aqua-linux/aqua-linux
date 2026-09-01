@@ -21,6 +21,7 @@ fn main() -> ExitCode {
     let result = match std::env::args().nth(1).as_deref() {
         Some("native") => probe_native(),
         Some("broker") => probe_broker(),
+        Some("broker-wpa3") => probe_broker_wpa3(),
         Some("broker-status") => probe_broker_request(
             b"AQUA-NETWORK/1 WIFI_STATUS wlan0\n",
             "AQUA-NETWORK/1 OK operation=wifi-status interface=wlan0",
@@ -39,7 +40,7 @@ fn main() -> ExitCode {
             "AQUA-NETWORK/1 OK operation=wifi-forget interface=wlan0 authoritative=true credential_saved=false",
         ),
         _ => Err(
-            "usage: aqua-wifi-native-probe native|broker|broker-status|broker-scan|broker-disconnect|broker-reconnect|broker-forget",
+            "usage: aqua-wifi-native-probe native|broker|broker-wpa3|broker-status|broker-scan|broker-disconnect|broker-reconnect|broker-forget",
         ),
     };
     #[cfg(not(target_os = "linux"))]
@@ -83,11 +84,29 @@ fn probe_native() -> Result<(), &'static str> {
 #[cfg(target_os = "linux")]
 fn probe_broker() -> Result<(), &'static str> {
     probe_broker_request(
-        b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 49454545 70617373776f7264\n",
-        "AQUA-NETWORK/1 OK operation=wifi-connect interface=wlan0 network_id=",
+        b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 wpa2-personal 49454545 70617373776f7264\n",
+        "AQUA-NETWORK/1 OK operation=wifi-connect interface=wlan0 security=wpa2-personal network_id=",
     )?;
     println!(
         "[AQUA-NETWORK] stage=wifi-broker-probe status=ok peer_uid=1000 typed_connect=true credential_acknowledged=true"
+    );
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn probe_broker_wpa3() -> Result<(), &'static str> {
+    let response = broker_exchange(
+        b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 wpa3-personal 49454545 70617373776f7264\n",
+    )?;
+    if !response.starts_with(
+        "AQUA-NETWORK/1 OK operation=wifi-connect interface=wlan0 security=wpa3-personal network_id=",
+    ) || !response.contains(" authoritative=true credential_saved=false")
+    {
+        eprintln!("[AQUA-NETWORK] stage=wifi-broker-wpa3-probe broker_response={response:?}");
+        return Err("broker-wpa3-response");
+    }
+    println!(
+        "[AQUA-NETWORK] stage=wifi-broker-wpa3-probe status=ok peer_uid=1000 typed_connect=true security=wpa3-personal credential_saved=false"
     );
     Ok(())
 }
@@ -98,12 +117,12 @@ fn probe_broker_scan() -> Result<(), &'static str> {
     if !response.starts_with(
         "AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=1 authoritative=true",
     ) || !response.contains("network_0=49454545,")
-        || !response.contains(",wpa2-personal")
+        || !response.contains(",wpa3-personal")
     {
         return Err("broker-scan-response");
     }
     println!(
-        "[AQUA-NETWORK] stage=wifi-broker-scan status=ok bounded=true count=1 security=wpa2-personal"
+        "[AQUA-NETWORK] stage=wifi-broker-scan status=ok bounded=true count=1 security=wpa3-personal transition_mode=true"
     );
     Ok(())
 }

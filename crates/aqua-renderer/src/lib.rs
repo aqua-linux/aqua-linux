@@ -4554,9 +4554,11 @@ pub fn render_settings_window_rgba(
                         network.signal_dbm,
                         network.security.id().to_ascii_uppercase()
                     ),
-                    if network.security
-                        == aqua_service_adapters::wifi_control::WifiScanSecurity::Wpa2Personal
-                    {
+                    if matches!(
+                        network.security,
+                        aqua_service_adapters::wifi_control::WifiScanSecurity::Wpa2Personal
+                            | aqua_service_adapters::wifi_control::WifiScanSecurity::Wpa3Personal
+                    ) {
                         palette.text
                     } else {
                         palette.secondary_text

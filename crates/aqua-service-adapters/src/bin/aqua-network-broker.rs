@@ -8,9 +8,10 @@ use aqua_service_adapters::network_broker::{
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]
 use aqua_service_adapters::wifi_control::{
     validate_credential_metadata, WifiControlRequest, WifiControlResponse, WifiControlStatus,
-    WifiCredentialMetadata, WifiCredentialRecord, WifiScanNetwork, WifiSecurity, WifiSsid,
-    MAX_WIFI_CREDENTIAL_RECORD_BYTES, WIFI_CREDENTIAL_DIRECTORY, WIFI_CREDENTIAL_DIRECTORY_MODE,
-    WIFI_CREDENTIAL_FILE_MODE, WIFI_CREDENTIAL_PATH, WIFI_CREDENTIAL_TEMP_PATH,
+    WifiCredentialMetadata, WifiCredentialRecord, WifiPassphrase, WifiPsk, WifiScanNetwork,
+    WifiScanSecurity, WifiSecurity, WifiSsid, MAX_WIFI_CREDENTIAL_RECORD_BYTES,
+    WIFI_CREDENTIAL_DIRECTORY, WIFI_CREDENTIAL_DIRECTORY_MODE, WIFI_CREDENTIAL_FILE_MODE,
+    WIFI_CREDENTIAL_PATH, WIFI_CREDENTIAL_TEMP_PATH,
 };
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]
 use aqua_service_adapters::{derive_wpa2_psk, WifiNativeControl, WifiNativeError};
@@ -171,7 +172,11 @@ fn handle_wifi_request(stream: &mut UnixStream, request: WifiBrokerRequest) -> i
     let result = match request {
         WifiBrokerRequest::Status => wifi_status(),
         WifiBrokerRequest::Scan => wifi_scan(),
-        WifiBrokerRequest::Connect { ssid, passphrase } => wifi_connect(ssid, passphrase),
+        WifiBrokerRequest::Connect {
+            security,
+            ssid,
+            passphrase,
+        } => wifi_connect(security, ssid, passphrase),
         WifiBrokerRequest::Reconnect => wifi_reconnect(),
         WifiBrokerRequest::Disconnect => wifi_disconnect(),
         WifiBrokerRequest::Forget => wifi_forget(),
@@ -295,17 +300,30 @@ fn wifi_forget() -> Result<String, &'static str> {
 
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]
 fn wifi_connect(
+    security: WifiScanSecurity,
     ssid: WifiSsid,
-    passphrase: aqua_service_adapters::wifi_control::WifiPassphrase,
+    passphrase: WifiPassphrase,
 ) -> Result<String, &'static str> {
     remove_wifi_association_marker().map_err(|_| "association-state-write-failed")?;
-    let psk = derive_wpa2_psk(&ssid, &passphrase).map_err(native_reason)?;
-    drop(passphrase);
-    let status = wifi_associate(&ssid, &psk)?;
-    let record = WifiCredentialRecord::new(ssid, WifiSecurity::Wpa2Personal, psk);
-    persist_wifi_credential(&record).map_err(|_| "credential-write-failed")?;
+    let (status, credential_saved) = match security {
+        WifiScanSecurity::Wpa2Personal => {
+            let psk = derive_wpa2_psk(&ssid, &passphrase).map_err(native_reason)?;
+            drop(passphrase);
+            let status = wifi_associate(&ssid, security, Some(&psk), None)?;
+            let record = WifiCredentialRecord::new(ssid, WifiSecurity::Wpa2Personal, psk);
+            persist_wifi_credential(&record).map_err(|_| "credential-write-failed")?;
+            (status, true)
+        }
+        WifiScanSecurity::Wpa3Personal => {
+            let status = wifi_associate(&ssid, security, None, Some(&passphrase))?;
+            drop(passphrase);
+            (status, false)
+        }
+        WifiScanSecurity::Unsupported => return Err("unsupported-security"),
+    };
     Ok(format!(
-        "{PROTOCOL_VERSION} OK operation=wifi-connect interface={FIXED_WIFI_INTERFACE} network_id={} authoritative={} credential_saved=true\n",
+        "{PROTOCOL_VERSION} OK operation=wifi-connect interface={FIXED_WIFI_INTERFACE} security={} network_id={} authoritative={} credential_saved={credential_saved}\n",
+        security.id(),
         status.network_id.expect("authoritative status includes network id"),
         status.authoritative_association()
     ))
@@ -315,7 +333,12 @@ fn wifi_connect(
 fn wifi_reconnect() -> Result<String, &'static str> {
     remove_wifi_association_marker().map_err(|_| "association-state-write-failed")?;
     let record = load_wifi_credential().map_err(|_| "credential-read-failed")?;
-    let status = wifi_associate(record.ssid(), record.psk())?;
+    let status = wifi_associate(
+        record.ssid(),
+        WifiScanSecurity::Wpa2Personal,
+        Some(record.psk()),
+        None,
+    )?;
     Ok(format!(
         "{PROTOCOL_VERSION} OK operation=wifi-reconnect interface={FIXED_WIFI_INTERFACE} network_id={} authoritative={} credential_saved=true\n",
         status.network_id.expect("authoritative status includes network id"),
@@ -326,7 +349,9 @@ fn wifi_reconnect() -> Result<String, &'static str> {
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]
 fn wifi_associate(
     ssid: &WifiSsid,
-    psk: &aqua_service_adapters::wifi_control::WifiPsk,
+    security: WifiScanSecurity,
+    psk: Option<&WifiPsk>,
+    passphrase: Option<&WifiPassphrase>,
 ) -> Result<WifiControlStatus, &'static str> {
     let mut control = WifiNativeControl::connect().map_err(native_reason)?;
     let network_id = match control
@@ -338,10 +363,29 @@ fn wifi_associate(
     };
     let association = (|| {
         expect_acknowledgement(control.request(&WifiControlRequest::SetSsid { network_id, ssid }))?;
-        expect_acknowledgement(
-            control.request(&WifiControlRequest::SetWpa2Personal { network_id }),
-        )?;
-        expect_acknowledgement(control.request(&WifiControlRequest::SetPsk { network_id, psk }))?;
+        match (security, psk, passphrase) {
+            (WifiScanSecurity::Wpa2Personal, Some(psk), None) => {
+                expect_acknowledgement(
+                    control.request(&WifiControlRequest::SetWpa2Personal { network_id }),
+                )?;
+                expect_acknowledgement(
+                    control.request(&WifiControlRequest::SetPsk { network_id, psk }),
+                )?;
+            }
+            (WifiScanSecurity::Wpa3Personal, None, Some(passphrase)) => {
+                expect_acknowledgement(
+                    control.request(&WifiControlRequest::SetWpa3Personal { network_id }),
+                )?;
+                expect_acknowledgement(
+                    control.request(&WifiControlRequest::SetPmfRequired { network_id }),
+                )?;
+                expect_acknowledgement(control.request(&WifiControlRequest::SetSaePassword {
+                    network_id,
+                    passphrase,
+                }))?;
+            }
+            _ => return Err(WifiNativeError::InvalidArgument),
+        }
         expect_acknowledgement(control.request(&WifiControlRequest::EnableNetwork { network_id }))?;
         expect_acknowledgement(control.request(&WifiControlRequest::SelectNetwork { network_id }))?;
         wait_for_association(&mut control, network_id)
@@ -357,13 +401,14 @@ fn wifi_associate(
         status
             .network_id
             .expect("authoritative status includes network id"),
+        security,
     )
     .map_err(|_| "association-state-write-failed")?;
     Ok(status)
 }
 
 #[cfg(all(feature = "wifi-native", target_os = "linux"))]
-fn persist_wifi_association_marker(network_id: u16) -> io::Result<()> {
+fn persist_wifi_association_marker(network_id: u16, security: WifiScanSecurity) -> io::Result<()> {
     let path = Path::new(WIFI_ASSOCIATION_PATH);
     let directory = path.parent().expect("fixed association marker parent");
     validate_control_directory(directory)?;
@@ -377,6 +422,7 @@ fn persist_wifi_association_marker(network_id: u16) -> io::Result<()> {
     writeln!(file, "product=Aqua Linux")?;
     writeln!(file, "interface={FIXED_WIFI_INTERFACE}")?;
     writeln!(file, "network_id={network_id}")?;
+    writeln!(file, "security={}", security.id())?;
     writeln!(file, "authoritative=true")?;
     fs::set_permissions(&temporary, fs::Permissions::from_mode(0o644))?;
     file.sync_all()?;
@@ -419,7 +465,11 @@ fn wait_for_association(
     let started = Instant::now();
     let timeout = Duration::from_secs(15);
     while started.elapsed() < timeout {
-        let response = control.request(&WifiControlRequest::Status)?;
+        let response = match control.request(&WifiControlRequest::Status) {
+            Ok(response) => response,
+            Err(WifiNativeError::Timeout) => continue,
+            Err(error) => return Err(error),
+        };
         if let WifiControlResponse::Status(status) = response {
             if status.authoritative_association() && status.network_id == Some(network_id) {
                 return Ok(status);

@@ -77,12 +77,12 @@ Aqua Linux will use this network stack:
   shell stays responsive and network controls remain absent.
 - SSIDs, passphrases, DHCP options, and resolver search domains are not logged
   or exposed by this observation boundary.
-- The initial personal-network control contract accepts only typed status,
-  scan, add, SSID, derived WPA2 PSK, key-management, enable, select, remove,
-  and disconnect requests. It emits no caller-supplied command name or network
-  identifier above 4095. Commands are capped at 192 bytes; responses are capped
-  at 4096 bytes and association is authoritative only for `COMPLETED` with a
-  validated network identifier.
+- The personal-network control contract accepts only typed status, scan, add,
+  SSID, WPA2 PSK or WPA3 SAE credential, key-management, PMF, enable, select,
+  remove, and disconnect requests. It emits no caller-supplied command name or
+  network identifier above 4095. Commands are capped at 192 bytes; responses
+  are capped at 4096 bytes and association is authoritative only for
+  `COMPLETED` with a validated network identifier.
 - SSIDs and secrets have redacted debug output. An input passphrase is limited
   to 8-63 printable ASCII bytes and must remain transient. The persisted record
   contains only the derived 32-byte WPA2 PSK, but that PSK is still treated as
@@ -92,7 +92,9 @@ Aqua Linux will use this network stack:
   frequency, signal, flags, and printable SSID fields, deduplicates by SSID,
   and returns only the four strongest results. The authenticated broker emits
   one 512-byte-bounded response whose entries contain hex-encoded SSID,
-  validated signal level, and either `wpa2-personal` or `unsupported` security.
+  validated signal level, and `wpa2-personal`, `wpa3-personal`, or
+  `unsupported` security. A transition network advertising SAE is classified
+  as WPA3-Personal.
   Settings never permits credential entry for an unsupported result.
 - Settings keeps the passphrase in a fixed 63-byte redacted buffer, accepts
   only printable ASCII, masks rendering, rejects submission before eight
@@ -147,11 +149,12 @@ Network management must remain disabled until all of these are satisfied:
    fixtures prove the known PSK vector, exact control sequence, peer
    authentication, secret redaction, and storage metadata without a radio.
    Settings renders at most the two strongest discovered rows beside explicit
-   rescan and forget actions, masks transient credential input, accepts only
-   WPA2-Personal selection, and permits at most two explicit association
-   submissions per entry flow. The default image still
-   contains neither the bridge nor `wpa_supplicant`; no daemon lifecycle is
-   enabled, and WPA3 association remains outside this initial control contract.
+   rescan and forget actions, masks transient credential input, accepts typed
+   WPA2-Personal and WPA3-Personal selection, and permits at most two explicit
+   association submissions per entry flow. WPA3 uses SAE with required PMF and
+   never persists its passphrase; `credential_saved=false` is required. The
+   default image still contains neither the bridge nor `wpa_supplicant`, and no
+   daemon lifecycle is enabled.
 5. **Satisfied on 2026-08-31:** deterministic fixtures prove offline,
    configuring, online, DNS loss, route loss, malformed input, bounded source
    sizes, and recovery without hanging Settings or the shell.
@@ -160,10 +163,12 @@ Network management must remain disabled until all of these are satisfied:
    loss, bounded reconnect, and recovery-shell availability.
 7. **Satisfied for the QEMU virtual-radio target on 2026-09-01:** packaged
    mac80211_hwsim proves bounded broker discovery and explicit rescan of the
-   isolated WPA2 fixture, new credential association, DHCP, DNS, disconnect,
-   saved reconnect, service recovery, safe saved-network forget, rejection of
-   reconnect after forget, and radio disable. Physical targets still require
-   their own radio, firmware, association, and failure evidence.
+   isolated WPA2/WPA3 transition fixture, real SAE association with PMF, DHCP
+   without credential persistence, WPA3 session cleanup, typed WPA2 association
+   to the same fixture, saved reconnect, service recovery, safe saved-network
+   forget, rejection of reconnect after forget, and radio disable. Physical
+   targets still require their own radio, firmware, association, and failure
+   evidence.
 
 Physical Ethernet and Wi-Fi support remain `Not tested`; this decision and its
 deterministic observation tests are not hardware evidence.
