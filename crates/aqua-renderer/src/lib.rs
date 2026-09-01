@@ -4455,6 +4455,7 @@ pub fn render_settings_window_rgba(
             palette.secondary_text,
             1,
         );
+        primitives += 2;
         primitives += draw_switch_control(
             &mut buffer,
             width,
@@ -4512,6 +4513,7 @@ pub fn render_settings_window_rgba(
                 palette.secondary_text,
                 1,
             );
+            primitives += 3;
         } else if model.wifi.networks().is_empty() {
             draw_bitmap_text(
                 &mut buffer,
@@ -4529,6 +4531,7 @@ pub fn render_settings_window_rgba(
                 palette.secondary_text,
                 1,
             );
+            primitives += 2;
         } else {
             for (index, network) in model
                 .wifi
@@ -4537,55 +4540,54 @@ pub fn render_settings_window_rgba(
                 .take(aqua_shell::MAX_VISIBLE_WIFI_NETWORKS)
                 .enumerate()
             {
-                let ssid = std::str::from_utf8(network.ssid.bytes())
-                    .unwrap_or("UNKNOWN")
-                    .chars()
-                    .take(22)
-                    .collect::<String>();
+                let row = model
+                    .wifi_network_row(index)
+                    .expect("visible Wi-Fi network row");
+                primitives += draw_list_row(
+                    &mut buffer,
+                    width,
+                    height,
+                    row,
+                    model.theme,
+                    OutputScale::One,
+                );
                 draw_bitmap_text(
                     &mut buffer,
                     (width, height),
-                    (
-                        section.row_rect(index + 1).x,
-                        section.row_rect(index + 1).y + 18,
-                    ),
+                    (row.slots().trailing.x, row.rect.y + 18),
                     &format!(
-                        "{ssid}  {} DBM  {}",
+                        "{} DBM  {}",
                         network.signal_dbm,
                         network.security.id().to_ascii_uppercase()
                     ),
-                    if matches!(
-                        network.security,
-                        aqua_service_adapters::wifi_control::WifiScanSecurity::Wpa2Personal
-                            | aqua_service_adapters::wifi_control::WifiScanSecurity::Wpa3Personal
-                    ) {
+                    if row.state != ComponentState::Disabled {
                         palette.text
                     } else {
                         palette.secondary_text
                     },
                     1,
                 );
+                primitives += 1;
             }
         }
         if !model.wifi.credential_entry() {
-            draw_bitmap_text(
+            primitives += draw_standard_button(
                 &mut buffer,
-                (width, height),
-                (section.row_rect(3).x, section.row_rect(3).y + 18),
-                if model.wifi.credential_saved() {
-                    "LEFT  RESCAN       RIGHT  FORGET SAVED"
-                } else {
-                    "LEFT  RESCAN"
-                },
-                if model.wifi.controls_enabled() {
-                    palette.accent
-                } else {
-                    palette.secondary_text
-                },
-                1,
+                width,
+                height,
+                model.wifi_rescan_button(),
+                model.theme,
+                OutputScale::One,
+            );
+            primitives += draw_standard_button(
+                &mut buffer,
+                width,
+                height,
+                model.wifi_forget_button(),
+                model.theme,
+                OutputScale::One,
             );
         }
-        primitives += 6;
     } else if model.selected_category == 4 {
         draw_bitmap_text(
             &mut buffer,

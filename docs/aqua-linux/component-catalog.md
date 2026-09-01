@@ -1,6 +1,6 @@
 # Aqua Linux Shared Component Catalog
 
-Status date: 2026-08-29
+Status date: 2026-09-01
 
 This is the implementation inventory for the shared components required by
 `interface-style.md`. An entry is complete only when its anatomy, content
@@ -18,13 +18,13 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Toolbar | Shared packaged-QEMU-proven primitive | Files navigation and location controls |
 | Segmented control | Shared packaged-QEMU-proven primitive | Settings theme selection |
 | Search field | Shared packaged-QEMU-proven primitive | Applications and Global Search share render/input geometry |
-| Standard button | Shared packaged-QEMU-proven primitive | Installer footer |
+| Standard button | Shared packaged-QEMU-proven primitive | Installer footer and Settings Network actions |
 | Icon button | Shared packaged-QEMU-proven primitive | Files back/forward navigation; broader toolbar adoption remains open |
 | Checkbox | Shared packaged-QEMU-proven primitive | Installer Summary target-bound destructive acknowledgement |
 | Switch | Shared packaged-QEMU-proven primitive | Settings motion, desktop-icon, and key-repeat toggles |
 | Slider | Shared packaged-QEMU-proven primitive | Settings Audio output-volume preference |
 | Menu | Shared packaged-QEMU-proven primitive | Desktop icon context actions and Session action layout |
-| List row | Shared packaged-QEMU-proven primitive | Files and Settings navigation plus installer steps |
+| List row | Shared packaged-QEMU-proven primitive | Files and Settings navigation, Settings Wi-Fi discovery, and installer steps |
 | Grid cell | Shared packaged-QEMU-proven primitive | Applications cards and desktop icon cells share render/input geometry; Files remains a list because no grid mode exists yet |
 | Metadata row | Shared packaged-QEMU-proven primitive | Properties and System Overview share bounded read-only label/value columns |
 | Section group | Shared packaged-QEMU-proven primitive | Settings and Properties share bounded heading, row, trailing-control, and footer geometry |
@@ -134,9 +134,14 @@ and 1536x1024, including a 1.25 output-scale case. Its canonical report is
 - Sidebar containers expose the `navigation` role and a non-empty name.
 
 Settings and Files now consume the same sidebar geometry in both `aqua-shell`
-input routing and `aqua-renderer` drawing. Installer steps consume the same
-list-row composition with a step-specific leading marker. Their deterministic
-matrix is recorded with the standard button in `component-fixtures.txt`.
+input routing and `aqua-renderer` drawing. Settings Wi-Fi discovery rows also
+use `ListRow` for one render/input/state/accessibility contract; unsupported
+security remains disabled at the component boundary. Installer steps consume
+the same list-row composition with a step-specific leading marker. Settings
+Network rescan and saved-credential removal use `StandardButton`, including a
+non-actionable inter-button gap and broker-authority disabled states. The
+generic deterministic matrix is recorded in `component-fixtures.txt`, while
+consumer tests cover the Settings-specific composition.
 
 ## Search Field And Icon Button Contract
 
@@ -647,8 +652,10 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. New extractions
-must start from a real first-party consumer and repeat the same geometry, input,
+All catalog entries now satisfy the shared primitive contract. The first ADR
+0003 consolidation slice replaces Settings Network's duplicated Wi-Fi row and
+action hit geometry with existing shared components. Further extractions must
+continue from real first-party consumers and repeat the same geometry, input,
 accessibility, deterministic-fixture, and packaged-QEMU evidence path. The
 actual audio service/backend remains a separate R4 decision and acceptance
 item; the Settings preference must not be treated as playback or hardware

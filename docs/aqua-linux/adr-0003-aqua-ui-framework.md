@@ -2,9 +2,11 @@
 
 ## Status
 
-Accepted on 2026-08-29. Framework consolidation is planned after the core
-desktop functionality supplies enough real consumers; the existing shared UI
-foundations continue to evolve in place until then.
+Accepted on 2026-08-29. Framework consolidation began on 2026-09-01 after the
+core desktop functionality supplied real consumers. The first bounded slice
+replaced Settings Network's duplicated Wi-Fi row and action hit geometry with
+existing `ListRow` and `StandardButton` contracts; the broader consolidation
+remains in progress.
 
 ## Context
 
@@ -71,10 +73,11 @@ crate for each responsibility.
 
 ## Sequencing And Graduation Gates
 
-Framework consolidation begins after the core desktop functionality needed to
-exercise it is present, including a real audio-volume model for Slider and the
-readiness work that exposes focus, accessibility, localization, service, and
-Wayland integration requirements.
+Framework consolidation proceeds now that the core desktop functionality
+needed to exercise it is present, including a real audio-volume model for
+Slider and readiness work that exposes focus, accessibility, localization,
+service, and Wayland integration requirements. Each slice remains bounded to a
+real consumer and must preserve the graduation gates below.
 
 A behavior graduates into the stable Aqua UI surface only when:
 
