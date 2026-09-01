@@ -1,10 +1,10 @@
 use aqua_components::{
     ApplicationOverview, ComponentState, ConfirmationDialog, ConfirmationPresentation,
     ConfirmationRequirement, ConfirmationSeverity, ConfirmationState, GlobalSearch, GridCell,
-    GridCellLayout, IconButton, IconButtonGlyph, ListRow, ListRowRole, Menu, MetadataRow,
-    RunningAppDock, SearchField, SectionGroup, SegmentedControl, SidebarNavigation,
-    SidebarNavigationKey, Slider, SliderKey, StandardButton, StandardButtonVariant, SwitchControl,
-    Toolbar, TopSystemBar, WorkspaceSwitcher,
+    GridCellLayout, IconButton, IconButtonGlyph, ListNavigation, ListNavigationKey, ListRow,
+    ListRowRole, Menu, MetadataRow, RunningAppDock, SearchField, SectionGroup, SegmentedControl,
+    SidebarNavigation, SidebarNavigationKey, Slider, SliderKey, StandardButton,
+    StandardButtonVariant, SwitchControl, Toolbar, TopSystemBar, WorkspaceSwitcher,
 };
 pub use aqua_components::{CollectionNavigationKey, MenuNavigationKey, WorkspaceNavigationKey};
 use aqua_scene::Rect;
@@ -3094,12 +3094,12 @@ impl FilesNavigator {
             return self.handle_preview_key(key);
         }
         match key {
-            FilesKey::Up => self.move_selection(-1),
-            FilesKey::Down => self.move_selection(1),
-            FilesKey::PageUp => self.move_selection(-(FILES_VISIBLE_ROWS as isize)),
-            FilesKey::PageDown => self.move_selection(FILES_VISIBLE_ROWS as isize),
-            FilesKey::Home => self.select_edge(false),
-            FilesKey::End => self.select_edge(true),
+            FilesKey::Up => self.navigate_list(ListNavigationKey::Previous),
+            FilesKey::Down => self.navigate_list(ListNavigationKey::Next),
+            FilesKey::PageUp => self.navigate_list(ListNavigationKey::PagePrevious),
+            FilesKey::PageDown => self.navigate_list(ListNavigationKey::PageNext),
+            FilesKey::Home => self.navigate_list(ListNavigationKey::Home),
+            FilesKey::End => self.navigate_list(ListNavigationKey::End),
             FilesKey::Activate => {
                 let Some(index) = self.window.selected_entry else {
                     return FilesNavigation::None;
@@ -3164,42 +3164,17 @@ impl FilesNavigator {
         FilesNavigation::PreviewScrolled
     }
 
-    fn move_selection(&mut self, offset: isize) -> FilesNavigation {
-        let count = self.window.entries.len();
-        if count == 0 {
+    fn navigate_list(&mut self, key: ListNavigationKey) -> FilesNavigation {
+        let navigation = ListNavigation::new(self.window.entries.len(), FILES_VISIBLE_ROWS);
+        let Some(selected) = navigation.keyboard_target(self.window.selected_entry, key) else {
             return FilesNavigation::None;
-        }
-        let current = self.window.selected_entry.unwrap_or_else(|| {
-            if offset < 0 {
-                0
-            } else {
-                count.saturating_sub(1)
-            }
-        });
-        let selected = (current as isize + offset).rem_euclid(count as isize) as usize;
-        self.window.selected_entry = Some(selected);
-        if selected < self.window.scroll_offset {
-            self.window.scroll_offset = selected;
-        } else if selected >= self.window.scroll_offset + FILES_VISIBLE_ROWS {
-            self.window.scroll_offset = selected + 1 - FILES_VISIBLE_ROWS;
-        }
-        FilesNavigation::Selected(selected)
-    }
-
-    fn select_edge(&mut self, end: bool) -> FilesNavigation {
-        let Some(selected) = end
-            .then(|| self.window.entries.len().checked_sub(1))
-            .flatten()
-            .or_else(|| (!end && !self.window.entries.is_empty()).then_some(0))
+        };
+        let Some(scroll_offset) = navigation.reveal_offset(selected, self.window.scroll_offset)
         else {
             return FilesNavigation::None;
         };
         self.window.selected_entry = Some(selected);
-        self.window.scroll_offset = if end {
-            self.window.entries.len().saturating_sub(FILES_VISIBLE_ROWS)
-        } else {
-            0
-        };
+        self.window.scroll_offset = scroll_offset;
         FilesNavigation::Selected(selected)
     }
 

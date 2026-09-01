@@ -1789,6 +1789,8 @@ grep -Fq 'pub struct SegmentedControl' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct Slider' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct Toolbar' crates/aqua-components/src/lib.rs
 grep -Fq 'pub struct SidebarNavigation' crates/aqua-components/src/lib.rs
+grep -Fq 'pub struct ListNavigation' crates/aqua-components/src/lib.rs
+grep -Fq 'pub enum ListNavigationKey' crates/aqua-components/src/lib.rs
 grep -Fq 'aqua-components = { path = "../aqua-components" }' crates/aqua-shell/Cargo.toml
 grep -Fq 'aqua-components = { path = "../aqua-components" }' crates/aqua-renderer/Cargo.toml
 grep -Fq 'aqua-components = { path = "../aqua-components" }' crates/aqua-compositor/Cargo.toml
@@ -1801,6 +1803,7 @@ grep -Fq 'launcher.search_field(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'files_toolbar(width)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'desktop_context_menu_with_selection(index, selected_row).map' crates/aqua-renderer/src/lib.rs
 grep -Fq 'desktop_context_menu_with_selection(icon_index, self.context_menu_selected_row)?' crates/aqua-shell/src/lib.rs
+grep -Fq 'ListNavigation::new(self.window.entries.len(), FILES_VISIBLE_ROWS)' crates/aqua-shell/src/lib.rs
 grep -Fq 'details_section_group(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.section_group()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'details_metadata_row(width, height' crates/aqua-renderer/src/lib.rs
