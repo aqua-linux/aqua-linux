@@ -1,4 +1,3 @@
-pub use aqua_components::MenuNavigationKey;
 use aqua_components::{
     ApplicationOverview, ComponentState, ConfirmationDialog, ConfirmationPresentation,
     ConfirmationRequirement, ConfirmationSeverity, ConfirmationState, GlobalSearch, GridCell,
@@ -7,6 +6,7 @@ use aqua_components::{
     SliderKey, StandardButton, StandardButtonVariant, SwitchControl, Toolbar, TopSystemBar,
     WorkspaceSwitcher,
 };
+pub use aqua_components::{MenuNavigationKey, WorkspaceNavigationKey};
 use aqua_scene::Rect;
 use aqua_service_adapters::network_broker::{
     request_wifi_broker, request_wifi_connect, request_wifi_scan, WifiBrokerOperation,
@@ -960,6 +960,13 @@ pub const fn workspace_switcher(
         WORKSPACE_COUNT,
         active_workspace,
     )
+}
+
+pub const fn workspace_keyboard_target(
+    active_workspace: usize,
+    key: WorkspaceNavigationKey,
+) -> Option<usize> {
+    workspace_switcher(WORKSPACE_COUNT as u32 * 60, 72, active_workspace).keyboard_target(key)
 }
 
 pub fn dock_pointer_target(
@@ -5721,6 +5728,38 @@ mod tests {
         assert!(!state.item_running(DockItem::Settings));
         assert!(state.workspace_active(1));
         assert!(!state.workspace_active(2));
+    }
+
+    #[test]
+    fn workspace_keyboard_routing_uses_shared_bounded_targets() {
+        assert_eq!(
+            workspace_keyboard_target(1, WorkspaceNavigationKey::Previous),
+            Some(0)
+        );
+        assert_eq!(
+            workspace_keyboard_target(1, WorkspaceNavigationKey::Next),
+            Some(2)
+        );
+        assert_eq!(
+            workspace_keyboard_target(1, WorkspaceNavigationKey::Home),
+            Some(0)
+        );
+        assert_eq!(
+            workspace_keyboard_target(1, WorkspaceNavigationKey::End),
+            Some(2)
+        );
+        assert_eq!(
+            workspace_keyboard_target(0, WorkspaceNavigationKey::Previous),
+            None
+        );
+        assert_eq!(
+            workspace_keyboard_target(2, WorkspaceNavigationKey::Next),
+            None
+        );
+        assert_eq!(
+            workspace_keyboard_target(WORKSPACE_COUNT, WorkspaceNavigationKey::Home),
+            None
+        );
     }
 
     #[test]
