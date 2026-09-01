@@ -2223,18 +2223,35 @@ impl SettingsWindowModel {
             4 => (2, 48, 20),
             _ => (1, 48, 0),
         };
+        let section_height = if self.selected_category == 3 {
+            212
+        } else {
+            202
+        };
         SectionGroup::new(
             Rect {
                 x: 202,
                 y: 76,
                 width: 378,
-                height: 202,
+                height: section_height,
             },
             self.categories[self.selected_category],
             row_count,
         )
         .with_structure(34, 0, 16, 16, row_height, row_gap)
         .with_focus(self.keyboard_focus)
+    }
+
+    pub fn section_group_in_viewport(
+        &self,
+        width: u32,
+        height: u32,
+    ) -> Option<SectionGroup<'static>> {
+        let section = self.section_group();
+        if !section.is_valid() || section.rect.right() > width || section.rect.bottom() > height {
+            return None;
+        }
+        Some(section)
     }
 
     pub fn active_switch(&self) -> Option<SwitchControl<'static>> {
@@ -2614,6 +2631,9 @@ impl SettingsWindowModel {
                 return SettingsUpdate::CategorySelected(category);
             }
         }
+        if self.section_group_in_viewport(width, height).is_none() {
+            return SettingsUpdate::None;
+        }
         if let Some(control) = self.active_switch() {
             if control.pointer_toggles(x, y) {
                 return match self.selected_category {
@@ -2702,6 +2722,13 @@ impl SettingsWindowModel {
         key: SettingsKey,
     ) -> SettingsUpdate {
         self.keyboard_focus = true;
+        let category_navigation = matches!(
+            key,
+            SettingsKey::Home | SettingsKey::End | SettingsKey::Up | SettingsKey::Down
+        );
+        if !category_navigation && self.section_group_in_viewport(width, height).is_none() {
+            return SettingsUpdate::None;
+        }
         match key {
             SettingsKey::Activate
                 if self.selected_category == 3 && self.wifi.credential_entry() =>
@@ -5624,6 +5651,39 @@ mod tests {
         assert!(settings_sidebar_navigation_in_viewport(190, 386).is_some());
         assert!(settings_sidebar_navigation_in_viewport(189, 400).is_none());
         assert!(settings_sidebar_navigation_in_viewport(600, 385).is_none());
+        let mut content_model = SettingsWindowModel::default();
+        assert!(content_model.section_group_in_viewport(580, 278).is_some());
+        assert!(content_model.section_group_in_viewport(579, 400).is_none());
+        assert!(content_model.section_group_in_viewport(600, 277).is_none());
+        let network_content = SettingsWindowModel {
+            selected_category: 3,
+            ..SettingsWindowModel::default()
+        };
+        assert!(network_content.section_group().is_valid());
+        assert!(network_content
+            .section_group_in_viewport(580, 288)
+            .is_some());
+        assert!(network_content
+            .section_group_in_viewport(580, 287)
+            .is_none());
+        assert_eq!(
+            content_model.handle_pointer_in_viewport(579, 400, 500, 150),
+            SettingsUpdate::None
+        );
+        assert!(!content_model.reduced_motion);
+        assert_eq!(
+            content_model.handle_key_in_viewport(600, 277, SettingsKey::Activate),
+            SettingsUpdate::None
+        );
+        assert!(!content_model.reduced_motion);
+        assert_eq!(
+            content_model.handle_pointer_in_viewport(580, 278, 500, 150),
+            SettingsUpdate::ReducedMotionChanged(true)
+        );
+        assert_eq!(
+            content_model.handle_key_in_viewport(580, 278, SettingsKey::Activate),
+            SettingsUpdate::ReducedMotionChanged(false)
+        );
         let mut viewport_model = SettingsWindowModel::default();
         assert_eq!(
             viewport_model.handle_pointer_in_viewport(189, 400, 40, 150),

@@ -720,7 +720,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first thirty-eight
+All catalog entries now satisfy the shared primitive contract. The first thirty-nine
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -807,6 +807,10 @@ gate. A clipped sidebar is omitted and remains inert.
 Settings category rendering, pointer selection, hover, and keyboard navigation
 now consume one width-and-height validated sidebar composition derived from the
 actual client buffer. Clipped category rows are omitted and remain inert.
+Settings section rendering and pointer or keyboard control activation now
+consume one category-specific viewport-validated content group. Network's
+four-row group receives its valid 212-pixel height; clipped switch, segmented,
+Wi-Fi, slider, and About compositions are omitted and remain inert.
 Further extractions must continue from real first-party consumers and repeat
 the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a

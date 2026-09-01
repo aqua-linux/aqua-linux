@@ -2577,6 +2577,7 @@ pub struct FilesWindowProbe {
 pub struct SettingsWindowProbe {
     pub rendered: bool,
     pub sidebar_rendered: bool,
+    pub content_rendered: bool,
     pub category_count: usize,
     pub selected_category: usize,
     pub reduced_motion: bool,
@@ -4270,6 +4271,7 @@ pub fn render_settings_window_rgba(
             SettingsWindowProbe {
                 rendered: false,
                 sidebar_rendered: false,
+                content_rendered: false,
                 category_count: model.categories.len(),
                 selected_category: model.selected_category,
                 reduced_motion: model.reduced_motion,
@@ -4350,315 +4352,317 @@ pub fn render_settings_window_rgba(
         }
     }
 
-    let section = model.section_group();
-    primitives += draw_section_group(&mut buffer, width, height, section, model.theme);
-    let heading = model.categories[model.selected_category];
-    draw_bitmap_text(
-        &mut buffer,
-        (width, height),
-        (section.heading_rect().x, section.heading_rect().y + 16),
-        heading,
-        palette.text,
-        2,
-    );
-    let first_row = section.row_rect(0);
-    if model.selected_category == 0 {
+    if let Some(section) = model.section_group_in_viewport(width, height) {
+        primitives += draw_section_group(&mut buffer, width, height, section, model.theme);
+        let heading = model.categories[model.selected_category];
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (first_row.x, first_row.y + 16),
-            "REDUCED MOTION",
+            (section.heading_rect().x, section.heading_rect().y + 16),
+            heading,
             palette.text,
-            1,
+            2,
         );
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (first_row.x, first_row.y + 38),
-            "Limit desktop animation",
-            palette.secondary_text,
-            1,
-        );
-        primitives += draw_switch_control(
-            &mut buffer,
-            width,
-            height,
-            model.active_switch().expect("appearance switch"),
-            model.theme,
-        );
-        primitives += draw_segmented_control(
-            &mut buffer,
-            width,
-            height,
-            model.theme_segmented_control(),
-            &["LightWhite", "Softtouch", "Deepside", "Nightmare"],
-            model.theme,
-            OutputScale::One,
-        );
-    } else if model.selected_category == 1 {
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (first_row.x, first_row.y + 16),
-            "SHOW DESKTOP ICONS",
-            palette.text,
-            1,
-        );
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (first_row.x, first_row.y + 38),
-            "Show home and storage items",
-            palette.secondary_text,
-            1,
-        );
-        primitives += draw_switch_control(
-            &mut buffer,
-            width,
-            height,
-            model.active_switch().expect("desktop switch"),
-            model.theme,
-        );
-    } else if model.selected_category == 2 {
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (first_row.x, first_row.y + 16),
-            "KEY REPEAT",
-            palette.text,
-            1,
-        );
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (first_row.x, first_row.y + 38),
-            "Repeat held keyboard keys",
-            palette.secondary_text,
-            1,
-        );
-        primitives += draw_switch_control(
-            &mut buffer,
-            width,
-            height,
-            model.active_switch().expect("input switch"),
-            model.theme,
-        );
-    } else if model.selected_category == 3 {
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (first_row.x, first_row.y + 16),
-            "WI-FI ASSOCIATION",
-            palette.text,
-            1,
-        );
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (first_row.x, first_row.y + 30),
-            if model.wifi.available() {
-                "AUTHENTICATED BROKER"
-            } else {
-                "CONTROL UNAVAILABLE"
-            },
-            palette.secondary_text,
-            1,
-        );
-        primitives += 2;
-        primitives += draw_switch_control(
-            &mut buffer,
-            width,
-            height,
-            model.active_switch().expect("network switch"),
-            model.theme,
-        );
-        let wifi_status = model
-            .wifi
-            .status_label()
-            .chars()
-            .take(42)
-            .collect::<String>()
-            .to_ascii_uppercase();
-        if model.wifi.credential_entry() {
-            let selected = model
-                .wifi
-                .selected_network()
-                .and_then(|network| std::str::from_utf8(network.ssid.bytes()).ok())
-                .unwrap_or("UNKNOWN")
-                .chars()
-                .take(28)
-                .collect::<String>();
+        let first_row = section.row_rect(0);
+        if model.selected_category == 0 {
             draw_bitmap_text(
                 &mut buffer,
                 (width, height),
-                (section.row_rect(1).x, section.row_rect(1).y + 18),
-                &format!("NETWORK  {selected}"),
+                (first_row.x, first_row.y + 16),
+                "REDUCED MOTION",
                 palette.text,
                 1,
             );
             draw_bitmap_text(
                 &mut buffer,
                 (width, height),
-                (section.row_rect(2).x, section.row_rect(2).y + 18),
-                &format!("PASSWORD  {}", model.wifi.masked_passphrase()),
-                palette.accent,
-                1,
-            );
-            let credential_hint = if model.wifi.status_label().starts_with("connection-failed") {
-                format!(
-                    "RETRY  {} ATTEMPT LEFT  ESC CANCEL",
-                    model.wifi.connect_attempts_remaining()
-                )
-            } else if model.wifi.passphrase_ready() {
-                "ENTER TO CONNECT  ESC TO CANCEL".to_owned()
-            } else {
-                "8-63 CHARACTERS  ESC TO CANCEL".to_owned()
-            };
-            draw_bitmap_text(
-                &mut buffer,
-                (width, height),
-                (section.row_rect(3).x, section.row_rect(3).y + 18),
-                &credential_hint,
+                (first_row.x, first_row.y + 38),
+                "Limit desktop animation",
                 palette.secondary_text,
                 1,
             );
-            primitives += 3;
-        } else if model.wifi.networks().is_empty() {
+            primitives += draw_switch_control(
+                &mut buffer,
+                width,
+                height,
+                model.active_switch().expect("appearance switch"),
+                model.theme,
+            );
+            primitives += draw_segmented_control(
+                &mut buffer,
+                width,
+                height,
+                model.theme_segmented_control(),
+                &["LightWhite", "Softtouch", "Deepside", "Nightmare"],
+                model.theme,
+                OutputScale::One,
+            );
+        } else if model.selected_category == 1 {
             draw_bitmap_text(
                 &mut buffer,
                 (width, height),
-                (section.row_rect(1).x, section.row_rect(1).y + 18),
-                &format!("WI-FI {wifi_status}"),
-                palette.accent,
+                (first_row.x, first_row.y + 16),
+                "SHOW DESKTOP ICONS",
+                palette.text,
                 1,
             );
             draw_bitmap_text(
                 &mut buffer,
                 (width, height),
-                (section.row_rect(2).x, section.row_rect(2).y + 18),
-                "NO DISCOVERED NETWORKS",
+                (first_row.x, first_row.y + 38),
+                "Show home and storage items",
+                palette.secondary_text,
+                1,
+            );
+            primitives += draw_switch_control(
+                &mut buffer,
+                width,
+                height,
+                model.active_switch().expect("desktop switch"),
+                model.theme,
+            );
+        } else if model.selected_category == 2 {
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (first_row.x, first_row.y + 16),
+                "KEY REPEAT",
+                palette.text,
+                1,
+            );
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (first_row.x, first_row.y + 38),
+                "Repeat held keyboard keys",
+                palette.secondary_text,
+                1,
+            );
+            primitives += draw_switch_control(
+                &mut buffer,
+                width,
+                height,
+                model.active_switch().expect("input switch"),
+                model.theme,
+            );
+        } else if model.selected_category == 3 {
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (first_row.x, first_row.y + 16),
+                "WI-FI ASSOCIATION",
+                palette.text,
+                1,
+            );
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (first_row.x, first_row.y + 30),
+                if model.wifi.available() {
+                    "AUTHENTICATED BROKER"
+                } else {
+                    "CONTROL UNAVAILABLE"
+                },
                 palette.secondary_text,
                 1,
             );
             primitives += 2;
-        } else {
-            for (index, network) in model
+            primitives += draw_switch_control(
+                &mut buffer,
+                width,
+                height,
+                model.active_switch().expect("network switch"),
+                model.theme,
+            );
+            let wifi_status = model
                 .wifi
-                .networks()
-                .iter()
-                .take(aqua_shell::MAX_VISIBLE_WIFI_NETWORKS)
-                .enumerate()
-            {
-                let row = model
-                    .wifi_network_row(index)
-                    .expect("visible Wi-Fi network row");
-                primitives += draw_list_row(
+                .status_label()
+                .chars()
+                .take(42)
+                .collect::<String>()
+                .to_ascii_uppercase();
+            if model.wifi.credential_entry() {
+                let selected = model
+                    .wifi
+                    .selected_network()
+                    .and_then(|network| std::str::from_utf8(network.ssid.bytes()).ok())
+                    .unwrap_or("UNKNOWN")
+                    .chars()
+                    .take(28)
+                    .collect::<String>();
+                draw_bitmap_text(
                     &mut buffer,
-                    width,
-                    height,
-                    row,
-                    model.theme,
-                    OutputScale::One,
+                    (width, height),
+                    (section.row_rect(1).x, section.row_rect(1).y + 18),
+                    &format!("NETWORK  {selected}"),
+                    palette.text,
+                    1,
                 );
                 draw_bitmap_text(
                     &mut buffer,
                     (width, height),
-                    (row.slots().trailing.x, row.rect.y + 18),
-                    &format!(
-                        "{} DBM  {}",
-                        network.signal_dbm,
-                        network.security.id().to_ascii_uppercase()
-                    ),
-                    if row.state != ComponentState::Disabled {
-                        palette.text
-                    } else {
-                        palette.secondary_text
-                    },
+                    (section.row_rect(2).x, section.row_rect(2).y + 18),
+                    &format!("PASSWORD  {}", model.wifi.masked_passphrase()),
+                    palette.accent,
                     1,
                 );
-                primitives += 1;
+                let credential_hint = if model.wifi.status_label().starts_with("connection-failed")
+                {
+                    format!(
+                        "RETRY  {} ATTEMPT LEFT  ESC CANCEL",
+                        model.wifi.connect_attempts_remaining()
+                    )
+                } else if model.wifi.passphrase_ready() {
+                    "ENTER TO CONNECT  ESC TO CANCEL".to_owned()
+                } else {
+                    "8-63 CHARACTERS  ESC TO CANCEL".to_owned()
+                };
+                draw_bitmap_text(
+                    &mut buffer,
+                    (width, height),
+                    (section.row_rect(3).x, section.row_rect(3).y + 18),
+                    &credential_hint,
+                    palette.secondary_text,
+                    1,
+                );
+                primitives += 3;
+            } else if model.wifi.networks().is_empty() {
+                draw_bitmap_text(
+                    &mut buffer,
+                    (width, height),
+                    (section.row_rect(1).x, section.row_rect(1).y + 18),
+                    &format!("WI-FI {wifi_status}"),
+                    palette.accent,
+                    1,
+                );
+                draw_bitmap_text(
+                    &mut buffer,
+                    (width, height),
+                    (section.row_rect(2).x, section.row_rect(2).y + 18),
+                    "NO DISCOVERED NETWORKS",
+                    palette.secondary_text,
+                    1,
+                );
+                primitives += 2;
+            } else {
+                for (index, network) in model
+                    .wifi
+                    .networks()
+                    .iter()
+                    .take(aqua_shell::MAX_VISIBLE_WIFI_NETWORKS)
+                    .enumerate()
+                {
+                    let row = model
+                        .wifi_network_row(index)
+                        .expect("visible Wi-Fi network row");
+                    primitives += draw_list_row(
+                        &mut buffer,
+                        width,
+                        height,
+                        row,
+                        model.theme,
+                        OutputScale::One,
+                    );
+                    draw_bitmap_text(
+                        &mut buffer,
+                        (width, height),
+                        (row.slots().trailing.x, row.rect.y + 18),
+                        &format!(
+                            "{} DBM  {}",
+                            network.signal_dbm,
+                            network.security.id().to_ascii_uppercase()
+                        ),
+                        if row.state != ComponentState::Disabled {
+                            palette.text
+                        } else {
+                            palette.secondary_text
+                        },
+                        1,
+                    );
+                    primitives += 1;
+                }
             }
-        }
-        if !model.wifi.credential_entry() {
-            primitives += draw_standard_button(
+            if !model.wifi.credential_entry() {
+                primitives += draw_standard_button(
+                    &mut buffer,
+                    width,
+                    height,
+                    model.wifi_rescan_button(),
+                    model.theme,
+                    OutputScale::One,
+                );
+                primitives += draw_standard_button(
+                    &mut buffer,
+                    width,
+                    height,
+                    model.wifi_forget_button(),
+                    model.theme,
+                    OutputScale::One,
+                );
+            }
+        } else if model.selected_category == 4 {
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (first_row.x, first_row.y + 16),
+                "OUTPUT VOLUME",
+                palette.text,
+                1,
+            );
+            let authoritative_volume = model
+                .audio
+                .authoritative_volume_percent()
+                .unwrap_or_else(|| model.audio.volume_percent());
+            let status = match model.audio.control_status() {
+                AudioControlStatus::Unavailable => "UNAVAILABLE".to_string(),
+                AudioControlStatus::Starting => "STARTING".to_string(),
+                AudioControlStatus::Degraded => "DEGRADED".to_string(),
+                AudioControlStatus::Applying => format!("APPLYING {authoritative_volume}%"),
+                AudioControlStatus::Applied => format!("{authoritative_volume}%"),
+            };
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (first_row.x, first_row.y + 38),
+                &status,
+                palette.secondary_text,
+                1,
+            );
+            primitives += draw_slider(
                 &mut buffer,
                 width,
                 height,
-                model.wifi_rescan_button(),
+                model.audio_slider(),
                 model.theme,
-                OutputScale::One,
             );
-            primitives += draw_standard_button(
+            let mute_row = section.row_rect(1);
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (mute_row.x, mute_row.y + 28),
+                "MUTE OUTPUT",
+                palette.text,
+                1,
+            );
+            primitives += draw_switch_control(
                 &mut buffer,
                 width,
                 height,
-                model.wifi_forget_button(),
+                model.active_switch().expect("audio mute switch"),
                 model.theme,
-                OutputScale::One,
             );
+            primitives += 3;
+        } else {
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (first_row.x, first_row.y + 16),
+                "SETTINGS WILL APPEAR HERE",
+                palette.secondary_text,
+                1,
+            );
+            primitives += 1;
         }
-    } else if model.selected_category == 4 {
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (first_row.x, first_row.y + 16),
-            "OUTPUT VOLUME",
-            palette.text,
-            1,
-        );
-        let authoritative_volume = model
-            .audio
-            .authoritative_volume_percent()
-            .unwrap_or_else(|| model.audio.volume_percent());
-        let status = match model.audio.control_status() {
-            AudioControlStatus::Unavailable => "UNAVAILABLE".to_string(),
-            AudioControlStatus::Starting => "STARTING".to_string(),
-            AudioControlStatus::Degraded => "DEGRADED".to_string(),
-            AudioControlStatus::Applying => format!("APPLYING {authoritative_volume}%"),
-            AudioControlStatus::Applied => format!("{authoritative_volume}%"),
-        };
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (first_row.x, first_row.y + 38),
-            &status,
-            palette.secondary_text,
-            1,
-        );
-        primitives += draw_slider(
-            &mut buffer,
-            width,
-            height,
-            model.audio_slider(),
-            model.theme,
-        );
-        let mute_row = section.row_rect(1);
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (mute_row.x, mute_row.y + 28),
-            "MUTE OUTPUT",
-            palette.text,
-            1,
-        );
-        primitives += draw_switch_control(
-            &mut buffer,
-            width,
-            height,
-            model.active_switch().expect("audio mute switch"),
-            model.theme,
-        );
-        primitives += 3;
-    } else {
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (first_row.x, first_row.y + 16),
-            "SETTINGS WILL APPEAR HERE",
-            palette.secondary_text,
-            1,
-        );
-        primitives += 1;
     }
     let checksum = checksum_bytes(&buffer);
     (
@@ -4666,6 +4670,7 @@ pub fn render_settings_window_rgba(
         SettingsWindowProbe {
             rendered: true,
             sidebar_rendered: settings_sidebar_navigation_in_viewport(width, height).is_some(),
+            content_rendered: model.section_group_in_viewport(width, height).is_some(),
             category_count: model.categories.len(),
             selected_category: model.selected_category,
             reduced_motion: model.reduced_motion,
@@ -8346,6 +8351,29 @@ mod tests {
     }
 
     #[test]
+    fn settings_content_rendering_uses_the_client_viewport() {
+        let idle = SettingsWindowModel::default();
+        let toggled = SettingsWindowModel {
+            reduced_motion: true,
+            ..SettingsWindowModel::default()
+        };
+        let (narrow_idle, narrow_probe) = render_settings_window_rgba(579, 400, &idle);
+        let (narrow_toggled, _) = render_settings_window_rgba(579, 400, &toggled);
+        assert!(!narrow_probe.content_rendered);
+        assert_eq!(narrow_idle, narrow_toggled);
+
+        let (minimum_idle, minimum_probe) = render_settings_window_rgba(580, 278, &idle);
+        let (minimum_toggled, _) = render_settings_window_rgba(580, 278, &toggled);
+        assert!(minimum_probe.content_rendered);
+        assert_ne!(minimum_idle, minimum_toggled);
+
+        let (short_idle, short_probe) = render_settings_window_rgba(600, 277, &idle);
+        let (short_toggled, _) = render_settings_window_rgba(600, 277, &toggled);
+        assert!(!short_probe.content_rendered);
+        assert_eq!(short_idle, short_toggled);
+    }
+
+    #[test]
     fn settings_audio_category_renders_real_bounded_slider_state() {
         let mut model = SettingsWindowModel {
             selected_category: 4,
@@ -8375,6 +8403,7 @@ mod tests {
         let (pixels, probe) = render_settings_window_rgba(600, 400, &model);
         assert!(probe.rendered);
         assert!(probe.sidebar_rendered);
+        assert!(probe.content_rendered);
         assert_eq!(probe.category_count, 6);
         assert_eq!(probe.selected_category, 4);
         assert!(probe.audio_available);
