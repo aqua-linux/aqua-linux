@@ -720,7 +720,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first twenty
+All catalog entries now satisfy the shared primitive contract. The first twenty-one
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -741,7 +741,9 @@ client key-through, while preserving Trash's repeat-activation gate.
 Settings category Up, Down, Home, and End routing now consumes the shared
 sidebar's bounded targets, with Wi-Fi credential entry retaining key ownership.
 Launcher Up/Down and Left/Right now consume the shared Applications or Search
-Previous/Next target, while Home/End select the respective visible bounds.
+Previous/Next target at the active output viewport, while Home/End select the
+respective visible bounds and invalid compact compositions leave selection
+unchanged.
 Files content-list arrows, Page Up/Down, Home, and End now consume the shared
 list target and reveal-offset contract while preview-key routing remains
 separate.
