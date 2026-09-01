@@ -8,11 +8,12 @@ use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     desktop_context_menu_with_selection, desktop_grid_cell, files_empty_state_layout,
     files_preview_layout, files_sidebar_navigation_in_viewport, files_status_layout,
-    files_toolbar_layout, files_visible_rows_in_viewport, running_app_dock, top_system_bar,
-    workspace_switcher, AquaTheme, AudioControlStatus, DesktopIconState, DesktopPropertiesModel,
-    DockItem, DockState, FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode,
-    LauncherState, NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel,
-    SystemOverviewModel, TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_SIDEBAR_NAVIGATION,
+    files_toolbar_layout, files_visible_rows_in_viewport, running_app_dock,
+    settings_sidebar_navigation_in_viewport, top_system_bar, workspace_switcher, AquaTheme,
+    AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
+    FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
+    NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
+    TerminalView, TopBarState, DESKTOP_ICONS,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -2575,6 +2576,7 @@ pub struct FilesWindowProbe {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SettingsWindowProbe {
     pub rendered: bool,
+    pub sidebar_rendered: bool,
     pub category_count: usize,
     pub selected_category: usize,
     pub reduced_motion: bool,
@@ -4267,6 +4269,7 @@ pub fn render_settings_window_rgba(
             buffer,
             SettingsWindowProbe {
                 rendered: false,
+                sidebar_rendered: false,
                 category_count: model.categories.len(),
                 selected_category: model.selected_category,
                 reduced_motion: model.reduced_motion,
@@ -4315,46 +4318,36 @@ pub fn render_settings_window_rgba(
         palette,
     );
 
-    let sidebar = Rect {
-        x: 2,
-        y: 60,
-        width: 188,
-        height: height.saturating_sub(62),
-    };
-    let navigation = SidebarNavigation::new(
-        sidebar,
-        SETTINGS_SIDEBAR_NAVIGATION.label,
-        SETTINGS_SIDEBAR_NAVIGATION.first_row,
-        SETTINGS_SIDEBAR_NAVIGATION.row_stride,
-    );
-    primitives += draw_sidebar_navigation(&mut buffer, width, height, navigation, model.theme);
-    for (index, category) in model.categories.iter().enumerate() {
-        let row_rect = navigation.row_rect(index);
-        let state = if model.selected_category == index {
-            ComponentState::Selected
-        } else if model.hovered_category == Some(index) {
-            ComponentState::Hover
-        } else {
-            ComponentState::Idle
-        };
-        let row = ListRow::new(row_rect, category, ListRowRole::Navigation).with_state(state);
-        primitives += draw_list_row(
-            &mut buffer,
-            width,
-            height,
-            row,
-            model.theme,
-            OutputScale::One,
-        );
-        draw_category_icon(
-            &mut buffer,
-            width,
-            height,
-            row.slots().leading.x + 2,
-            row_rect.y + 10,
-            index,
-        );
-        primitives += 1;
+    if let Some(navigation) = settings_sidebar_navigation_in_viewport(width, height) {
+        primitives += draw_sidebar_navigation(&mut buffer, width, height, navigation, model.theme);
+        for (index, category) in model.categories.iter().enumerate() {
+            let row_rect = navigation.row_rect(index);
+            let state = if model.selected_category == index {
+                ComponentState::Selected
+            } else if model.hovered_category == Some(index) {
+                ComponentState::Hover
+            } else {
+                ComponentState::Idle
+            };
+            let row = ListRow::new(row_rect, category, ListRowRole::Navigation).with_state(state);
+            primitives += draw_list_row(
+                &mut buffer,
+                width,
+                height,
+                row,
+                model.theme,
+                OutputScale::One,
+            );
+            draw_category_icon(
+                &mut buffer,
+                width,
+                height,
+                row.slots().leading.x + 2,
+                row_rect.y + 10,
+                index,
+            );
+            primitives += 1;
+        }
     }
 
     let section = model.section_group();
@@ -4672,6 +4665,7 @@ pub fn render_settings_window_rgba(
         buffer,
         SettingsWindowProbe {
             rendered: true,
+            sidebar_rendered: settings_sidebar_navigation_in_viewport(width, height).is_some(),
             category_count: model.categories.len(),
             selected_category: model.selected_category,
             reduced_motion: model.reduced_motion,
@@ -8328,6 +8322,30 @@ mod tests {
     }
 
     #[test]
+    fn settings_sidebar_rendering_uses_the_client_viewport() {
+        let idle = SettingsWindowModel::default();
+        let hovered = SettingsWindowModel {
+            hovered_category: Some(1),
+            ..SettingsWindowModel::default()
+        };
+        let (narrow_idle, narrow_probe) = render_settings_window_rgba(189, 400, &idle);
+        let (narrow_hovered, _) = render_settings_window_rgba(189, 400, &hovered);
+        assert!(narrow_probe.rendered);
+        assert!(!narrow_probe.sidebar_rendered);
+        assert_eq!(narrow_idle, narrow_hovered);
+
+        let (minimum_idle, minimum_probe) = render_settings_window_rgba(190, 386, &idle);
+        let (minimum_hovered, _) = render_settings_window_rgba(190, 386, &hovered);
+        assert!(minimum_probe.sidebar_rendered);
+        assert_ne!(minimum_idle, minimum_hovered);
+
+        let (short_idle, short_probe) = render_settings_window_rgba(600, 385, &idle);
+        let (short_hovered, _) = render_settings_window_rgba(600, 385, &hovered);
+        assert!(!short_probe.sidebar_rendered);
+        assert_eq!(short_idle, short_hovered);
+    }
+
+    #[test]
     fn settings_audio_category_renders_real_bounded_slider_state() {
         let mut model = SettingsWindowModel {
             selected_category: 4,
@@ -8356,6 +8374,7 @@ mod tests {
             .expect("adapter state should be accepted");
         let (pixels, probe) = render_settings_window_rgba(600, 400, &model);
         assert!(probe.rendered);
+        assert!(probe.sidebar_rendered);
         assert_eq!(probe.category_count, 6);
         assert_eq!(probe.selected_category, 4);
         assert!(probe.audio_available);

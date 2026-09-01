@@ -3,7 +3,7 @@
 ## Status
 
 Accepted on 2026-08-29. Framework consolidation began on 2026-09-01 after the
-core desktop functionality supplied real consumers. The first thirty-seven bounded
+core desktop functionality supplied real consumers. The first thirty-eight bounded
 slices replaced Settings Network's duplicated Wi-Fi row/action hit geometry,
 Files content-row render/input geometry, and launcher panel/child pointer
 routing with existing shared component contracts, then consolidated Files list
@@ -95,6 +95,9 @@ stays inside the field at the minimum valid toolbar width;
 Files sidebar rendering, pointer selection, hover, focus transfer, navigation,
 and activation now share a width-and-height validated full-composition gate,
 so clipped sidebars are omitted and inert;
+Settings category rendering, pointer selection, hover, and keyboard navigation
+now share a width-and-height validated sidebar composition derived from the
+actual client buffer, so clipped category rows are omitted and inert;
 the broader consolidation remains in progress.
 
 ## Context

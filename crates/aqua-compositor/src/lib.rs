@@ -13990,7 +13990,7 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
             let settings_key = settings_key_for_code(key);
             if let (Some(settings_key), Some(model)) = (settings_key, state.settings_model.as_mut())
             {
-                let update = model.handle_key(settings_key);
+                let update = model.handle_key_in_viewport(files_width, files_height, settings_key);
                 println!("aqua_settings_keyboard key={key} update={update:?}");
                 if let aqua_shell::SettingsUpdate::ThemeChanged(theme) = update {
                     state.theme = theme;
@@ -14089,7 +14089,9 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                         state.redraw_files_buffer(qh);
                     }
                 } else if let Some(model) = state.settings_model.as_mut() {
-                    if model.handle_hover(
+                    if model.handle_hover_in_viewport(
+                        buffer_width,
+                        buffer_height,
                         state.pointer_surface_x.max(0.0) as u32,
                         state.pointer_surface_y.max(0.0) as u32,
                     ) {
@@ -14183,7 +14185,9 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                     return;
                 }
             } else if let Some(model) = state.settings_model.as_mut() {
-                let update = model.handle_pointer(
+                let update = model.handle_pointer_in_viewport(
+                    buffer_width,
+                    buffer_height,
                     state.pointer_surface_x.max(0.0) as u32,
                     state.pointer_surface_y.max(0.0) as u32,
                 );
