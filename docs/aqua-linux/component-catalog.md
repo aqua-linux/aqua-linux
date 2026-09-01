@@ -142,7 +142,8 @@ slots, selected/hover state, pointer activation, and `option` semantics. Their
 eight-pixel inter-row gaps and area beyond the rendered right edge reject
 input. Files list and text-preview scrollbars now derive their track, thumb,
 bounded offset, and resized-window placement from one renderer-neutral layout;
-list pointer and drag routing consumes that exact half-open track. This remains
+list and text-preview pointer/drag routing consume their active exact half-open
+track and retain distinct `Scrolled` or `PreviewScrolled` behavior. This remains
 a Files layout contract rather than a new catalog primitive until another real
 consumer establishes reusable scrollbar semantics. Installer steps consume the
 same list-row composition with a step-specific leading marker. Settings Network
@@ -667,11 +668,12 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first four
+All catalog entries now satisfy the shared primitive contract. The first five
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
-shared contracts. Further
+shared contracts, then complete active scrollbar drag parity for Files text
+preview. Further
 extractions must continue from real first-party consumers and repeat the same
 geometry, input, accessibility, deterministic-fixture, and packaged-QEMU
 evidence path. The actual audio service/backend remains a separate R4 decision
