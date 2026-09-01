@@ -1806,6 +1806,8 @@ grep -Fq 'desktop_context_menu_with_selection(icon_index, self.context_menu_sele
 grep -Fq 'ListNavigation::new(self.window.entries.len(), FILES_VISIBLE_ROWS)' crates/aqua-shell/src/lib.rs
 grep -Fq '.theme_segmented_control()' crates/aqua-shell/src/lib.rs
 grep -Fq '.keyboard_target(navigation_key)' crates/aqua-shell/src/lib.rs
+grep -Fq 'control.keyboard_toggles(ActivationKey::Enter)' crates/aqua-shell/src/lib.rs
+grep -Fq 'section.row_rect(row_index).height.min(36)' crates/aqua-shell/src/lib.rs
 grep -Fq 'details_section_group(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.section_group()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'details_metadata_row(width, height' crates/aqua-renderer/src/lib.rs

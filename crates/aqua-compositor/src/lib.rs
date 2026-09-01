@@ -15681,6 +15681,22 @@ mod tests {
                 aqua_shell::AquaTheme::LightWhite
             ))
         );
+        assert_eq!(
+            settings_key_for_code(28).map(|key| model.handle_key(key)),
+            Some(aqua_shell::SettingsUpdate::ReducedMotionChanged(true))
+        );
+        assert_eq!(
+            settings_key_for_code(107).map(|key| model.handle_key(key)),
+            Some(aqua_shell::SettingsUpdate::CategorySelected(5))
+        );
+        assert_eq!(
+            settings_key_for_code(103).map(|key| model.handle_key(key)),
+            Some(aqua_shell::SettingsUpdate::CategorySelected(4))
+        );
+        assert_eq!(
+            settings_key_for_code(28).map(|key| model.handle_key(key)),
+            Some(aqua_shell::SettingsUpdate::None)
+        );
         assert_eq!(settings_key_for_code(0), None);
     }
 
