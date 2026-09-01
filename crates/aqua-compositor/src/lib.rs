@@ -9307,7 +9307,12 @@ impl SmithayDrmSession {
             .wayland_state
             .apply_launcher_event(LauncherEvent::Dismiss);
         let current = self.session.wayland_state.pointer_location;
-        let x = surface_x + aqua_shell::FILES_SCROLLBAR_X;
+        let mut files_model = aqua_shell::FilesWindowModel::default();
+        files_model.entries.push(files_model.entries[0].clone());
+        let Some(scrollbar) = files_model.list_scrollbar(640) else {
+            return false;
+        };
+        let x = surface_x + scrollbar.track.x;
         let moved_to_start = self.dispatch_pointer_motion(
             f64::from(x) - current.0,
             f64::from(surface_y + from_y) - current.1,
@@ -13894,14 +13899,15 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                     );
                 }
                 if let Some(navigator) = state.files_navigator.as_mut() {
-                    let navigation = state
-                        .files_scrollbar_dragging
-                        .then(|| navigator.handle_scrollbar_drag(surface_y.max(0.0) as u32));
+                    let buffer_width = state.buffer_width.max(1);
+                    let navigation = state.files_scrollbar_dragging.then(|| {
+                        navigator.handle_scrollbar_drag(buffer_width, surface_y.max(0.0) as u32)
+                    });
                     let files_changed = navigation
                         .is_some_and(aqua_shell::FilesNavigation::changed)
                         || (!state.files_scrollbar_dragging
                             && navigator.handle_hover(
-                                state.buffer_width.max(1),
+                                buffer_width,
                                 state.pointer_surface_x.max(0.0) as u32,
                                 state.pointer_surface_y.max(0.0) as u32,
                             ));
@@ -13962,9 +13968,10 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
             } else if let Some(navigator) = state.files_navigator.as_mut() {
                 let pointer_x = state.pointer_surface_x.max(0.0) as u32;
                 let pointer_y = state.pointer_surface_y.max(0.0) as u32;
-                if navigator.scrollbar_hit(pointer_x, pointer_y) {
+                let buffer_width = state.buffer_width.max(1);
+                if navigator.scrollbar_hit(buffer_width, pointer_x, pointer_y) {
                     state.files_scrollbar_dragging = true;
-                    let navigation = navigator.handle_scrollbar_drag(pointer_y);
+                    let navigation = navigator.handle_scrollbar_drag(buffer_width, pointer_y);
                     println!("aqua_files_scrollbar y={pointer_y} navigation={navigation:?}");
                     if navigation.changed() {
                         state.files_model = Some(navigator.window().clone());
@@ -13972,8 +13979,7 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                     }
                     return;
                 }
-                let navigation =
-                    navigator.handle_pointer(state.buffer_width.max(1), pointer_x, pointer_y);
+                let navigation = navigator.handle_pointer(buffer_width, pointer_x, pointer_y);
                 println!(
                     "aqua_files_pointer x={} y={} navigation={navigation:?}",
                     state.pointer_surface_x.max(0.0) as u32,
