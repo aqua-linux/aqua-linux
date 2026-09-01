@@ -80,5 +80,5 @@ Phases are ordered by their most recent update.
 
 1. After authorized hardware inventory and bring-up, select a separate physical-target presentation budget without treating the three independent QEMU TCG qualification runs as responsiveness evidence.
 2. Collect the remaining R3 hardware-driven connector/output evidence and broaden independent-application interoperability beyond the bounded Weston-client-toolkit and GLFW 3.4 wl_shm fixtures.
-3. After core desktop functionality supplies real consumers, consolidate the proven typography, component, layout, focus, accessibility, lifecycle, and renderer contracts into the internal Aqua UI framework defined by ADR 0003.
+3. Continue the ADR 0003 internal Aqua UI framework consolidation from the completed Settings Network row/action geometry slice into the next proven first-party layout, focus, accessibility, lifecycle, or renderer contract.
 4. Collect and review a sanitized read-only inventory from the MSI Sword 17 before authorizing any physical boot or installation validation.

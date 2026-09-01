@@ -1856,6 +1856,72 @@ impl SettingsWindowModel {
         )
     }
 
+    pub fn wifi_network_row(&self, index: usize) -> Option<ListRow<'_>> {
+        let network = self.wifi.networks().get(index)?;
+        let label = std::str::from_utf8(network.ssid.bytes()).unwrap_or("UNKNOWN");
+        let supported = matches!(
+            network.security,
+            WifiScanSecurity::Wpa2Personal | WifiScanSecurity::Wpa3Personal
+        );
+        Some(
+            ListRow::new(
+                self.section_group().row_rect(index + 1),
+                label,
+                ListRowRole::Option,
+            )
+            .with_slots(0, 148)
+            .with_state(if !self.wifi.controls_enabled() || !supported {
+                ComponentState::Disabled
+            } else {
+                ComponentState::Idle
+            }),
+        )
+    }
+
+    pub fn wifi_rescan_button(&self) -> StandardButton<'static> {
+        StandardButton::new(
+            self.wifi_action_button_rect(false),
+            "Rescan",
+            StandardButtonVariant::Secondary,
+        )
+        .with_state(if self.wifi.controls_enabled() {
+            ComponentState::Idle
+        } else {
+            ComponentState::Disabled
+        })
+    }
+
+    pub fn wifi_forget_button(&self) -> StandardButton<'static> {
+        StandardButton::new(
+            self.wifi_action_button_rect(true),
+            "Forget saved",
+            StandardButtonVariant::Destructive,
+        )
+        .with_state(
+            if self.wifi.controls_enabled() && self.wifi.credential_saved() {
+                ComponentState::Idle
+            } else {
+                ComponentState::Disabled
+            },
+        )
+    }
+
+    fn wifi_action_button_rect(&self, trailing: bool) -> Rect {
+        let row = self.section_group().row_rect(3);
+        let gap = 6;
+        let width = row.width.saturating_sub(gap) / 2;
+        Rect {
+            x: if trailing {
+                row.x.saturating_add(width + gap)
+            } else {
+                row.x
+            },
+            y: row.y,
+            width,
+            height: row.height,
+        }
+    }
+
     pub fn theme_segmented_control(&self) -> SegmentedControl<'static> {
         let selected_index = AquaTheme::ALL
             .iter()
@@ -2147,32 +2213,18 @@ impl SettingsWindowModel {
         }
         if self.selected_category == 3 && !self.wifi.credential_entry() {
             for index in 0..self.wifi.networks().len().min(MAX_VISIBLE_WIFI_NETWORKS) {
-                let row = self.section_group().row_rect(index + 1);
-                if x >= row.x
-                    && x < row.x.saturating_add(row.width)
-                    && y >= row.y
-                    && y < row.y.saturating_add(row.height)
+                if self
+                    .wifi_network_row(index)
+                    .is_some_and(|row| row.pointer_hit(x, y))
                     && self.wifi.begin_credential_entry(index)
                 {
                     return SettingsUpdate::WifiNetworkSelected(index);
                 }
             }
-            let action_row = self.section_group().row_rect(3);
-            if x >= action_row.x
-                && x < action_row.x.saturating_add(action_row.width / 2)
-                && y >= action_row.y
-                && y < action_row.y.saturating_add(action_row.height)
-                && self.wifi.controls_enabled()
-            {
+            if self.wifi_rescan_button().pointer_hit(x, y) {
                 return SettingsUpdate::WifiScanRequested;
             }
-            if x >= action_row.x.saturating_add(action_row.width / 2)
-                && x < action_row.x.saturating_add(action_row.width)
-                && y >= action_row.y
-                && y < action_row.y.saturating_add(action_row.height)
-                && self.wifi.controls_enabled()
-                && self.wifi.credential_saved()
-            {
+            if self.wifi_forget_button().pointer_hit(x, y) {
                 return SettingsUpdate::WifiForgetRequested;
             }
         }
@@ -4701,7 +4753,13 @@ mod tests {
         assert!(model.refresh_wifi_networks(&socket));
         assert_eq!(model.wifi.networks().len(), 1);
         model.selected_category = 3;
+        let network_row = model.wifi_network_row(0).expect("shared network row");
         let row = model.section_group().row_rect(1);
+        assert_eq!(network_row.rect, row);
+        assert_eq!(network_row.accessibility().role, "option");
+        assert_eq!(network_row.accessibility().name, "Aqua-QEMU");
+        assert!(!network_row.accessibility().disabled);
+        assert_eq!(network_row.slots().trailing.width, 148);
         assert_eq!(
             model.handle_pointer(row.x + 1, row.y + 1),
             SettingsUpdate::WifiNetworkSelected(0)
@@ -4786,9 +4844,21 @@ mod tests {
         assert!(model.refresh_wifi_control(&socket));
         assert!(model.wifi.credential_saved());
         assert!(model.refresh_wifi_networks(&socket));
+        let rescan = model.wifi_rescan_button();
+        let forget = model.wifi_forget_button();
         let action_row = model.section_group().row_rect(3);
+        assert_eq!(rescan.rect.x, action_row.x);
+        assert_eq!(forget.rect.right(), action_row.right());
+        assert_eq!(forget.rect.x.saturating_sub(rescan.rect.right()), 6);
+        assert_eq!(rescan.accessibility().role, "button");
+        assert_eq!(forget.accessibility().name, "Forget saved");
+        assert!(!forget.accessibility().disabled);
         assert_eq!(
-            model.handle_pointer(action_row.x + 1, action_row.y + 1),
+            model.handle_pointer(rescan.rect.right(), action_row.y + 1),
+            SettingsUpdate::None
+        );
+        assert_eq!(
+            model.handle_pointer(rescan.rect.x + 1, rescan.rect.y + 1),
             SettingsUpdate::WifiScanRequested
         );
         assert!(model.refresh_wifi_networks(&socket));
@@ -4810,7 +4880,7 @@ mod tests {
         assert_eq!(model.wifi.status_label(), "connection-retry-limit");
 
         assert_eq!(
-            model.handle_pointer(action_row.x + action_row.width - 1, action_row.y + 1),
+            model.handle_pointer(forget.rect.right() - 1, forget.rect.y + 1),
             SettingsUpdate::WifiForgetRequested
         );
         assert!(model.forget_saved_wifi_network(&socket));
@@ -4818,6 +4888,23 @@ mod tests {
 
         server.join().expect("join broker fixture");
         fs::remove_file(socket).expect("remove broker fixture");
+    }
+
+    #[test]
+    fn settings_wifi_shared_actions_disable_without_broker_authority() {
+        let model = SettingsWindowModel {
+            selected_category: 3,
+            ..SettingsWindowModel::default()
+        };
+        let rescan = model.wifi_rescan_button();
+        let forget = model.wifi_forget_button();
+
+        assert_eq!(rescan.state, ComponentState::Disabled);
+        assert_eq!(forget.state, ComponentState::Disabled);
+        assert!(rescan.accessibility().disabled);
+        assert!(forget.accessibility().disabled);
+        assert!(!rescan.pointer_hit(rescan.rect.x, rescan.rect.y));
+        assert!(!forget.pointer_hit(forget.rect.x, forget.rect.y));
     }
 
     #[test]
