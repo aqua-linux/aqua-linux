@@ -2852,19 +2852,10 @@ pub fn render_properties_window_rgba_with_theme(
             },
         );
     }
-    let action = details.footer_trailing_rect(138, 30);
-    fill_rect(&mut buffer, width, height, action, palette.accent, 255);
-    draw_bitmap_text(
-        &mut buffer,
-        (width, height),
-        (action.x + 12, action.y + 10),
-        match model.primary_action() {
-            aqua_shell::DesktopPropertiesAction::RefreshContents => "Refresh (F5)",
-            aqua_shell::DesktopPropertiesAction::VerifyApplication => "Verify (F5)",
-        },
-        [0xff, 0xff, 0xff, 0xff],
-        1,
-    );
+    if let Some(action) = model.primary_action_button(width, height) {
+        primitives +=
+            draw_standard_button(&mut buffer, width, height, action, theme, OutputScale::One);
+    }
     draw_bitmap_text(
         &mut buffer,
         (width, height),
@@ -2873,7 +2864,7 @@ pub fn render_properties_window_rgba_with_theme(
         palette.secondary_text,
         1,
     );
-    primitives += 3;
+    primitives += 1;
 
     let checksum = checksum_bytes(&buffer);
     (
@@ -8607,6 +8598,11 @@ mod tests {
         assert!(probe.primitive_count >= 8);
         assert_ne!(probe.checksum, 0);
         assert_eq!(pixels.len(), 480 * 300 * 4);
+
+        let (_, compact_probe) = render_properties_window_rgba(480, 250, &model);
+        assert!(compact_probe.rendered);
+        assert!(model.primary_action_button(480, 250).is_none());
+        assert!(probe.primitive_count > compact_probe.primitive_count);
     }
     use aqua_scene::Viewport;
 

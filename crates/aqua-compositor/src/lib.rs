@@ -14171,6 +14171,23 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
             } else if state.terminal_session.is_some() {
                 state.handle_window_frame_pointer(serial);
                 return;
+            } else if let Some(model) = state.properties_model.as_ref() {
+                let pointer_x = state.pointer_surface_x.max(0.0) as u32;
+                let pointer_y = state.pointer_surface_y.max(0.0) as u32;
+                let action = model.primary_action_at(
+                    state.buffer_width.max(1),
+                    state.buffer_height.max(1),
+                    pointer_x,
+                    pointer_y,
+                );
+                println!(
+                    "aqua_properties_pointer x={pointer_x} y={pointer_y} action={}",
+                    action.map_or("none", aqua_shell::DesktopPropertiesAction::log_name)
+                );
+                if action.is_some() {
+                    state.refresh_properties(qh);
+                    return;
+                }
             } else if let Some(navigator) = state.files_navigator.as_mut() {
                 let pointer_x = state.pointer_surface_x.max(0.0) as u32;
                 let pointer_y = state.pointer_surface_y.max(0.0) as u32;

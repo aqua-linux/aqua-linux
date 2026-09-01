@@ -1827,6 +1827,9 @@ grep -Fq 'SETTINGS_ABOUT_METADATA' crates/aqua-shell/src/lib.rs
 grep -Fq 'model.about_metadata_row(index)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'settings-about' scripts/send-qemu-monitor-input.py
 grep -Fq 'desktop-settings-about-qemu' scripts/check-graphical-boot-qemu.exp
+grep -Fq 'primary_action_button(width, height)' crates/aqua-renderer/src/lib.rs
+grep -Fq 'properties-refresh-pointer' scripts/send-qemu-monitor-input.py
+grep -Fq 'shared_button=true action=refresh-contents' scripts/check-graphical-boot-qemu.exp
 grep -Fq 'model.handle_key_in_viewport(files_width, files_height, settings_key)' crates/aqua-compositor/src/lib.rs
 grep -Fq 'model.handle_hover_in_viewport(' crates/aqua-compositor/src/lib.rs
 grep -Fq 'model.handle_pointer_in_viewport(' crates/aqua-compositor/src/lib.rs
