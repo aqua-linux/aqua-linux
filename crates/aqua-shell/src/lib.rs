@@ -2402,17 +2402,8 @@ impl SettingsWindowModel {
                 self.theme = theme;
                 SettingsUpdate::ThemeChanged(theme)
             }
-            SettingsKey::Decrease
-                if self.selected_category == 3 && self.wifi.controls_enabled() =>
-            {
-                SettingsUpdate::WifiScanRequested
-            }
-            SettingsKey::Increase
-                if self.selected_category == 3
-                    && self.wifi.controls_enabled()
-                    && self.wifi.credential_saved() =>
-            {
-                SettingsUpdate::WifiForgetRequested
+            SettingsKey::Decrease | SettingsKey::Increase if self.selected_category == 3 => {
+                self.activate_wifi_action(key)
             }
             SettingsKey::Decrease if self.selected_category == 4 => {
                 self.adjust_audio_volume(SliderKey::Decrease)
@@ -2452,6 +2443,25 @@ impl SettingsWindowModel {
                 SettingsUpdate::AudioMutedChanged(muted)
             }
             _ => SettingsUpdate::None,
+        }
+    }
+
+    fn activate_wifi_action(&self, key: SettingsKey) -> SettingsUpdate {
+        if self.wifi.credential_entry() {
+            return SettingsUpdate::None;
+        }
+        let (button, update) = if key == SettingsKey::Decrease {
+            (self.wifi_rescan_button(), SettingsUpdate::WifiScanRequested)
+        } else {
+            (
+                self.wifi_forget_button(),
+                SettingsUpdate::WifiForgetRequested,
+            )
+        };
+        if button.keyboard_activates(ActivationKey::Enter) {
+            update
+        } else {
+            SettingsUpdate::None
         }
     }
 
@@ -5170,6 +5180,8 @@ mod tests {
             SettingsKey::End,
             SettingsKey::Up,
             SettingsKey::Down,
+            SettingsKey::Decrease,
+            SettingsKey::Increase,
         ] {
             assert_eq!(model.handle_key(key), SettingsUpdate::None);
             assert_eq!(model.selected_category, 3);
@@ -5224,6 +5236,10 @@ mod tests {
                     "AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=1 authoritative=true network_0=417175612d51454d55,-24,wpa2-personal\n",
                 ),
                 (
+                    "AQUA-NETWORK/1 WIFI_SCAN wlan0\n",
+                    "AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=1 authoritative=true network_0=417175612d51454d55,-22,wpa2-personal\n",
+                ),
+                (
                     "AQUA-NETWORK/1 WIFI_CONNECT wlan0 wpa2-personal 417175612d51454d55 70617373776f7264\n",
                     "AQUA-NETWORK/1 ERROR wifi-control-timeout\n",
                 ),
@@ -5272,6 +5288,11 @@ mod tests {
             SettingsUpdate::WifiScanRequested
         );
         assert!(model.refresh_wifi_networks(&socket));
+        assert_eq!(
+            model.handle_key(SettingsKey::Decrease),
+            SettingsUpdate::WifiScanRequested
+        );
+        assert!(model.refresh_wifi_networks(&socket));
 
         let network_row = model.section_group().row_rect(1);
         assert_eq!(
@@ -5290,6 +5311,11 @@ mod tests {
         assert_eq!(model.wifi.status_label(), "connection-retry-limit");
 
         assert_eq!(
+            model.handle_key(SettingsKey::Increase),
+            SettingsUpdate::WifiForgetRequested
+        );
+
+        assert_eq!(
             model.handle_pointer(forget.rect.right() - 1, forget.rect.y + 1),
             SettingsUpdate::WifiForgetRequested
         );
@@ -5302,7 +5328,7 @@ mod tests {
 
     #[test]
     fn settings_wifi_shared_actions_disable_without_broker_authority() {
-        let model = SettingsWindowModel {
+        let mut model = SettingsWindowModel {
             selected_category: 3,
             ..SettingsWindowModel::default()
         };
@@ -5315,6 +5341,14 @@ mod tests {
         assert!(forget.accessibility().disabled);
         assert!(!rescan.pointer_hit(rescan.rect.x, rescan.rect.y));
         assert!(!forget.pointer_hit(forget.rect.x, forget.rect.y));
+        assert_eq!(
+            model.handle_key(SettingsKey::Decrease),
+            SettingsUpdate::None
+        );
+        assert_eq!(
+            model.handle_key(SettingsKey::Increase),
+            SettingsUpdate::None
+        );
     }
 
     #[test]

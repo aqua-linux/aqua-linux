@@ -162,8 +162,10 @@ a Files layout contract rather than a new catalog primitive until another real
 consumer establishes reusable scrollbar semantics. Installer steps consume the
 same list-row composition with a step-specific leading marker. Settings Network
 rescan and saved-credential removal use `StandardButton`, including a
-non-actionable inter-button gap and
-broker-authority disabled states. The generic deterministic matrix is recorded
+non-actionable inter-button gap and broker-authority disabled states. Network
+Left and Right shortcuts resolve through those same Rescan and Forget keyboard
+activation gates; credential entry retains both keys and unavailable broker
+authority rejects both paths. The generic deterministic matrix is recorded
 in `component-fixtures.txt`, while consumer tests cover the Settings and Files
 compositions.
 
@@ -712,7 +714,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first sixteen
+All catalog entries now satisfy the shared primitive contract. The first seventeen
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -743,6 +745,9 @@ category, Wi-Fi credential, or Audio key ownership.
 Settings Enter now consumes the active shared switch's keyboard gate for
 Reduced Motion, Desktop Icons, Key Repeat, Wi-Fi, and Audio Mute, preserving
 credential-entry and authoritative disabled behavior.
+Settings Network Left/Right now consumes the shared Rescan/Forget standard
+button keyboard gates, preserving credential ownership and broker-authority
+disabled behavior.
 Further extractions must continue from real first-party consumers and repeat
 the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a
