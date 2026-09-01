@@ -510,6 +510,9 @@ acceptance remains open.
   directly through the rendered `ListRow::pointer_hit` and
   `StandardButton::pointer_hit` contracts. Its real Applications, Settings, and
   Files actions are unchanged.
+- Smithay pointer motion is clamped to the active output's half-open pixel
+  bounds, and launcher hover resolution receives those same output dimensions
+  instead of falling back to the canonical 800-by-600 viewport.
 
 The deterministic matrix covers compact split geometry, result/action limits,
 gap rejection, accessibility semantics, four themes, and the three required
@@ -680,7 +683,8 @@ preview. Files preview keyboard routing now applies arrows, Page Up/Down, Home,
 and End to the visible text while preserving the hidden list selection and
 offset; activation is inert and Back closes the preview. Bottom-shell pointer
 routing now uses the actual viewport's scene geometry for its outer surface and
-local targets. Further extractions must continue from real
+local targets. Smithay motion bounds and launcher hover routing now use those
+same active output dimensions. Further extractions must continue from real
 first-party consumers and repeat the same geometry, input, accessibility,
 deterministic-fixture, and packaged-QEMU
 evidence path. The actual audio service/backend remains a separate R4 decision

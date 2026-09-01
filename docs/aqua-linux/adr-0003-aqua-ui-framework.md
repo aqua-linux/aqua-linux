@@ -12,6 +12,8 @@ both visible variants through the same bounded drag behavior. Files preview
 keyboard routing now targets the visible text instead of mutating the hidden
 file list. Bottom-shell pointer routing now consumes the dock rectangle produced
 for the actual output viewport instead of rescaling the 800-by-600 reference;
+the Smithay pointer path likewise clamps motion and resolves launcher hover
+targets from the active output dimensions;
 the broader consolidation remains in progress.
 
 ## Context
