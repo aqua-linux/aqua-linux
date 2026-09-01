@@ -4431,8 +4431,6 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let external_client_required = diagnostic_scenario
         && env::var("AQUA_DRM_WAYLAND_EXTERNAL_CLIENT_REQUIRED").as_deref() == Ok("true");
-    #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
-    let external_client_required = false;
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let fixture_clients_required = external_client_required || elevation_scenario;
     #[cfg(all(target_os = "linux", not(feature = "smithay-smoke")))]
