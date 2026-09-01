@@ -1208,7 +1208,8 @@ grep -Fq 'desktop_properties = "packaged Aqua Properties is a supervised 480x300
 grep -Fq 'desktop-properties-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'desktop-properties-refresh-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'desktop-input-burst-qemu status=ok' scripts/check-graphical-boot-qemu.sh
-grep -Fq 'render_session_menu_overlay_rgba_with_theme(512, 293, state, self.theme)' crates/aqua-compositor/src/main.rs
+grep -Fq 'aqua_shell::SESSION_MENU_RUNTIME_WIDTH' crates/aqua-compositor/src/main.rs
+grep -Fq 'aqua_shell::SESSION_MENU_RUNTIME_HEIGHT' crates/aqua-compositor/src/main.rs
 grep -Fq 'session_menu_visual = "the current session menu uploads a native 512x293' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'desktop-properties-close-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'aqua-properties' br2-external/aqua/board/aqua/x86_64/post-build.sh

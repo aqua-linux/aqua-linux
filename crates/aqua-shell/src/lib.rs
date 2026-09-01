@@ -4082,6 +4082,9 @@ impl SessionAction {
     }
 }
 
+pub const SESSION_MENU_RUNTIME_WIDTH: u32 = 512;
+pub const SESSION_MENU_RUNTIME_HEIGHT: u32 = 293;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionMenuEvent {
     Toggle,
@@ -4184,6 +4187,24 @@ impl SessionMenuState {
         self.open = false;
         self.selected_index = 0;
         self.confirmation = None;
+    }
+
+    pub fn handle_pointer(&mut self, width: u32, height: u32, x: u32, y: u32) -> SessionMenuUpdate {
+        if !self.open {
+            return SessionMenuUpdate::unchanged();
+        }
+        let Some(index) = self.menu_layout(width, height).item_at(x, y) else {
+            return SessionMenuUpdate::unchanged();
+        };
+        let cleared_confirmation = if self.selected_index != index {
+            self.selected_index = index;
+            self.confirmation.take().is_some()
+        } else {
+            false
+        };
+        let mut update = self.handle_event(SessionMenuEvent::Activate);
+        update.confirmation_changed |= cleared_confirmation;
+        update
     }
 
     pub fn handle_event(&mut self, event: SessionMenuEvent) -> SessionMenuUpdate {
@@ -5751,6 +5772,48 @@ mod tests {
             SessionAction::ALL.map(SessionAction::id),
             ["logout", "restart", "shutdown", "recovery"]
         );
+    }
+
+    #[test]
+    fn session_menu_pointer_uses_shared_rows_and_preserves_confirmation_gate() {
+        let mut menu = SessionMenuState::default();
+        let closed = menu.handle_pointer(
+            SESSION_MENU_RUNTIME_WIDTH,
+            SESSION_MENU_RUNTIME_HEIGHT,
+            24,
+            170,
+        );
+        assert!(!closed.redraw_requested);
+
+        menu.handle_event(SessionMenuEvent::Toggle);
+        let gap = menu.handle_pointer(
+            SESSION_MENU_RUNTIME_WIDTH,
+            SESSION_MENU_RUNTIME_HEIGHT,
+            24,
+            103,
+        );
+        assert!(!gap.redraw_requested);
+        assert_eq!(menu.selected_action(), SessionAction::Logout);
+
+        let armed = menu.handle_pointer(
+            SESSION_MENU_RUNTIME_WIDTH,
+            SESSION_MENU_RUNTIME_HEIGHT,
+            24,
+            170,
+        );
+        assert!(armed.redraw_requested);
+        assert_eq!(armed.action_request, None);
+        assert_eq!(menu.selected_action(), SessionAction::Shutdown);
+        assert_eq!(menu.confirmation(), Some(SessionAction::Shutdown));
+
+        let confirmed = menu.handle_pointer(
+            SESSION_MENU_RUNTIME_WIDTH,
+            SESSION_MENU_RUNTIME_HEIGHT,
+            24,
+            170,
+        );
+        assert_eq!(confirmed.action_request, Some(SessionAction::Shutdown));
+        assert!(!menu.is_open());
     }
 
     #[test]
