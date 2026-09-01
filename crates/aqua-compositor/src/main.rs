@@ -15,7 +15,7 @@ use std::process::{Child, Command, Stdio};
 use std::rc::Rc;
 use std::{env, fs, thread, time::Duration};
 
-#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
 use aqua_renderer::icons::IconRasterCache;
 use aqua_renderer::{
     export_composited_preview_rgba_with_client_layers,
@@ -25,14 +25,19 @@ use aqua_renderer::{
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_renderer::{
     export_runtime_desktop_rgba_with_launcher_and_theme, plan_client_layer_paint_steps,
-    plan_client_surface_sources, render_desktop_icons_rgba_with_cached_icons,
-    render_dock_rgba_with_cached_icons, render_launcher_overlay_rgba_with_theme,
-    render_notification_toast_rgba_with_cached_icons, render_session_menu_overlay_rgba_with_theme,
-    render_system_overview_rgba_with_theme, render_top_bar_rgba_with_cached_icons,
-    ClientLayerPaintPlan, ClientSurfaceSource, ElevationLevel, ShadowMaskCache, ShadowMaskKey,
+    plan_client_surface_sources, ClientLayerPaintPlan, ClientSurfaceSource,
+};
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+use aqua_renderer::{
+    render_desktop_icons_rgba_with_cached_icons, render_dock_rgba_with_cached_icons,
+    render_launcher_overlay_rgba_with_theme, render_notification_toast_rgba_with_cached_icons,
+    render_session_menu_overlay_rgba_with_theme, render_system_overview_rgba_with_theme,
+    render_top_bar_rgba_with_cached_icons, ElevationLevel, ShadowMaskCache, ShadowMaskKey,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
-use aqua_scene::{static_shell_scene, MaterialKind, Rect};
+use aqua_scene::Rect;
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+use aqua_scene::{static_shell_scene, MaterialKind};
 use aqua_shell::probe_launcher_model;
 
 use aqua_compositor::{
@@ -5607,6 +5612,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 false
                             };
                             let system_overview_state = runtime_system_overview.borrow().clone();
+                            #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
                             let top_bar_state = runtime_top_bar.borrow().clone();
                             let launcher_state = smithay_session.borrow().launcher_state_snapshot();
                             let dock_state = current_dock_state(
