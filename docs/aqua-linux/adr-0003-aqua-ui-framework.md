@@ -3,7 +3,7 @@
 ## Status
 
 Accepted on 2026-08-29. Framework consolidation began on 2026-09-01 after the
-core desktop functionality supplied real consumers. The first thirty-five bounded
+core desktop functionality supplied real consumers. The first thirty-six bounded
 slices replaced Settings Network's duplicated Wi-Fi row/action hit geometry,
 Files content-row render/input geometry, and launcher panel/child pointer
 routing with existing shared component contracts, then consolidated Files list
@@ -90,6 +90,8 @@ toolbar or lose its minimum label anatomy;
 Files preview header, fitted title, visible text region, line stride, and
 read-only label now share one renderer-neutral viewport layout with focus,
 scrollbar, wheel, and keyboard routing;
+Files toolbar layout now owns the location label bounds, and fitted path text
+stays inside the field at the minimum valid toolbar width;
 the broader consolidation remains in progress.
 
 ## Context

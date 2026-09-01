@@ -436,6 +436,9 @@ const FILES_EMPTY_STATE_REFERENCE_HEIGHT: u32 = 300;
 const FILES_EMPTY_STATE_ICON_Y: u32 = 190;
 const FILES_EMPTY_STATE_LABEL_Y: u32 = 252;
 const FILES_LOCATION_MIN_WIDTH: u32 = 96;
+const FILES_LOCATION_LABEL_INSET: u32 = 14;
+const FILES_LOCATION_LABEL_Y_OFFSET: u32 = 10;
+const FILES_LOCATION_LABEL_HEIGHT: u32 = 8;
 const FILES_CONTENT_FOCUS_X: u32 = 176;
 const FILES_CONTENT_FOCUS_Y: u32 = 112;
 const FILES_CONTENT_FOCUS_TRAILING_INSET: u32 = 6;
@@ -667,6 +670,7 @@ pub struct FilesToolbarLayout {
     pub back: IconButton<'static>,
     pub forward: IconButton<'static>,
     pub location: Rect,
+    pub location_label: Rect,
 }
 
 pub const fn files_toolbar_layout(width: u32, height: u32) -> Option<FilesToolbarLayout> {
@@ -687,6 +691,14 @@ pub const fn files_toolbar_layout(width: u32, height: u32) -> Option<FilesToolba
         width: width.saturating_sub(118),
         height: 32,
     };
+    let location_label = Rect {
+        x: location.x + FILES_LOCATION_LABEL_INSET,
+        y: location.y + FILES_LOCATION_LABEL_Y_OFFSET,
+        width: location
+            .width
+            .saturating_sub(FILES_LOCATION_LABEL_INSET * 2),
+        height: FILES_LOCATION_LABEL_HEIGHT,
+    };
     if !toolbar.is_valid()
         || toolbar.rect.right() > width
         || toolbar.rect.bottom() > height
@@ -695,6 +707,9 @@ pub const fn files_toolbar_layout(width: u32, height: u32) -> Option<FilesToolba
         || location.width < FILES_LOCATION_MIN_WIDTH
         || location.right() > width
         || location.bottom() > height
+        || location_label.width == 0
+        || location_label.right() > location.right()
+        || location_label.bottom() > location.bottom()
     {
         return None;
     }
@@ -703,6 +718,7 @@ pub const fn files_toolbar_layout(width: u32, height: u32) -> Option<FilesToolba
         back,
         forward,
         location,
+        location_label,
     })
 }
 
@@ -6885,6 +6901,24 @@ mod tests {
                 width: 522,
                 height: 32,
             }
+        );
+        assert_eq!(
+            files_toolbar.location_label,
+            Rect {
+                x: 110,
+                y: 74,
+                width: 494,
+                height: 8,
+            }
+        );
+        assert_eq!(
+            files_toolbar_layout(214, 108).map(|layout| layout.location_label),
+            Some(Rect {
+                x: 110,
+                y: 74,
+                width: 68,
+                height: 8,
+            })
         );
         assert!(files_toolbar_layout(214, 108).is_some());
         assert!(files_toolbar_layout(213, 420).is_none());
