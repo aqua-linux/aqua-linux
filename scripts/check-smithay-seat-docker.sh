@@ -12,6 +12,7 @@ docker run --rm --platform linux/amd64 \
         apt-get update >/dev/null
         apt-get install -y --no-install-recommends \
             pkg-config libinput-dev libudev-dev libxkbcommon-dev >/dev/null
+        export RUSTFLAGS="-D warnings"
         output="$(cargo run --quiet -p aqua-compositor --features smithay-smoke -- probe-smithay-launcher-seat)"
         printf "%s\n" "$output"
         printf "%s\n" "$output" | grep -Fq "seat_global_created=true"
