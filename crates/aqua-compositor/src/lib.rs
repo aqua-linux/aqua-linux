@@ -15697,6 +15697,24 @@ mod tests {
             settings_key_for_code(28).map(|key| model.handle_key(key)),
             Some(aqua_shell::SettingsUpdate::None)
         );
+        assert_eq!(
+            settings_key_for_code(102).map(|key| model.handle_key(key)),
+            Some(aqua_shell::SettingsUpdate::CategorySelected(0))
+        );
+        for expected in 1..=3 {
+            assert_eq!(
+                settings_key_for_code(108).map(|key| model.handle_key(key)),
+                Some(aqua_shell::SettingsUpdate::CategorySelected(expected))
+            );
+        }
+        assert_eq!(
+            settings_key_for_code(105).map(|key| model.handle_key(key)),
+            Some(aqua_shell::SettingsUpdate::None)
+        );
+        assert_eq!(
+            settings_key_for_code(106).map(|key| model.handle_key(key)),
+            Some(aqua_shell::SettingsUpdate::None)
+        );
         assert_eq!(settings_key_for_code(0), None);
     }
 
