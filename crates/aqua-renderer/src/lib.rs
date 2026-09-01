@@ -7,7 +7,7 @@ use aqua_installer::{
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     desktop_context_menu_with_selection, desktop_grid_cell, files_empty_state_layout,
-    files_preview_visible_lines, files_sidebar_navigation, files_toolbar_layout,
+    files_preview_visible_lines_in_viewport, files_sidebar_navigation, files_toolbar_layout,
     files_visible_rows_in_viewport, running_app_dock, top_system_bar, workspace_switcher,
     AquaTheme, AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
     FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
@@ -4831,63 +4831,65 @@ pub fn render_files_window_rgba_with_theme(
     }
     let list_x = sidebar_width + 18;
     if let Some(preview) = model.preview.as_ref() {
-        let visible_lines = files_preview_visible_lines(height);
-        draw_file_icon(&mut buffer, width, height, list_x + 12, 136);
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (list_x + 54, 142),
-            &preview.name,
-            palette.text,
-            1,
-        );
-        for (line_index, line) in preview
-            .content
-            .lines()
-            .skip(preview.scroll_offset)
-            .take(visible_lines)
-            .enumerate()
-        {
-            let bounded = line.chars().take(48).collect::<String>();
+        let visible_lines = files_preview_visible_lines_in_viewport(width, height);
+        if visible_lines > 0 {
+            draw_file_icon(&mut buffer, width, height, list_x + 12, 136);
             draw_bitmap_text(
                 &mut buffer,
                 (width, height),
-                (list_x + 16, 194 + line_index as u32 * 22),
-                &bounded,
+                (list_x + 54, 142),
+                &preview.name,
                 palette.text,
                 1,
             );
-        }
-        if let Some(status_y) = height.checked_sub(80).filter(|status_y| *status_y >= 220) {
-            draw_bitmap_text(
-                &mut buffer,
-                (width, height),
-                (list_x + 16, status_y.min(340)),
-                "READ ONLY",
-                palette.secondary_text,
-                1,
-            );
-        }
-        let line_count = preview.content.lines().count();
-        primitives += 2 + line_count.min(visible_lines);
-        if let Some(scrollbar) = model.preview_scrollbar_in_viewport(width, height) {
-            fill_rect(
-                &mut buffer,
-                width,
-                height,
-                scrollbar.track,
-                palette.border,
-                255,
-            );
-            fill_rect(
-                &mut buffer,
-                width,
-                height,
-                scrollbar.thumb,
-                palette.accent,
-                255,
-            );
-            primitives += 2;
+            for (line_index, line) in preview
+                .content
+                .lines()
+                .skip(preview.scroll_offset)
+                .take(visible_lines)
+                .enumerate()
+            {
+                let bounded = line.chars().take(48).collect::<String>();
+                draw_bitmap_text(
+                    &mut buffer,
+                    (width, height),
+                    (list_x + 16, 194 + line_index as u32 * 22),
+                    &bounded,
+                    palette.text,
+                    1,
+                );
+            }
+            if let Some(status_y) = height.checked_sub(80).filter(|status_y| *status_y >= 220) {
+                draw_bitmap_text(
+                    &mut buffer,
+                    (width, height),
+                    (list_x + 16, status_y.min(340)),
+                    "READ ONLY",
+                    palette.secondary_text,
+                    1,
+                );
+            }
+            let line_count = preview.content.lines().count();
+            primitives += 2 + line_count.min(visible_lines);
+            if let Some(scrollbar) = model.preview_scrollbar_in_viewport(width, height) {
+                fill_rect(
+                    &mut buffer,
+                    width,
+                    height,
+                    scrollbar.track,
+                    palette.border,
+                    255,
+                );
+                fill_rect(
+                    &mut buffer,
+                    width,
+                    height,
+                    scrollbar.thumb,
+                    palette.accent,
+                    255,
+                );
+                primitives += 2;
+            }
         }
     } else if model.is_empty() {
         if let Some(empty_state) = files_empty_state_layout(width, height) {
@@ -8887,6 +8889,20 @@ mod tests {
             render_files_window_rgba(640, 107, &FilesWindowModel::default());
         assert!(short_toolbar_probe.rendered);
         assert!(!short_toolbar_probe.toolbar_rendered);
+
+        let preview_model = FilesWindowModel {
+            preview: Some(aqua_shell::FilesTextPreview {
+                name: "Notes.txt".to_string(),
+                content: "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\n".to_string(),
+                scroll_offset: 0,
+            }),
+            ..FilesWindowModel::default()
+        };
+        let (wide_preview, _) = render_files_window_rgba(640, 420, &preview_model);
+        assert_ne!(wide_preview, home);
+        let (narrow_preview, _) = render_files_window_rgba(274, 420, &preview_model);
+        let (narrow_home, _) = render_files_window_rgba(274, 420, &FilesWindowModel::default());
+        assert_eq!(narrow_preview, narrow_home);
 
         let mut selected = FilesWindowModel::default();
         selected.select_at(640, 220, 140);
