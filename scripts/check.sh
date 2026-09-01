@@ -1820,6 +1820,7 @@ grep -Fq 'files_sidebar_navigation(height).keyboard_target(' crates/aqua-shell/s
 grep -Fq 'files_key_for_code(key)' crates/aqua-compositor/src/lib.rs
 grep -Fq 'self.window.selected_sidebar = previously_selected_sidebar' crates/aqua-shell/src/lib.rs
 grep -Fq 'sidebar_row(height, index)' crates/aqua-shell/src/lib.rs
+grep -Fq 'self.sidebar_at(height, x, y)' crates/aqua-shell/src/lib.rs
 grep -Fq 'files_visible_rows(height)' crates/aqua-shell/src/lib.rs
 grep -Fq 'files_preview_visible_lines(height)' crates/aqua-shell/src/lib.rs
 grep -Fq 'preview_scrollbar_in_viewport(width, height)' crates/aqua-renderer/src/lib.rs
