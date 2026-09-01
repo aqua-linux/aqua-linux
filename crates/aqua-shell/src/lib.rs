@@ -419,6 +419,7 @@ const FILES_EMPTY_STATE_MIN_HEIGHT: u32 = 220;
 const FILES_EMPTY_STATE_REFERENCE_HEIGHT: u32 = 300;
 const FILES_EMPTY_STATE_ICON_Y: u32 = 190;
 const FILES_EMPTY_STATE_LABEL_Y: u32 = 252;
+const FILES_LOCATION_MIN_WIDTH: u32 = 96;
 pub const NOTIFICATION_DEFAULT_TIMEOUT_MS: u64 = 30_000;
 pub const NOTIFICATION_QUEUE_LIMIT: usize = 8;
 pub const SYSTEM_OVERVIEW_REFRESH_MS: u64 = 60_000;
@@ -540,6 +541,51 @@ pub const fn files_toolbar(width: u32) -> Toolbar<'static> {
         "File navigation",
     )
     .with_spacing(16, 14, 8)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesToolbarLayout {
+    pub toolbar: Toolbar<'static>,
+    pub back: IconButton<'static>,
+    pub forward: IconButton<'static>,
+    pub location: Rect,
+}
+
+pub const fn files_toolbar_layout(width: u32, height: u32) -> Option<FilesToolbarLayout> {
+    let toolbar = files_toolbar(width);
+    let back = IconButton::new(
+        toolbar.leading_item_rect(0, 28, 28),
+        "Back",
+        IconButtonGlyph::Back,
+    );
+    let forward = IconButton::new(
+        toolbar.leading_item_rect(1, 28, 28),
+        "Forward",
+        IconButtonGlyph::Forward,
+    );
+    let location = Rect {
+        x: 96,
+        y: 64,
+        width: width.saturating_sub(118),
+        height: 32,
+    };
+    if !toolbar.is_valid()
+        || toolbar.rect.right() > width
+        || toolbar.rect.bottom() > height
+        || !back.is_valid()
+        || !forward.is_valid()
+        || location.width < FILES_LOCATION_MIN_WIDTH
+        || location.right() > width
+        || location.bottom() > height
+    {
+        return None;
+    }
+    Some(FilesToolbarLayout {
+        toolbar,
+        back,
+        forward,
+        location,
+    })
 }
 
 pub const fn files_back_button() -> IconButton<'static> {
@@ -3075,21 +3121,23 @@ impl FilesWindowModel {
         x: u32,
         y: u32,
     ) -> FilesSelection {
-        let back = files_back_button().with_state(if self.can_go_back {
-            ComponentState::Idle
-        } else {
-            ComponentState::Disabled
-        });
-        if back.pointer_hit(x, y) {
-            return FilesSelection::Back;
-        }
-        let forward = files_forward_button().with_state(if self.can_go_forward {
-            ComponentState::Idle
-        } else {
-            ComponentState::Disabled
-        });
-        if forward.pointer_hit(x, y) {
-            return FilesSelection::Forward;
+        if let Some(toolbar) = files_toolbar_layout(width, height) {
+            let back = toolbar.back.with_state(if self.can_go_back {
+                ComponentState::Idle
+            } else {
+                ComponentState::Disabled
+            });
+            if back.pointer_hit(x, y) {
+                return FilesSelection::Back;
+            }
+            let forward = toolbar.forward.with_state(if self.can_go_forward {
+                ComponentState::Idle
+            } else {
+                ComponentState::Disabled
+            });
+            if forward.pointer_hit(x, y) {
+                return FilesSelection::Forward;
+            }
         }
         if let Some(index) = self.sidebar_at(height, x, y) {
             self.selected_sidebar = index;
@@ -6553,6 +6601,36 @@ mod tests {
         assert!(compact_empty_state.label.bottom() < 260 - 34);
         assert!(files_empty_state_layout(640, 219).is_none());
         assert!(files_empty_state_layout(475, 420).is_none());
+        let files_toolbar = files_toolbar_layout(640, 420).expect("reference Files toolbar layout");
+        assert_eq!(files_toolbar.toolbar, super::files_toolbar(640));
+        assert_eq!(files_toolbar.back, files_back_button());
+        assert_eq!(files_toolbar.forward, files_forward_button());
+        assert_eq!(
+            files_toolbar.location,
+            Rect {
+                x: 96,
+                y: 64,
+                width: 522,
+                height: 32,
+            }
+        );
+        assert!(files_toolbar_layout(214, 108).is_some());
+        assert!(files_toolbar_layout(213, 420).is_none());
+        assert!(files_toolbar_layout(640, 107).is_none());
+        let mut toolbar_model = home.clone();
+        toolbar_model.can_go_back = true;
+        assert_eq!(
+            toolbar_model.select_at_in_viewport(213, 420, 28, 78),
+            FilesSelection::None
+        );
+        assert_eq!(
+            toolbar_model.select_at_in_viewport(640, 107, 28, 78),
+            FilesSelection::None
+        );
+        assert_eq!(
+            toolbar_model.select_at_in_viewport(640, 420, 28, 78),
+            FilesSelection::Back
+        );
         assert!(home.entry_row_in_viewport(640, 300, 1).is_some());
         assert!(home.entry_row_in_viewport(640, 300, 2).is_none());
         let compact_scrollbar = home
