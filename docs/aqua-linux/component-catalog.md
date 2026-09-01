@@ -720,7 +720,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first twenty-seven
+All catalog entries now satisfy the shared primitive contract. The first twenty-eight
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -782,6 +782,9 @@ Files text-preview rendering, wheel and keyboard scrolling, and scrollbar
 geometry now consume the same visible-line count derived from the client
 height. Compact layouts expose only complete lines, while layouts without room
 for a line reject scrolling and omit the scrollbar.
+Files empty-folder rendering now consumes one renderer-neutral viewport layout.
+The reference coordinates remain stable, compact layouts move the group above
+the status area, and layouts without sufficient width or height omit it.
 Further extractions must continue from real first-party consumers and repeat
 the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a
