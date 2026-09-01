@@ -504,6 +504,9 @@ acceptance remains open.
 - Previous and Next keyboard selection wrap within the six visible grid cells;
   Home and End resolve directly to the visible bounds. Empty collections and
   out-of-range selections fail closed.
+- Enter activates the selected application only when its rendered shared grid
+  cell accepts keyboard activation. Closed launchers, invalid selections, and
+  empty or invalid compositions cannot produce a launch request.
 - The container exposes a named `region` with item and column counts. Its search
   field retains `searchbox`; each child retains independent `gridcell` state and
   activation semantics.
@@ -539,6 +542,9 @@ acceptance remains open.
 - Result Previous and Next selection wraps within the five visible result rows;
   Home and End resolve directly to the visible bounds. Quick actions retain
   their separate pointer contract.
+- Enter activates the selected result only through its shared list-row keyboard
+  gate. Empty results and selections beyond the visible result limit fail
+  closed before the unchanged allowlisted request is produced.
 - The container exposes a named `search` landmark with result and quick-action
   counts. Its child search field retains `searchbox`; result rows retain
   `option`; quick actions retain `button` semantics.
@@ -714,7 +720,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first seventeen
+All catalog entries now satisfy the shared primitive contract. The first eighteen
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -748,6 +754,8 @@ credential-entry and authoritative disabled behavior.
 Settings Network Left/Right now consumes the shared Rescan/Forget standard
 button keyboard gates, preserving credential ownership and broker-authority
 disabled behavior.
+Launcher Enter now consumes the selected Applications grid-cell or Search
+list-row keyboard gate before emitting the unchanged allowlisted request.
 Further extractions must continue from real first-party consumers and repeat
 the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a

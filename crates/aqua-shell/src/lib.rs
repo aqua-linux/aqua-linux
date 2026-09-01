@@ -3918,6 +3918,18 @@ impl LauncherState {
             return None;
         }
 
+        let can_activate = match self.mode {
+            LauncherMode::Applications => self
+                .application_grid_cell(self.selected_index, 800, 600)
+                .is_some_and(|cell| cell.keyboard_activates(ActivationKey::Enter)),
+            LauncherMode::Search => self
+                .search_result_row(self.selected_index, 800, 600)
+                .is_some_and(|row| row.keyboard_activates(ActivationKey::Enter)),
+        };
+        if !can_activate {
+            return None;
+        }
+
         self.visible_apps()
             .get(self.selected_index)
             .map(|app| LaunchRequest {
@@ -5729,6 +5741,9 @@ mod tests {
         let mut launcher = LauncherState::default();
         launcher.open();
         launcher.select_category(LauncherCategory::Settings);
+        assert!(launcher
+            .application_grid_cell(0, 800, 600)
+            .is_some_and(|cell| cell.keyboard_activates(ActivationKey::Enter)));
         assert_eq!(
             launcher.activate_selected(),
             Some(LaunchRequest {
@@ -5737,6 +5752,11 @@ mod tests {
                 target: None,
             })
         );
+
+        launcher.selected_index = 3;
+        assert!(launcher.activate_selected().is_none());
+        launcher.set_query("no matching application");
+        assert!(launcher.activate_selected().is_none());
     }
 
     #[test]
