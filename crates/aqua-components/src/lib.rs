@@ -1819,6 +1819,101 @@ pub enum ListRowRole {
     Step,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListNavigationKey {
+    Previous,
+    Next,
+    PagePrevious,
+    PageNext,
+    Home,
+    End,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ListNavigation {
+    pub item_count: usize,
+    pub visible_count: usize,
+}
+
+impl ListNavigation {
+    pub const fn new(item_count: usize, visible_count: usize) -> Self {
+        Self {
+            item_count,
+            visible_count,
+        }
+    }
+
+    pub const fn is_valid(self) -> bool {
+        self.item_count > 0 && self.visible_count > 0
+    }
+
+    pub const fn keyboard_target(
+        self,
+        selected_index: Option<usize>,
+        key: ListNavigationKey,
+    ) -> Option<usize> {
+        if !self.is_valid() {
+            return None;
+        }
+        if let Some(selected_index) = selected_index {
+            if selected_index >= self.item_count {
+                return None;
+            }
+        }
+        if matches!(key, ListNavigationKey::Home) {
+            return Some(0);
+        }
+        if matches!(key, ListNavigationKey::End) {
+            return Some(self.item_count - 1);
+        }
+
+        let backwards = matches!(
+            key,
+            ListNavigationKey::Previous | ListNavigationKey::PagePrevious
+        );
+        let current = match selected_index {
+            Some(selected_index) => selected_index,
+            None if backwards => 0,
+            None => self.item_count - 1,
+        };
+        let step = match key {
+            ListNavigationKey::Previous | ListNavigationKey::Next => 1,
+            ListNavigationKey::PagePrevious | ListNavigationKey::PageNext => self.visible_count,
+            ListNavigationKey::Home | ListNavigationKey::End => 0,
+        } % self.item_count;
+        if backwards {
+            Some(if current >= step {
+                current - step
+            } else {
+                self.item_count - (step - current)
+            })
+        } else {
+            Some(if current >= self.item_count - step {
+                current - (self.item_count - step)
+            } else {
+                current + step
+            })
+        }
+    }
+
+    pub const fn reveal_offset(self, target_index: usize, current_offset: usize) -> Option<usize> {
+        if !self.is_valid() || target_index >= self.item_count {
+            return None;
+        }
+        let maximum_offset = self.item_count.saturating_sub(self.visible_count);
+        if current_offset > maximum_offset {
+            return None;
+        }
+        if target_index < current_offset {
+            Some(target_index)
+        } else if target_index >= current_offset.saturating_add(self.visible_count) {
+            Some(target_index + 1 - self.visible_count)
+        } else {
+            Some(current_offset)
+        }
+    }
+}
+
 impl ListRowRole {
     pub const fn accessibility_role(self) -> &'static str {
         match self {
@@ -3530,6 +3625,49 @@ mod tests {
         assert!(slots.leading.right() <= slots.label.x);
         assert!(slots.label.right() <= slots.trailing.x);
         assert_eq!(slots.trailing.right(), row.rect.right() - 8);
+
+        let navigation = ListNavigation::new(8, 4);
+        assert_eq!(
+            navigation.keyboard_target(None, ListNavigationKey::Previous),
+            Some(7)
+        );
+        assert_eq!(
+            navigation.keyboard_target(None, ListNavigationKey::Next),
+            Some(0)
+        );
+        assert_eq!(
+            navigation.keyboard_target(None, ListNavigationKey::PageNext),
+            Some(3)
+        );
+        assert_eq!(
+            navigation.keyboard_target(Some(5), ListNavigationKey::PagePrevious),
+            Some(1)
+        );
+        assert_eq!(
+            navigation.keyboard_target(Some(1), ListNavigationKey::PagePrevious),
+            Some(5)
+        );
+        assert_eq!(
+            navigation.keyboard_target(Some(4), ListNavigationKey::Home),
+            Some(0)
+        );
+        assert_eq!(
+            navigation.keyboard_target(Some(0), ListNavigationKey::End),
+            Some(7)
+        );
+        assert_eq!(navigation.reveal_offset(5, 0), Some(2));
+        assert_eq!(navigation.reveal_offset(1, 2), Some(1));
+        assert_eq!(navigation.reveal_offset(3, 1), Some(1));
+        assert_eq!(
+            navigation.keyboard_target(Some(8), ListNavigationKey::Next),
+            None
+        );
+        assert_eq!(navigation.reveal_offset(8, 0), None);
+        assert_eq!(
+            ListNavigation::new(0, 4).keyboard_target(None, ListNavigationKey::Next),
+            None
+        );
+        assert_eq!(ListNavigation::new(8, 0).reveal_offset(0, 0), None);
     }
 
     #[test]

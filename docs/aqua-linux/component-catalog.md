@@ -135,6 +135,12 @@ and 1536x1024, including a 1.25 output-scale case. Its canonical report is
 - A valid sidebar resolves Previous and Next with bounded wrap behavior and
   Home and End directly to the first and last rendered rows. Empty,
   out-of-range, oversized, or surface-overflowing row sets fail closed.
+- A valid list-navigation contract resolves Previous and Next by one row, Page
+  Previous and Page Next by the declared visible-row count, and Home and End to
+  the collection bounds. Row and page movement wrap consistently, and the same
+  contract computes the smallest valid offset that reveals the target. Empty
+  collections, zero visible rows, invalid selections, invalid targets, and
+  out-of-range offsets fail closed.
 
 Settings and Files now consume the same sidebar geometry in both `aqua-shell`
 input routing and `aqua-renderer` drawing. Settings category Up, Down, Home,
@@ -144,9 +150,11 @@ rows also use `ListRow` for one render/input/state/accessibility contract;
 unsupported security remains disabled at the component boundary. Files content
 entries use the same row object for rendered bounds, leading icon and trailing
 metadata slots, selected/hover state, pointer activation, and `option`
-semantics. Their
-eight-pixel inter-row gaps and area beyond the rendered right edge reject
-input. Files list and text-preview scrollbars now derive their track, thumb,
+semantics. Up, Down, Page Up, Page Down, Home, and End now resolve through the
+shared list-navigation target and reveal-offset contract; the text preview
+continues to own those keys while it is visible. Their eight-pixel inter-row
+gaps and area beyond the rendered right edge reject input. Files list and
+text-preview scrollbars now derive their track, thumb,
 bounded offset, and resized-window placement from one renderer-neutral layout;
 list and text-preview pointer/drag routing consume their active exact half-open
 track and retain distinct `Scrolled` or `PreviewScrolled` behavior. This remains
@@ -696,7 +704,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first thirteen
+All catalog entries now satisfy the shared primitive contract. The first fourteen
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -718,6 +726,9 @@ Settings category Up, Down, Home, and End routing now consumes the shared
 sidebar's bounded targets, with Wi-Fi credential entry retaining key ownership.
 Launcher Up/Down and Left/Right now consume the shared Applications or Search
 Previous/Next target, while Home/End select the respective visible bounds.
+Files content-list arrows, Page Up/Down, Home, and End now consume the shared
+list target and reveal-offset contract while preview-key routing remains
+separate.
 Further extractions must continue from real first-party consumers and repeat
 the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a
