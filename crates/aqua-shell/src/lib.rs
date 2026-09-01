@@ -2,9 +2,9 @@ use aqua_components::{
     ApplicationOverview, ComponentState, ConfirmationDialog, ConfirmationPresentation,
     ConfirmationRequirement, ConfirmationSeverity, ConfirmationState, GlobalSearch, GridCell,
     GridCellLayout, IconButton, IconButtonGlyph, ListRow, ListRowRole, Menu, MetadataRow,
-    RunningAppDock, SearchField, SectionGroup, SegmentedControl, SidebarNavigation, Slider,
-    SliderKey, StandardButton, StandardButtonVariant, SwitchControl, Toolbar, TopSystemBar,
-    WorkspaceSwitcher,
+    RunningAppDock, SearchField, SectionGroup, SegmentedControl, SidebarNavigation,
+    SidebarNavigationKey, Slider, SliderKey, StandardButton, StandardButtonVariant, SwitchControl,
+    Toolbar, TopSystemBar, WorkspaceSwitcher,
 };
 pub use aqua_components::{MenuNavigationKey, WorkspaceNavigationKey};
 use aqua_scene::Rect;
@@ -2358,24 +2358,27 @@ impl SettingsWindowModel {
             {
                 SettingsUpdate::WifiConnectRequested
             }
-            SettingsKey::Up | SettingsKey::Down
+            SettingsKey::Home | SettingsKey::End | SettingsKey::Up | SettingsKey::Down
                 if self.selected_category == 3 && self.wifi.credential_entry() =>
             {
                 SettingsUpdate::None
             }
-            SettingsKey::Home => {
-                self.selected_category = 0;
-                SettingsUpdate::CategorySelected(self.selected_category)
-            }
-            SettingsKey::Up => {
-                self.selected_category = self
-                    .selected_category
-                    .checked_sub(1)
-                    .unwrap_or(self.categories.len() - 1);
-                SettingsUpdate::CategorySelected(self.selected_category)
-            }
-            SettingsKey::Down => {
-                self.selected_category = (self.selected_category + 1) % self.categories.len();
+            SettingsKey::Home | SettingsKey::End | SettingsKey::Up | SettingsKey::Down => {
+                let navigation_key = match key {
+                    SettingsKey::Home => SidebarNavigationKey::Home,
+                    SettingsKey::End => SidebarNavigationKey::End,
+                    SettingsKey::Up => SidebarNavigationKey::Previous,
+                    SettingsKey::Down => SidebarNavigationKey::Next,
+                    _ => unreachable!(),
+                };
+                let Some(selected_category) = SETTINGS_SIDEBAR_NAVIGATION.keyboard_target(
+                    self.selected_category,
+                    self.categories.len(),
+                    navigation_key,
+                ) else {
+                    return SettingsUpdate::None;
+                };
+                self.selected_category = selected_category;
                 SettingsUpdate::CategorySelected(self.selected_category)
             }
             SettingsKey::Activate if self.selected_category == 0 => {
@@ -2575,6 +2578,7 @@ impl std::error::Error for SettingsConfigError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettingsKey {
     Home,
+    End,
     Up,
     Down,
     Activate,
@@ -4953,6 +4957,22 @@ mod tests {
         );
         assert!(!model.key_repeat);
         assert_eq!(
+            model.handle_key(SettingsKey::End),
+            SettingsUpdate::CategorySelected(5)
+        );
+        assert_eq!(
+            model.handle_key(SettingsKey::Down),
+            SettingsUpdate::CategorySelected(0)
+        );
+        assert_eq!(
+            model.handle_key(SettingsKey::Up),
+            SettingsUpdate::CategorySelected(5)
+        );
+        assert_eq!(
+            model.handle_key(SettingsKey::Home),
+            SettingsUpdate::CategorySelected(0)
+        );
+        assert_eq!(
             model.handle_pointer(40, 300),
             SettingsUpdate::CategorySelected(4)
         );
@@ -5123,6 +5143,15 @@ mod tests {
             model.handle_pointer(row.x + 1, row.y + 1),
             SettingsUpdate::WifiNetworkSelected(0)
         );
+        for key in [
+            SettingsKey::Home,
+            SettingsKey::End,
+            SettingsKey::Up,
+            SettingsKey::Down,
+        ] {
+            assert_eq!(model.handle_key(key), SettingsUpdate::None);
+            assert_eq!(model.selected_category, 3);
+        }
         for character in "password".chars() {
             assert!(model.input_wifi_passphrase(character));
         }

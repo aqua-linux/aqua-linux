@@ -132,13 +132,19 @@ and 1536x1024, including a 1.25 output-scale case. Its canonical report is
 - Idle, hover, keyboard focus, pressed, selected, disabled, loading, error,
   success, and non-repeating attention states retain stable geometry.
 - Sidebar containers expose the `navigation` role and a non-empty name.
+- A valid sidebar resolves Previous and Next with bounded wrap behavior and
+  Home and End directly to the first and last rendered rows. Empty,
+  out-of-range, oversized, or surface-overflowing row sets fail closed.
 
 Settings and Files now consume the same sidebar geometry in both `aqua-shell`
-input routing and `aqua-renderer` drawing. Settings Wi-Fi discovery rows also
-use `ListRow` for one render/input/state/accessibility contract; unsupported
-security remains disabled at the component boundary. Files content entries use
-the same row object for rendered bounds, leading icon and trailing metadata
-slots, selected/hover state, pointer activation, and `option` semantics. Their
+input routing and `aqua-renderer` drawing. Settings category Up, Down, Home,
+and End input resolves through the shared sidebar target; Wi-Fi credential
+entry consumes those keys without moving the category. Settings Wi-Fi discovery
+rows also use `ListRow` for one render/input/state/accessibility contract;
+unsupported security remains disabled at the component boundary. Files content
+entries use the same row object for rendered bounds, leading icon and trailing
+metadata slots, selected/hover state, pointer activation, and `option`
+semantics. Their
 eight-pixel inter-row gaps and area beyond the rendered right edge reject
 input. Files list and text-preview scrollbars now derive their track, thumb,
 bounded offset, and resized-window placement from one renderer-neutral layout;
@@ -684,7 +690,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first eleven
+All catalog entries now satisfy the shared primitive contract. The first twelve
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -702,9 +708,11 @@ consume the shared switcher's bounded Previous, Next, Home, and End targets.
 Desktop context-menu rendering now exposes the same shared selected row used by
 compositor-owned Up, Down, Home, End, Enter, Space, and Escape routing without
 client key-through, while preserving Trash's repeat-activation gate.
-Further extractions must continue from real
-first-party consumers and repeat the same geometry, input, accessibility,
-deterministic-fixture, and packaged-QEMU
-evidence path. The actual audio service/backend remains a separate R4 decision
+Settings category Up, Down, Home, and End routing now consumes the shared
+sidebar's bounded targets, with Wi-Fi credential entry retaining key ownership.
+Further extractions must continue from real first-party consumers and repeat
+the same geometry, input, accessibility, deterministic-fixture, and
+packaged-QEMU evidence path. The actual audio service/backend remains a
+separate R4 decision
 and acceptance item; the Settings preference must not be treated as playback
 or hardware evidence.

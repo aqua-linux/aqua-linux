@@ -3278,6 +3278,14 @@ impl<'a> ConfirmationDialog<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SidebarNavigationKey {
+    Previous,
+    Next,
+    Home,
+    End,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SidebarNavigation<'a> {
     pub rect: Rect,
     pub label: &'a str,
@@ -3312,6 +3320,34 @@ impl<'a> SidebarNavigation<'a> {
             return None;
         }
         (0..row_count).find(|index| rect_contains(self.row_rect(*index), x, y))
+    }
+
+    pub const fn keyboard_target(
+        self,
+        selected_index: usize,
+        row_count: usize,
+        key: SidebarNavigationKey,
+    ) -> Option<usize> {
+        if !self.is_valid()
+            || row_count == 0
+            || row_count > 128
+            || selected_index >= row_count
+            || self.row_rect(row_count - 1).bottom() > self.rect.bottom()
+        {
+            return None;
+        }
+        Some(match key {
+            SidebarNavigationKey::Previous => {
+                if selected_index == 0 {
+                    row_count - 1
+                } else {
+                    selected_index - 1
+                }
+            }
+            SidebarNavigationKey::Next => (selected_index + 1) % row_count,
+            SidebarNavigationKey::Home => 0,
+            SidebarNavigationKey::End => row_count - 1,
+        })
     }
 
     pub const fn is_valid(self) -> bool {
@@ -3467,6 +3503,30 @@ mod tests {
         assert_eq!(navigation.hit_test(12, 164, 4), None);
         assert_eq!(navigation.hit_test(12, 172, 4), Some(1));
         assert_eq!(navigation.hit_test(1, 126, 4), None);
+        assert_eq!(
+            navigation.keyboard_target(0, 4, SidebarNavigationKey::Previous),
+            Some(3)
+        );
+        assert_eq!(
+            navigation.keyboard_target(3, 4, SidebarNavigationKey::Next),
+            Some(0)
+        );
+        assert_eq!(
+            navigation.keyboard_target(2, 4, SidebarNavigationKey::Home),
+            Some(0)
+        );
+        assert_eq!(
+            navigation.keyboard_target(0, 4, SidebarNavigationKey::End),
+            Some(3)
+        );
+        assert_eq!(
+            navigation.keyboard_target(0, 0, SidebarNavigationKey::Next),
+            None
+        );
+        assert_eq!(
+            navigation.keyboard_target(4, 4, SidebarNavigationKey::Next),
+            None
+        );
     }
 
     #[test]
