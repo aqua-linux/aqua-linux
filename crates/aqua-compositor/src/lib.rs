@@ -104,6 +104,19 @@ pub fn bottom_shell_pointer_target(
     )
 }
 
+#[cfg(any(test, all(target_os = "linux", feature = "smithay-smoke")))]
+fn pointer_location_after_motion(
+    location: (f64, f64),
+    dx: f64,
+    dy: f64,
+    viewport: Viewport,
+) -> (f64, f64) {
+    (
+        (location.0 + dx).clamp(0.0, f64::from(viewport.width.saturating_sub(1))),
+        (location.1 + dy).clamp(0.0, f64::from(viewport.height.saturating_sub(1))),
+    )
+}
+
 pub fn notification_dismiss_hit(
     rect: Rect,
     source: &str,
@@ -9530,10 +9543,17 @@ impl SmithayDrmSession {
         let Some(pointer) = self.session.wayland_state.seat.get_pointer() else {
             return false;
         };
-        let location = &mut self.session.wayland_state.pointer_location;
-        location.0 = (location.0 + dx).clamp(0.0, 1535.0);
-        location.1 = (location.1 + dy).clamp(0.0, 1023.0);
-        let pointer_location = *location;
+        let viewport = Viewport::new(
+            self.session.wayland_state.output_width,
+            self.session.wayland_state.output_height,
+        );
+        let pointer_location = pointer_location_after_motion(
+            self.session.wayland_state.pointer_location,
+            dx,
+            dy,
+            viewport,
+        );
+        self.session.wayland_state.pointer_location = pointer_location;
         if self.session.wayland_state.launcher_state.is_open() {
             self.session.wayland_state.pointer_focus_surface = None;
             self.session.wayland_state.pointer_focus_assigned = false;
@@ -9541,7 +9561,12 @@ impl SmithayDrmSession {
                 .session
                 .wayland_state
                 .launcher_state
-                .pointer_target(pointer_location.0 as u32, pointer_location.1 as u32)
+                .pointer_target_in_viewport(
+                    pointer_location.0 as u32,
+                    pointer_location.1 as u32,
+                    viewport.width,
+                    viewport.height,
+                )
                 .is_some()
             {
                 self.session.wayland_state.launcher_pointer_hit_count += 1;
@@ -10021,8 +10046,7 @@ impl SmithayDrmSession {
             .map(|record| (f64::from(record.x), f64::from(record.y)))
             .unwrap_or((0.0, 0.0));
         let (origin_x, origin_y) = geometry;
-        let pointer_location = (768.0, 512.0);
-        self.session.wayland_state.pointer_location = pointer_location;
+        let pointer_location = self.session.wayland_state.pointer_location;
         pointer.motion(
             &mut self.session.wayland_state,
             Some((
@@ -14376,6 +14400,28 @@ mod tests {
     }
 
     #[test]
+    fn pointer_motion_clamps_to_the_actual_viewport() {
+        let viewport = Viewport::new(1024, 768);
+
+        assert_eq!(
+            pointer_location_after_motion((768.0, 512.0), 500.0, 500.0, viewport),
+            (1023.0, 767.0)
+        );
+        assert_eq!(
+            pointer_location_after_motion((100.0, 100.0), -500.0, -500.0, viewport),
+            (0.0, 0.0)
+        );
+
+        let mut launcher = LauncherState::default();
+        launcher.handle_event(LauncherEvent::OpenApplications);
+        assert_eq!(launcher.pointer_target(790, 140), None);
+        assert_eq!(
+            launcher.pointer_target_in_viewport(790, 140, viewport.width, viewport.height),
+            Some(LauncherPointerTarget::SearchField)
+        );
+    }
+
+    #[test]
     fn shared_notification_routes_only_the_dismiss_control() {
         let rect = Rect {
             x: 1152,
@@ -15180,6 +15226,32 @@ mod tests {
             "settings"
         );
         assert!(!session.launcher_state_snapshot().is_open());
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn smithay_pointer_motion_uses_output_dimensions_for_bounds_and_launcher_hits() {
+        let mut session = SmithayDrmSession::new().expect("Smithay session should start");
+        session.set_output_dimensions(1024, 768);
+        assert!(session.dispatch_keyboard_key(125, true, 1));
+
+        let launcher = session.launcher_state_snapshot();
+        assert_eq!(launcher.pointer_target(790, 140), None);
+        assert_eq!(
+            launcher.pointer_target_in_viewport(790, 140, 1024, 768),
+            Some(LauncherPointerTarget::SearchField)
+        );
+
+        assert!(session.dispatch_pointer_motion(22.0, -372.0, 2));
+        let launcher_hit = session.input_snapshot();
+        assert_eq!(launcher_hit.pointer_x, 790);
+        assert_eq!(launcher_hit.pointer_y, 140);
+        assert_eq!(launcher_hit.launcher_pointer_hit_count, 1);
+
+        assert!(session.dispatch_pointer_motion(1000.0, 1000.0, 3));
+        let bounded = session.input_snapshot();
+        assert_eq!(bounded.pointer_x, 1023);
+        assert_eq!(bounded.pointer_y, 767);
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]

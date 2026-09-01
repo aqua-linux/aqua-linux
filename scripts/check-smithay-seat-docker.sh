@@ -204,6 +204,8 @@ docker run --rm --platform linux/amd64 \
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_launcher_keyboard_is_compositor_owned
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
+            smithay_pointer_motion_uses_output_dimensions_for_bounds_and_launcher_hits
+        cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_notification_close_promotes_queue_and_timeout_hides_toast
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_first_party_surfaces_raise_and_move_between_workspaces
