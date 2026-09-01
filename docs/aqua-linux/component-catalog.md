@@ -668,12 +668,14 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first five
+All catalog entries now satisfy the shared primitive contract. The first six
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
 shared contracts, then complete active scrollbar drag parity for Files text
-preview. Further
+preview. Files preview keyboard routing now applies arrows, Page Up/Down, Home,
+and End to the visible text while preserving the hidden list selection and
+offset; activation is inert and Back closes the preview. Further
 extractions must continue from real first-party consumers and repeat the same
 geometry, input, accessibility, deterministic-fixture, and packaged-QEMU
 evidence path. The actual audio service/backend remains a separate R4 decision
