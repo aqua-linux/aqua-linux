@@ -353,7 +353,12 @@ not overlap. Packaged-QEMU component acceptance is covered by the aggregate four
   exposes `menuitem`, name, selected, disabled, and destructive semantics.
 - Desktop icon context menus now share exact local renderer geometry with
   global desktop pointer hit testing. Open, Properties, Empty Trash, and its
-  explicit confirmation path retain their existing execution gates.
+  explicit confirmation path retain their existing execution gates. Their
+  visible selected row follows the shared Previous, Next, Home, and End targets;
+  Enter and Space activate that row, Escape dismisses the menu, and the
+  compositor consumes every key press and release while the menu is open so an
+  underlying client cannot receive it. Moving away from the destructive Trash
+  row clears its armed repeat-activation confirmation.
 - The Session menu derives all four action rows and gaps from the same
   primitive. Compositor pointer routing maps the actual output's
   `SystemOverview` surface into the runtime menu coordinate space, rejects row
@@ -679,7 +684,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first ten
+All catalog entries now satisfy the shared primitive contract. The first eleven
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -694,6 +699,9 @@ output panel into the shared menu rows without weakening its confirmation
 gate, and its Up, Down, Home, and End handling now consumes the same shared
 keyboard target contract. Workspace activation and active-window movement now
 consume the shared switcher's bounded Previous, Next, Home, and End targets.
+Desktop context-menu rendering now exposes the same shared selected row used by
+compositor-owned Up, Down, Home, End, Enter, Space, and Escape routing without
+client key-through, while preserving Trash's repeat-activation gate.
 Further extractions must continue from real
 first-party consumers and repeat the same geometry, input, accessibility,
 deterministic-fixture, and packaged-QEMU
