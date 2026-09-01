@@ -3759,7 +3759,8 @@ pub fn probe_launcher_input_scene_binding(viewport: Viewport) -> LauncherInputSc
     let mut redraw_requests = 0;
     let mut visibility_changes = 0;
 
-    let opened = launcher.handle_event(LauncherEvent::Toggle);
+    let opened =
+        launcher.handle_event_in_viewport(LauncherEvent::Toggle, viewport.width, viewport.height);
     redraw_requests += usize::from(opened.redraw_requested);
     visibility_changes += usize::from(opened.visibility_changed);
     if opened.visibility_changed {
@@ -3768,12 +3769,18 @@ pub fn probe_launcher_input_scene_binding(viewport: Viewport) -> LauncherInputSc
     let opened_launcher_visible = scene.surface_is_visible(SurfaceKind::Launcher);
     let open_draw_command_count = plan_static_scene(&scene).commands.len();
 
-    let searched = launcher.handle_event(LauncherEvent::ReplaceQuery("settings".to_string()));
+    let searched = launcher.handle_event_in_viewport(
+        LauncherEvent::ReplaceQuery("settings".to_string()),
+        viewport.width,
+        viewport.height,
+    );
     redraw_requests += usize::from(searched.redraw_requested);
     visibility_changes += usize::from(searched.visibility_changed);
-    let activated = launcher.handle_event(LauncherEvent::Activate);
+    let activated =
+        launcher.handle_event_in_viewport(LauncherEvent::Activate, viewport.width, viewport.height);
 
-    let dismissed = launcher.handle_event(LauncherEvent::Dismiss);
+    let dismissed =
+        launcher.handle_event_in_viewport(LauncherEvent::Dismiss, viewport.width, viewport.height);
     redraw_requests += usize::from(dismissed.redraw_requested);
     visibility_changes += usize::from(dismissed.visibility_changed);
     if dismissed.visibility_changed {
@@ -15331,6 +15338,12 @@ mod tests {
         assert_eq!(probe.open_draw_command_count, 7);
         assert_eq!(probe.closed_draw_command_count, 6);
         assert_eq!(probe.launch_request.unwrap().app_id, "settings");
+
+        let compact = probe_launcher_input_scene_binding(Viewport::new(500, 600));
+        assert!(!compact.is_ready());
+        assert!(compact.launch_request.is_none());
+        assert!(compact.opened_launcher_visible);
+        assert!(!compact.dismissed_launcher_visible);
     }
 
     #[test]

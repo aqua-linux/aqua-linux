@@ -3,7 +3,7 @@
 ## Status
 
 Accepted on 2026-08-29. Framework consolidation began on 2026-09-01 after the
-core desktop functionality supplied real consumers. The first twenty-one bounded
+core desktop functionality supplied real consumers. The first twenty-two bounded
 slices replaced Settings Network's duplicated Wi-Fi row/action hit geometry,
 Files content-row render/input geometry, and launcher panel/child pointer
 routing with existing shared component contracts, then consolidated Files list
@@ -50,6 +50,9 @@ Launcher Enter now activates the selected Applications `GridCell` or Search
 allowlisted launch request;
 that keyboard gate now builds the target from the active output viewport and
 rejects invalid compact layouts instead of consulting the 800-by-600 reference;
+the launcher input/scene acceptance probe now routes its full open, search,
+activate, and dismiss sequence through the supplied viewport and proves an
+invalid compact Search composition cannot emit a launch request;
 Files Enter now activates only the selected visible content `ListRow` through
 that row's shared keyboard gate before preserving the existing confined folder
 navigation or read-only text-preview decision;
