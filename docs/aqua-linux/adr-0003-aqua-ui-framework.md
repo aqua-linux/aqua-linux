@@ -3,13 +3,14 @@
 ## Status
 
 Accepted on 2026-08-29. Framework consolidation began on 2026-09-01 after the
-core desktop functionality supplied real consumers. The first five bounded
+core desktop functionality supplied real consumers. The first six bounded
 slices replaced Settings Network's duplicated Wi-Fi row/action hit geometry,
 Files content-row render/input geometry, and launcher panel/child pointer
 routing with existing shared component contracts, then consolidated Files list
 and text-preview scrollbar layout behind one renderer-neutral model and routed
-both visible variants through the same bounded drag behavior; the broader
-consolidation remains in progress.
+both visible variants through the same bounded drag behavior. Files preview
+keyboard routing now targets the visible text instead of mutating the hidden
+file list; the broader consolidation remains in progress.
 
 ## Context
 

@@ -2996,6 +2996,9 @@ impl FilesNavigator {
 
     pub fn handle_key(&mut self, key: FilesKey) -> FilesNavigation {
         self.window.keyboard_focus = true;
+        if self.window.preview.is_some() {
+            return self.handle_preview_key(key);
+        }
         match key {
             FilesKey::Up => self.move_selection(-1),
             FilesKey::Down => self.move_selection(1),
@@ -3016,14 +3019,55 @@ impl FilesNavigator {
                     self.open_text_preview(index)
                 }
             }
+            FilesKey::Back => self.go_back(),
+        }
+    }
+
+    fn handle_preview_key(&mut self, key: FilesKey) -> FilesNavigation {
+        match key {
+            FilesKey::Up => self.handle_scroll(-1),
+            FilesKey::Down => self.handle_scroll(1),
+            FilesKey::PageUp => self.handle_scroll(-(FILES_PREVIEW_VISIBLE_LINES as isize)),
+            FilesKey::PageDown => self.handle_scroll(FILES_PREVIEW_VISIBLE_LINES as isize),
+            FilesKey::Home => self.set_preview_scroll_offset(0),
+            FilesKey::End => {
+                let maximum_offset = self
+                    .window
+                    .preview
+                    .as_ref()
+                    .map(|preview| {
+                        preview
+                            .content
+                            .lines()
+                            .count()
+                            .saturating_sub(FILES_PREVIEW_VISIBLE_LINES)
+                    })
+                    .unwrap_or(0);
+                self.set_preview_scroll_offset(maximum_offset)
+            }
+            FilesKey::Activate => FilesNavigation::None,
             FilesKey::Back => {
-                if self.window.preview.take().is_some() {
-                    FilesNavigation::PreviewClosed
-                } else {
-                    self.go_back()
-                }
+                self.window.preview = None;
+                FilesNavigation::PreviewClosed
             }
         }
+    }
+
+    fn set_preview_scroll_offset(&mut self, offset: usize) -> FilesNavigation {
+        let Some(preview) = self.window.preview.as_mut() else {
+            return FilesNavigation::None;
+        };
+        let maximum_offset = preview
+            .content
+            .lines()
+            .count()
+            .saturating_sub(FILES_PREVIEW_VISIBLE_LINES);
+        let offset = offset.min(maximum_offset);
+        if offset == preview.scroll_offset {
+            return FilesNavigation::None;
+        }
+        preview.scroll_offset = offset;
+        FilesNavigation::PreviewScrolled
     }
 
     fn move_selection(&mut self, offset: isize) -> FilesNavigation {
@@ -6022,6 +6066,38 @@ mod tests {
             navigator.window().preview.as_ref().unwrap().scroll_offset,
             2
         );
+        assert_eq!(
+            navigator.handle_key(FilesKey::Up),
+            FilesNavigation::PreviewScrolled
+        );
+        assert_eq!(
+            navigator.window().preview.as_ref().unwrap().scroll_offset,
+            1
+        );
+        assert_eq!(
+            navigator.handle_key(FilesKey::PageUp),
+            FilesNavigation::PreviewScrolled
+        );
+        assert_eq!(
+            navigator.window().preview.as_ref().unwrap().scroll_offset,
+            0
+        );
+        assert_eq!(navigator.handle_key(FilesKey::Home), FilesNavigation::None);
+        assert_eq!(
+            navigator.handle_key(FilesKey::End),
+            FilesNavigation::PreviewScrolled
+        );
+        assert_eq!(
+            navigator.window().preview.as_ref().unwrap().scroll_offset,
+            2
+        );
+        assert_eq!(navigator.handle_key(FilesKey::Down), FilesNavigation::None);
+        assert_eq!(
+            navigator.handle_key(FilesKey::Activate),
+            FilesNavigation::None
+        );
+        assert_eq!(navigator.window().selected_entry, Some(5));
+        assert_eq!(navigator.window().scroll_offset, 2);
         assert_eq!(
             navigator.handle_key(FilesKey::Back),
             FilesNavigation::PreviewClosed
