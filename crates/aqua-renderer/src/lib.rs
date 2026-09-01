@@ -7,12 +7,12 @@ use aqua_installer::{
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     desktop_context_menu_with_selection, desktop_grid_cell, files_back_button,
-    files_forward_button, files_toolbar, running_app_dock, top_system_bar, workspace_switcher,
-    AquaTheme, AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
-    FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
-    NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
-    TerminalView, TopBarState, DESKTOP_ICONS, FILES_PREVIEW_VISIBLE_LINES,
-    FILES_SIDEBAR_NAVIGATION, FILES_VISIBLE_ROWS, SETTINGS_SIDEBAR_NAVIGATION,
+    files_forward_button, files_sidebar_navigation, files_toolbar, running_app_dock,
+    top_system_bar, workspace_switcher, AquaTheme, AudioControlStatus, DesktopIconState,
+    DesktopPropertiesModel, DockItem, DockState, FilesEntryKind, FilesWindowModel,
+    LauncherCategory, LauncherMode, LauncherState, NotificationCenter, SessionAction,
+    SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView, TopBarState,
+    DESKTOP_ICONS, FILES_PREVIEW_VISIBLE_LINES, FILES_VISIBLE_ROWS, SETTINGS_SIDEBAR_NAVIGATION,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -4800,38 +4800,19 @@ pub fn render_files_window_rgba_with_theme(
     );
 
     let sidebar_width = 170;
-    let sidebar = Rect {
-        x: 2,
-        y: 108,
-        width: sidebar_width,
-        height: height.saturating_sub(110),
-    };
-    let navigation = SidebarNavigation::new(
-        sidebar,
-        FILES_SIDEBAR_NAVIGATION.label,
-        FILES_SIDEBAR_NAVIGATION.first_row,
-        FILES_SIDEBAR_NAVIGATION.row_stride,
-    );
+    let navigation = files_sidebar_navigation(height);
     primitives += draw_sidebar_navigation(&mut buffer, width, height, navigation, theme);
-    for (index, item) in model.sidebar_items.iter().enumerate() {
-        let row_rect = navigation.row_rect(index);
-        let state = if model.keyboard_focus && model.focused_sidebar == Some(index) {
-            ComponentState::KeyboardFocus
-        } else if index == model.selected_sidebar {
-            ComponentState::Selected
-        } else if model.hovered_sidebar == Some(index) {
-            ComponentState::Hover
-        } else {
-            ComponentState::Idle
+    for index in 0..model.sidebar_items.len() {
+        let Some(row) = model.sidebar_row(height, index) else {
+            continue;
         };
-        let row = ListRow::new(row_rect, item, ListRowRole::Navigation).with_state(state);
         primitives += draw_list_row(&mut buffer, width, height, row, theme, OutputScale::One);
         draw_sidebar_icon(
             &mut buffer,
             width,
             height,
             row.slots().leading.x + 2,
-            row_rect.y + 9,
+            row.rect.y + 9,
             index,
         );
         primitives += 1;
