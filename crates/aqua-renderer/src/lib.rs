@@ -6,13 +6,13 @@ use aqua_installer::{
 };
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
-    desktop_context_menu_with_selection, desktop_grid_cell, files_back_button,
-    files_empty_state_layout, files_forward_button, files_preview_visible_lines,
-    files_sidebar_navigation, files_toolbar, files_visible_rows, running_app_dock, top_system_bar,
-    workspace_switcher, AquaTheme, AudioControlStatus, DesktopIconState, DesktopPropertiesModel,
-    DockItem, DockState, FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode,
-    LauncherState, NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel,
-    SystemOverviewModel, TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_SIDEBAR_NAVIGATION,
+    desktop_context_menu_with_selection, desktop_grid_cell, files_empty_state_layout,
+    files_preview_visible_lines, files_sidebar_navigation, files_toolbar_layout,
+    files_visible_rows, running_app_dock, top_system_bar, workspace_switcher, AquaTheme,
+    AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
+    FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
+    NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
+    TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_SIDEBAR_NAVIGATION,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -2561,6 +2561,7 @@ fn draw_session_action_icon(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesWindowProbe {
     pub rendered: bool,
+    pub toolbar_rendered: bool,
     pub sidebar_item_count: usize,
     pub entry_count: usize,
     pub selected_sidebar: usize,
@@ -4705,6 +4706,7 @@ pub fn render_settings_window_rgba(
 impl FilesWindowProbe {
     pub fn is_ready(&self) -> bool {
         self.rendered
+            && self.toolbar_rendered
             && self.sidebar_item_count == 5
             && self.selected_sidebar < self.sidebar_item_count
             && self.primitive_count >= 19
@@ -4732,6 +4734,7 @@ pub fn render_files_window_rgba_with_theme(
             buffer,
             FilesWindowProbe {
                 rendered: false,
+                toolbar_rendered: false,
                 sidebar_item_count: model.sidebar_items.len(),
                 entry_count: model.entries.len(),
                 selected_sidebar: model.selected_sidebar,
@@ -4757,47 +4760,56 @@ pub fn render_files_window_rgba_with_theme(
         palette,
     );
 
-    let toolbar = files_toolbar(width);
-    primitives += draw_toolbar(&mut buffer, width, height, toolbar, theme);
-    primitives += draw_icon_button(
-        &mut buffer,
-        width,
-        height,
-        files_back_button().with_state(if model.can_go_back {
-            ComponentState::Idle
-        } else {
-            ComponentState::Disabled
-        }),
-        theme,
-    );
-    primitives += draw_icon_button(
-        &mut buffer,
-        width,
-        height,
-        files_forward_button().with_state(if model.can_go_forward {
-            ComponentState::Idle
-        } else {
-            ComponentState::Disabled
-        }),
-        theme,
-    );
-    let location = Rect {
-        x: 96,
-        y: 64,
-        width: width.saturating_sub(118),
-        height: 32,
-    };
-    fill_rect(&mut buffer, width, height, location, palette.field, 255);
-    draw_rect_outline(&mut buffer, width, height, location, palette.border, 255);
-    primitives += 2;
-    draw_bitmap_text(
-        &mut buffer,
-        (width, height),
-        (location.x + 14, location.y + 10),
-        &model.location,
-        palette.text,
-        1,
-    );
+    if let Some(toolbar) = files_toolbar_layout(width, height) {
+        primitives += draw_toolbar(&mut buffer, width, height, toolbar.toolbar, theme);
+        primitives += draw_icon_button(
+            &mut buffer,
+            width,
+            height,
+            toolbar.back.with_state(if model.can_go_back {
+                ComponentState::Idle
+            } else {
+                ComponentState::Disabled
+            }),
+            theme,
+        );
+        primitives += draw_icon_button(
+            &mut buffer,
+            width,
+            height,
+            toolbar.forward.with_state(if model.can_go_forward {
+                ComponentState::Idle
+            } else {
+                ComponentState::Disabled
+            }),
+            theme,
+        );
+        fill_rect(
+            &mut buffer,
+            width,
+            height,
+            toolbar.location,
+            palette.field,
+            255,
+        );
+        draw_rect_outline(
+            &mut buffer,
+            width,
+            height,
+            toolbar.location,
+            palette.border,
+            255,
+        );
+        primitives += 2;
+        draw_bitmap_text(
+            &mut buffer,
+            (width, height),
+            (toolbar.location.x + 14, toolbar.location.y + 10),
+            &model.location,
+            palette.text,
+            1,
+        );
+    }
 
     let sidebar_width = 170;
     let navigation = files_sidebar_navigation(height);
@@ -5020,6 +5032,7 @@ pub fn render_files_window_rgba_with_theme(
         buffer,
         FilesWindowProbe {
             rendered: true,
+            toolbar_rendered: files_toolbar_layout(width, height).is_some(),
             sidebar_item_count: model.sidebar_items.len(),
             entry_count: model.entries.len(),
             selected_sidebar: model.selected_sidebar,
@@ -8837,6 +8850,7 @@ mod tests {
     fn files_window_renders_sidebar_location_entries_and_empty_state() {
         let (home, home_probe) = render_files_window_rgba(640, 420, &FilesWindowModel::default());
         assert!(home_probe.is_ready());
+        assert!(home_probe.toolbar_rendered);
         assert_eq!(home_probe.entry_count, 4);
         assert!(!home_probe.empty_state_rendered);
         assert_eq!(home.len(), 640 * 420 * 4);
@@ -8864,6 +8878,15 @@ mod tests {
         assert_eq!(narrow_empty.len(), 475 * 420 * 4);
         assert!(narrow_empty_probe.rendered);
         assert!(!narrow_empty_probe.empty_state_rendered);
+
+        let (_, narrow_toolbar_probe) =
+            render_files_window_rgba(213, 420, &FilesWindowModel::default());
+        assert!(narrow_toolbar_probe.rendered);
+        assert!(!narrow_toolbar_probe.toolbar_rendered);
+        let (_, short_toolbar_probe) =
+            render_files_window_rgba(640, 107, &FilesWindowModel::default());
+        assert!(short_toolbar_probe.rendered);
+        assert!(!short_toolbar_probe.toolbar_rendered);
 
         let mut selected = FilesWindowModel::default();
         selected.select_at(640, 220, 140);

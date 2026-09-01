@@ -1800,7 +1800,7 @@ grep -Fq 'WindowFrame::new(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'StandardButton::new(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'ListRow::new(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'launcher.search_field(' crates/aqua-renderer/src/lib.rs
-grep -Fq 'files_toolbar(width)' crates/aqua-renderer/src/lib.rs
+grep -Fq 'files_toolbar_layout(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'desktop_context_menu_with_selection(index, selected_row).map' crates/aqua-renderer/src/lib.rs
 grep -Fq 'desktop_context_menu_with_selection(icon_index, self.context_menu_selected_row)?' crates/aqua-shell/src/lib.rs
 grep -Fq 'ListNavigation::new(self.window.entries.len(), visible_rows)' crates/aqua-shell/src/lib.rs
@@ -1834,7 +1834,7 @@ grep -Fq 'MetadataRow::new(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'top_system_bar(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'top_system_bar_session_hit(' crates/aqua-compositor/src/lib.rs
 grep -Fq 'menu.menu_layout(width, height)' crates/aqua-renderer/src/lib.rs
-grep -Fq 'files_back_button().with_state(' crates/aqua-renderer/src/lib.rs
+grep -Fq 'toolbar.back.with_state(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.active_switch()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.theme_segmented_control()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.audio_slider()' crates/aqua-renderer/src/lib.rs
