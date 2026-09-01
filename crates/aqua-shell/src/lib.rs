@@ -1500,6 +1500,38 @@ impl DesktopPropertiesModel {
         }
     }
 
+    pub fn primary_action_button(
+        &self,
+        width: u32,
+        height: u32,
+    ) -> Option<StandardButton<'static>> {
+        let details = self.details_section_group(width, height);
+        if !details.is_valid() {
+            return None;
+        }
+        let rect = details.footer_trailing_rect(138, 30);
+        if rect.width == 0 || rect.height == 0 {
+            return None;
+        }
+        Some(StandardButton::new(
+            rect,
+            self.primary_action().label(),
+            StandardButtonVariant::Primary,
+        ))
+    }
+
+    pub fn primary_action_at(
+        &self,
+        width: u32,
+        height: u32,
+        x: u32,
+        y: u32,
+    ) -> Option<DesktopPropertiesAction> {
+        self.primary_action_button(width, height)
+            .filter(|button| button.pointer_hit(x, y))
+            .map(|_| self.primary_action())
+    }
+
     pub fn details_section_group(&self, width: u32, height: u32) -> SectionGroup<'_> {
         SectionGroup::new(
             Rect {
@@ -5588,6 +5620,27 @@ mod tests {
         assert!(details.is_valid());
         assert_eq!(details.row_rect(0).y, 192);
         assert_eq!(details.footer_trailing_rect(138, 30).x, 302);
+        let action_button = files
+            .primary_action_button(480, 300)
+            .expect("Properties action should fit the shared footer");
+        assert_eq!(action_button.label, "Refresh Contents");
+        assert_eq!(action_button.variant, StandardButtonVariant::Primary);
+        assert_eq!(action_button.rect, details.footer_trailing_rect(138, 30));
+        assert_eq!(action_button.accessibility().role, "button");
+        assert_eq!(
+            files.primary_action_at(480, 300, action_button.rect.x, action_button.rect.y),
+            Some(DesktopPropertiesAction::RefreshContents)
+        );
+        assert_eq!(
+            files.primary_action_at(
+                480,
+                300,
+                action_button.rect.right(),
+                action_button.rect.bottom() - 1,
+            ),
+            None
+        );
+        assert_eq!(files.primary_action_button(480, 250), None);
         let location = files.details_metadata_row(480, 300, 0, "Location", &files.location);
         assert!(location.is_valid());
         assert_eq!(location.slots().label.width, 80);

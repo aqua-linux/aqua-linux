@@ -59,7 +59,7 @@ def main() -> int:
             environment = os.environ | {
                 "AQUA_QEMU_INPUT_CONTROL_SOCKET": str(control)
             }
-            for mode in ("basic", "properties-refresh", "close-properties"):
+            for mode in ("basic", "properties-refresh-pointer", "close-properties"):
                 subprocess.run(
                     ["python3", str(HELPER), str(monitor), mode],
                     check=True,
@@ -92,7 +92,12 @@ def main() -> int:
             "mouse_button 1",
             "sendkey b 100",
             "mouse_button 0",
-            "sendkey f5 100",
+            "info mice",
+            "mouse_set 4",
+            "mouse_move -3000 -3000",
+            "mouse_move 480 315",
+            "mouse_button 1",
+            "mouse_button 0",
             "sendkey alt-f4 250",
         ]
         if commands != expected:

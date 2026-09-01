@@ -815,6 +815,10 @@ Settings About now consumes three shared read-only metadata rows for Product,
 Status, and Base. The rows expose definition semantics, keep `Prototype`
 explicit, and identify the pinned Buildroot 2025.02.17 LTS base without
 claiming release readiness or physical-hardware support.
+Properties now renders and pointer-activates its Refresh Contents or Verify
+Application footer action through one shared `StandardButton`. Compact layouts
+that cannot contain the complete section omit the button and reject its hit;
+the model still owns the selected action and the existing F5 shortcut remains.
 Further extractions must continue from real first-party consumers and repeat
 the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a
