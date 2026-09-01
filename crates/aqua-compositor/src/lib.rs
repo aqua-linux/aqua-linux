@@ -83,6 +83,27 @@ pub fn top_system_bar_session_hit(viewport: Viewport, pointer_x: u32, pointer_y:
         })
 }
 
+pub fn bottom_shell_pointer_target(
+    viewport: Viewport,
+    pointer_x: u32,
+    pointer_y: u32,
+) -> Option<BottomShellTarget> {
+    let rect = static_shell_scene(viewport).surface_rect(SurfaceKind::Dock)?;
+    if pointer_x < rect.x
+        || pointer_x >= rect.right()
+        || pointer_y < rect.y
+        || pointer_y >= rect.bottom()
+    {
+        return None;
+    }
+    dock_pointer_target(
+        pointer_x - rect.x,
+        pointer_y - rect.y,
+        rect.width,
+        rect.height,
+    )
+}
+
 pub fn notification_dismiss_hit(
     rect: Rect,
     source: &str,
@@ -9621,29 +9642,11 @@ impl SmithayDrmSession {
                 println!("desktop_top_system_bar_session_activated=true");
                 return true;
             }
-            let dock_target = static_shell_scene(Viewport::new(800, 600))
-                .surface_rect(SurfaceKind::Dock)
-                .and_then(|canonical| {
-                    let rect = aqua_scene::Rect {
-                        x: canonical.x * output_width / 800,
-                        y: canonical.y * output_height / 600,
-                        width: canonical.width * output_width / 800,
-                        height: canonical.height * output_height / 600,
-                    };
-                    let x = pointer_x as u32;
-                    let y = pointer_y as u32;
-                    ((rect.x..rect.x + rect.width).contains(&x)
-                        && (rect.y..rect.y + rect.height).contains(&y))
-                    .then(|| {
-                        dock_pointer_target(
-                            (x - rect.x) * canonical.width / rect.width.max(1),
-                            (y - rect.y) * canonical.height / rect.height.max(1),
-                            canonical.width,
-                            canonical.height,
-                        )
-                    })
-                    .flatten()
-                });
+            let dock_target = bottom_shell_pointer_target(
+                Viewport::new(output_width, output_height),
+                pointer_x as u32,
+                pointer_y as u32,
+            );
             if let Some(target) = dock_target {
                 println!("desktop_bottom_shell_activation={target:?}");
                 match target {
@@ -14322,6 +14325,57 @@ mod tests {
     }
 
     #[test]
+    fn bottom_shell_routes_the_actual_viewport_dock_geometry() {
+        let viewport = Viewport::new(1536, 1024);
+        let dock = static_shell_scene(viewport)
+            .surface_rect(SurfaceKind::Dock)
+            .expect("Dock geometry should exist");
+        assert_eq!(
+            dock,
+            Rect {
+                x: 388,
+                y: 928,
+                width: 760,
+                height: 72,
+            }
+        );
+        assert_eq!(
+            bottom_shell_pointer_target(viewport, dock.x + 32, dock.y + 36),
+            Some(BottomShellTarget::Applications)
+        );
+        assert_eq!(
+            bottom_shell_pointer_target(
+                viewport,
+                dock.x + dock.width - 60 * WORKSPACE_COUNT as u32 + 30,
+                dock.y + dock.height / 2,
+            ),
+            Some(BottomShellTarget::Workspace(0))
+        );
+        assert_eq!(
+            bottom_shell_pointer_target(viewport, dock.x + 64, dock.y + 36),
+            None
+        );
+        assert_eq!(
+            bottom_shell_pointer_target(viewport, dock.right(), dock.y + 36),
+            None
+        );
+        assert_eq!(
+            bottom_shell_pointer_target(viewport, dock.x + 32, dock.bottom()),
+            None
+        );
+
+        let canonical = static_shell_scene(Viewport::new(800, 600))
+            .surface_rect(SurfaceKind::Dock)
+            .expect("Canonical Dock geometry should exist");
+        let legacy_scaled_x = (canonical.x + canonical.width - 30) * viewport.width / 800;
+        let legacy_scaled_y = (canonical.y + canonical.height / 2) * viewport.height / 600;
+        assert_eq!(
+            bottom_shell_pointer_target(viewport, legacy_scaled_x, legacy_scaled_y),
+            None
+        );
+    }
+
+    #[test]
     fn shared_notification_routes_only_the_dismiss_control() {
         let rect = Rect {
             x: 1152,
@@ -15491,12 +15545,11 @@ mod tests {
         assert_eq!(session.active_workspace(), 0);
 
         assert!(session.activate_workspace(1, 98));
-        let dock = static_shell_scene(Viewport::new(800, 600))
+        let dock = static_shell_scene(Viewport::new(1536, 1024))
             .surface_rect(SurfaceKind::Dock)
             .expect("Dock geometry should exist");
-        let canonical_x = dock.width - 60 * WORKSPACE_COUNT as u32 + 30;
-        let pointer_x = (dock.x + canonical_x) * 1536 / 800;
-        let pointer_y = (dock.y + dock.height / 2) * 1024 / 600;
+        let pointer_x = dock.x + dock.width - 60 * WORKSPACE_COUNT as u32 + 30;
+        let pointer_y = dock.y + dock.height / 2;
         let input = session.input_snapshot();
         assert!(session.dispatch_pointer_motion(
             f64::from(pointer_x) - f64::from(input.pointer_x),
@@ -15507,8 +15560,8 @@ mod tests {
         assert_eq!(session.active_workspace(), 0);
         assert!(session.present_client_surface(100));
         let input = session.input_snapshot();
-        assert_eq!(input.pointer_x, 768);
-        assert_eq!(input.pointer_y, 512);
+        assert_eq!(input.pointer_x, pointer_x);
+        assert_eq!(input.pointer_y, pointer_y);
         assert!(!session.raise_surface_with_app_id("aqua.unknown"));
         assert_eq!(
             session.active_toplevel_app_id().as_deref(),

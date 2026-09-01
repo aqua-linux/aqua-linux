@@ -539,7 +539,10 @@ run covers this shared primitive.
   launch requests and duplicate-instance behavior remain unchanged.
 - Both cached-icon and deterministic renderer paths use the shared surface,
   visual, raster, and running-indicator geometry. Shell and compositor input use
-  the same item lookup.
+  the same item lookup. The compositor resolves the outer dock against the
+  actual output viewport's scene rectangle, subtracts that real origin, and
+  passes its unchanged width and height into the shared local lookup. It no
+  longer scales the 800-by-600 reference dock into a different hit surface.
 
 The deterministic matrix covers item boundaries, visual/raster centering,
 running status, accessibility semantics, four themes, and the three required
@@ -668,16 +671,18 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first six
+All catalog entries now satisfy the shared primitive contract. The first seven
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
 shared contracts, then complete active scrollbar drag parity for Files text
 preview. Files preview keyboard routing now applies arrows, Page Up/Down, Home,
 and End to the visible text while preserving the hidden list selection and
-offset; activation is inert and Back closes the preview. Further
-extractions must continue from real first-party consumers and repeat the same
-geometry, input, accessibility, deterministic-fixture, and packaged-QEMU
+offset; activation is inert and Back closes the preview. Bottom-shell pointer
+routing now uses the actual viewport's scene geometry for its outer surface and
+local targets. Further extractions must continue from real
+first-party consumers and repeat the same geometry, input, accessibility,
+deterministic-fixture, and packaged-QEMU
 evidence path. The actual audio service/backend remains a separate R4 decision
 and acceptance item; the Settings preference must not be treated as playback
 or hardware evidence.
