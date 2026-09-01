@@ -13939,9 +13939,11 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
                 return;
             }
             let files_width = state.buffer_width.max(1);
+            let files_height = state.buffer_height.max(1);
             if let (Some(files_key), Some(navigator)) = (files_key, state.files_navigator.as_mut())
             {
-                let navigation = navigator.handle_key(files_width, files_key);
+                let navigation =
+                    navigator.handle_key_in_viewport(files_width, files_height, files_key);
                 println!("aqua_files_keyboard key={key} navigation={navigation:?}");
                 if navigation.changed() {
                     state.files_model = Some(navigator.window().clone());

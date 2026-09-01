@@ -1815,10 +1815,11 @@ grep -Fq 'navigate_selection_in_viewport(' crates/aqua-shell/src/lib.rs
 grep -Fq 'handle_event_in_viewport(' crates/aqua-shell/src/lib.rs
 grep -Fq 'self.launcher_state.handle_event_in_viewport(' crates/aqua-compositor/src/lib.rs
 grep -Fq 'launcher.handle_event_in_viewport(LauncherEvent::Activate, viewport.width, viewport.height)' crates/aqua-compositor/src/lib.rs
-grep -Fq 'navigator.handle_key(files_width, files_key)' crates/aqua-compositor/src/lib.rs
-grep -Fq 'FILES_SIDEBAR_NAVIGATION.keyboard_target(' crates/aqua-shell/src/lib.rs
+grep -Fq 'navigator.handle_key_in_viewport(files_width, files_height, files_key)' crates/aqua-compositor/src/lib.rs
+grep -Fq 'files_sidebar_navigation(height).keyboard_target(' crates/aqua-shell/src/lib.rs
 grep -Fq 'files_key_for_code(key)' crates/aqua-compositor/src/lib.rs
 grep -Fq 'self.window.selected_sidebar = previously_selected_sidebar' crates/aqua-shell/src/lib.rs
+grep -Fq 'sidebar_row(height, index)' crates/aqua-shell/src/lib.rs
 grep -Fq 'details_section_group(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.section_group()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'details_metadata_row(width, height' crates/aqua-renderer/src/lib.rs

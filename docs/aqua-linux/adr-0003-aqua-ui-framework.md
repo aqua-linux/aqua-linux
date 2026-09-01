@@ -3,7 +3,7 @@
 ## Status
 
 Accepted on 2026-08-29. Framework consolidation began on 2026-09-01 after the
-core desktop functionality supplied real consumers. The first twenty-four bounded
+core desktop functionality supplied real consumers. The first twenty-five bounded
 slices replaced Settings Network's duplicated Wi-Fi row/action hit geometry,
 Files content-row render/input geometry, and launcher panel/child pointer
 routing with existing shared component contracts, then consolidated Files list
@@ -62,6 +62,9 @@ sidebar cursor; its Up/Down/Home/End movement consumes the shared
 clears keyboard focus, and text preview retains key ownership;
 blocked Files sidebar navigation now restores the prior active location and
 content selection instead of rendering a destination that was never opened;
+Files sidebar rendering, keyboard navigation, and Enter activation now consume
+one shared row built for the actual client height, so compact layouts that
+cannot contain every location fail closed instead of targeting hidden rows;
 the broader consolidation remains in progress.
 
 ## Context
