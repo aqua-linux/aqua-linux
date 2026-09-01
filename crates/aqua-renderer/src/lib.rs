@@ -4815,7 +4815,9 @@ pub fn render_files_window_rgba_with_theme(
     primitives += draw_sidebar_navigation(&mut buffer, width, height, navigation, theme);
     for (index, item) in model.sidebar_items.iter().enumerate() {
         let row_rect = navigation.row_rect(index);
-        let state = if index == model.selected_sidebar {
+        let state = if model.keyboard_focus && model.focused_sidebar == Some(index) {
+            ComponentState::KeyboardFocus
+        } else if index == model.selected_sidebar {
             ComponentState::Selected
         } else if model.hovered_sidebar == Some(index) {
             ComponentState::Hover
@@ -4971,7 +4973,7 @@ pub fn render_files_window_rgba_with_theme(
         }
     }
 
-    if model.keyboard_focus {
+    if model.keyboard_focus && model.focused_sidebar.is_none() {
         let focus = Rect {
             x: sidebar_width + 6,
             y: 112,
@@ -8864,6 +8866,14 @@ mod tests {
         selected.select_at(640, 220, 140);
         let (_, selected_probe) = render_files_window_rgba(640, 420, &selected);
         assert_ne!(home_probe.checksum, selected_probe.checksum);
+
+        let sidebar_focused = FilesWindowModel {
+            keyboard_focus: true,
+            focused_sidebar: Some(1),
+            ..FilesWindowModel::default()
+        };
+        let (_, sidebar_focused_probe) = render_files_window_rgba(640, 420, &sidebar_focused);
+        assert_ne!(home_probe.checksum, sidebar_focused_probe.checksum);
     }
 
     #[test]

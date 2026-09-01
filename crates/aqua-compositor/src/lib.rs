@@ -11317,6 +11317,23 @@ fn settings_key_for_code(code: u32) -> Option<aqua_shell::SettingsKey> {
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn files_key_for_code(code: u32) -> Option<aqua_shell::FilesKey> {
+    Some(match code {
+        105 => aqua_shell::FilesKey::Left,
+        106 => aqua_shell::FilesKey::Right,
+        103 => aqua_shell::FilesKey::Up,
+        108 => aqua_shell::FilesKey::Down,
+        104 => aqua_shell::FilesKey::PageUp,
+        109 => aqua_shell::FilesKey::PageDown,
+        102 => aqua_shell::FilesKey::Home,
+        107 => aqua_shell::FilesKey::End,
+        28 => aqua_shell::FilesKey::Activate,
+        14 => aqua_shell::FilesKey::Back,
+        _ => return None,
+    })
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl CompositorHandler for WaylandSmokeState {
     fn compositor_state(&mut self) -> &mut CompositorState {
         &mut self.compositor_state
@@ -13916,17 +13933,7 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
                 }
                 return;
             }
-            let files_key = match key {
-                103 => Some(aqua_shell::FilesKey::Up),
-                108 => Some(aqua_shell::FilesKey::Down),
-                104 => Some(aqua_shell::FilesKey::PageUp),
-                109 => Some(aqua_shell::FilesKey::PageDown),
-                102 => Some(aqua_shell::FilesKey::Home),
-                107 => Some(aqua_shell::FilesKey::End),
-                28 => Some(aqua_shell::FilesKey::Activate),
-                14 => Some(aqua_shell::FilesKey::Back),
-                _ => None,
-            };
+            let files_key = files_key_for_code(key);
             if key == 63 && state.properties_model.is_some() {
                 state.refresh_properties(qh);
                 return;
@@ -15415,6 +15422,16 @@ mod tests {
             "files"
         );
         assert!(!application_session.launcher_state_snapshot().is_open());
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn smithay_files_keycodes_include_sidebar_focus_routing() {
+        assert_eq!(files_key_for_code(105), Some(aqua_shell::FilesKey::Left));
+        assert_eq!(files_key_for_code(106), Some(aqua_shell::FilesKey::Right));
+        assert_eq!(files_key_for_code(103), Some(aqua_shell::FilesKey::Up));
+        assert_eq!(files_key_for_code(28), Some(aqua_shell::FilesKey::Activate));
+        assert_eq!(files_key_for_code(1), None);
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]

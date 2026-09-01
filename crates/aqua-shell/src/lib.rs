@@ -2672,6 +2672,7 @@ pub struct FilesWindowModel {
     pub can_go_forward: bool,
     pub scroll_offset: usize,
     pub keyboard_focus: bool,
+    pub focused_sidebar: Option<usize>,
     pub preview: Option<FilesTextPreview>,
     pub entries: Vec<FilesEntry>,
 }
@@ -2739,6 +2740,7 @@ impl Default for FilesWindowModel {
             can_go_forward: false,
             scroll_offset: 0,
             keyboard_focus: false,
+            focused_sidebar: None,
             preview: None,
             entries: vec![
                 FilesEntry {
@@ -3033,18 +3035,18 @@ impl FilesNavigator {
 
     pub fn handle_pointer(&mut self, width: u32, x: u32, y: u32) -> FilesNavigation {
         let previously_selected = self.window.selected_entry;
-        match self.window.select_at(width, x, y) {
+        let selection = self.window.select_at(width, x, y);
+        if selection != FilesSelection::None {
+            self.window.keyboard_focus = false;
+            self.window.focused_sidebar = None;
+        }
+        match selection {
             FilesSelection::None => FilesNavigation::None,
             FilesSelection::Back => self.go_back(),
             FilesSelection::Forward => self.go_forward(),
             FilesSelection::Sidebar(index) => {
-                let destination = match index {
-                    0 => self.root.clone(),
-                    1 => self.root.join("Documents"),
-                    2 => self.root.join("Downloads"),
-                    3 => self.root.join("Pictures"),
-                    4 => self.root.join("Trash"),
-                    _ => return FilesNavigation::None,
+                let Some(destination) = self.sidebar_destination(index) else {
+                    return FilesNavigation::None;
                 };
                 self.navigate(destination, Some(index))
             }
@@ -3131,6 +3133,30 @@ impl FilesNavigator {
             return self.handle_preview_key(key);
         }
         match key {
+            FilesKey::Left => {
+                let focused = self.window.selected_sidebar;
+                self.window.focused_sidebar = Some(focused);
+                FilesNavigation::FocusedSidebar(focused)
+            }
+            FilesKey::Right if self.window.focused_sidebar.take().is_some() => {
+                FilesNavigation::FocusedContent
+            }
+            FilesKey::Right => FilesNavigation::None,
+            FilesKey::Up if self.window.focused_sidebar.is_some() => {
+                self.navigate_sidebar(SidebarNavigationKey::Previous)
+            }
+            FilesKey::Down if self.window.focused_sidebar.is_some() => {
+                self.navigate_sidebar(SidebarNavigationKey::Next)
+            }
+            FilesKey::Home if self.window.focused_sidebar.is_some() => {
+                self.navigate_sidebar(SidebarNavigationKey::Home)
+            }
+            FilesKey::End if self.window.focused_sidebar.is_some() => {
+                self.navigate_sidebar(SidebarNavigationKey::End)
+            }
+            FilesKey::PageUp | FilesKey::PageDown if self.window.focused_sidebar.is_some() => {
+                FilesNavigation::None
+            }
             FilesKey::Up => self.navigate_list(ListNavigationKey::Previous),
             FilesKey::Down => self.navigate_list(ListNavigationKey::Next),
             FilesKey::PageUp => self.navigate_list(ListNavigationKey::PagePrevious),
@@ -3138,6 +3164,12 @@ impl FilesNavigator {
             FilesKey::Home => self.navigate_list(ListNavigationKey::Home),
             FilesKey::End => self.navigate_list(ListNavigationKey::End),
             FilesKey::Activate => {
+                if let Some(index) = self.window.focused_sidebar {
+                    let Some(destination) = self.sidebar_destination(index) else {
+                        return FilesNavigation::None;
+                    };
+                    return self.navigate(destination, Some(index));
+                }
                 let Some(index) = self.window.selected_entry else {
                     return FilesNavigation::None;
                 };
@@ -3183,6 +3215,7 @@ impl FilesNavigator {
                     .unwrap_or(0);
                 self.set_preview_scroll_offset(maximum_offset)
             }
+            FilesKey::Left | FilesKey::Right => FilesNavigation::None,
             FilesKey::Activate => FilesNavigation::None,
             FilesKey::Back => {
                 self.window.preview = None;
@@ -3220,6 +3253,21 @@ impl FilesNavigator {
         self.window.selected_entry = Some(selected);
         self.window.scroll_offset = scroll_offset;
         FilesNavigation::Selected(selected)
+    }
+
+    fn navigate_sidebar(&mut self, key: SidebarNavigationKey) -> FilesNavigation {
+        let Some(selected) = self.window.focused_sidebar else {
+            return FilesNavigation::None;
+        };
+        let Some(focused) = FILES_SIDEBAR_NAVIGATION.keyboard_target(
+            selected,
+            self.window.sidebar_items.len(),
+            key,
+        ) else {
+            return FilesNavigation::None;
+        };
+        self.window.focused_sidebar = Some(focused);
+        FilesNavigation::FocusedSidebar(focused)
     }
 
     fn open_text_preview(&mut self, index: usize) -> FilesNavigation {
@@ -3276,6 +3324,8 @@ impl FilesNavigator {
             return FilesNavigation::Blocked;
         };
         window.selected_sidebar = sidebar.unwrap_or_else(|| self.sidebar_for(&destination));
+        window.keyboard_focus = self.window.keyboard_focus;
+        window.focused_sidebar = self.window.focused_sidebar;
         self.back.push(self.current.clone());
         self.forward.clear();
         self.current = destination;
@@ -3292,6 +3342,8 @@ impl FilesNavigator {
             return FilesNavigation::Blocked;
         };
         window.selected_sidebar = self.sidebar_for(&destination);
+        window.keyboard_focus = self.window.keyboard_focus;
+        window.focused_sidebar = self.window.focused_sidebar;
         self.forward.push(self.current.clone());
         self.current = destination;
         self.window = window;
@@ -3307,6 +3359,8 @@ impl FilesNavigator {
             return FilesNavigation::Blocked;
         };
         window.selected_sidebar = self.sidebar_for(&destination);
+        window.keyboard_focus = self.window.keyboard_focus;
+        window.focused_sidebar = self.window.focused_sidebar;
         self.back.push(self.current.clone());
         self.current = destination;
         self.window = window;
@@ -3321,6 +3375,11 @@ impl FilesNavigator {
             .unwrap_or(0)
     }
 
+    fn sidebar_destination(&self, index: usize) -> Option<PathBuf> {
+        let name = ["", "Documents", "Downloads", "Pictures", "Trash"].get(index)?;
+        Some(self.root.join(name))
+    }
+
     fn sync_history_state(&mut self) {
         self.window.can_go_back = !self.back.is_empty();
         self.window.can_go_forward = !self.forward.is_empty();
@@ -3329,6 +3388,8 @@ impl FilesNavigator {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesKey {
+    Left,
+    Right,
     Up,
     Down,
     PageUp,
@@ -3342,6 +3403,8 @@ pub enum FilesKey {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesNavigation {
     None,
+    FocusedSidebar(usize),
+    FocusedContent,
     Selected(usize),
     SelectedSidebar(usize),
     Navigated,
@@ -6387,6 +6450,73 @@ mod tests {
         assert_eq!(navigator.current(), canonical_home.join("Pictures"));
 
         fs::remove_dir_all(root).expect("remove navigation fixture");
+    }
+
+    #[test]
+    fn files_sidebar_keyboard_focus_uses_shared_navigation_before_activation() {
+        let root = std::env::temp_dir().join(format!(
+            "aqua-files-sidebar-keyboard-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(root.join("Documents")).expect("Documents fixture");
+        fs::create_dir_all(root.join("Downloads")).expect("Downloads fixture");
+        fs::create_dir_all(root.join("Pictures")).expect("Pictures fixture");
+        fs::create_dir_all(root.join("Trash")).expect("Trash fixture");
+        let canonical_root = root.canonicalize().expect("canonical root fixture");
+
+        let mut navigator = FilesNavigator::open(&root).expect("navigator should open");
+        assert_eq!(
+            navigator.handle_key(640, FilesKey::Left),
+            FilesNavigation::FocusedSidebar(0)
+        );
+        assert_eq!(
+            navigator.handle_key(640, FilesKey::Up),
+            FilesNavigation::FocusedSidebar(4)
+        );
+        assert_eq!(navigator.window().selected_sidebar, 0);
+        assert_eq!(navigator.current(), canonical_root);
+        assert_eq!(
+            navigator.handle_key(640, FilesKey::Home),
+            FilesNavigation::FocusedSidebar(0)
+        );
+        assert_eq!(
+            navigator.handle_key(640, FilesKey::Down),
+            FilesNavigation::FocusedSidebar(1)
+        );
+        assert_eq!(
+            navigator.handle_key(640, FilesKey::PageDown),
+            FilesNavigation::None
+        );
+        assert_eq!(
+            navigator.handle_key(640, FilesKey::Activate),
+            FilesNavigation::Navigated
+        );
+        assert_eq!(navigator.current(), canonical_root.join("Documents"));
+        assert_eq!(navigator.window().selected_sidebar, 1);
+        assert_eq!(navigator.window().focused_sidebar, Some(1));
+        assert!(navigator.window().keyboard_focus);
+        assert_eq!(
+            navigator.handle_key(640, FilesKey::Right),
+            FilesNavigation::FocusedContent
+        );
+        assert_eq!(navigator.window().focused_sidebar, None);
+
+        assert_eq!(
+            navigator.handle_key(640, FilesKey::Left),
+            FilesNavigation::FocusedSidebar(1)
+        );
+        assert_eq!(
+            navigator.handle_pointer(640, 40, 140),
+            FilesNavigation::Navigated
+        );
+        assert!(!navigator.window().keyboard_focus);
+        assert_eq!(navigator.window().focused_sidebar, None);
+
+        fs::remove_dir_all(root).expect("remove sidebar keyboard fixture");
     }
 
     #[test]
