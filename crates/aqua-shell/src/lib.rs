@@ -3125,7 +3125,7 @@ impl FilesNavigator {
         FilesNavigation::Scrolled
     }
 
-    pub fn handle_key(&mut self, key: FilesKey) -> FilesNavigation {
+    pub fn handle_key(&mut self, width: u32, key: FilesKey) -> FilesNavigation {
         self.window.keyboard_focus = true;
         if self.window.preview.is_some() {
             return self.handle_preview_key(key);
@@ -3141,6 +3141,13 @@ impl FilesNavigator {
                 let Some(index) = self.window.selected_entry else {
                     return FilesNavigation::None;
                 };
+                if !self
+                    .window
+                    .entry_row(width, index)
+                    .is_some_and(|row| row.keyboard_activates(ActivationKey::Enter))
+                {
+                    return FilesNavigation::None;
+                }
                 let Some(entry) = self.window.entries.get(index).cloned() else {
                     return FilesNavigation::None;
                 };
@@ -6286,11 +6293,11 @@ mod tests {
         assert!(navigator.window().can_go_back);
         assert!(!navigator.window().can_go_forward);
         assert_eq!(
-            navigator.handle_key(FilesKey::Down),
+            navigator.handle_key(640, FilesKey::Down),
             FilesNavigation::Selected(0)
         );
         assert_eq!(
-            navigator.handle_key(FilesKey::Activate),
+            navigator.handle_key(640, FilesKey::Activate),
             FilesNavigation::Navigated
         );
         assert_eq!(
@@ -6298,7 +6305,7 @@ mod tests {
             canonical_home.join("Documents/Projects")
         );
         assert_eq!(
-            navigator.handle_key(FilesKey::Back),
+            navigator.handle_key(640, FilesKey::Back),
             FilesNavigation::NavigatedBack
         );
         assert_eq!(
@@ -6365,22 +6372,22 @@ mod tests {
         assert_eq!(navigator.handle_scroll(1), FilesNavigation::Scrolled);
         assert_eq!(navigator.window().scroll_offset, 1);
         assert_eq!(
-            navigator.handle_key(FilesKey::PageDown),
+            navigator.handle_key(640, FilesKey::PageDown),
             FilesNavigation::Selected(3)
         );
         assert_eq!(
-            navigator.handle_key(FilesKey::Down),
+            navigator.handle_key(640, FilesKey::Down),
             FilesNavigation::Selected(4)
         );
         assert_eq!(
-            navigator.handle_key(FilesKey::Down),
+            navigator.handle_key(640, FilesKey::Down),
             FilesNavigation::Selected(5)
         );
         assert_eq!(navigator.window().selected_entry, Some(5));
         assert_eq!(navigator.window().scroll_offset, 2);
         assert!(navigator.window().keyboard_focus);
         assert_eq!(
-            navigator.handle_key(FilesKey::Activate),
+            navigator.handle_key(640, FilesKey::Activate),
             FilesNavigation::PreviewOpened
         );
         assert_eq!(
@@ -6445,7 +6452,7 @@ mod tests {
             2
         );
         assert_eq!(
-            navigator.handle_key(FilesKey::Up),
+            navigator.handle_key(640, FilesKey::Up),
             FilesNavigation::PreviewScrolled
         );
         assert_eq!(
@@ -6453,45 +6460,51 @@ mod tests {
             1
         );
         assert_eq!(
-            navigator.handle_key(FilesKey::PageUp),
+            navigator.handle_key(640, FilesKey::PageUp),
             FilesNavigation::PreviewScrolled
         );
         assert_eq!(
             navigator.window().preview.as_ref().unwrap().scroll_offset,
             0
         );
-        assert_eq!(navigator.handle_key(FilesKey::Home), FilesNavigation::None);
         assert_eq!(
-            navigator.handle_key(FilesKey::End),
+            navigator.handle_key(640, FilesKey::Home),
+            FilesNavigation::None
+        );
+        assert_eq!(
+            navigator.handle_key(640, FilesKey::End),
             FilesNavigation::PreviewScrolled
         );
         assert_eq!(
             navigator.window().preview.as_ref().unwrap().scroll_offset,
             2
         );
-        assert_eq!(navigator.handle_key(FilesKey::Down), FilesNavigation::None);
         assert_eq!(
-            navigator.handle_key(FilesKey::Activate),
+            navigator.handle_key(640, FilesKey::Down),
+            FilesNavigation::None
+        );
+        assert_eq!(
+            navigator.handle_key(640, FilesKey::Activate),
             FilesNavigation::None
         );
         assert_eq!(navigator.window().selected_entry, Some(5));
         assert_eq!(navigator.window().scroll_offset, 2);
         assert_eq!(
-            navigator.handle_key(FilesKey::Back),
+            navigator.handle_key(640, FilesKey::Back),
             FilesNavigation::PreviewClosed
         );
         assert_eq!(
-            navigator.handle_key(FilesKey::PageUp),
+            navigator.handle_key(640, FilesKey::PageUp),
             FilesNavigation::Selected(1)
         );
         assert_eq!(navigator.window().scroll_offset, 1);
         assert_eq!(
-            navigator.handle_key(FilesKey::Home),
+            navigator.handle_key(640, FilesKey::Home),
             FilesNavigation::Selected(0)
         );
         assert_eq!(navigator.window().scroll_offset, 0);
         assert_eq!(
-            navigator.handle_key(FilesKey::End),
+            navigator.handle_key(640, FilesKey::End),
             FilesNavigation::Selected(7)
         );
         assert_eq!(navigator.window().scroll_offset, 4);
@@ -6525,14 +6538,19 @@ mod tests {
             FilesNavigation::Scrolled
         );
         assert_eq!(navigator.window().scroll_offset, 4);
+        navigator.window.selected_entry = Some(0);
+        assert_eq!(
+            navigator.handle_key(640, FilesKey::Activate),
+            FilesNavigation::None
+        );
         navigator.window.selected_entry = Some(6);
         assert_eq!(
-            navigator.handle_key(FilesKey::Activate),
+            navigator.handle_key(640, FilesKey::Activate),
             FilesNavigation::PreviewBlocked
         );
         navigator.window.selected_entry = Some(7);
         assert_eq!(
-            navigator.handle_key(FilesKey::Activate),
+            navigator.handle_key(640, FilesKey::Activate),
             FilesNavigation::PreviewBlocked
         );
         assert!(navigator.window().preview.is_none());
