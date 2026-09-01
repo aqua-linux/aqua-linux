@@ -59,9 +59,9 @@ pub use aqua_shell::{
     dock_pointer_target, properties_launch_request, top_system_bar, BottomShellTarget,
     DesktopContextAction, DesktopIconState, DesktopPointerButton, DockItem, DockState,
     LaunchRequest, LauncherCategory, LauncherEvent, LauncherPointerTarget, LauncherState,
-    NotificationCenter, SessionAction, SessionMenuEvent, SessionMenuState, TrashModel,
-    NOTIFICATION_DEFAULT_TIMEOUT_MS, SESSION_MENU_RUNTIME_HEIGHT, SESSION_MENU_RUNTIME_WIDTH,
-    WORKSPACE_COUNT,
+    MenuNavigationKey, NotificationCenter, SessionAction, SessionMenuEvent, SessionMenuState,
+    TrashModel, NOTIFICATION_DEFAULT_TIMEOUT_MS, SESSION_MENU_RUNTIME_HEIGHT,
+    SESSION_MENU_RUNTIME_WIDTH, WORKSPACE_COUNT,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_text::OutputScale;
@@ -9493,8 +9493,18 @@ impl SmithayDrmSession {
             if pressed {
                 match code {
                     1 => state.apply_session_menu_event(SessionMenuEvent::Dismiss),
-                    103 => state.apply_session_menu_event(SessionMenuEvent::MoveSelection(-1)),
-                    108 => state.apply_session_menu_event(SessionMenuEvent::MoveSelection(1)),
+                    102 => state.apply_session_menu_event(SessionMenuEvent::Navigate(
+                        MenuNavigationKey::Home,
+                    )),
+                    103 => state.apply_session_menu_event(SessionMenuEvent::Navigate(
+                        MenuNavigationKey::Previous,
+                    )),
+                    107 => state.apply_session_menu_event(SessionMenuEvent::Navigate(
+                        MenuNavigationKey::End,
+                    )),
+                    108 => state.apply_session_menu_event(SessionMenuEvent::Navigate(
+                        MenuNavigationKey::Next,
+                    )),
                     28 => state.apply_session_menu_event(SessionMenuEvent::Activate),
                     _ => {}
                 }
@@ -15730,25 +15740,32 @@ mod tests {
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     #[test]
-    fn smithay_session_menu_queues_confirmed_recovery_action() {
+    fn smithay_session_menu_keyboard_uses_shared_home_end_and_confirmation_gate() {
         let mut session = SmithayDrmSession::new().expect("Smithay session should start");
 
         assert!(session.dispatch_keyboard_key(68, true, 1));
-        for (index, time) in (2..=4).enumerate() {
-            assert!(session.dispatch_keyboard_key(108, true, time));
-            assert!(session.dispatch_keyboard_key(108, false, time + 10));
-            assert_eq!(
-                session.session_menu_state_snapshot().selected_index(),
-                index + 1
-            );
-        }
+        assert!(session.dispatch_keyboard_key(107, true, 2));
+        assert!(session.dispatch_keyboard_key(107, false, 3));
+        assert_eq!(session.session_menu_state_snapshot().selected_index(), 3);
         assert!(session.dispatch_keyboard_key(28, true, 20));
         assert!(session.dispatch_keyboard_key(28, false, 21));
         assert_eq!(
             session.session_menu_state_snapshot().confirmation(),
             Some(SessionAction::Recovery)
         );
-        assert!(session.dispatch_keyboard_key(28, true, 22));
+
+        assert!(session.dispatch_keyboard_key(102, true, 22));
+        assert!(session.dispatch_keyboard_key(102, false, 23));
+        let home = session.session_menu_state_snapshot();
+        assert_eq!(home.selected_index(), 0);
+        assert_eq!(home.confirmation(), None);
+
+        assert!(session.dispatch_keyboard_key(103, true, 24));
+        assert!(session.dispatch_keyboard_key(103, false, 25));
+        assert_eq!(session.session_menu_state_snapshot().selected_index(), 3);
+        assert!(session.dispatch_keyboard_key(28, true, 26));
+        assert!(session.dispatch_keyboard_key(28, false, 27));
+        assert!(session.dispatch_keyboard_key(28, true, 28));
 
         assert!(session.has_session_action_request());
         assert_eq!(

@@ -1,3 +1,4 @@
+pub use aqua_components::MenuNavigationKey;
 use aqua_components::{
     ApplicationOverview, ComponentState, ConfirmationDialog, ConfirmationPresentation,
     ConfirmationRequirement, ConfirmationSeverity, ConfirmationState, GlobalSearch, GridCell,
@@ -4089,7 +4090,7 @@ pub const SESSION_MENU_RUNTIME_HEIGHT: u32 = 293;
 pub enum SessionMenuEvent {
     Toggle,
     Dismiss,
-    MoveSelection(isize),
+    Navigate(MenuNavigationKey),
     Activate,
 }
 
@@ -4234,13 +4235,20 @@ impl SessionMenuState {
                     action_request: None,
                 }
             }
-            SessionMenuEvent::MoveSelection(offset) => {
+            SessionMenuEvent::Navigate(key) => {
                 if !self.open {
                     return SessionMenuUpdate::unchanged();
                 }
-                self.selected_index = (self.selected_index as isize + offset)
-                    .rem_euclid(SessionAction::ALL.len() as isize)
-                    as usize;
+                let Some(selected_index) = self
+                    .menu_layout(SESSION_MENU_RUNTIME_WIDTH, SESSION_MENU_RUNTIME_HEIGHT)
+                    .keyboard_target(key)
+                else {
+                    return SessionMenuUpdate::unchanged();
+                };
+                if selected_index == self.selected_index {
+                    return SessionMenuUpdate::unchanged();
+                }
+                self.selected_index = selected_index;
                 let confirmation_changed = self.confirmation.take().is_some();
                 SessionMenuUpdate {
                     redraw_requested: true,
@@ -5725,7 +5733,7 @@ mod tests {
             menu.handle_event(SessionMenuEvent::Toggle)
                 .visibility_changed
         );
-        menu.handle_event(SessionMenuEvent::MoveSelection(-1));
+        menu.handle_event(SessionMenuEvent::Navigate(MenuNavigationKey::Previous));
         assert_eq!(menu.selected_action(), SessionAction::Recovery);
         let layout = menu.menu_layout(512, 293);
         assert!(layout.is_valid());
@@ -5761,7 +5769,7 @@ mod tests {
         let mut menu = SessionMenuState::default();
         menu.handle_event(SessionMenuEvent::Toggle);
         menu.handle_event(SessionMenuEvent::Activate);
-        let changed = menu.handle_event(SessionMenuEvent::MoveSelection(1));
+        let changed = menu.handle_event(SessionMenuEvent::Navigate(MenuNavigationKey::Next));
         assert!(changed.confirmation_changed);
         assert_eq!(menu.confirmation(), None);
         assert_eq!(menu.selected_action(), SessionAction::Restart);
@@ -5772,6 +5780,32 @@ mod tests {
             SessionAction::ALL.map(SessionAction::id),
             ["logout", "restart", "shutdown", "recovery"]
         );
+    }
+
+    #[test]
+    fn session_menu_keyboard_uses_shared_navigation_targets() {
+        let mut menu = SessionMenuState::default();
+        menu.handle_event(SessionMenuEvent::Toggle);
+
+        let unchanged = menu.handle_event(SessionMenuEvent::Navigate(MenuNavigationKey::Home));
+        assert!(!unchanged.redraw_requested);
+        assert_eq!(menu.selected_action(), SessionAction::Logout);
+
+        let end = menu.handle_event(SessionMenuEvent::Navigate(MenuNavigationKey::End));
+        assert!(end.redraw_requested);
+        assert_eq!(menu.selected_action(), SessionAction::Recovery);
+
+        menu.handle_event(SessionMenuEvent::Activate);
+        assert_eq!(menu.confirmation(), Some(SessionAction::Recovery));
+        let home = menu.handle_event(SessionMenuEvent::Navigate(MenuNavigationKey::Home));
+        assert!(home.confirmation_changed);
+        assert_eq!(menu.selected_action(), SessionAction::Logout);
+        assert_eq!(menu.confirmation(), None);
+
+        menu.handle_event(SessionMenuEvent::Navigate(MenuNavigationKey::Previous));
+        assert_eq!(menu.selected_action(), SessionAction::Recovery);
+        menu.handle_event(SessionMenuEvent::Navigate(MenuNavigationKey::Next));
+        assert_eq!(menu.selected_action(), SessionAction::Logout);
     }
 
     #[test]

@@ -8740,7 +8740,9 @@ mod tests {
     fn session_menu_overlay_renders_selection_and_confirmation() {
         let mut menu = SessionMenuState::default();
         menu.handle_event(aqua_shell::SessionMenuEvent::Toggle);
-        menu.handle_event(aqua_shell::SessionMenuEvent::MoveSelection(-1));
+        menu.handle_event(aqua_shell::SessionMenuEvent::Navigate(
+            aqua_shell::MenuNavigationKey::Previous,
+        ));
         let normal = render_session_menu_overlay_rgba(320, 220, &menu);
         assert_eq!(normal.selected_action, "recovery");
         assert!(!normal.confirmation_visible);
