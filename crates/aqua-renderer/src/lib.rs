@@ -7,12 +7,12 @@ use aqua_installer::{
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     desktop_context_menu_with_selection, desktop_grid_cell, files_back_button,
-    files_forward_button, files_sidebar_navigation, files_toolbar, files_visible_rows,
-    running_app_dock, top_system_bar, workspace_switcher, AquaTheme, AudioControlStatus,
-    DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
-    FilesWindowModel, LauncherCategory, LauncherMode, LauncherState, NotificationCenter,
-    SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView,
-    TopBarState, DESKTOP_ICONS, FILES_PREVIEW_VISIBLE_LINES, SETTINGS_SIDEBAR_NAVIGATION,
+    files_forward_button, files_preview_visible_lines, files_sidebar_navigation, files_toolbar,
+    files_visible_rows, running_app_dock, top_system_bar, workspace_switcher, AquaTheme,
+    AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
+    FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
+    NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
+    TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_SIDEBAR_NAVIGATION,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -4819,6 +4819,7 @@ pub fn render_files_window_rgba_with_theme(
     }
     let list_x = sidebar_width + 18;
     if let Some(preview) = model.preview.as_ref() {
+        let visible_lines = files_preview_visible_lines(height);
         draw_file_icon(&mut buffer, width, height, list_x + 12, 136);
         draw_bitmap_text(
             &mut buffer,
@@ -4832,7 +4833,7 @@ pub fn render_files_window_rgba_with_theme(
             .content
             .lines()
             .skip(preview.scroll_offset)
-            .take(FILES_PREVIEW_VISIBLE_LINES)
+            .take(visible_lines)
             .enumerate()
         {
             let bounded = line.chars().take(48).collect::<String>();
@@ -4845,17 +4846,19 @@ pub fn render_files_window_rgba_with_theme(
                 1,
             );
         }
-        draw_bitmap_text(
-            &mut buffer,
-            (width, height),
-            (list_x + 16, 340),
-            "READ ONLY",
-            palette.secondary_text,
-            1,
-        );
+        if let Some(status_y) = height.checked_sub(80).filter(|status_y| *status_y >= 220) {
+            draw_bitmap_text(
+                &mut buffer,
+                (width, height),
+                (list_x + 16, status_y.min(340)),
+                "READ ONLY",
+                palette.secondary_text,
+                1,
+            );
+        }
         let line_count = preview.content.lines().count();
-        primitives += 2 + line_count.min(FILES_PREVIEW_VISIBLE_LINES);
-        if let Some(scrollbar) = model.preview_scrollbar(width) {
+        primitives += 2 + line_count.min(visible_lines);
+        if let Some(scrollbar) = model.preview_scrollbar_in_viewport(width, height) {
             fill_rect(
                 &mut buffer,
                 width,
