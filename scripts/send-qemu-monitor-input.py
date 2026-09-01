@@ -24,7 +24,8 @@ MODES = {
         "sendkey e 100", "sendkey s 100", "sendkey ret 100",
     ),
     "bottom-applications-activate": (
-        "mouse_move -756 208", "mouse_button 1", "mouse_button 0",
+        "mouse_move -3000 -3000", "mouse_move 146 370",
+        "mouse_button 1", "mouse_button 0",
         "mouse_button 1", "mouse_button 0",
     ),
     "desktop-context": (),
@@ -32,7 +33,7 @@ MODES = {
         "mouse_move -2000 -2000", "mouse_move 26 49",
         "mouse_button 2", "mouse_button 0",
         "mouse_move 102 55", "mouse_button 1", "mouse_button 0",
-        "mouse_move 3000 3000", "mouse_move -29 -87",
+        "mouse_move 3000 3000", "mouse_move -25 -87",
         "mouse_button 1", "mouse_button 0",
     ),
     "trash-empty": (
@@ -66,6 +67,7 @@ MODES = {
         "sendkey down 100", "sendkey down 100", "sendkey down 100",
         "sendkey down 100",
     ),
+    "settings-about": ("sendkey end 100",),
     "input-burst": (
         ("sendkey a 80",) * 12
         + ("mouse_move 350 0",)

@@ -8911,7 +8911,14 @@ impl XdgSmokeClientState {
         let height = self.buffer_height.max(1);
         let stride = width * 4;
         let size = stride * height;
-        let pixels = render_settings_window_rgba(width, height, model).0;
+        let (pixels, probe) = render_settings_window_rgba(width, height, model);
+        if model.selected_category == 5 {
+            println!(
+                "aqua_settings_about_metadata_rows={} content_rendered={} read_only=true status=prototype",
+                aqua_shell::SETTINGS_ABOUT_METADATA.len(),
+                probe.content_rendered
+            );
+        }
 
         use std::io::Write;
         use std::os::unix::io::AsFd;
@@ -9215,8 +9222,28 @@ impl SmithayDrmSession {
         if width == 0 || height == 0 {
             return;
         }
-        self.session.wayland_state.output_width = width;
-        self.session.wayland_state.output_height = height;
+        let state = &mut self.session.wayland_state;
+        state.output_width = width;
+        state.output_height = height;
+        let launcher_visible = state
+            .launcher_scene
+            .surface_is_visible(SurfaceKind::Launcher);
+        let system_overview_visible = state
+            .launcher_scene
+            .surface_is_visible(SurfaceKind::SystemOverview);
+        let notification_visible = state
+            .launcher_scene
+            .surface_is_visible(SurfaceKind::NotificationToast);
+        state.launcher_scene = static_shell_scene(Viewport::new(width, height));
+        state
+            .launcher_scene
+            .set_surface_visible(SurfaceKind::Launcher, launcher_visible);
+        state
+            .launcher_scene
+            .set_surface_visible(SurfaceKind::SystemOverview, system_overview_visible);
+        state
+            .launcher_scene
+            .set_surface_visible(SurfaceKind::NotificationToast, notification_visible);
         let mode = OutputMode {
             size: (width as i32, height as i32).into(),
             refresh: 60_000,
@@ -15829,6 +15856,29 @@ mod tests {
         assert!(session.post_notification(300, "Aqua Files", "Opened", "Home is ready."));
         assert!(session.tick_notifications(30_300));
         assert!(session.notification_center_snapshot().active().is_none());
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn smithay_output_dimensions_refresh_runtime_shell_geometry() {
+        let mut session = SmithayDrmSession::new().expect("Smithay session should start");
+        session.set_output_dimensions(1280, 800);
+
+        assert_eq!(session.session.wayland_state.output_width, 1280);
+        assert_eq!(session.session.wayland_state.output_height, 800);
+        assert_eq!(
+            session
+                .session
+                .wayland_state
+                .launcher_scene
+                .surface_rect(SurfaceKind::NotificationToast),
+            Some(Rect {
+                x: 896,
+                y: 616,
+                width: 360,
+                height: 88,
+            })
+        );
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]

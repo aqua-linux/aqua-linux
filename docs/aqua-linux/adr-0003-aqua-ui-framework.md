@@ -102,6 +102,10 @@ Settings section rendering and pointer or keyboard control activation now
 share a category-specific viewport-validated content group; Network's four-row
 group has its required 212-pixel height, while clipped switch, segmented,
 Wi-Fi, slider, and About compositions are omitted and inert;
+Settings About now replaces its placeholder with three shared, read-only
+`MetadataRow` definitions for product, explicit prototype status, and the
+pinned Buildroot LTS base, preserving bounded geometry and accessibility
+semantics without making release or hardware-support claims;
 the broader consolidation remains in progress.
 
 ## Context
