@@ -7,12 +7,12 @@ use aqua_installer::{
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     desktop_context_menu_with_selection, desktop_grid_cell, files_empty_state_layout,
-    files_preview_layout, files_sidebar_navigation, files_status_layout, files_toolbar_layout,
-    files_visible_rows_in_viewport, running_app_dock, top_system_bar, workspace_switcher,
-    AquaTheme, AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
-    FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
-    NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
-    TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_SIDEBAR_NAVIGATION,
+    files_preview_layout, files_sidebar_navigation_in_viewport, files_status_layout,
+    files_toolbar_layout, files_visible_rows_in_viewport, running_app_dock, top_system_bar,
+    workspace_switcher, AquaTheme, AudioControlStatus, DesktopIconState, DesktopPropertiesModel,
+    DockItem, DockState, FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode,
+    LauncherState, NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel,
+    SystemOverviewModel, TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_SIDEBAR_NAVIGATION,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -2562,6 +2562,7 @@ fn draw_session_action_icon(
 pub struct FilesWindowProbe {
     pub rendered: bool,
     pub toolbar_rendered: bool,
+    pub sidebar_rendered: bool,
     pub status_rendered: bool,
     pub sidebar_item_count: usize,
     pub entry_count: usize,
@@ -4708,6 +4709,7 @@ impl FilesWindowProbe {
     pub fn is_ready(&self) -> bool {
         self.rendered
             && self.toolbar_rendered
+            && self.sidebar_rendered
             && self.status_rendered
             && self.sidebar_item_count == 5
             && self.selected_sidebar < self.sidebar_item_count
@@ -4737,6 +4739,7 @@ pub fn render_files_window_rgba_with_theme(
             FilesWindowProbe {
                 rendered: false,
                 toolbar_rendered: false,
+                sidebar_rendered: false,
                 status_rendered: false,
                 sidebar_item_count: model.sidebar_items.len(),
                 entry_count: model.entries.len(),
@@ -4814,22 +4817,23 @@ pub fn render_files_window_rgba_with_theme(
         );
     }
 
-    let navigation = files_sidebar_navigation(height);
-    primitives += draw_sidebar_navigation(&mut buffer, width, height, navigation, theme);
-    for index in 0..model.sidebar_items.len() {
-        let Some(row) = model.sidebar_row(height, index) else {
-            continue;
-        };
-        primitives += draw_list_row(&mut buffer, width, height, row, theme, OutputScale::One);
-        draw_sidebar_icon(
-            &mut buffer,
-            width,
-            height,
-            row.slots().leading.x + 2,
-            row.rect.y + 9,
-            index,
-        );
-        primitives += 1;
+    if let Some(navigation) = files_sidebar_navigation_in_viewport(width, height) {
+        primitives += draw_sidebar_navigation(&mut buffer, width, height, navigation, theme);
+        for index in 0..model.sidebar_items.len() {
+            let Some(row) = model.sidebar_row_in_viewport(width, height, index) else {
+                continue;
+            };
+            primitives += draw_list_row(&mut buffer, width, height, row, theme, OutputScale::One);
+            draw_sidebar_icon(
+                &mut buffer,
+                width,
+                height,
+                row.slots().leading.x + 2,
+                row.rect.y + 9,
+                index,
+            );
+            primitives += 1;
+        }
     }
     if let Some(preview) = model.preview.as_ref() {
         if let Some(layout) = files_preview_layout(width, height) {
@@ -5035,6 +5039,7 @@ pub fn render_files_window_rgba_with_theme(
         FilesWindowProbe {
             rendered: true,
             toolbar_rendered: files_toolbar_layout(width, height).is_some(),
+            sidebar_rendered: files_sidebar_navigation_in_viewport(width, height).is_some(),
             status_rendered: files_status_layout(width, height).is_some(),
             sidebar_item_count: model.sidebar_items.len(),
             entry_count: model.entries.len(),
@@ -8854,6 +8859,7 @@ mod tests {
         let (home, home_probe) = render_files_window_rgba(640, 420, &FilesWindowModel::default());
         assert!(home_probe.is_ready());
         assert!(home_probe.toolbar_rendered);
+        assert!(home_probe.sidebar_rendered);
         assert!(home_probe.status_rendered);
         assert_eq!(home_probe.entry_count, 4);
         assert!(!home_probe.empty_state_rendered);
@@ -8891,6 +8897,21 @@ mod tests {
             render_files_window_rgba(640, 107, &FilesWindowModel::default());
         assert!(short_toolbar_probe.rendered);
         assert!(!short_toolbar_probe.toolbar_rendered);
+
+        let sidebar_selection = FilesWindowModel {
+            selected_sidebar: 1,
+            ..FilesWindowModel::default()
+        };
+        let (clipped_sidebar, clipped_sidebar_probe) =
+            render_files_window_rgba(171, 420, &FilesWindowModel::default());
+        let (clipped_sidebar_selected, _) = render_files_window_rgba(171, 420, &sidebar_selection);
+        assert!(!clipped_sidebar_probe.sidebar_rendered);
+        assert_eq!(clipped_sidebar, clipped_sidebar_selected);
+        let (minimum_sidebar, minimum_sidebar_probe) =
+            render_files_window_rgba(172, 420, &FilesWindowModel::default());
+        let (minimum_sidebar_selected, _) = render_files_window_rgba(172, 420, &sidebar_selection);
+        assert!(minimum_sidebar_probe.sidebar_rendered);
+        assert_ne!(minimum_sidebar, minimum_sidebar_selected);
 
         let compact_location_a = FilesWindowModel {
             location: "Aqua / Home / Documents / Alpha".to_string(),
