@@ -4917,47 +4917,35 @@ pub fn render_files_window_rgba_with_theme(
             .take(FILES_VISIBLE_ROWS)
             .enumerate()
         {
-            let row = Rect {
-                x: list_x,
-                y: 124 + row_index as u32 * 64,
-                width: width.saturating_sub(list_x + 16),
-                height: 56,
-            };
-            if model.selected_entry == Some(index) {
-                fill_rect(&mut buffer, width, height, row, palette.accent_soft, 255);
-            } else if model.hovered_entry == Some(index) {
-                fill_rect(&mut buffer, width, height, row, palette.hover, 255);
-            } else if index % 2 == 0 {
-                fill_rect(&mut buffer, width, height, row, palette.row_alternate, 255);
-            }
+            let row = model
+                .entry_row(width, index)
+                .expect("visible Files entry row");
+            debug_assert_eq!(row.rect.y, 124 + row_index as u32 * 64);
+            primitives += draw_list_row(&mut buffer, width, height, row, theme, OutputScale::One);
             match entry.kind {
                 FilesEntryKind::Folder => draw_folder_icon(
                     &mut buffer,
                     width,
                     height,
-                    row.x + 10,
-                    row.y + 9,
+                    row.slots().leading.x + 2,
+                    row.rect.y + 9,
                     [0x4f, 0xc9, 0xff, 0xff],
                 ),
-                FilesEntryKind::File => {
-                    draw_file_icon(&mut buffer, width, height, row.x + 14, row.y + 8)
-                }
+                FilesEntryKind::File => draw_file_icon(
+                    &mut buffer,
+                    width,
+                    height,
+                    row.slots().leading.x + 6,
+                    row.rect.y + 8,
+                ),
             }
-            draw_bitmap_text(
+            draw_fitted_bitmap_text(
                 &mut buffer,
                 (width, height),
-                (row.x + 62, row.y + 12),
-                &entry.name,
-                palette.text,
-                1,
-            );
-            draw_bitmap_text(
-                &mut buffer,
-                (width, height),
-                (row.x + 62, row.y + 32),
+                row.slots().trailing,
                 &entry.detail,
                 palette.secondary_text,
-                1,
+                FittedTextOptions::new(TextRole::Caption, OutputScale::One, false),
             );
             primitives += 2;
         }
@@ -8873,7 +8861,7 @@ mod tests {
         assert_ne!(home, empty);
 
         let mut selected = FilesWindowModel::default();
-        selected.select_at(220, 140);
+        selected.select_at(640, 220, 140);
         let (_, selected_probe) = render_files_window_rgba(640, 420, &selected);
         assert_ne!(home_probe.checksum, selected_probe.checksum);
     }
