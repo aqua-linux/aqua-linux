@@ -2993,6 +2993,13 @@ impl FilesWindowModel {
         )
     }
 
+    pub fn sidebar_at(&self, height: u32, x: u32, y: u32) -> Option<usize> {
+        (0..self.sidebar_items.len()).find(|index| {
+            self.sidebar_row(height, *index)
+                .is_some_and(|row| row.pointer_hit(x, y))
+        })
+    }
+
     pub fn read_only_directory(
         allowed_root: &Path,
         requested: &Path,
@@ -3084,7 +3091,7 @@ impl FilesWindowModel {
         if forward.pointer_hit(x, y) {
             return FilesSelection::Forward;
         }
-        if let Some(index) = FILES_SIDEBAR_NAVIGATION.hit_test(x, y, self.sidebar_items.len()) {
+        if let Some(index) = self.sidebar_at(height, x, y) {
             self.selected_sidebar = index;
             self.selected_entry = None;
             return FilesSelection::Sidebar(index);
@@ -3110,7 +3117,7 @@ impl FilesWindowModel {
         let previous = (self.hovered_sidebar, self.hovered_entry);
         self.hovered_sidebar = None;
         self.hovered_entry = None;
-        if let Some(index) = FILES_SIDEBAR_NAVIGATION.hit_test(x, y, self.sidebar_items.len()) {
+        if let Some(index) = self.sidebar_at(height, x, y) {
             self.hovered_sidebar = Some(index);
         } else {
             let visible_rows = files_visible_rows(height);
@@ -6737,6 +6744,15 @@ mod tests {
         let canonical_root = root.canonicalize().expect("canonical root fixture");
 
         let mut navigator = FilesNavigator::open(&root).expect("navigator should open");
+        assert_eq!(
+            navigator.handle_pointer_in_viewport(640, 349, 40, 180),
+            FilesNavigation::None
+        );
+        assert_eq!(navigator.current(), canonical_root);
+        assert!(!navigator.handle_hover_in_viewport(640, 349, 40, 180));
+        assert_eq!(navigator.window().hovered_sidebar, None);
+        assert!(navigator.handle_hover_in_viewport(640, 420, 40, 180));
+        assert_eq!(navigator.window().hovered_sidebar, Some(1));
         assert_eq!(
             navigator.handle_key_in_viewport(640, 349, FilesKey::Left),
             FilesNavigation::None

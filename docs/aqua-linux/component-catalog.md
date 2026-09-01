@@ -720,7 +720,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first twenty-eight
+All catalog entries now satisfy the shared primitive contract. The first twenty-nine
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -771,10 +771,10 @@ without changing the active location before Enter, pointer input clears that
 focus, and text preview keeps ownership of its keys.
 Blocked sidebar navigation now restores the prior active location and content
 selection, so the selected render state cannot claim an unopened destination.
-Files sidebar rendering, keyboard navigation, and Enter activation now consume
-the same shared row at the actual client height. Compact layouts that cannot
-contain all five locations reject focus and activation rather than targeting a
-hidden row.
+Files sidebar rendering, pointer selection, hover, keyboard navigation, and
+Enter activation now consume the same shared row at the actual client height.
+Compact layouts that cannot contain all five locations reject hover, selection,
+focus, and activation rather than targeting a hidden row.
 Files content rendering, pointer and hover routing, scrolling, scrollbar
 geometry, keyboard reveal, and Enter activation now consume the same row count
 derived from the client height. Rows clipped by the status area remain inert.
