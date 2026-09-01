@@ -3,7 +3,7 @@
 ## Status
 
 Accepted on 2026-08-29. Framework consolidation began on 2026-09-01 after the
-core desktop functionality supplied real consumers. The first seven bounded
+core desktop functionality supplied real consumers. The first eight bounded
 slices replaced Settings Network's duplicated Wi-Fi row/action hit geometry,
 Files content-row render/input geometry, and launcher panel/child pointer
 routing with existing shared component contracts, then consolidated Files list
@@ -13,7 +13,9 @@ keyboard routing now targets the visible text instead of mutating the hidden
 file list. Bottom-shell pointer routing now consumes the dock rectangle produced
 for the actual output viewport instead of rescaling the 800-by-600 reference;
 the Smithay pointer path likewise clamps motion and resolves launcher hover
-targets from the active output dimensions;
+targets from the active output dimensions. Session-menu pointer routing now
+maps the actual output surface into the shared `Menu` rows and retains the
+second-activation confirmation gate;
 the broader consolidation remains in progress.
 
 ## Context

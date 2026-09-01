@@ -60,7 +60,8 @@ pub use aqua_shell::{
     DesktopContextAction, DesktopIconState, DesktopPointerButton, DockItem, DockState,
     LaunchRequest, LauncherCategory, LauncherEvent, LauncherPointerTarget, LauncherState,
     NotificationCenter, SessionAction, SessionMenuEvent, SessionMenuState, TrashModel,
-    NOTIFICATION_DEFAULT_TIMEOUT_MS, WORKSPACE_COUNT,
+    NOTIFICATION_DEFAULT_TIMEOUT_MS, SESSION_MENU_RUNTIME_HEIGHT, SESSION_MENU_RUNTIME_WIDTH,
+    WORKSPACE_COUNT,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_text::OutputScale;
@@ -102,6 +103,29 @@ pub fn bottom_shell_pointer_target(
         rect.width,
         rect.height,
     )
+}
+
+pub fn session_menu_pointer_position(
+    viewport: Viewport,
+    pointer_x: u32,
+    pointer_y: u32,
+) -> Option<(u32, u32)> {
+    let rect = static_shell_scene(viewport).surface_rect(SurfaceKind::SystemOverview)?;
+    if pointer_x < rect.x
+        || pointer_x >= rect.right()
+        || pointer_y < rect.y
+        || pointer_y >= rect.bottom()
+        || rect.width == 0
+        || rect.height == 0
+    {
+        return None;
+    }
+    Some((
+        (u64::from(pointer_x - rect.x) * u64::from(SESSION_MENU_RUNTIME_WIDTH)
+            / u64::from(rect.width)) as u32,
+        (u64::from(pointer_y - rect.y) * u64::from(SESSION_MENU_RUNTIME_HEIGHT)
+            / u64::from(rect.height)) as u32,
+    ))
 }
 
 #[cfg(any(test, all(target_os = "linux", feature = "smithay-smoke")))]
@@ -7043,6 +7067,20 @@ impl WaylandSmokeState {
 
     fn apply_session_menu_event(&mut self, event: SessionMenuEvent) {
         let update = self.session_menu_state.handle_event(event);
+        self.apply_session_menu_update(update);
+    }
+
+    fn apply_session_menu_pointer(&mut self, x: u32, y: u32) {
+        let update = self.session_menu_state.handle_pointer(
+            SESSION_MENU_RUNTIME_WIDTH,
+            SESSION_MENU_RUNTIME_HEIGHT,
+            x,
+            y,
+        );
+        self.apply_session_menu_update(update);
+    }
+
+    fn apply_session_menu_update(&mut self, update: aqua_shell::SessionMenuUpdate) {
         if self.session_menu_state.is_open() && self.launcher_state.is_open() {
             self.launcher_state.handle_event(LauncherEvent::Dismiss);
             self.launcher_scene
@@ -9554,20 +9592,23 @@ impl SmithayDrmSession {
             viewport,
         );
         self.session.wayland_state.pointer_location = pointer_location;
-        if self.session.wayland_state.launcher_state.is_open() {
+        if self.session.wayland_state.launcher_state.is_open()
+            || self.session.wayland_state.session_menu_state.is_open()
+        {
             self.session.wayland_state.pointer_focus_surface = None;
             self.session.wayland_state.pointer_focus_assigned = false;
-            if self
-                .session
-                .wayland_state
-                .launcher_state
-                .pointer_target_in_viewport(
-                    pointer_location.0 as u32,
-                    pointer_location.1 as u32,
-                    viewport.width,
-                    viewport.height,
-                )
-                .is_some()
+            if self.session.wayland_state.launcher_state.is_open()
+                && self
+                    .session
+                    .wayland_state
+                    .launcher_state
+                    .pointer_target_in_viewport(
+                        pointer_location.0 as u32,
+                        pointer_location.1 as u32,
+                        viewport.width,
+                        viewport.height,
+                    )
+                    .is_some()
             {
                 self.session.wayland_state.launcher_pointer_hit_count += 1;
             }
@@ -9696,6 +9737,23 @@ impl SmithayDrmSession {
                 self.session.wayland_state.pointer_button_count += 1;
                 return true;
             }
+        }
+        if button == 0x110 && pressed && self.session.wayland_state.session_menu_state.is_open() {
+            let viewport = Viewport::new(
+                self.session.wayland_state.output_width,
+                self.session.wayland_state.output_height,
+            );
+            let position =
+                session_menu_pointer_position(viewport, pointer_x as u32, pointer_y as u32);
+            if let Some((x, y)) = position {
+                self.session.wayland_state.apply_session_menu_pointer(x, y);
+            }
+            println!(
+                "desktop_session_menu_pointer x={} y={} local={position:?}",
+                pointer_x as u32, pointer_y as u32
+            );
+            self.session.wayland_state.pointer_button_count += 1;
+            return true;
         }
         if self.session.wayland_state.launcher_state.is_open() {
             if pressed {
@@ -14422,6 +14480,35 @@ mod tests {
     }
 
     #[test]
+    fn session_menu_pointer_maps_the_actual_viewport_to_runtime_rows() {
+        let viewport = Viewport::new(1024, 768);
+        let panel = static_shell_scene(viewport)
+            .surface_rect(SurfaceKind::SystemOverview)
+            .expect("Session menu surface should exist");
+        assert_eq!(
+            panel,
+            Rect {
+                x: 680,
+                y: 60,
+                width: 320,
+                height: 220,
+            }
+        );
+        assert_eq!(
+            session_menu_pointer_position(viewport, panel.x + 160, panel.y + 128),
+            Some((256, 170))
+        );
+        assert_eq!(
+            session_menu_pointer_position(viewport, panel.right(), panel.y + 128),
+            None
+        );
+        assert_eq!(
+            session_menu_pointer_position(viewport, panel.x + 160, panel.bottom()),
+            None
+        );
+    }
+
+    #[test]
     fn shared_notification_routes_only_the_dismiss_control() {
         let rect = Rect {
             x: 1152,
@@ -15668,6 +15755,33 @@ mod tests {
             session.take_session_action_request(),
             Some(SessionAction::Recovery)
         );
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn smithay_session_menu_pointer_uses_actual_output_and_confirmation_gate() {
+        let mut session = SmithayDrmSession::new().expect("Smithay session should start");
+        session.set_output_dimensions(1024, 768);
+        assert!(session.dispatch_keyboard_key(68, true, 1));
+
+        let input = session.input_snapshot();
+        assert!(session.dispatch_pointer_motion(
+            840.0 - f64::from(input.pointer_x),
+            188.0 - f64::from(input.pointer_y),
+            2,
+        ));
+        assert!(session.dispatch_pointer_button(0x110, true, 3));
+        let armed = session.session_menu_state_snapshot();
+        assert_eq!(armed.selected_action(), SessionAction::Shutdown);
+        assert_eq!(armed.confirmation(), Some(SessionAction::Shutdown));
+        assert!(!session.has_session_action_request());
+
+        assert!(session.dispatch_pointer_button(0x110, true, 4));
+        assert_eq!(
+            session.take_session_action_request(),
+            Some(SessionAction::Shutdown)
+        );
+        assert!(!session.session_menu_state_snapshot().is_open());
     }
 
     #[test]

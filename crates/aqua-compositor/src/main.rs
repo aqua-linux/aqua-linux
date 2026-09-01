@@ -913,7 +913,12 @@ impl LiveGpuCompositor {
             self.session_menu_state = Some(state.clone());
             return Ok(());
         }
-        let overlay = render_session_menu_overlay_rgba_with_theme(512, 293, state, self.theme);
+        let overlay = render_session_menu_overlay_rgba_with_theme(
+            aqua_shell::SESSION_MENU_RUNTIME_WIDTH,
+            aqua_shell::SESSION_MENU_RUNTIME_HEIGHT,
+            state,
+            self.theme,
+        );
         println!("desktop_session_menu_overlay_texture_ready=true");
         println!(
             "desktop_session_menu_overlay_selected={}",
