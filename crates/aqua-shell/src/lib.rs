@@ -417,6 +417,19 @@ const FILES_PREVIEW_LINE_Y: u32 = 194;
 const FILES_PREVIEW_LINE_HEIGHT: u32 = 8;
 const FILES_PREVIEW_LINE_STRIDE: u32 = 22;
 const FILES_PREVIEW_BOTTOM_INSET: u32 = 96;
+const FILES_PREVIEW_ICON_X: u32 = 200;
+const FILES_PREVIEW_ICON_Y: u32 = 136;
+const FILES_PREVIEW_ICON_WIDTH: u32 = 30;
+const FILES_PREVIEW_ICON_HEIGHT: u32 = 38;
+const FILES_PREVIEW_TITLE_X: u32 = 242;
+const FILES_PREVIEW_TITLE_Y: u32 = 142;
+const FILES_PREVIEW_TITLE_TRAILING_INSET: u32 = 12;
+const FILES_PREVIEW_TEXT_X: u32 = 204;
+const FILES_PREVIEW_TEXT_TRAILING_INSET: u32 = 19;
+const FILES_PREVIEW_READ_ONLY_MIN_Y: u32 = 220;
+const FILES_PREVIEW_READ_ONLY_REFERENCE_Y: u32 = 340;
+const FILES_PREVIEW_READ_ONLY_BOTTOM_INSET: u32 = 80;
+const FILES_PREVIEW_READ_ONLY_WIDTH: u32 = 60;
 const FILES_EMPTY_STATE_MIN_WIDTH: u32 = 476;
 const FILES_EMPTY_STATE_MIN_HEIGHT: u32 = 220;
 const FILES_EMPTY_STATE_REFERENCE_HEIGHT: u32 = 300;
@@ -532,6 +545,81 @@ pub const fn files_preview_visible_lines_in_viewport(width: u32, height: u32) ->
     } else {
         files_preview_visible_lines(height)
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesPreviewLayout {
+    pub icon: Rect,
+    pub title: Rect,
+    pub text: Rect,
+    pub line_stride: u32,
+    pub visible_lines: usize,
+    pub read_only: Option<Rect>,
+}
+
+pub const fn files_preview_layout(width: u32, height: u32) -> Option<FilesPreviewLayout> {
+    let visible_lines = files_preview_visible_lines_in_viewport(width, height);
+    if visible_lines == 0 {
+        return None;
+    }
+    let icon = Rect {
+        x: FILES_PREVIEW_ICON_X,
+        y: FILES_PREVIEW_ICON_Y,
+        width: FILES_PREVIEW_ICON_WIDTH,
+        height: FILES_PREVIEW_ICON_HEIGHT,
+    };
+    let title = Rect {
+        x: FILES_PREVIEW_TITLE_X,
+        y: FILES_PREVIEW_TITLE_Y,
+        width: width.saturating_sub(FILES_PREVIEW_TITLE_X + FILES_PREVIEW_TITLE_TRAILING_INSET),
+        height: FILES_PREVIEW_LINE_HEIGHT,
+    };
+    let text = Rect {
+        x: FILES_PREVIEW_TEXT_X,
+        y: FILES_PREVIEW_LINE_Y,
+        width: width.saturating_sub(FILES_PREVIEW_TEXT_X + FILES_PREVIEW_TEXT_TRAILING_INSET),
+        height: (visible_lines as u32 - 1) * FILES_PREVIEW_LINE_STRIDE + FILES_PREVIEW_LINE_HEIGHT,
+    };
+    let viewport_read_only_y = height.saturating_sub(FILES_PREVIEW_READ_ONLY_BOTTOM_INSET);
+    let read_only_y = if viewport_read_only_y < FILES_PREVIEW_READ_ONLY_REFERENCE_Y {
+        viewport_read_only_y
+    } else {
+        FILES_PREVIEW_READ_ONLY_REFERENCE_Y
+    };
+    let read_only = if read_only_y >= FILES_PREVIEW_READ_ONLY_MIN_Y {
+        Some(Rect {
+            x: FILES_PREVIEW_TEXT_X,
+            y: read_only_y,
+            width: FILES_PREVIEW_READ_ONLY_WIDTH,
+            height: FILES_PREVIEW_LINE_HEIGHT,
+        })
+    } else {
+        None
+    };
+    if let Some(read_only) = read_only {
+        if read_only.right() > width || read_only.bottom() > height {
+            return None;
+        }
+    }
+    if icon.right() > width
+        || icon.bottom() > height
+        || title.width == 0
+        || title.right() > width
+        || title.bottom() > height
+        || text.width == 0
+        || text.right() > width
+        || text.bottom() > height
+    {
+        return None;
+    }
+    Some(FilesPreviewLayout {
+        icon,
+        title,
+        text,
+        line_stride: FILES_PREVIEW_LINE_STRIDE,
+        visible_lines,
+        read_only,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2958,7 +3046,7 @@ impl FilesWindowModel {
 
     pub fn content_focus_rect(&self, width: u32, height: u32) -> Option<Rect> {
         let content_is_visible = if self.preview.is_some() {
-            files_preview_visible_lines_in_viewport(width, height) > 0
+            files_preview_layout(width, height).is_some()
         } else if self.is_empty() {
             files_empty_state_layout(width, height).is_some()
         } else {
@@ -3013,7 +3101,9 @@ impl FilesWindowModel {
         height: u32,
     ) -> Option<FilesScrollbarLayout> {
         let preview = self.preview.as_ref()?;
-        let visible_lines = files_preview_visible_lines_in_viewport(width, height);
+        let visible_lines = files_preview_layout(width, height)
+            .map(|layout| layout.visible_lines)
+            .unwrap_or(0);
         if visible_lines == 0 {
             return None;
         }
@@ -3381,7 +3471,9 @@ impl FilesNavigator {
         rows: isize,
     ) -> FilesNavigation {
         if let Some(preview) = self.window.preview.as_mut() {
-            let visible_lines = files_preview_visible_lines_in_viewport(width, height);
+            let visible_lines = files_preview_layout(width, height)
+                .map(|layout| layout.visible_lines)
+                .unwrap_or(0);
             if visible_lines == 0 {
                 return FilesNavigation::None;
             }
@@ -3542,7 +3634,9 @@ impl FilesNavigator {
     }
 
     fn handle_preview_key(&mut self, width: u32, height: u32, key: FilesKey) -> FilesNavigation {
-        let visible_lines = files_preview_visible_lines_in_viewport(width, height);
+        let visible_lines = files_preview_layout(width, height)
+            .map(|layout| layout.visible_lines)
+            .unwrap_or(0);
         match key {
             FilesKey::Up => self.handle_scroll_in_viewport(width, height, -1),
             FilesKey::Down => self.handle_scroll_in_viewport(width, height, 1),
@@ -3583,7 +3677,9 @@ impl FilesNavigator {
         height: u32,
         offset: usize,
     ) -> FilesNavigation {
-        let visible_lines = files_preview_visible_lines_in_viewport(width, height);
+        let visible_lines = files_preview_layout(width, height)
+            .map(|layout| layout.visible_lines)
+            .unwrap_or(0);
         if visible_lines == 0 {
             return FilesNavigation::None;
         }
@@ -6681,6 +6777,54 @@ mod tests {
         assert_eq!(files_preview_visible_lines(297), 0);
         assert_eq!(files_preview_visible_lines_in_viewport(275, 420), 6);
         assert_eq!(files_preview_visible_lines_in_viewport(274, 420), 0);
+        assert_eq!(
+            files_preview_layout(640, 420),
+            Some(FilesPreviewLayout {
+                icon: Rect {
+                    x: 200,
+                    y: 136,
+                    width: 30,
+                    height: 38,
+                },
+                title: Rect {
+                    x: 242,
+                    y: 142,
+                    width: 386,
+                    height: 8,
+                },
+                text: Rect {
+                    x: 204,
+                    y: 194,
+                    width: 417,
+                    height: 118,
+                },
+                line_stride: 22,
+                visible_lines: 6,
+                read_only: Some(Rect {
+                    x: 204,
+                    y: 340,
+                    width: 60,
+                    height: 8,
+                }),
+            })
+        );
+        let minimum_preview = files_preview_layout(275, 298).expect("minimum Files preview layout");
+        assert_eq!(minimum_preview.visible_lines, 1);
+        assert_eq!(minimum_preview.title.width, 21);
+        assert_eq!(minimum_preview.text.width, 52);
+        assert_eq!(minimum_preview.text.height, 8);
+        assert_eq!(minimum_preview.read_only, None);
+        assert_eq!(
+            files_preview_layout(275, 300).and_then(|layout| layout.read_only),
+            Some(Rect {
+                x: 204,
+                y: 220,
+                width: 60,
+                height: 8,
+            })
+        );
+        assert!(files_preview_layout(274, 420).is_none());
+        assert!(files_preview_layout(640, 297).is_none());
         assert_eq!(
             files_empty_state_layout(640, 420),
             Some(FilesEmptyStateLayout {
