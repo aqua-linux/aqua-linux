@@ -24,7 +24,7 @@ accepted. A screen-specific drawing helper is not a shared primitive.
 | Switch | Shared packaged-QEMU-proven primitive | Settings motion, desktop-icon, and key-repeat toggles |
 | Slider | Shared packaged-QEMU-proven primitive | Settings Audio output-volume preference |
 | Menu | Shared packaged-QEMU-proven primitive | Desktop icon context actions and Session action layout |
-| List row | Shared packaged-QEMU-proven primitive | Files and Settings navigation, Settings Wi-Fi discovery, and installer steps |
+| List row | Shared packaged-QEMU-proven primitive | Files navigation and content entries, Settings navigation and Wi-Fi discovery, and installer steps |
 | Grid cell | Shared packaged-QEMU-proven primitive | Applications cards and desktop icon cells share render/input geometry; Files remains a list because no grid mode exists yet |
 | Metadata row | Shared packaged-QEMU-proven primitive | Properties and System Overview share bounded read-only label/value columns |
 | Section group | Shared packaged-QEMU-proven primitive | Settings and Properties share bounded heading, row, trailing-control, and footer geometry |
@@ -136,12 +136,16 @@ and 1536x1024, including a 1.25 output-scale case. Its canonical report is
 Settings and Files now consume the same sidebar geometry in both `aqua-shell`
 input routing and `aqua-renderer` drawing. Settings Wi-Fi discovery rows also
 use `ListRow` for one render/input/state/accessibility contract; unsupported
-security remains disabled at the component boundary. Installer steps consume
-the same list-row composition with a step-specific leading marker. Settings
-Network rescan and saved-credential removal use `StandardButton`, including a
-non-actionable inter-button gap and broker-authority disabled states. The
-generic deterministic matrix is recorded in `component-fixtures.txt`, while
-consumer tests cover the Settings-specific composition.
+security remains disabled at the component boundary. Files content entries use
+the same row object for rendered bounds, leading icon and trailing metadata
+slots, selected/hover state, pointer activation, and `option` semantics. Their
+eight-pixel inter-row gaps and area beyond the rendered right edge reject
+input. Installer steps consume the same list-row composition with a
+step-specific leading marker. Settings Network rescan and saved-credential
+removal use `StandardButton`, including a non-actionable inter-button gap and
+broker-authority disabled states. The generic deterministic matrix is recorded
+in `component-fixtures.txt`, while consumer tests cover the Settings and Files
+compositions.
 
 ## Search Field And Icon Button Contract
 
@@ -653,10 +657,10 @@ build evidence and are not repository artifacts.
 ## Next Extraction Order
 
 All catalog entries now satisfy the shared primitive contract. The first ADR
-0003 consolidation slice replaces Settings Network's duplicated Wi-Fi row and
-action hit geometry with existing shared components. Further extractions must
-continue from real first-party consumers and repeat the same geometry, input,
-accessibility, deterministic-fixture, and packaged-QEMU evidence path. The
-actual audio service/backend remains a separate R4 decision and acceptance
-item; the Settings preference must not be treated as playback or hardware
-evidence.
+0003 consolidation slices replace Settings Network's duplicated Wi-Fi
+row/action hit geometry and Files content-entry render/input geometry with
+existing shared components. Further extractions must continue from real
+first-party consumers and repeat the same geometry, input, accessibility,
+deterministic-fixture, and packaged-QEMU evidence path. The actual audio
+service/backend remains a separate R4 decision and acceptance item; the
+Settings preference must not be treated as playback or hardware evidence.

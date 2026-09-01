@@ -2602,6 +2602,43 @@ impl FilesWindowModel {
         self.entries.is_empty()
     }
 
+    pub fn entry_row(&self, width: u32, index: usize) -> Option<ListRow<'_>> {
+        if self.preview.is_some() {
+            return None;
+        }
+        let visible_index = index.checked_sub(self.scroll_offset)?;
+        if visible_index >= FILES_VISIBLE_ROWS {
+            return None;
+        }
+        let entry = self.entries.get(index)?;
+        let state = if self.selected_entry == Some(index) {
+            ComponentState::Selected
+        } else if self.hovered_entry == Some(index) {
+            ComponentState::Hover
+        } else {
+            ComponentState::Idle
+        };
+        let row_width = width.saturating_sub(204);
+        let trailing_width = row_width
+            .saturating_sub(16)
+            .saturating_sub(54 + 80)
+            .min(130);
+        Some(
+            ListRow::new(
+                Rect {
+                    x: 188,
+                    y: 124 + visible_index as u32 * 64,
+                    width: row_width,
+                    height: 56,
+                },
+                &entry.name,
+                ListRowRole::Option,
+            )
+            .with_slots(54, trailing_width)
+            .with_state(state),
+        )
+    }
+
     pub fn read_only_directory(
         allowed_root: &Path,
         requested: &Path,
@@ -2666,7 +2703,7 @@ impl FilesWindowModel {
         })
     }
 
-    pub fn select_at(&mut self, x: u32, y: u32) -> FilesSelection {
+    pub fn select_at(&mut self, width: u32, x: u32, y: u32) -> FilesSelection {
         let back = files_back_button().with_state(if self.can_go_back {
             ComponentState::Idle
         } else {
@@ -2688,9 +2725,16 @@ impl FilesWindowModel {
             self.selected_entry = None;
             return FilesSelection::Sidebar(index);
         }
-        if x >= 170 && (124..380).contains(&y) {
-            let index = self.scroll_offset + ((y - 124) / 64) as usize;
-            if index < self.entries.len() {
+        for index in self.scroll_offset
+            ..self
+                .entries
+                .len()
+                .min(self.scroll_offset + FILES_VISIBLE_ROWS)
+        {
+            if self
+                .entry_row(width, index)
+                .is_some_and(|row| row.pointer_hit(x, y))
+            {
                 self.selected_entry = Some(index);
                 return FilesSelection::Entry(index);
             }
@@ -2698,16 +2742,26 @@ impl FilesWindowModel {
         FilesSelection::None
     }
 
-    pub fn hover_at(&mut self, x: u32, y: u32) -> bool {
+    pub fn hover_at(&mut self, width: u32, x: u32, y: u32) -> bool {
         let previous = (self.hovered_sidebar, self.hovered_entry);
         self.hovered_sidebar = None;
         self.hovered_entry = None;
         if let Some(index) = FILES_SIDEBAR_NAVIGATION.hit_test(x, y, self.sidebar_items.len()) {
             self.hovered_sidebar = Some(index);
-        } else if x >= 170 && (124..380).contains(&y) {
-            let index = self.scroll_offset + ((y - 124) / 64) as usize;
-            if index < self.entries.len() {
-                self.hovered_entry = Some(index);
+        } else {
+            for index in self.scroll_offset
+                ..self
+                    .entries
+                    .len()
+                    .min(self.scroll_offset + FILES_VISIBLE_ROWS)
+            {
+                if self
+                    .entry_row(width, index)
+                    .is_some_and(|row| row.pointer_hit(x, y))
+                {
+                    self.hovered_entry = Some(index);
+                    break;
+                }
             }
         }
         previous != (self.hovered_sidebar, self.hovered_entry)
@@ -2763,9 +2817,9 @@ impl FilesNavigator {
         !self.forward.is_empty()
     }
 
-    pub fn handle_pointer(&mut self, x: u32, y: u32) -> FilesNavigation {
+    pub fn handle_pointer(&mut self, width: u32, x: u32, y: u32) -> FilesNavigation {
         let previously_selected = self.window.selected_entry;
-        match self.window.select_at(x, y) {
+        match self.window.select_at(width, x, y) {
             FilesSelection::None => FilesNavigation::None,
             FilesSelection::Back => self.go_back(),
             FilesSelection::Forward => self.go_forward(),
@@ -2798,8 +2852,8 @@ impl FilesNavigator {
         }
     }
 
-    pub fn handle_hover(&mut self, x: u32, y: u32) -> bool {
-        self.window.hover_at(x, y)
+    pub fn handle_hover(&mut self, width: u32, x: u32, y: u32) -> bool {
+        self.window.hover_at(width, x, y)
     }
 
     pub fn handle_scroll(&mut self, rows: isize) -> FilesNavigation {
@@ -5629,17 +5683,45 @@ mod tests {
         assert_eq!(model.entries[0].kind, FilesEntryKind::Folder);
         assert!(model.entries.iter().all(|entry| entry.name != ".hidden"));
         assert!(model.entries.iter().all(|entry| entry.name != "escape"));
-        assert_eq!(model.select_at(20, 70), FilesSelection::None);
+        let first_row = model.entry_row(640, 0).expect("shared Files entry row");
+        assert_eq!(
+            first_row.rect,
+            Rect {
+                x: 188,
+                y: 124,
+                width: 436,
+                height: 56,
+            }
+        );
+        assert_eq!(first_row.slots().leading.width, 54);
+        assert_eq!(first_row.slots().trailing.width, 130);
+        assert_eq!(first_row.accessibility().role, "option");
+        assert_eq!(first_row.accessibility().name, "Documents");
+        assert_eq!(model.select_at(640, 20, 70), FilesSelection::None);
         model.can_go_back = true;
-        assert_eq!(model.select_at(20, 70), FilesSelection::Back);
-        assert_eq!(model.select_at(20, 64), FilesSelection::None);
-        assert_eq!(model.select_at(220, 140), FilesSelection::Entry(0));
+        assert_eq!(model.select_at(640, 20, 70), FilesSelection::Back);
+        assert_eq!(model.select_at(640, 20, 64), FilesSelection::None);
+        assert_eq!(model.select_at(640, 220, 184), FilesSelection::None);
+        assert_eq!(model.select_at(640, 624, 140), FilesSelection::None);
+        assert_eq!(model.select_at(640, 220, 140), FilesSelection::Entry(0));
         assert_eq!(model.selected_entry, Some(0));
-        assert_eq!(model.select_at(40, 180), FilesSelection::Sidebar(1));
+        assert_eq!(
+            model.entry_row(640, 0).expect("selected row").state,
+            ComponentState::Selected
+        );
+        assert!(model.hover_at(640, 220, 204));
+        assert_eq!(model.hovered_entry, Some(1));
+        assert_eq!(
+            model.entry_row(640, 1).expect("hovered row").state,
+            ComponentState::Hover
+        );
+        assert_eq!(model.select_at(640, 40, 180), FilesSelection::Sidebar(1));
         assert_eq!(model.selected_sidebar, 1);
         assert_eq!(model.selected_entry, None);
-        assert_eq!(model.select_at(40, 164), FilesSelection::None);
-        assert!(!model.hover_at(40, 164));
+        assert_eq!(model.select_at(640, 40, 164), FilesSelection::None);
+        assert!(model.hover_at(640, 40, 164));
+        assert_eq!(model.hovered_entry, None);
+        assert!(!model.hover_at(640, 40, 164));
 
         assert_eq!(
             FilesWindowModel::read_only_directory(&home, &root),
@@ -5667,11 +5749,11 @@ mod tests {
         let mut navigator = FilesNavigator::open(&home).expect("navigator should open");
         assert_eq!(navigator.window().entries[0].name, "Documents");
         assert_eq!(
-            navigator.handle_pointer(220, 140),
+            navigator.handle_pointer(640, 220, 140),
             FilesNavigation::Selected(0)
         );
         assert_eq!(
-            navigator.handle_pointer(220, 140),
+            navigator.handle_pointer(640, 220, 140),
             FilesNavigation::Navigated
         );
         assert_eq!(navigator.current(), canonical_home.join("Documents"));
@@ -5695,26 +5777,29 @@ mod tests {
             FilesNavigation::NavigatedBack
         );
         assert_eq!(
-            navigator.handle_pointer(28, 78),
+            navigator.handle_pointer(640, 28, 78),
             FilesNavigation::NavigatedBack
         );
         assert_eq!(navigator.current(), canonical_home);
         assert!(navigator.can_go_forward());
         assert!(navigator.window().can_go_forward);
         assert_eq!(
-            navigator.handle_pointer(60, 78),
+            navigator.handle_pointer(640, 60, 78),
             FilesNavigation::NavigatedForward
         );
         assert_eq!(navigator.current(), canonical_home.join("Documents"));
         assert_eq!(
-            navigator.handle_pointer(40, 272),
+            navigator.handle_pointer(640, 40, 272),
             FilesNavigation::Navigated
         );
         assert_eq!(navigator.current(), canonical_home.join("Pictures"));
         assert_eq!(navigator.window().selected_sidebar, 3);
-        assert!(navigator.handle_hover(40, 180));
+        assert!(navigator.handle_hover(640, 40, 180));
         assert_eq!(navigator.window().hovered_sidebar, Some(1));
-        assert_eq!(navigator.handle_pointer(40, 318), FilesNavigation::Blocked);
+        assert_eq!(
+            navigator.handle_pointer(640, 40, 318),
+            FilesNavigation::Blocked
+        );
         assert_eq!(navigator.current(), canonical_home.join("Pictures"));
 
         fs::remove_dir_all(root).expect("remove navigation fixture");
