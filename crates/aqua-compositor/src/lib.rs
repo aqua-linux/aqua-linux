@@ -15387,6 +15387,20 @@ mod tests {
             "settings"
         );
         assert!(!session.launcher_state_snapshot().is_open());
+
+        let mut application_session =
+            SmithayDrmSession::new().expect("second Smithay session should start");
+        assert!(application_session.dispatch_keyboard_key(125, true, 50));
+        assert!(application_session.dispatch_keyboard_key(125, false, 51));
+        assert!(application_session.dispatch_keyboard_key(28, true, 52));
+        assert_eq!(
+            application_session
+                .take_launcher_launch_request()
+                .expect("first application request should be queued")
+                .app_id,
+            "files"
+        );
+        assert!(!application_session.launcher_state_snapshot().is_open());
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
