@@ -13,7 +13,7 @@ use aqua_shell::{
     AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
     FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
     NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
-    TerminalView, TopBarState, DESKTOP_ICONS,
+    TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_ABOUT_METADATA,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -4652,16 +4652,26 @@ pub fn render_settings_window_rgba(
                 model.theme,
             );
             primitives += 3;
-        } else {
-            draw_bitmap_text(
-                &mut buffer,
-                (width, height),
-                (first_row.x, first_row.y + 16),
-                "SETTINGS WILL APPEAR HERE",
-                palette.secondary_text,
-                1,
-            );
-            primitives += 1;
+        } else if model.selected_category == 5 {
+            for index in 0..SETTINGS_ABOUT_METADATA.len() {
+                let metadata = model.about_metadata_row(index).expect("About metadata row");
+                primitives += draw_metadata_row(
+                    &mut buffer,
+                    width,
+                    height,
+                    metadata,
+                    MetadataRowStyle {
+                        label_color: palette.secondary_text,
+                        value_color: if metadata.emphasized {
+                            palette.accent
+                        } else {
+                            palette.text
+                        },
+                        role: TextRole::Body,
+                        scale: OutputScale::One,
+                    },
+                );
+            }
         }
     }
     let checksum = checksum_bytes(&buffer);
@@ -8371,6 +8381,29 @@ mod tests {
         let (short_toggled, _) = render_settings_window_rgba(600, 277, &toggled);
         assert!(!short_probe.content_rendered);
         assert_eq!(short_idle, short_toggled);
+    }
+
+    #[test]
+    fn settings_about_category_renders_shared_metadata_rows() {
+        let model = SettingsWindowModel {
+            selected_category: 5,
+            ..SettingsWindowModel::default()
+        };
+        let (pixels, probe) = render_settings_window_rgba(600, 400, &model);
+        assert!(probe.rendered);
+        assert!(probe.sidebar_rendered);
+        assert!(probe.content_rendered);
+        assert_eq!(probe.selected_category, 5);
+        assert!(probe.primitive_count >= SETTINGS_ABOUT_METADATA.len());
+        assert_ne!(probe.checksum, 0);
+        assert_eq!(pixels.len(), 600 * 400 * 4);
+
+        let (clipped, clipped_probe) = render_settings_window_rgba(579, 400, &model);
+        assert!(!clipped_probe.content_rendered);
+        assert!(
+            probe.primitive_count >= clipped_probe.primitive_count + SETTINGS_ABOUT_METADATA.len()
+        );
+        assert_ne!(pixels.len(), clipped.len());
     }
 
     #[test]

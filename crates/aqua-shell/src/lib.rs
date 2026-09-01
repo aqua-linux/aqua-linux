@@ -489,6 +489,11 @@ pub const SETTINGS_SIDEBAR_NAVIGATION: SidebarNavigation<'static> = SidebarNavig
     50,
 );
 pub const SETTINGS_SIDEBAR_ITEM_COUNT: usize = 6;
+pub const SETTINGS_ABOUT_METADATA: [(&str, &str); 3] = [
+    ("Product", "Aqua Linux"),
+    ("Status", "Prototype"),
+    ("Base", "Buildroot 2025.02.17 LTS"),
+];
 pub const fn settings_sidebar_navigation_in_viewport(
     width: u32,
     height: u32,
@@ -2221,6 +2226,7 @@ impl SettingsWindowModel {
             0 => (2, 48, 40),
             3 => (4, 32, 6),
             4 => (2, 48, 20),
+            5 => (SETTINGS_ABOUT_METADATA.len(), 32, 10),
             _ => (1, 48, 0),
         };
         let section_height = if self.selected_category == 3 {
@@ -2397,6 +2403,18 @@ impl SettingsWindowModel {
         } else {
             ComponentState::Idle
         })
+    }
+
+    pub fn about_metadata_row(&self, index: usize) -> Option<MetadataRow<'static>> {
+        if self.selected_category != 5 {
+            return None;
+        }
+        let &(label, value) = SETTINGS_ABOUT_METADATA.get(index)?;
+        Some(
+            MetadataRow::new(self.section_group().row_rect(index), label, value)
+                .with_columns(72, 12)
+                .with_emphasis(index == 0),
+        )
     }
 
     pub fn refresh_network_status(
@@ -5813,6 +5831,37 @@ mod tests {
         assert_eq!(model.handle_pointer(40, 138), SettingsUpdate::None);
         assert!(model.handle_hover(40, 138));
         assert_eq!(model.hovered_category, None);
+    }
+
+    #[test]
+    fn settings_about_uses_read_only_shared_metadata_rows() {
+        let model = SettingsWindowModel {
+            selected_category: 5,
+            ..SettingsWindowModel::default()
+        };
+        let section = model.section_group();
+        assert!(section.is_valid());
+        assert_eq!(section.row_count, SETTINGS_ABOUT_METADATA.len());
+
+        for (index, &(label, value)) in SETTINGS_ABOUT_METADATA.iter().enumerate() {
+            let row = model
+                .about_metadata_row(index)
+                .expect("About metadata row should exist");
+            assert!(row.is_valid());
+            assert_eq!(row.label, label);
+            assert_eq!(row.value, value);
+            assert!(row.rect.x >= section.rect.x);
+            assert!(row.rect.y >= section.rect.y);
+            assert!(row.rect.right() <= section.rect.right());
+            assert!(row.rect.bottom() <= section.rect.bottom());
+            assert!(!row.accepts_input());
+            assert_eq!(row.accessibility().role, "definition");
+            assert!(row.accessibility().read_only);
+        }
+        assert!(model
+            .about_metadata_row(SETTINGS_ABOUT_METADATA.len())
+            .is_none());
+        assert_eq!(SettingsWindowModel::default().about_metadata_row(0), None);
     }
 
     #[cfg(unix)]

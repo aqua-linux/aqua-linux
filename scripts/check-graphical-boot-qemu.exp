@@ -504,6 +504,30 @@ expect {
     eof { puts stderr "QEMU exited after sustained input burst verification"; exit 1 }
 }
 
+run_shell_check {about_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the pre-About repaint sequence"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) settings-about} input_error]} {
+    puts stderr "QEMU Settings About input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -F 'aqua_settings_keyboard' /run/aqua/graphical-session-supervisor.log | grep -Fq 'update=CategorySelected(5)'; do sleep 1; i=$((i + 1)); done} "waiting for the Settings About category"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_settings_about_metadata_rows=3 content_rendered=true read_only=true status=prototype' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Settings About metadata render"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$about_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Settings About repaint"
+run_shell_check {ok=1; grep -Fq 'aqua_settings_about_metadata_rows=3 content_rendered=true read_only=true status=prototype' /run/aqua/graphical-session-supervisor.log || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$about_before" ] || ok=0} "checking the Settings About shared metadata"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-settings-about-qemu status=ok category=5 metadata_rows=3 read_only=true prototype=true repaint=true'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-settings-about-qemu status=ok category=5 metadata_rows=3 read_only=true prototype=true repaint=true} {}
+    timeout { puts stderr "Settings About metadata was not rendered in QEMU"; exit 1 }
+    eof { puts stderr "QEMU exited before Settings About verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Settings About verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Settings About verification"; exit 1 }
+}
+
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) close-settings} input_error]} {
     puts stderr "QEMU Settings close shortcut injection failed: $input_error"
     exit 1

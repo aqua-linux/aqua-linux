@@ -811,6 +811,10 @@ Settings section rendering and pointer or keyboard control activation now
 consume one category-specific viewport-validated content group. Network's
 four-row group receives its valid 212-pixel height; clipped switch, segmented,
 Wi-Fi, slider, and About compositions are omitted and remain inert.
+Settings About now consumes three shared read-only metadata rows for Product,
+Status, and Base. The rows expose definition semantics, keep `Prototype`
+explicit, and identify the pinned Buildroot 2025.02.17 LTS base without
+claiming release readiness or physical-hardware support.
 Further extractions must continue from real first-party consumers and repeat
 the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a
