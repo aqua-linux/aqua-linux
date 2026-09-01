@@ -7,12 +7,12 @@ use aqua_installer::{
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     desktop_context_menu_with_selection, desktop_grid_cell, files_back_button,
-    files_forward_button, files_sidebar_navigation, files_toolbar, running_app_dock,
-    top_system_bar, workspace_switcher, AquaTheme, AudioControlStatus, DesktopIconState,
-    DesktopPropertiesModel, DockItem, DockState, FilesEntryKind, FilesWindowModel,
-    LauncherCategory, LauncherMode, LauncherState, NotificationCenter, SessionAction,
-    SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView, TopBarState,
-    DESKTOP_ICONS, FILES_PREVIEW_VISIBLE_LINES, FILES_VISIBLE_ROWS, SETTINGS_SIDEBAR_NAVIGATION,
+    files_forward_button, files_sidebar_navigation, files_toolbar, files_visible_rows,
+    running_app_dock, top_system_bar, workspace_switcher, AquaTheme, AudioControlStatus,
+    DesktopIconState, DesktopPropertiesModel, DockItem, DockState, FilesEntryKind,
+    FilesWindowModel, LauncherCategory, LauncherMode, LauncherState, NotificationCenter,
+    SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel, TerminalView,
+    TopBarState, DESKTOP_ICONS, FILES_PREVIEW_VISIBLE_LINES, SETTINGS_SIDEBAR_NAVIGATION,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -4898,11 +4898,11 @@ pub fn render_files_window_rgba_with_theme(
             .iter()
             .enumerate()
             .skip(model.scroll_offset)
-            .take(FILES_VISIBLE_ROWS)
+            .take(files_visible_rows(height))
             .enumerate()
         {
             let row = model
-                .entry_row(width, index)
+                .entry_row_in_viewport(width, height, index)
                 .expect("visible Files entry row");
             debug_assert_eq!(row.rect.y, 124 + row_index as u32 * 64);
             primitives += draw_list_row(&mut buffer, width, height, row, theme, OutputScale::One);
@@ -4933,7 +4933,7 @@ pub fn render_files_window_rgba_with_theme(
             );
             primitives += 2;
         }
-        if let Some(scrollbar) = model.list_scrollbar(width) {
+        if let Some(scrollbar) = model.list_scrollbar_in_viewport(width, height) {
             fill_rect(
                 &mut buffer,
                 width,
