@@ -4973,13 +4973,12 @@ pub fn render_files_window_rgba_with_theme(
         }
     }
 
-    if model.keyboard_focus && model.focused_sidebar.is_none() {
-        let focus = Rect {
-            x: sidebar_width + 6,
-            y: 112,
-            width: width.saturating_sub(sidebar_width + 12),
-            height: height.saturating_sub(150),
-        };
+    if let Some(focus) = model
+        .keyboard_focus
+        .then(|| model.content_focus_rect(width, height))
+        .flatten()
+        .filter(|_| model.focused_sidebar.is_none())
+    {
         for edge in [
             Rect {
                 x: focus.x,
@@ -8903,6 +8902,19 @@ mod tests {
         let (narrow_preview, _) = render_files_window_rgba(274, 420, &preview_model);
         let (narrow_home, _) = render_files_window_rgba(274, 420, &FilesWindowModel::default());
         assert_eq!(narrow_preview, narrow_home);
+
+        let content_focused = FilesWindowModel {
+            keyboard_focus: true,
+            focused_sidebar: None,
+            ..FilesWindowModel::default()
+        };
+        let (focused_home, _) = render_files_window_rgba(640, 420, &content_focused);
+        assert_ne!(focused_home, home);
+        let (narrow_focused, _) = render_files_window_rgba(274, 420, &content_focused);
+        assert_eq!(narrow_focused, narrow_home);
+        let (short_focused, _) = render_files_window_rgba(640, 179, &content_focused);
+        let (short_home, _) = render_files_window_rgba(640, 179, &FilesWindowModel::default());
+        assert_eq!(short_focused, short_home);
 
         let mut selected = FilesWindowModel::default();
         selected.select_at(640, 220, 140);
