@@ -407,6 +407,8 @@ const FILES_SCROLLBAR_MIN_THUMB_HEIGHT: u32 = 24;
 const FILES_LIST_SCROLLBAR_Y: u32 = 124;
 const FILES_LIST_ROW_HEIGHT: u32 = 56;
 const FILES_LIST_ROW_STRIDE: u32 = 64;
+const FILES_LIST_ROW_WIDTH_INSET: u32 = 204;
+const FILES_LIST_ROW_MIN_WIDTH: u32 = 71;
 const FILES_CONTENT_BOTTOM_INSET: u32 = 48;
 const FILES_PREVIEW_SCROLLBAR_Y: u32 = 188;
 const FILES_PREVIEW_SCROLLBAR_HEIGHT: u32 = 136;
@@ -487,6 +489,14 @@ pub const fn files_visible_rows(height: u32) -> usize {
         FILES_VISIBLE_ROWS
     } else {
         rows as usize
+    }
+}
+
+pub const fn files_visible_rows_in_viewport(width: u32, height: u32) -> usize {
+    if width.saturating_sub(FILES_LIST_ROW_WIDTH_INSET) < FILES_LIST_ROW_MIN_WIDTH {
+        0
+    } else {
+        files_visible_rows(height)
     }
 }
 
@@ -2907,7 +2917,7 @@ impl FilesWindowModel {
         if self.preview.is_some() {
             return None;
         }
-        let visible_rows = files_visible_rows(height);
+        let visible_rows = files_visible_rows_in_viewport(width, height);
         if visible_rows == 0 {
             return None;
         }
@@ -2983,7 +2993,7 @@ impl FilesWindowModel {
             return None;
         }
         let visible_index = index.checked_sub(self.scroll_offset)?;
-        if visible_index >= files_visible_rows(height) {
+        if visible_index >= files_visible_rows_in_viewport(width, height) {
             return None;
         }
         let entry = self.entries.get(index)?;
@@ -2994,7 +3004,7 @@ impl FilesWindowModel {
         } else {
             ComponentState::Idle
         };
-        let row_width = width.saturating_sub(204);
+        let row_width = width.saturating_sub(FILES_LIST_ROW_WIDTH_INSET);
         let trailing_width = row_width
             .saturating_sub(16)
             .saturating_sub(54 + 80)
@@ -3144,7 +3154,7 @@ impl FilesWindowModel {
             self.selected_entry = None;
             return FilesSelection::Sidebar(index);
         }
-        let visible_rows = files_visible_rows(height);
+        let visible_rows = files_visible_rows_in_viewport(width, height);
         for index in self.scroll_offset..self.entries.len().min(self.scroll_offset + visible_rows) {
             if self
                 .entry_row_in_viewport(width, height, index)
@@ -3168,7 +3178,7 @@ impl FilesWindowModel {
         if let Some(index) = self.sidebar_at(height, x, y) {
             self.hovered_sidebar = Some(index);
         } else {
-            let visible_rows = files_visible_rows(height);
+            let visible_rows = files_visible_rows_in_viewport(width, height);
             for index in
                 self.scroll_offset..self.entries.len().min(self.scroll_offset + visible_rows)
             {
@@ -3294,10 +3304,15 @@ impl FilesNavigator {
     }
 
     pub fn handle_scroll(&mut self, rows: isize) -> FilesNavigation {
-        self.handle_scroll_in_viewport(420, rows)
+        self.handle_scroll_in_viewport(640, 420, rows)
     }
 
-    pub fn handle_scroll_in_viewport(&mut self, height: u32, rows: isize) -> FilesNavigation {
+    pub fn handle_scroll_in_viewport(
+        &mut self,
+        width: u32,
+        height: u32,
+        rows: isize,
+    ) -> FilesNavigation {
         if let Some(preview) = self.window.preview.as_mut() {
             let visible_lines = files_preview_visible_lines(height);
             if visible_lines == 0 {
@@ -3316,7 +3331,7 @@ impl FilesNavigator {
             preview.scroll_offset = offset;
             return FilesNavigation::PreviewScrolled;
         }
-        let visible_rows = files_visible_rows(height);
+        let visible_rows = files_visible_rows_in_viewport(width, height);
         if visible_rows == 0 || self.window.entries.len() <= visible_rows {
             return FilesNavigation::None;
         }
@@ -3382,7 +3397,7 @@ impl FilesNavigator {
     ) -> FilesNavigation {
         self.window.keyboard_focus = true;
         if self.window.preview.is_some() {
-            return self.handle_preview_key(height, key);
+            return self.handle_preview_key(width, height, key);
         }
         match key {
             FilesKey::Left => {
@@ -3412,12 +3427,12 @@ impl FilesNavigator {
             FilesKey::PageUp | FilesKey::PageDown if self.window.focused_sidebar.is_some() => {
                 FilesNavigation::None
             }
-            FilesKey::Up => self.navigate_list(height, ListNavigationKey::Previous),
-            FilesKey::Down => self.navigate_list(height, ListNavigationKey::Next),
-            FilesKey::PageUp => self.navigate_list(height, ListNavigationKey::PagePrevious),
-            FilesKey::PageDown => self.navigate_list(height, ListNavigationKey::PageNext),
-            FilesKey::Home => self.navigate_list(height, ListNavigationKey::Home),
-            FilesKey::End => self.navigate_list(height, ListNavigationKey::End),
+            FilesKey::Up => self.navigate_list(width, height, ListNavigationKey::Previous),
+            FilesKey::Down => self.navigate_list(width, height, ListNavigationKey::Next),
+            FilesKey::PageUp => self.navigate_list(width, height, ListNavigationKey::PagePrevious),
+            FilesKey::PageDown => self.navigate_list(width, height, ListNavigationKey::PageNext),
+            FilesKey::Home => self.navigate_list(width, height, ListNavigationKey::Home),
+            FilesKey::End => self.navigate_list(width, height, ListNavigationKey::End),
             FilesKey::Activate => {
                 if let Some(index) = self.window.focused_sidebar {
                     if !self
@@ -3455,13 +3470,17 @@ impl FilesNavigator {
         }
     }
 
-    fn handle_preview_key(&mut self, height: u32, key: FilesKey) -> FilesNavigation {
+    fn handle_preview_key(&mut self, width: u32, height: u32, key: FilesKey) -> FilesNavigation {
         let visible_lines = files_preview_visible_lines(height);
         match key {
-            FilesKey::Up => self.handle_scroll_in_viewport(height, -1),
-            FilesKey::Down => self.handle_scroll_in_viewport(height, 1),
-            FilesKey::PageUp => self.handle_scroll_in_viewport(height, -(visible_lines as isize)),
-            FilesKey::PageDown => self.handle_scroll_in_viewport(height, visible_lines as isize),
+            FilesKey::Up => self.handle_scroll_in_viewport(width, height, -1),
+            FilesKey::Down => self.handle_scroll_in_viewport(width, height, 1),
+            FilesKey::PageUp => {
+                self.handle_scroll_in_viewport(width, height, -(visible_lines as isize))
+            }
+            FilesKey::PageDown => {
+                self.handle_scroll_in_viewport(width, height, visible_lines as isize)
+            }
             FilesKey::Home => self.set_preview_scroll_offset(height, 0),
             FilesKey::End => {
                 let maximum_offset = self
@@ -3508,8 +3527,13 @@ impl FilesNavigator {
         FilesNavigation::PreviewScrolled
     }
 
-    fn navigate_list(&mut self, height: u32, key: ListNavigationKey) -> FilesNavigation {
-        let visible_rows = files_visible_rows(height);
+    fn navigate_list(
+        &mut self,
+        width: u32,
+        height: u32,
+        key: ListNavigationKey,
+    ) -> FilesNavigation {
+        let visible_rows = files_visible_rows_in_viewport(width, height);
         if visible_rows == 0 {
             return FilesNavigation::None;
         }
@@ -6574,6 +6598,8 @@ mod tests {
         assert_eq!(files_visible_rows(420), 4);
         assert_eq!(files_visible_rows(300), 2);
         assert_eq!(files_visible_rows(179), 0);
+        assert_eq!(files_visible_rows_in_viewport(275, 420), 4);
+        assert_eq!(files_visible_rows_in_viewport(274, 420), 0);
         assert_eq!(files_preview_visible_lines(420), 6);
         assert_eq!(files_preview_visible_lines(322), 2);
         assert_eq!(files_preview_visible_lines(297), 0);
@@ -6633,6 +6659,7 @@ mod tests {
         );
         assert!(home.entry_row_in_viewport(640, 300, 1).is_some());
         assert!(home.entry_row_in_viewport(640, 300, 2).is_none());
+        assert!(home.entry_row_in_viewport(274, 420, 0).is_none());
         let compact_scrollbar = home
             .list_scrollbar_in_viewport(640, 300)
             .expect("compact Files list scrollbar");
@@ -6891,7 +6918,7 @@ mod tests {
     }
 
     #[test]
-    fn files_content_input_uses_visible_rows_from_the_client_height() {
+    fn files_content_input_uses_visible_rows_from_the_client_viewport() {
         let root = std::env::temp_dir().join(format!(
             "aqua-files-content-viewport-{}-{}",
             std::process::id(),
@@ -6906,6 +6933,20 @@ mod tests {
         let canonical_root = root.canonicalize().expect("canonical root fixture");
 
         let mut navigator = FilesNavigator::open(&root).expect("navigator should open");
+        assert_eq!(
+            navigator.handle_key_in_viewport(274, 420, FilesKey::Down),
+            FilesNavigation::None
+        );
+        assert_eq!(navigator.window().selected_entry, None);
+        assert_eq!(
+            navigator.handle_scroll_in_viewport(274, 420, 1),
+            FilesNavigation::None
+        );
+        assert_eq!(navigator.window().scroll_offset, 0);
+        assert!(navigator
+            .window()
+            .list_scrollbar_in_viewport(274, 300)
+            .is_none());
         for expected in 0..=2 {
             assert_eq!(
                 navigator.handle_key_in_viewport(640, 420, FilesKey::Down),
@@ -6913,6 +6954,11 @@ mod tests {
             );
         }
         assert_eq!(navigator.window().scroll_offset, 0);
+        assert_eq!(
+            navigator.handle_key_in_viewport(274, 420, FilesKey::Activate),
+            FilesNavigation::None
+        );
+        assert_eq!(navigator.current(), canonical_root);
         assert_eq!(
             navigator.handle_key_in_viewport(640, 300, FilesKey::Activate),
             FilesNavigation::None

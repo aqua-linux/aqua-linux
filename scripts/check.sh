@@ -1821,12 +1821,13 @@ grep -Fq 'files_key_for_code(key)' crates/aqua-compositor/src/lib.rs
 grep -Fq 'self.window.selected_sidebar = previously_selected_sidebar' crates/aqua-shell/src/lib.rs
 grep -Fq 'sidebar_row(height, index)' crates/aqua-shell/src/lib.rs
 grep -Fq 'self.sidebar_at(height, x, y)' crates/aqua-shell/src/lib.rs
-grep -Fq 'files_visible_rows(height)' crates/aqua-shell/src/lib.rs
+grep -Fq 'files_visible_rows_in_viewport(width, height)' crates/aqua-shell/src/lib.rs
 grep -Fq 'files_preview_visible_lines(height)' crates/aqua-shell/src/lib.rs
 grep -Fq 'preview_scrollbar_in_viewport(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'files_empty_state_layout(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'navigator.handle_pointer_in_viewport(' crates/aqua-compositor/src/lib.rs
 grep -Fq 'navigator.handle_scroll_in_viewport(' crates/aqua-compositor/src/lib.rs
+grep -Fq 'state.buffer_width.max(1)' crates/aqua-compositor/src/lib.rs
 grep -Fq 'details_section_group(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.section_group()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'details_metadata_row(width, height' crates/aqua-renderer/src/lib.rs

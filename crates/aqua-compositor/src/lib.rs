@@ -14107,6 +14107,7 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
         {
             if let Some(navigator) = state.files_navigator.as_mut() {
                 let navigation = navigator.handle_scroll_in_viewport(
+                    state.buffer_width.max(1),
                     state.buffer_height.max(1),
                     if value > 0.0 { 1 } else { -1 },
                 );
