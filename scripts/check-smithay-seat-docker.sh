@@ -219,6 +219,8 @@ docker run --rm --platform linux/amd64 \
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             first_party_runtime_theme_transition_is_idempotent
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
+            first_party_settings_keyboard_uses_shared_sidebar_targets
+        cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_selection_ownership_is_keyboard_focus_bound
         cargo test --quiet -p aqua-compositor --features smithay-smoke --lib \
             smithay_drag_and_drop_is_focus_safe_and_bounded

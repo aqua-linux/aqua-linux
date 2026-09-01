@@ -11294,6 +11294,20 @@ fn settings_passphrase_character(code: u32, shift: bool) -> Option<char> {
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn settings_key_for_code(code: u32) -> Option<aqua_shell::SettingsKey> {
+    Some(match code {
+        102 => aqua_shell::SettingsKey::Home,
+        107 => aqua_shell::SettingsKey::End,
+        103 => aqua_shell::SettingsKey::Up,
+        108 => aqua_shell::SettingsKey::Down,
+        28 => aqua_shell::SettingsKey::Activate,
+        105 => aqua_shell::SettingsKey::Decrease,
+        106 => aqua_shell::SettingsKey::Increase,
+        _ => return None,
+    })
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl CompositorHandler for WaylandSmokeState {
     fn compositor_state(&mut self) -> &mut CompositorState {
         &mut self.compositor_state
@@ -13954,15 +13968,7 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
                 }
                 return;
             }
-            let settings_key = match key {
-                102 => Some(aqua_shell::SettingsKey::Home),
-                103 => Some(aqua_shell::SettingsKey::Up),
-                108 => Some(aqua_shell::SettingsKey::Down),
-                28 => Some(aqua_shell::SettingsKey::Activate),
-                105 => Some(aqua_shell::SettingsKey::Decrease),
-                106 => Some(aqua_shell::SettingsKey::Increase),
-                _ => None,
-            };
+            let settings_key = settings_key_for_code(key);
             if let (Some(settings_key), Some(model)) = (settings_key, state.settings_model.as_mut())
             {
                 let update = model.handle_key(settings_key);
@@ -15633,6 +15639,26 @@ mod tests {
             Some(aqua_shell::AquaTheme::Deepside)
         );
         assert!(!state.apply_runtime_theme(aqua_shell::AquaTheme::Deepside));
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn first_party_settings_keyboard_uses_shared_sidebar_targets() {
+        let mut model = aqua_shell::SettingsWindowModel::default();
+
+        assert_eq!(
+            settings_key_for_code(107).map(|key| model.handle_key(key)),
+            Some(aqua_shell::SettingsUpdate::CategorySelected(5))
+        );
+        assert_eq!(
+            settings_key_for_code(103).map(|key| model.handle_key(key)),
+            Some(aqua_shell::SettingsUpdate::CategorySelected(4))
+        );
+        assert_eq!(
+            settings_key_for_code(102).map(|key| model.handle_key(key)),
+            Some(aqua_shell::SettingsUpdate::CategorySelected(0))
+        );
+        assert_eq!(settings_key_for_code(0), None);
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
