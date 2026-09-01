@@ -56,12 +56,12 @@ pub use aqua_renderer::{
 };
 pub use aqua_scene::{static_shell_scene, Rect, ShellScene, SurfaceKind, Viewport, SCENE_STATUS};
 pub use aqua_shell::{
-    dock_pointer_target, properties_launch_request, top_system_bar, BottomShellTarget,
-    DesktopContextAction, DesktopIconState, DesktopPointerButton, DockItem, DockState,
-    LaunchRequest, LauncherCategory, LauncherEvent, LauncherPointerTarget, LauncherState,
-    MenuNavigationKey, NotificationCenter, SessionAction, SessionMenuEvent, SessionMenuState,
-    TrashModel, NOTIFICATION_DEFAULT_TIMEOUT_MS, SESSION_MENU_RUNTIME_HEIGHT,
-    SESSION_MENU_RUNTIME_WIDTH, WORKSPACE_COUNT,
+    dock_pointer_target, properties_launch_request, top_system_bar, workspace_keyboard_target,
+    BottomShellTarget, DesktopContextAction, DesktopIconState, DesktopPointerButton, DockItem,
+    DockState, LaunchRequest, LauncherCategory, LauncherEvent, LauncherPointerTarget,
+    LauncherState, MenuNavigationKey, NotificationCenter, SessionAction, SessionMenuEvent,
+    SessionMenuState, TrashModel, WorkspaceNavigationKey, NOTIFICATION_DEFAULT_TIMEOUT_MS,
+    SESSION_MENU_RUNTIME_HEIGHT, SESSION_MENU_RUNTIME_WIDTH, WORKSPACE_COUNT,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_text::OutputScale;
@@ -9546,15 +9546,21 @@ impl SmithayDrmSession {
                     state.alt_pressed = pressed;
                     state.keyboard_forward_count += 1;
                     FilterResult::Forward
-                } else if state.ctrl_pressed && state.alt_pressed && matches!(code, 105 | 106) {
+                } else if state.ctrl_pressed
+                    && state.alt_pressed
+                    && matches!(code, 102 | 105 | 106 | 107)
+                {
                     if pressed {
-                        let destination = if code == 105 {
-                            state.active_workspace.checked_sub(1)
-                        } else {
-                            (state.active_workspace + 1 < WORKSPACE_COUNT)
-                                .then_some(state.active_workspace + 1)
+                        let key = match code {
+                            102 => WorkspaceNavigationKey::Home,
+                            105 => WorkspaceNavigationKey::Previous,
+                            106 => WorkspaceNavigationKey::Next,
+                            107 => WorkspaceNavigationKey::End,
+                            _ => unreachable!("workspace shortcut key was bounded above"),
                         };
-                        if let Some(destination) = destination {
+                        if let Some(destination) =
+                            workspace_keyboard_target(state.active_workspace, key)
+                        {
                             if state.shift_pressed {
                                 state.move_active_surface_to_workspace(destination, time);
                             } else {
@@ -15713,7 +15719,39 @@ mod tests {
         assert!(session.dispatch_keyboard_key(29, false, 97));
         assert_eq!(session.active_workspace(), 0);
 
-        assert!(session.activate_workspace(1, 98));
+        assert!(session.dispatch_keyboard_key(29, true, 98));
+        assert!(session.dispatch_keyboard_key(56, true, 99));
+        assert!(session.dispatch_keyboard_key(107, true, 100));
+        assert!(session.dispatch_keyboard_key(107, false, 101));
+        assert!(session.dispatch_keyboard_key(56, false, 102));
+        assert!(session.dispatch_keyboard_key(29, false, 103));
+        assert_eq!(session.active_workspace(), 2);
+
+        assert!(session.dispatch_keyboard_key(29, true, 104));
+        assert!(session.dispatch_keyboard_key(56, true, 105));
+        assert!(session.dispatch_keyboard_key(102, true, 106));
+        assert!(session.dispatch_keyboard_key(102, false, 107));
+        assert!(session.dispatch_keyboard_key(56, false, 108));
+        assert!(session.dispatch_keyboard_key(29, false, 109));
+        assert_eq!(session.active_workspace(), 0);
+
+        assert!(session.activate_workspace(1, 110));
+        assert!(session.dispatch_keyboard_key(29, true, 111));
+        assert!(session.dispatch_keyboard_key(56, true, 112));
+        assert!(session.dispatch_keyboard_key(42, true, 113));
+        assert!(session.dispatch_keyboard_key(107, true, 114));
+        assert!(session.dispatch_keyboard_key(107, false, 115));
+        assert!(session.dispatch_keyboard_key(42, false, 116));
+        assert!(session.dispatch_keyboard_key(56, false, 117));
+        assert!(session.dispatch_keyboard_key(29, false, 118));
+        assert_eq!(session.active_workspace(), 1);
+        assert!(session.visible_client_surface_snapshots().is_empty());
+        assert!(session.activate_workspace(2, 119));
+        assert_eq!(
+            session.active_toplevel_app_id().as_deref(),
+            Some("aqua.settings")
+        );
+        assert!(session.activate_workspace(1, 120));
         let dock = static_shell_scene(Viewport::new(1536, 1024))
             .surface_rect(SurfaceKind::Dock)
             .expect("Dock geometry should exist");
@@ -15723,11 +15761,11 @@ mod tests {
         assert!(session.dispatch_pointer_motion(
             f64::from(pointer_x) - f64::from(input.pointer_x),
             f64::from(pointer_y) - f64::from(input.pointer_y),
-            99,
+            121,
         ));
-        assert!(session.dispatch_pointer_button(0x110, true, 100));
+        assert!(session.dispatch_pointer_button(0x110, true, 122));
         assert_eq!(session.active_workspace(), 0);
-        assert!(session.present_client_surface(100));
+        assert!(session.present_client_surface(122));
         let input = session.input_snapshot();
         assert_eq!(input.pointer_x, pointer_x);
         assert_eq!(input.pointer_y, pointer_y);

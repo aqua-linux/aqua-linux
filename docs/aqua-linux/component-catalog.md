@@ -573,8 +573,9 @@ viewports including fractional scale. Packaged-QEMU acceptance is covered by the
 - Pointer routing uses exact half-open workspace targets; the switcher's right
   edge and space outside its surface do not activate a workspace.
 - Previous/next keyboard navigation is bounded rather than wrapping; Home and
-  End resolve the first and last workspace. Existing compositor shortcuts feed
-  the same three-workspace activation model.
+  End resolve the first and last workspace. Ctrl+Alt+Left/Right/Home/End feed
+  these exact shared targets into the three-workspace activation model; adding
+  Shift moves the active window to the same bounded destination.
 - The container exposes a named `tablist` with workspace count and active index.
   Each named workspace exposes `tab` and selected state.
 - The bottom-shell renderer derives its surface, thumbnails, active fill, and
@@ -678,7 +679,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first nine
+All catalog entries now satisfy the shared primitive contract. The first ten
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -691,7 +692,9 @@ local targets. Smithay motion bounds and launcher hover routing now use those
 same active output dimensions. Session-menu pointer routing maps the active
 output panel into the shared menu rows without weakening its confirmation
 gate, and its Up, Down, Home, and End handling now consumes the same shared
-keyboard target contract. Further extractions must continue from real
+keyboard target contract. Workspace activation and active-window movement now
+consume the shared switcher's bounded Previous, Next, Home, and End targets.
+Further extractions must continue from real
 first-party consumers and repeat the same geometry, input, accessibility,
 deterministic-fixture, and packaged-QEMU
 evidence path. The actual audio service/backend remains a separate R4 decision
