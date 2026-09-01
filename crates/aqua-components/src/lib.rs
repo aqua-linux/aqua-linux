@@ -2103,6 +2103,14 @@ impl<'a> GridCell<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CollectionNavigationKey {
+    Previous,
+    Next,
+    Home,
+    End,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ApplicationOverviewAccessibility<'a> {
     pub role: &'static str,
     pub name: &'a str,
@@ -2209,6 +2217,17 @@ impl<'a> ApplicationOverview<'a> {
         } else {
             self.visible_limit
         }
+    }
+
+    pub const fn keyboard_target(
+        self,
+        selected_index: usize,
+        key: CollectionNavigationKey,
+    ) -> Option<usize> {
+        if !self.is_valid() {
+            return None;
+        }
+        bounded_collection_keyboard_target(selected_index, self.visible_item_count(), key)
     }
 
     pub const fn cell_rect(self, index: usize) -> Rect {
@@ -2440,6 +2459,17 @@ impl<'a> GlobalSearch<'a> {
         } else {
             self.visible_result_limit
         }
+    }
+
+    pub const fn result_keyboard_target(
+        self,
+        selected_index: usize,
+        key: CollectionNavigationKey,
+    ) -> Option<usize> {
+        if !self.is_valid() {
+            return None;
+        }
+        bounded_collection_keyboard_target(selected_index, self.visible_result_count(), key)
     }
 
     pub const fn result_rect(self, index: usize) -> Rect {
@@ -3397,6 +3427,28 @@ const fn rect_contains(rect: Rect, x: u32, y: u32) -> bool {
     x >= rect.x && x < rect.right() && y >= rect.y && y < rect.bottom()
 }
 
+const fn bounded_collection_keyboard_target(
+    selected_index: usize,
+    item_count: usize,
+    key: CollectionNavigationKey,
+) -> Option<usize> {
+    if item_count == 0 || selected_index >= item_count {
+        return None;
+    }
+    Some(match key {
+        CollectionNavigationKey::Previous => {
+            if selected_index == 0 {
+                item_count - 1
+            } else {
+                selected_index - 1
+            }
+        }
+        CollectionNavigationKey::Next => (selected_index + 1) % item_count,
+        CollectionNavigationKey::Home => 0,
+        CollectionNavigationKey::End => item_count - 1,
+    })
+}
+
 const fn expanded_rect(rect: Rect, amount: u32) -> Rect {
     Rect {
         x: rect.x.saturating_sub(amount),
@@ -3783,6 +3835,34 @@ mod tests {
         assert_eq!(semantics.role, "region");
         assert_eq!(semantics.item_count, 6);
         assert_eq!(semantics.column_count, 3);
+        assert_eq!(
+            overview.keyboard_target(0, CollectionNavigationKey::Previous),
+            Some(5)
+        );
+        assert_eq!(
+            overview.keyboard_target(5, CollectionNavigationKey::Next),
+            Some(0)
+        );
+        assert_eq!(
+            overview.keyboard_target(4, CollectionNavigationKey::Home),
+            Some(0)
+        );
+        assert_eq!(
+            overview.keyboard_target(0, CollectionNavigationKey::End),
+            Some(5)
+        );
+        assert_eq!(
+            overview.keyboard_target(6, CollectionNavigationKey::Next),
+            None
+        );
+        assert_eq!(
+            ApplicationOverview {
+                item_count: 0,
+                ..overview
+            }
+            .keyboard_target(0, CollectionNavigationKey::Next),
+            None
+        );
     }
 
     #[test]
@@ -3836,6 +3916,30 @@ mod tests {
         assert_eq!(semantics.role, "search");
         assert_eq!(semantics.result_count, 6);
         assert_eq!(semantics.quick_action_count, 3);
+        assert_eq!(
+            search.result_keyboard_target(0, CollectionNavigationKey::Previous),
+            Some(4)
+        );
+        assert_eq!(
+            search.result_keyboard_target(4, CollectionNavigationKey::Next),
+            Some(0)
+        );
+        assert_eq!(
+            search.result_keyboard_target(2, CollectionNavigationKey::Home),
+            Some(0)
+        );
+        assert_eq!(
+            search.result_keyboard_target(0, CollectionNavigationKey::End),
+            Some(4)
+        );
+        assert_eq!(
+            GlobalSearch {
+                result_count: 0,
+                ..search
+            }
+            .result_keyboard_target(0, CollectionNavigationKey::Next),
+            None
+        );
     }
 
     #[test]
