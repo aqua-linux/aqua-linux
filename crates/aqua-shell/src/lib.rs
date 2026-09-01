@@ -3815,12 +3815,21 @@ impl LauncherState {
     }
 
     pub fn navigate_selection(&mut self, key: CollectionNavigationKey) -> bool {
+        self.navigate_selection_in_viewport(key, 800, 600)
+    }
+
+    pub fn navigate_selection_in_viewport(
+        &mut self,
+        key: CollectionNavigationKey,
+        viewport_width: u32,
+        viewport_height: u32,
+    ) -> bool {
         let target = match self.mode {
             LauncherMode::Applications => self
-                .application_overview(800, 600)
+                .application_overview(viewport_width, viewport_height)
                 .keyboard_target(self.selected_index, key),
             LauncherMode::Search => self
-                .global_search(800, 600)
+                .global_search(viewport_width, viewport_height)
                 .result_keyboard_target(self.selected_index, key),
         };
         let Some(target) = target else {
@@ -4062,7 +4071,9 @@ impl LauncherState {
                 }
             }
             LauncherEvent::Navigate(key) => {
-                if !self.open || !self.navigate_selection(key) {
+                if !self.open
+                    || !self.navigate_selection_in_viewport(key, viewport_width, viewport_height)
+                {
                     return LauncherUpdate::unchanged();
                 }
                 LauncherUpdate {
@@ -5748,6 +5759,12 @@ mod tests {
     fn launcher_selection_wraps_in_both_directions() {
         let mut launcher = LauncherState::default();
         launcher.open();
+        assert!(!launcher.navigate_selection_in_viewport(
+            CollectionNavigationKey::Previous,
+            800,
+            180
+        ));
+        assert_eq!(launcher.selected_index(), 0);
         assert!(launcher.navigate_selection(CollectionNavigationKey::Previous));
         assert_eq!(launcher.selected_index(), 5);
         assert!(launcher.navigate_selection(CollectionNavigationKey::Next));
@@ -5758,6 +5775,12 @@ mod tests {
         assert_eq!(launcher.selected_index(), 0);
 
         launcher.open_search();
+        assert!(!launcher.navigate_selection_in_viewport(
+            CollectionNavigationKey::Previous,
+            500,
+            600
+        ));
+        assert_eq!(launcher.selected_index(), 0);
         assert!(launcher.navigate_selection(CollectionNavigationKey::Previous));
         assert_eq!(launcher.selected_index(), 4);
         assert!(!launcher.select_visible_index(5));
