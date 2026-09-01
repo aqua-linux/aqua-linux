@@ -34,6 +34,8 @@ docker run --rm \
             BR2_EXTERNAL=/work/br2-external/aqua \
             aqua_x86_64_wifi_qemu_defconfig
         make -C "${buildroot_dir}" O="${output_dir}" \
+            BR2_EXTERNAL=/work/br2-external/aqua hostapd-dirclean
+        make -C "${buildroot_dir}" O="${output_dir}" \
             BR2_EXTERNAL=/work/br2-external/aqua aqua-wifi-native
     '
 

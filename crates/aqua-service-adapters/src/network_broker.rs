@@ -54,6 +54,7 @@ pub enum WifiBrokerRequest {
     Status,
     Scan,
     Connect {
+        security: WifiScanSecurity,
         ssid: WifiSsid,
         passphrase: WifiPassphrase,
     },
@@ -195,18 +196,27 @@ pub fn parse_authenticated_request(
             validate_wifi_interface(fields[2])?;
             Ok(AuthenticatedNetworkRequest::Wifi(WifiBrokerRequest::Forget))
         }
-        "WIFI_CONNECT" if fields.len() == 5 => {
+        "WIFI_CONNECT" if fields.len() == 6 => {
             validate_wifi_interface(fields[2])?;
-            let ssid = decode_hex(fields[3]).and_then(|value| {
+            let security = match fields[3] {
+                "wpa2-personal" => WifiScanSecurity::Wpa2Personal,
+                "wpa3-personal" => WifiScanSecurity::Wpa3Personal,
+                _ => return Err(NetworkBrokerError::InvalidCredential),
+            };
+            let ssid = decode_hex(fields[4]).and_then(|value| {
                 WifiSsid::new(value).map_err(|_| NetworkBrokerError::InvalidCredential)
             })?;
-            let mut passphrase_bytes = decode_hex(fields[4])?;
+            let mut passphrase_bytes = decode_hex(fields[5])?;
             let passphrase = WifiPassphrase::from_bytes(&passphrase_bytes)
                 .map_err(|_| NetworkBrokerError::InvalidCredential);
             wipe_bytes(&mut passphrase_bytes);
             let passphrase = passphrase?;
             Ok(AuthenticatedNetworkRequest::Wifi(
-                WifiBrokerRequest::Connect { ssid, passphrase },
+                WifiBrokerRequest::Connect {
+                    security,
+                    ssid,
+                    passphrase,
+                },
             ))
         }
         "WIFI_STATUS" | "WIFI_SCAN" | "WIFI_DISCONNECT" | "WIFI_RECONNECT" | "WIFI_FORGET"
@@ -310,10 +320,17 @@ pub fn request_wifi_scan(
 
 pub fn request_wifi_connect(
     socket_path: &Path,
+    security: WifiScanSecurity,
     ssid: &WifiSsid,
     passphrase: &WifiPassphrase,
 ) -> Result<WifiBrokerStatus, WifiBrokerClientError> {
-    let mut request = format!("{PROTOCOL_VERSION} WIFI_CONNECT {FIXED_WIFI_INTERFACE} ");
+    if security == WifiScanSecurity::Unsupported {
+        return Err(WifiBrokerClientError::InvalidResponse);
+    }
+    let mut request = format!(
+        "{PROTOCOL_VERSION} WIFI_CONNECT {FIXED_WIFI_INTERFACE} {} ",
+        security.id()
+    );
     write_hex(ssid.bytes(), &mut request);
     request.push(' ');
     passphrase.with_bytes(|bytes| write_hex(bytes, &mut request));
@@ -321,7 +338,7 @@ pub fn request_wifi_connect(
     let mut request = request.into_bytes();
     let response = exchange_wifi_request(socket_path, &request);
     wipe_bytes(&mut request);
-    parse_wifi_connect_response(&response?)
+    parse_wifi_connect_response(&response?, security)
 }
 
 fn exchange_wifi_request(
@@ -546,6 +563,7 @@ pub fn parse_wifi_scan_response(
         }
         let security = match fields[2] {
             "wpa2-personal" => WifiScanSecurity::Wpa2Personal,
+            "wpa3-personal" => WifiScanSecurity::Wpa3Personal,
             "unsupported" => WifiScanSecurity::Unsupported,
             _ => return Err(WifiBrokerClientError::InvalidResponse),
         };
@@ -558,11 +576,15 @@ pub fn parse_wifi_scan_response(
     Ok(networks)
 }
 
-fn parse_wifi_connect_response(bytes: &[u8]) -> Result<WifiBrokerStatus, WifiBrokerClientError> {
+fn parse_wifi_connect_response(
+    bytes: &[u8],
+    expected_security: WifiScanSecurity,
+) -> Result<WifiBrokerStatus, WifiBrokerClientError> {
     let values = parse_client_response_fields(bytes)?;
     let allowed = [
         "operation",
         "interface",
+        "security",
         "network_id",
         "authoritative",
         "credential_saved",
@@ -571,11 +593,16 @@ fn parse_wifi_connect_response(bytes: &[u8]) -> Result<WifiBrokerStatus, WifiBro
         || values.keys().any(|key| !allowed.contains(key))
         || values.get("operation") != Some(&"wifi-connect")
         || values.get("interface") != Some(&FIXED_WIFI_INTERFACE)
+        || values.get("security") != Some(&expected_security.id())
         || values.get("authoritative") != Some(&"true")
-        || values.get("credential_saved") != Some(&"true")
     {
         return Err(WifiBrokerClientError::InvalidResponse);
     }
+    let credential_saved = match expected_security {
+        WifiScanSecurity::Wpa2Personal if values.get("credential_saved") == Some(&"true") => true,
+        WifiScanSecurity::Wpa3Personal if values.get("credential_saved") == Some(&"false") => false,
+        _ => return Err(WifiBrokerClientError::InvalidResponse),
+    };
     let network_id = values
         .get("network_id")
         .ok_or(WifiBrokerClientError::InvalidResponse)?
@@ -588,7 +615,7 @@ fn parse_wifi_connect_response(bytes: &[u8]) -> Result<WifiBrokerStatus, WifiBro
         state: "completed".to_owned(),
         network_id: Some(network_id),
         authoritative: true,
-        credential_saved: true,
+        credential_saved,
     })
 }
 
@@ -884,14 +911,18 @@ mod tests {
     #[test]
     fn authenticated_protocol_types_and_redacts_wifi_credentials() {
         let request = parse_authenticated_request(
-            b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 41717561204c6162 636f727265637420686f727365\n",
+            b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 wpa3-personal 41717561204c6162 636f727265637420686f727365\n",
         )
         .expect("valid typed Wi-Fi request");
-        let AuthenticatedNetworkRequest::Wifi(WifiBrokerRequest::Connect { ssid, passphrase }) =
-            request
+        let AuthenticatedNetworkRequest::Wifi(WifiBrokerRequest::Connect {
+            security,
+            ssid,
+            passphrase,
+        }) = request
         else {
             panic!("expected Wi-Fi connect request");
         };
+        assert_eq!(security, WifiScanSecurity::Wpa3Personal);
         assert_eq!(ssid.bytes(), b"Aqua Lab");
         assert_eq!(passphrase.with_bytes(|value| value.len()), 13);
         let debug = format!("{passphrase:?}");
@@ -958,12 +989,12 @@ mod tests {
         assert!(!forgotten.credential_saved);
 
         let scanned = parse_wifi_scan_response(
-            b"AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=2 authoritative=true network_0=417175612d51454d55,-28,wpa2-personal network_1=4675747572652d4e6574,-55,unsupported\n",
+            b"AQUA-NETWORK/1 OK operation=wifi-scan interface=wlan0 count=2 authoritative=true network_0=417175612d51454d55,-28,wpa3-personal network_1=4675747572652d4e6574,-55,unsupported\n",
         )
         .expect("valid scan response");
         assert_eq!(scanned.len(), 2);
         assert_eq!(scanned[0].ssid.bytes(), b"Aqua-QEMU");
-        assert_eq!(scanned[0].security, WifiScanSecurity::Wpa2Personal);
+        assert_eq!(scanned[0].security, WifiScanSecurity::Wpa3Personal);
         assert_eq!(scanned[1].security, WifiScanSecurity::Unsupported);
 
         assert!(matches!(
@@ -992,19 +1023,27 @@ mod tests {
     fn authenticated_protocol_rejects_wifi_injection_and_invalid_secrets() {
         assert!(matches!(
             parse_authenticated_request(
-                b"AQUA-NETWORK/1 WIFI_CONNECT wlan1 41717561 636f727265637431\n"
+                b"AQUA-NETWORK/1 WIFI_CONNECT wlan1 wpa2-personal 41717561 636f727265637431\n"
             ),
             Err(NetworkBrokerError::InvalidInterface)
         ));
         assert!(matches!(
-            parse_authenticated_request(b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 41717561 73686f7274\n"),
+            parse_authenticated_request(
+                b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 wpa2-personal 41717561 73686f7274\n"
+            ),
             Err(NetworkBrokerError::InvalidCredential)
         ));
         assert!(matches!(
             parse_authenticated_request(
-                b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 41717561 636f727265637431 extra\n"
+                b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 wpa2-personal 41717561 636f727265637431 extra\n"
             ),
             Err(NetworkBrokerError::InvalidRequest)
+        ));
+        assert!(matches!(
+            parse_authenticated_request(
+                b"AQUA-NETWORK/1 WIFI_CONNECT wlan0 unsupported 41717561 636f727265637431\n"
+            ),
+            Err(NetworkBrokerError::InvalidCredential)
         ));
         assert!(matches!(
             parse_authenticated_request(b"AQUA-NETWORK/1 WIFI_STATUS wlan0\nEXEC root\n"),

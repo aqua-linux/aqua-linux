@@ -81,6 +81,8 @@ lines = [
     "",
     cell(data.get("r4NetworkBoundary", "")),
     "",
+    cell(data.get("r4NetworkWpa3Evidence", "")),
+    "",
     cell(data["currentStage"]),
     "",
     "## Phases",
