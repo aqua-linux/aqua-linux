@@ -234,8 +234,13 @@ three-viewport deterministic matrix is recorded in `component-fixtures.txt`.
   represented by checked/selected-index semantics instead of a duplicate
   generic selected state.
 
-Settings now uses one switch geometry for reduced motion, desktop icons, and
-key repeat. Its four-theme selector uses one segmented-control geometry for
+Settings now uses one switch geometry and activation gate for reduced motion,
+desktop icons, key repeat, Wi-Fi association, and Audio mute. Enter and pointer
+input both consume the shared switch state, so unavailable Wi-Fi and Audio
+controls reject activation while Wi-Fi credential entry retains Enter. The
+compact Network row bounds its switch to the rendered 32-pixel row instead of
+producing an invalid oversized target. Its
+four-theme selector uses one segmented-control geometry for
 renderer, pointer routing, and compositor-owned Left/Right selection;
 inter-segment gaps reject pointer input, and Previous/Next keyboard targets
 wrap through the four persisted themes. Up, Down, Home, and End retain Settings
@@ -707,7 +712,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first fifteen
+All catalog entries now satisfy the shared primitive contract. The first sixteen
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -735,6 +740,9 @@ separate.
 Settings Appearance Left/Right now consumes the shared segmented-control
 Previous/Next targets and persists the selected theme without changing
 category, Wi-Fi credential, or Audio key ownership.
+Settings Enter now consumes the active shared switch's keyboard gate for
+Reduced Motion, Desktop Icons, Key Repeat, Wi-Fi, and Audio Mute, preserving
+credential-entry and authoritative disabled behavior.
 Further extractions must continue from real first-party consumers and repeat
 the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a

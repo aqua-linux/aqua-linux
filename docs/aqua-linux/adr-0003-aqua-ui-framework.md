@@ -3,7 +3,7 @@
 ## Status
 
 Accepted on 2026-08-29. Framework consolidation began on 2026-09-01 after the
-core desktop functionality supplied real consumers. The first fifteen bounded
+core desktop functionality supplied real consumers. The first sixteen bounded
 slices replaced Settings Network's duplicated Wi-Fi row/action hit geometry,
 Files content-row render/input geometry, and launcher panel/child pointer
 routing with existing shared component contracts, then consolidated Files list
@@ -36,6 +36,9 @@ navigation contract without changing preview-key ownership;
 Settings Appearance Left and Right now resolve the persisted theme through the
 shared `SegmentedControl` Previous and Next targets while category navigation
 and Wi-Fi or Audio key ownership remain unchanged;
+Settings Enter activation now resolves Reduced Motion, Desktop Icons, Key
+Repeat, Wi-Fi, and Audio Mute through the same shared `SwitchControl` gate used
+by pointer input, retaining credential-entry and authoritative disabled gates;
 the broader consolidation remains in progress.
 
 ## Context

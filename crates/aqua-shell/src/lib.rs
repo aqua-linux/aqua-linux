@@ -1,10 +1,10 @@
 use aqua_components::{
-    ApplicationOverview, ComponentState, ConfirmationDialog, ConfirmationPresentation,
-    ConfirmationRequirement, ConfirmationSeverity, ConfirmationState, GlobalSearch, GridCell,
-    GridCellLayout, IconButton, IconButtonGlyph, ListNavigation, ListNavigationKey, ListRow,
-    ListRowRole, Menu, MetadataRow, RunningAppDock, SearchField, SectionGroup,
-    SegmentNavigationKey, SegmentedControl, SidebarNavigation, SidebarNavigationKey, Slider,
-    SliderKey, StandardButton, StandardButtonVariant, SwitchControl, Toolbar, TopSystemBar,
+    ActivationKey, ApplicationOverview, ComponentState, ConfirmationDialog,
+    ConfirmationPresentation, ConfirmationRequirement, ConfirmationSeverity, ConfirmationState,
+    GlobalSearch, GridCell, GridCellLayout, IconButton, IconButtonGlyph, ListNavigation,
+    ListNavigationKey, ListRow, ListRowRole, Menu, MetadataRow, RunningAppDock, SearchField,
+    SectionGroup, SegmentNavigationKey, SegmentedControl, SidebarNavigation, SidebarNavigationKey,
+    Slider, SliderKey, StandardButton, StandardButtonVariant, SwitchControl, Toolbar, TopSystemBar,
     WorkspaceSwitcher,
 };
 pub use aqua_components::{CollectionNavigationKey, MenuNavigationKey, WorkspaceNavigationKey};
@@ -1931,9 +1931,11 @@ impl SettingsWindowModel {
             ),
             _ => return None,
         };
+        let section = self.section_group();
+        let switch_height = section.row_rect(row_index).height.min(36);
         Some(
             SwitchControl::new(
-                self.section_group().trailing_rect(row_index, 82, 36),
+                section.trailing_rect(row_index, 82, switch_height),
                 label,
                 checked,
             )
@@ -2382,18 +2384,6 @@ impl SettingsWindowModel {
                 self.selected_category = selected_category;
                 SettingsUpdate::CategorySelected(self.selected_category)
             }
-            SettingsKey::Activate if self.selected_category == 0 => {
-                self.reduced_motion = !self.reduced_motion;
-                SettingsUpdate::ReducedMotionChanged(self.reduced_motion)
-            }
-            SettingsKey::Activate if self.selected_category == 1 => {
-                self.desktop_icons = !self.desktop_icons;
-                SettingsUpdate::DesktopIconsChanged(self.desktop_icons)
-            }
-            SettingsKey::Activate if self.selected_category == 2 => {
-                self.key_repeat = !self.key_repeat;
-                SettingsUpdate::KeyRepeatChanged(self.key_repeat)
-            }
             SettingsKey::Decrease | SettingsKey::Increase if self.selected_category == 0 => {
                 let navigation_key = if key == SettingsKey::Decrease {
                     SegmentNavigationKey::Previous
@@ -2411,11 +2401,6 @@ impl SettingsWindowModel {
                 };
                 self.theme = theme;
                 SettingsUpdate::ThemeChanged(theme)
-            }
-            SettingsKey::Activate
-                if self.selected_category == 3 && self.wifi.controls_enabled() =>
-            {
-                SettingsUpdate::WifiControlRequested(!self.wifi.connected())
             }
             SettingsKey::Decrease
                 if self.selected_category == 3 && self.wifi.controls_enabled() =>
@@ -2435,15 +2420,38 @@ impl SettingsWindowModel {
             SettingsKey::Increase if self.selected_category == 4 => {
                 self.adjust_audio_volume(SliderKey::Increase)
             }
-            SettingsKey::Activate
-                if self.selected_category == 4 && self.audio.controls_enabled() =>
-            {
+            SettingsKey::Activate => self.activate_switch(),
+            SettingsKey::Decrease | SettingsKey::Increase => SettingsUpdate::None,
+        }
+    }
+
+    fn activate_switch(&mut self) -> SettingsUpdate {
+        if !self
+            .active_switch()
+            .is_some_and(|control| control.keyboard_toggles(ActivationKey::Enter))
+        {
+            return SettingsUpdate::None;
+        }
+        match self.selected_category {
+            0 => {
+                self.reduced_motion = !self.reduced_motion;
+                SettingsUpdate::ReducedMotionChanged(self.reduced_motion)
+            }
+            1 => {
+                self.desktop_icons = !self.desktop_icons;
+                SettingsUpdate::DesktopIconsChanged(self.desktop_icons)
+            }
+            2 => {
+                self.key_repeat = !self.key_repeat;
+                SettingsUpdate::KeyRepeatChanged(self.key_repeat)
+            }
+            3 => SettingsUpdate::WifiControlRequested(!self.wifi.connected()),
+            4 => {
                 let muted = !self.audio.muted();
                 self.audio.set_muted(muted);
                 SettingsUpdate::AudioMutedChanged(muted)
             }
-            SettingsKey::Activate => SettingsUpdate::None,
-            SettingsKey::Decrease | SettingsKey::Increase => SettingsUpdate::None,
+            _ => SettingsUpdate::None,
         }
     }
 
@@ -5075,7 +5083,10 @@ mod tests {
         assert!(model.refresh_wifi_control(&socket));
         assert!(model.wifi.connected());
         model.selected_category = 3;
-        assert!(model.active_switch().expect("Wi-Fi switch").checked);
+        let wifi_switch = model.active_switch().expect("Wi-Fi switch");
+        assert!(wifi_switch.checked);
+        assert!(wifi_switch.is_valid());
+        assert!(wifi_switch.pointer_toggles(wifi_switch.rect.x, wifi_switch.rect.y));
         assert_eq!(
             model.handle_key(SettingsKey::Activate),
             SettingsUpdate::WifiControlRequested(false)
