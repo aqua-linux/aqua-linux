@@ -2,9 +2,10 @@ use aqua_components::{
     ApplicationOverview, ComponentState, ConfirmationDialog, ConfirmationPresentation,
     ConfirmationRequirement, ConfirmationSeverity, ConfirmationState, GlobalSearch, GridCell,
     GridCellLayout, IconButton, IconButtonGlyph, ListNavigation, ListNavigationKey, ListRow,
-    ListRowRole, Menu, MetadataRow, RunningAppDock, SearchField, SectionGroup, SegmentedControl,
-    SidebarNavigation, SidebarNavigationKey, Slider, SliderKey, StandardButton,
-    StandardButtonVariant, SwitchControl, Toolbar, TopSystemBar, WorkspaceSwitcher,
+    ListRowRole, Menu, MetadataRow, RunningAppDock, SearchField, SectionGroup,
+    SegmentNavigationKey, SegmentedControl, SidebarNavigation, SidebarNavigationKey, Slider,
+    SliderKey, StandardButton, StandardButtonVariant, SwitchControl, Toolbar, TopSystemBar,
+    WorkspaceSwitcher,
 };
 pub use aqua_components::{CollectionNavigationKey, MenuNavigationKey, WorkspaceNavigationKey};
 use aqua_scene::Rect;
@@ -2392,6 +2393,24 @@ impl SettingsWindowModel {
             SettingsKey::Activate if self.selected_category == 2 => {
                 self.key_repeat = !self.key_repeat;
                 SettingsUpdate::KeyRepeatChanged(self.key_repeat)
+            }
+            SettingsKey::Decrease | SettingsKey::Increase if self.selected_category == 0 => {
+                let navigation_key = if key == SettingsKey::Decrease {
+                    SegmentNavigationKey::Previous
+                } else {
+                    SegmentNavigationKey::Next
+                };
+                let Some(selected_index) = self
+                    .theme_segmented_control()
+                    .keyboard_target(navigation_key)
+                else {
+                    return SettingsUpdate::None;
+                };
+                let Some(theme) = AquaTheme::ALL.get(selected_index).copied() else {
+                    return SettingsUpdate::None;
+                };
+                self.theme = theme;
+                SettingsUpdate::ThemeChanged(theme)
             }
             SettingsKey::Activate
                 if self.selected_category == 3 && self.wifi.controls_enabled() =>
@@ -4920,6 +4939,16 @@ mod tests {
             model.handle_key(SettingsKey::Home),
             SettingsUpdate::CategorySelected(0)
         );
+        assert_eq!(
+            model.handle_key(SettingsKey::Decrease),
+            SettingsUpdate::ThemeChanged(AquaTheme::Nightmare)
+        );
+        assert_eq!(model.theme, AquaTheme::Nightmare);
+        assert_eq!(
+            model.handle_key(SettingsKey::Increase),
+            SettingsUpdate::ThemeChanged(AquaTheme::LightWhite)
+        );
+        assert_eq!(model.theme, AquaTheme::LightWhite);
         assert_eq!(
             model.handle_key(SettingsKey::Down),
             SettingsUpdate::CategorySelected(1)
