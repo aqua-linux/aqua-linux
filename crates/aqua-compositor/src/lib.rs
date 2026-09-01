@@ -57,12 +57,12 @@ pub use aqua_renderer::{
 pub use aqua_scene::{static_shell_scene, Rect, ShellScene, SurfaceKind, Viewport, SCENE_STATUS};
 pub use aqua_shell::{
     dock_pointer_target, properties_launch_request, top_system_bar, workspace_keyboard_target,
-    BottomShellTarget, DesktopContextAction, DesktopContextMenuKey, DesktopIconState,
-    DesktopIconUpdate, DesktopPointerButton, DockItem, DockState, LaunchRequest, LauncherCategory,
-    LauncherEvent, LauncherPointerTarget, LauncherState, MenuNavigationKey, NotificationCenter,
-    SessionAction, SessionMenuEvent, SessionMenuState, TrashModel, WorkspaceNavigationKey,
-    NOTIFICATION_DEFAULT_TIMEOUT_MS, SESSION_MENU_RUNTIME_HEIGHT, SESSION_MENU_RUNTIME_WIDTH,
-    WORKSPACE_COUNT,
+    BottomShellTarget, CollectionNavigationKey, DesktopContextAction, DesktopContextMenuKey,
+    DesktopIconState, DesktopIconUpdate, DesktopPointerButton, DockItem, DockState, LaunchRequest,
+    LauncherCategory, LauncherEvent, LauncherPointerTarget, LauncherState, MenuNavigationKey,
+    NotificationCenter, SessionAction, SessionMenuEvent, SessionMenuState, TrashModel,
+    WorkspaceNavigationKey, NOTIFICATION_DEFAULT_TIMEOUT_MS, SESSION_MENU_RUNTIME_HEIGHT,
+    SESSION_MENU_RUNTIME_WIDTH, WORKSPACE_COUNT,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_text::OutputScale;
@@ -9573,8 +9573,10 @@ impl SmithayDrmSession {
                         Some(LauncherEvent::ReplaceQuery(query))
                     }
                     28 => Some(LauncherEvent::Activate),
-                    103 => Some(LauncherEvent::MoveSelection(-1)),
-                    108 => Some(LauncherEvent::MoveSelection(1)),
+                    102 => Some(LauncherEvent::Navigate(CollectionNavigationKey::Home)),
+                    103 | 105 => Some(LauncherEvent::Navigate(CollectionNavigationKey::Previous)),
+                    106 | 108 => Some(LauncherEvent::Navigate(CollectionNavigationKey::Next)),
+                    107 => Some(LauncherEvent::Navigate(CollectionNavigationKey::End)),
                     _ => launcher_key_character(code).map(|character| {
                         let mut query = state.launcher_state.query().to_string();
                         query.push(character);
@@ -15353,21 +15355,30 @@ mod tests {
 
         assert!(session.dispatch_keyboard_key(125, true, 1));
         assert!(session.dispatch_keyboard_key(125, false, 2));
-        for (index, code) in [31, 18, 20, 20, 23, 49, 34, 31, 45].into_iter().enumerate() {
+        for (index, (code, expected)) in [(107, 5), (102, 0), (105, 5), (106, 0)]
+            .into_iter()
+            .enumerate()
+        {
             let time = 3 + index as u32 * 2;
+            assert!(session.dispatch_keyboard_key(code, true, time));
+            assert!(session.dispatch_keyboard_key(code, false, time + 1));
+            assert_eq!(session.launcher_state_snapshot().selected_index(), expected);
+        }
+        for (index, code) in [31, 18, 20, 20, 23, 49, 34, 31, 45].into_iter().enumerate() {
+            let time = 11 + index as u32 * 2;
             assert!(session.dispatch_keyboard_key(code, true, time));
             assert!(session.dispatch_keyboard_key(code, false, time + 1));
         }
         assert_eq!(session.launcher_state_snapshot().query(), "settingsx");
-        assert!(session.dispatch_keyboard_key(14, true, 30));
+        assert!(session.dispatch_keyboard_key(14, true, 40));
         assert_eq!(session.launcher_state_snapshot().query(), "settings");
-        assert!(session.dispatch_keyboard_key(108, true, 31));
-        assert!(session.dispatch_keyboard_key(108, false, 32));
-        assert!(session.dispatch_keyboard_key(28, true, 33));
+        assert!(session.dispatch_keyboard_key(108, true, 41));
+        assert!(session.dispatch_keyboard_key(108, false, 42));
+        assert!(session.dispatch_keyboard_key(28, true, 43));
 
         let snapshot = session.input_snapshot();
         assert_eq!(snapshot.keyboard_forward_count, 0);
-        assert!(snapshot.keyboard_shortcut_intercept_count >= 23);
+        assert!(snapshot.keyboard_shortcut_intercept_count >= 32);
         assert_eq!(
             session
                 .take_launcher_launch_request()

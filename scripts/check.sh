@@ -1799,8 +1799,8 @@ grep -Fq 'StandardButton::new(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'ListRow::new(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'launcher.search_field(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'files_toolbar(width)' crates/aqua-renderer/src/lib.rs
-grep -Fq 'desktop_context_menu(index).map' crates/aqua-renderer/src/lib.rs
-grep -Fq 'desktop_context_menu(icon_index)?' crates/aqua-shell/src/lib.rs
+grep -Fq 'desktop_context_menu_with_selection(index, selected_row).map' crates/aqua-renderer/src/lib.rs
+grep -Fq 'desktop_context_menu_with_selection(icon_index, self.context_menu_selected_row)?' crates/aqua-shell/src/lib.rs
 grep -Fq 'details_section_group(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.section_group()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'details_metadata_row(width, height' crates/aqua-renderer/src/lib.rs

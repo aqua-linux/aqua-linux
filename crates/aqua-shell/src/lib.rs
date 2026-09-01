@@ -6,7 +6,7 @@ use aqua_components::{
     SidebarNavigationKey, Slider, SliderKey, StandardButton, StandardButtonVariant, SwitchControl,
     Toolbar, TopSystemBar, WorkspaceSwitcher,
 };
-pub use aqua_components::{MenuNavigationKey, WorkspaceNavigationKey};
+pub use aqua_components::{CollectionNavigationKey, MenuNavigationKey, WorkspaceNavigationKey};
 use aqua_scene::Rect;
 use aqua_service_adapters::network_broker::{
     request_wifi_broker, request_wifi_connect, request_wifi_scan, WifiBrokerOperation,
@@ -3527,7 +3527,7 @@ pub enum LauncherEvent {
     Dismiss,
     SelectCategory(LauncherCategory),
     ReplaceQuery(String),
-    MoveSelection(isize),
+    Navigate(CollectionNavigationKey),
     Activate,
 }
 
@@ -3792,15 +3792,23 @@ impl LauncherState {
         ))
     }
 
-    pub fn move_selection(&mut self, offset: isize) {
-        let count = self.navigable_item_count();
-        if count == 0 {
-            self.selected_index = 0;
-            return;
+    pub fn navigate_selection(&mut self, key: CollectionNavigationKey) -> bool {
+        let target = match self.mode {
+            LauncherMode::Applications => self
+                .application_overview(800, 600)
+                .keyboard_target(self.selected_index, key),
+            LauncherMode::Search => self
+                .global_search(800, 600)
+                .result_keyboard_target(self.selected_index, key),
+        };
+        let Some(target) = target else {
+            return false;
+        };
+        if target == self.selected_index {
+            return false;
         }
-
-        self.selected_index =
-            (self.selected_index as isize + offset).rem_euclid(count as isize) as usize;
+        self.selected_index = target;
+        true
     }
 
     pub fn select_visible_index(&mut self, index: usize) -> bool {
@@ -4002,11 +4010,10 @@ impl LauncherState {
                     launch_request: None,
                 }
             }
-            LauncherEvent::MoveSelection(offset) => {
-                if !self.open || self.visible_apps().is_empty() {
+            LauncherEvent::Navigate(key) => {
+                if !self.open || !self.navigate_selection(key) {
                     return LauncherUpdate::unchanged();
                 }
-                self.move_selection(offset);
                 LauncherUpdate {
                     redraw_requested: true,
                     visibility_changed: false,
@@ -4444,7 +4451,7 @@ pub fn probe_launcher_model() -> LauncherProbe {
     launcher.open();
 
     let favorites_count = launcher.visible_apps().len();
-    launcher.move_selection(-1);
+    launcher.navigate_selection(CollectionNavigationKey::Previous);
     let keyboard_wrap_ready = launcher.selected_index() == favorites_count.saturating_sub(1);
 
     launcher.select_category(LauncherCategory::AllApplications);
@@ -5653,13 +5660,17 @@ mod tests {
     fn launcher_selection_wraps_in_both_directions() {
         let mut launcher = LauncherState::default();
         launcher.open();
-        launcher.move_selection(-1);
+        assert!(launcher.navigate_selection(CollectionNavigationKey::Previous));
         assert_eq!(launcher.selected_index(), 5);
-        launcher.move_selection(1);
+        assert!(launcher.navigate_selection(CollectionNavigationKey::Next));
+        assert_eq!(launcher.selected_index(), 0);
+        assert!(launcher.navigate_selection(CollectionNavigationKey::End));
+        assert_eq!(launcher.selected_index(), 5);
+        assert!(launcher.navigate_selection(CollectionNavigationKey::Home));
         assert_eq!(launcher.selected_index(), 0);
 
         launcher.open_search();
-        launcher.move_selection(-1);
+        assert!(launcher.navigate_selection(CollectionNavigationKey::Previous));
         assert_eq!(launcher.selected_index(), 4);
         assert!(!launcher.select_visible_index(5));
     }
@@ -5703,7 +5714,7 @@ mod tests {
     fn launcher_events_request_only_required_scene_updates() {
         let mut launcher = LauncherState::default();
 
-        let ignored = launcher.handle_event(LauncherEvent::MoveSelection(1));
+        let ignored = launcher.handle_event(LauncherEvent::Navigate(CollectionNavigationKey::Next));
         assert!(!ignored.redraw_requested);
 
         let opened = launcher.handle_event(LauncherEvent::Toggle);
@@ -5713,6 +5724,8 @@ mod tests {
         let searched = launcher.handle_event(LauncherEvent::ReplaceQuery("settings".into()));
         assert!(searched.redraw_requested);
         assert!(!searched.visibility_changed);
+        let stable = launcher.handle_event(LauncherEvent::Navigate(CollectionNavigationKey::Next));
+        assert!(!stable.redraw_requested);
 
         let activated = launcher.handle_event(LauncherEvent::Activate);
         assert_eq!(activated.launch_request.unwrap().app_id, "settings");

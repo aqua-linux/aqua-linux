@@ -483,6 +483,9 @@ acceptance remains open.
 - Panel containment, search focus, and application activation use the same
   rectangles consumed by rendering. Insets and column or row gaps do not select
   an application.
+- Previous and Next keyboard selection wrap within the six visible grid cells;
+  Home and End resolve directly to the visible bounds. Empty collections and
+  out-of-range selections fail closed.
 - The container exposes a named `region` with item and column counts. Its search
   field retains `searchbox`; each child retains independent `gridcell` state and
   activation semantics.
@@ -515,6 +518,9 @@ acceptance remains open.
 - Pointer routing tests only exact half-open result and quick-action rectangles.
   Section headings, the center divider, panel padding, and inter-row gaps remain
   non-interactive.
+- Result Previous and Next selection wraps within the five visible result rows;
+  Home and End resolve directly to the visible bounds. Quick actions retain
+  their separate pointer contract.
 - The container exposes a named `search` landmark with result and quick-action
   counts. Its child search field retains `searchbox`; result rows retain
   `option`; quick actions retain `button` semantics.
@@ -690,7 +696,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first twelve
+All catalog entries now satisfy the shared primitive contract. The first thirteen
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -710,9 +716,10 @@ compositor-owned Up, Down, Home, End, Enter, Space, and Escape routing without
 client key-through, while preserving Trash's repeat-activation gate.
 Settings category Up, Down, Home, and End routing now consumes the shared
 sidebar's bounded targets, with Wi-Fi credential entry retaining key ownership.
+Launcher Up/Down and Left/Right now consume the shared Applications or Search
+Previous/Next target, while Home/End select the respective visible bounds.
 Further extractions must continue from real first-party consumers and repeat
 the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a
-separate R4 decision
-and acceptance item; the Settings preference must not be treated as playback
-or hardware evidence.
+separate R4 decision and acceptance item; the Settings preference must not be
+treated as playback or hardware evidence.
