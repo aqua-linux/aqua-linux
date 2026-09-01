@@ -3608,11 +3608,18 @@ impl LauncherState {
         viewport_width: u32,
         viewport_height: u32,
     ) -> Option<LauncherPointerTarget> {
-        let panel = self.panel_bounds(viewport_width, viewport_height);
-        if !self.open
-            || !(panel.x..panel.x + panel.width).contains(&x)
-            || !(panel.y..panel.y + panel.height).contains(&y)
-        {
+        if !self.open {
+            return None;
+        }
+        let panel_contains = match self.mode {
+            LauncherMode::Applications => self
+                .application_overview(viewport_width, viewport_height)
+                .contains(x, y),
+            LauncherMode::Search => self
+                .global_search(viewport_width, viewport_height)
+                .contains(x, y),
+        };
+        if !panel_contains {
             return None;
         }
 
@@ -3626,10 +3633,10 @@ impl LauncherState {
         match self.mode {
             LauncherMode::Applications => {
                 let overview = self.application_overview(viewport_width, viewport_height);
-                if let Some(index) = overview.cell_at(x, y) {
+                for index in 0..overview.visible_item_count() {
                     if self
                         .application_grid_cell(index, viewport_width, viewport_height)
-                        .is_some()
+                        .is_some_and(|cell| cell.pointer_hit(x, y))
                     {
                         return Some(LauncherPointerTarget::Application(index));
                     }
@@ -3637,22 +3644,26 @@ impl LauncherState {
             }
             LauncherMode::Search => {
                 let search = self.global_search(viewport_width, viewport_height);
-                if let Some(index) = search.result_at(x, y) {
+                for index in 0..search.visible_result_count() {
                     if self
                         .search_result_row(index, viewport_width, viewport_height)
-                        .is_some()
+                        .is_some_and(|row| row.pointer_hit(x, y))
                     {
                         return Some(LauncherPointerTarget::Application(index));
                     }
                 }
-                if let Some(index) = search.quick_action_at(x, y) {
-                    let action = match index {
-                        0 => Some(LauncherQuickAction::Applications),
-                        1 => Some(LauncherQuickAction::Settings),
-                        2 => Some(LauncherQuickAction::Files),
-                        _ => None,
-                    };
-                    if let Some(action) = action {
+                for (index, action) in [
+                    LauncherQuickAction::Applications,
+                    LauncherQuickAction::Settings,
+                    LauncherQuickAction::Files,
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    if self
+                        .search_quick_action_button(index, viewport_width, viewport_height)
+                        .is_some_and(|button| button.pointer_hit(x, y))
+                    {
                         return Some(LauncherPointerTarget::QuickAction(action));
                     }
                 }
@@ -5395,10 +5406,10 @@ mod tests {
 
         let overview = launcher.application_overview(800, 600);
         assert!(overview.is_valid());
-        assert_eq!(
-            launcher.application_grid_cell(0, 800, 600).unwrap().rect,
-            overview.cell_rect(0)
-        );
+        let first_cell = launcher.application_grid_cell(0, 800, 600).unwrap();
+        assert_eq!(first_cell.rect, overview.cell_rect(0));
+        assert_eq!(first_cell.accessibility().role, "gridcell");
+        assert!(first_cell.pointer_hit(130, 190));
         assert_eq!(launcher.search_field(800, 600).rect, overview.search_rect());
 
         assert_eq!(
@@ -5413,15 +5424,19 @@ mod tests {
             launcher.pointer_target(300, 190),
             Some(LauncherPointerTarget::Panel)
         );
+        assert_eq!(
+            launcher.pointer_target(first_cell.rect.right(), first_cell.rect.y + 1),
+            Some(LauncherPointerTarget::Panel)
+        );
         launcher.open_search();
         launcher.set_query("settings");
         let search = launcher.global_search(800, 600);
         assert!(search.is_valid());
         assert_eq!(launcher.search_field(800, 600).rect, search.search_rect());
-        assert_eq!(
-            launcher.search_result_row(0, 800, 600).unwrap().rect,
-            search.result_rect(0)
-        );
+        let first_result = launcher.search_result_row(0, 800, 600).unwrap();
+        assert_eq!(first_result.rect, search.result_rect(0));
+        assert_eq!(first_result.accessibility().role, "option");
+        assert!(first_result.pointer_hit(70, 220));
         assert_eq!(
             launcher.pointer_target(70, 220),
             Some(LauncherPointerTarget::Application(0))
@@ -5435,6 +5450,10 @@ mod tests {
             Some(LauncherPointerTarget::Panel)
         );
         assert_eq!(launcher.pointer_target(900, 700), None);
+        assert_eq!(
+            launcher.pointer_target_in_viewport(200, 150, 400, 300),
+            None
+        );
     }
 
     #[test]
@@ -5459,13 +5478,10 @@ mod tests {
         let mut launcher = LauncherState::default();
         launcher.open_search();
         let search = launcher.global_search(800, 600);
-        assert_eq!(
-            launcher
-                .search_quick_action_button(0, 800, 600)
-                .unwrap()
-                .rect,
-            search.quick_action_rect(0)
-        );
+        let applications = launcher.search_quick_action_button(0, 800, 600).unwrap();
+        assert_eq!(applications.rect, search.quick_action_rect(0));
+        assert_eq!(applications.accessibility().role, "button");
+        assert!(applications.pointer_hit(500, 220));
         assert_eq!(
             launcher.pointer_target(500, 220),
             Some(LauncherPointerTarget::QuickAction(
@@ -5474,6 +5490,10 @@ mod tests {
         );
         assert_eq!(
             launcher.pointer_target(500, 258),
+            Some(LauncherPointerTarget::Panel)
+        );
+        assert_eq!(
+            launcher.pointer_target(applications.rect.right(), applications.rect.y + 1),
             Some(LauncherPointerTarget::Panel)
         );
         let settings = launcher.activate_quick_action(LauncherQuickAction::Settings);
