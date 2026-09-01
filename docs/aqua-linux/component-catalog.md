@@ -720,7 +720,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first twenty-two
+All catalog entries now satisfy the shared primitive contract. The first twenty-three
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -765,6 +765,10 @@ composition.
 Files Enter now consumes the selected visible content-row keyboard gate before
 the existing confined folder navigation or read-only text-preview path; hidden
 and out-of-range selections remain inert.
+Files Left/Right now transfers keyboard focus between content and a distinct
+sidebar cursor. Sidebar Up/Down/Home/End consumes the shared navigation target
+without changing the active location before Enter, pointer input clears that
+focus, and text preview keeps ownership of its keys.
 Further extractions must continue from real first-party consumers and repeat
 the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a
