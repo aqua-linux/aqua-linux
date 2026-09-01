@@ -1803,7 +1803,7 @@ grep -Fq 'launcher.search_field(' crates/aqua-renderer/src/lib.rs
 grep -Fq 'files_toolbar(width)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'desktop_context_menu_with_selection(index, selected_row).map' crates/aqua-renderer/src/lib.rs
 grep -Fq 'desktop_context_menu_with_selection(icon_index, self.context_menu_selected_row)?' crates/aqua-shell/src/lib.rs
-grep -Fq 'ListNavigation::new(self.window.entries.len(), FILES_VISIBLE_ROWS)' crates/aqua-shell/src/lib.rs
+grep -Fq 'ListNavigation::new(self.window.entries.len(), visible_rows)' crates/aqua-shell/src/lib.rs
 grep -Fq '.theme_segmented_control()' crates/aqua-shell/src/lib.rs
 grep -Fq '.keyboard_target(navigation_key)' crates/aqua-shell/src/lib.rs
 grep -Fq 'control.keyboard_toggles(ActivationKey::Enter)' crates/aqua-shell/src/lib.rs
@@ -1821,6 +1821,8 @@ grep -Fq 'files_key_for_code(key)' crates/aqua-compositor/src/lib.rs
 grep -Fq 'self.window.selected_sidebar = previously_selected_sidebar' crates/aqua-shell/src/lib.rs
 grep -Fq 'sidebar_row(height, index)' crates/aqua-shell/src/lib.rs
 grep -Fq 'files_visible_rows(height)' crates/aqua-shell/src/lib.rs
+grep -Fq 'files_preview_visible_lines(height)' crates/aqua-shell/src/lib.rs
+grep -Fq 'preview_scrollbar_in_viewport(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'navigator.handle_pointer_in_viewport(' crates/aqua-compositor/src/lib.rs
 grep -Fq 'navigator.handle_scroll_in_viewport(' crates/aqua-compositor/src/lib.rs
 grep -Fq 'details_section_group(width, height)' crates/aqua-renderer/src/lib.rs
