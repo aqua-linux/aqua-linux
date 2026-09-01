@@ -3,10 +3,11 @@
 ## Status
 
 Accepted on 2026-08-29. Framework consolidation began on 2026-09-01 after the
-core desktop functionality supplied real consumers. The first two bounded
-slices replaced Settings Network's duplicated Wi-Fi row/action hit geometry
-and Files content-row render/input geometry with existing `ListRow` and
-`StandardButton` contracts; the broader consolidation remains in progress.
+core desktop functionality supplied real consumers. The first three bounded
+slices replaced Settings Network's duplicated Wi-Fi row/action hit geometry,
+Files content-row render/input geometry, and launcher panel/child pointer
+routing with existing shared component contracts; the broader consolidation
+remains in progress.
 
 ## Context
 

@@ -466,7 +466,9 @@ acceptance remains open.
   field retains `searchbox`; each child retains independent `gridcell` state and
   activation semantics.
 - The Applications launcher mode now obtains its panel, title, search field,
-  grid, cards, and pointer target resolution from this composition. Global
+  grid, cards, and pointer target resolution from this composition. Panel
+  containment uses `ApplicationOverview::contains`, while application targets
+  activate only through the rendered `GridCell::pointer_hit` contract. Global
   Search remains separate because its split results/actions layout is different.
 
 The deterministic matrix covers compact bounds, search and grid containment,
@@ -497,7 +499,11 @@ acceptance remains open.
   `option`; quick actions retain `button` semantics.
 - Launcher Search mode now derives its panel, headings, divider, search field,
   result rows, quick-action controls, rendering, and pointer targets from this
-  composition. Its real Applications, Settings, and Files actions are unchanged.
+  composition. Panel containment fails closed through `GlobalSearch::contains`
+  when compact geometry is invalid; result and quick-action activation passes
+  directly through the rendered `ListRow::pointer_hit` and
+  `StandardButton::pointer_hit` contracts. Its real Applications, Settings, and
+  Files actions are unchanged.
 
 The deterministic matrix covers compact split geometry, result/action limits,
 gap rejection, accessibility semantics, four themes, and the three required
@@ -658,9 +664,10 @@ build evidence and are not repository artifacts.
 
 All catalog entries now satisfy the shared primitive contract. The first ADR
 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
-row/action hit geometry and Files content-entry render/input geometry with
-existing shared components. Further extractions must continue from real
-first-party consumers and repeat the same geometry, input, accessibility,
-deterministic-fixture, and packaged-QEMU evidence path. The actual audio
-service/backend remains a separate R4 decision and acceptance item; the
-Settings preference must not be treated as playback or hardware evidence.
+row/action hit geometry, Files content-entry render/input geometry, and
+launcher panel/child pointer routing with existing shared components. Further
+extractions must continue from real first-party consumers and repeat the same
+geometry, input, accessibility, deterministic-fixture, and packaged-QEMU
+evidence path. The actual audio service/backend remains a separate R4 decision
+and acceptance item; the Settings preference must not be treated as playback
+or hardware evidence.
