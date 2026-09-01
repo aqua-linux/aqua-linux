@@ -4804,13 +4804,13 @@ pub fn render_files_window_rgba_with_theme(
             255,
         );
         primitives += 2;
-        draw_bitmap_text(
+        draw_fitted_bitmap_text(
             &mut buffer,
             (width, height),
-            (toolbar.location.x + 14, toolbar.location.y + 10),
+            toolbar.location_label,
             &model.location,
             palette.text,
-            1,
+            FittedTextOptions::new(TextRole::Caption, OutputScale::One, false),
         );
     }
 
@@ -8891,6 +8891,24 @@ mod tests {
             render_files_window_rgba(640, 107, &FilesWindowModel::default());
         assert!(short_toolbar_probe.rendered);
         assert!(!short_toolbar_probe.toolbar_rendered);
+
+        let compact_location_a = FilesWindowModel {
+            location: "Aqua / Home / Documents / Alpha".to_string(),
+            ..FilesWindowModel::default()
+        };
+        let compact_location_b = FilesWindowModel {
+            location: "Aqua / Home / Documents / Beta".to_string(),
+            ..FilesWindowModel::default()
+        };
+        let (compact_location_a_pixels, compact_location_a_probe) =
+            render_files_window_rgba(214, 420, &compact_location_a);
+        let (compact_location_b_pixels, _) =
+            render_files_window_rgba(214, 420, &compact_location_b);
+        assert!(compact_location_a_probe.toolbar_rendered);
+        assert_eq!(compact_location_a_pixels, compact_location_b_pixels);
+        let (wide_location_a_pixels, _) = render_files_window_rgba(640, 420, &compact_location_a);
+        let (wide_location_b_pixels, _) = render_files_window_rgba(640, 420, &compact_location_b);
+        assert_ne!(wide_location_a_pixels, wide_location_b_pixels);
 
         let mut more_entries = FilesWindowModel::default();
         more_entries.entries.push(more_entries.entries[0].clone());

@@ -1841,6 +1841,7 @@ grep -Fq 'top_system_bar(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'top_system_bar_session_hit(' crates/aqua-compositor/src/lib.rs
 grep -Fq 'menu.menu_layout(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'toolbar.back.with_state(' crates/aqua-renderer/src/lib.rs
+grep -Fq 'toolbar.location_label' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.active_switch()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.theme_segmented_control()' crates/aqua-renderer/src/lib.rs
 grep -Fq 'model.audio_slider()' crates/aqua-renderer/src/lib.rs
