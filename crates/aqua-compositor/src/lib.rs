@@ -14090,8 +14090,8 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                     }
                 } else if let Some(model) = state.settings_model.as_mut() {
                     if model.handle_hover_in_viewport(
-                        buffer_width,
-                        buffer_height,
+                        state.buffer_width.max(1),
+                        state.buffer_height.max(1),
                         state.pointer_surface_x.max(0.0) as u32,
                         state.pointer_surface_y.max(0.0) as u32,
                     ) {
@@ -14186,8 +14186,8 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                 }
             } else if let Some(model) = state.settings_model.as_mut() {
                 let update = model.handle_pointer_in_viewport(
-                    buffer_width,
-                    buffer_height,
+                    state.buffer_width.max(1),
+                    state.buffer_height.max(1),
                     state.pointer_surface_x.max(0.0) as u32,
                     state.pointer_surface_y.max(0.0) as u32,
                 );
