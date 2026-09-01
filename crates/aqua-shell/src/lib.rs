@@ -2680,6 +2680,11 @@ impl FilesWindowModel {
         )
     }
 
+    pub fn active_scrollbar(&self, width: u32) -> Option<FilesScrollbarLayout> {
+        self.preview_scrollbar(width)
+            .or_else(|| self.list_scrollbar(width))
+    }
+
     pub fn entry_row(&self, width: u32, index: usize) -> Option<ListRow<'_>> {
         if self.preview.is_some() {
             return None;
@@ -2965,15 +2970,22 @@ impl FilesNavigator {
 
     pub fn scrollbar_hit(&self, width: u32, x: u32, y: u32) -> bool {
         self.window
-            .list_scrollbar(width)
+            .active_scrollbar(width)
             .is_some_and(|scrollbar| scrollbar.pointer_hit(x, y))
     }
 
     pub fn handle_scrollbar_drag(&mut self, width: u32, y: u32) -> FilesNavigation {
-        let Some(scrollbar) = self.window.list_scrollbar(width) else {
+        let Some(scrollbar) = self.window.active_scrollbar(width) else {
             return FilesNavigation::None;
         };
         let offset = scrollbar.offset_for_pointer(y);
+        if let Some(preview) = self.window.preview.as_mut() {
+            if offset == preview.scroll_offset {
+                return FilesNavigation::None;
+            }
+            preview.scroll_offset = offset;
+            return FilesNavigation::PreviewScrolled;
+        }
         if offset == self.window.scroll_offset {
             return FilesNavigation::None;
         }
@@ -5979,6 +5991,37 @@ mod tests {
         assert_eq!(preview_scrollbar.thumb.height, 102);
         assert_eq!(preview_scrollbar.thumb.y, 205);
         assert!(navigator.window().list_scrollbar(640).is_none());
+        assert_eq!(
+            navigator.window().active_scrollbar(640),
+            Some(preview_scrollbar)
+        );
+        assert!(navigator.scrollbar_hit(640, preview_scrollbar.track.x, preview_scrollbar.track.y));
+        assert!(!navigator.scrollbar_hit(
+            640,
+            preview_scrollbar.track.right(),
+            preview_scrollbar.track.y
+        ));
+        assert!(!navigator.scrollbar_hit(
+            640,
+            preview_scrollbar.track.x,
+            preview_scrollbar.track.bottom()
+        ));
+        assert_eq!(
+            navigator.handle_scrollbar_drag(640, preview_scrollbar.track.y),
+            FilesNavigation::PreviewScrolled
+        );
+        assert_eq!(
+            navigator.window().preview.as_ref().unwrap().scroll_offset,
+            0
+        );
+        assert_eq!(
+            navigator.handle_scrollbar_drag(640, preview_scrollbar.track.bottom()),
+            FilesNavigation::PreviewScrolled
+        );
+        assert_eq!(
+            navigator.window().preview.as_ref().unwrap().scroll_offset,
+            2
+        );
         assert_eq!(
             navigator.handle_key(FilesKey::Back),
             FilesNavigation::PreviewClosed
