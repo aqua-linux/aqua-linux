@@ -423,6 +423,10 @@ const FILES_EMPTY_STATE_REFERENCE_HEIGHT: u32 = 300;
 const FILES_EMPTY_STATE_ICON_Y: u32 = 190;
 const FILES_EMPTY_STATE_LABEL_Y: u32 = 252;
 const FILES_LOCATION_MIN_WIDTH: u32 = 96;
+const FILES_CONTENT_FOCUS_X: u32 = 176;
+const FILES_CONTENT_FOCUS_Y: u32 = 112;
+const FILES_CONTENT_FOCUS_TRAILING_INSET: u32 = 6;
+const FILES_CONTENT_FOCUS_BOTTOM_INSET: u32 = 38;
 pub const NOTIFICATION_DEFAULT_TIMEOUT_MS: u64 = 30_000;
 pub const NOTIFICATION_QUEUE_LIMIT: usize = 8;
 pub const SYSTEM_OVERVIEW_REFRESH_MS: u64 = 60_000;
@@ -2914,6 +2918,22 @@ impl FilesWindowModel {
         self.entries.is_empty()
     }
 
+    pub fn content_focus_rect(&self, width: u32, height: u32) -> Option<Rect> {
+        let content_is_visible = if self.preview.is_some() {
+            files_preview_visible_lines_in_viewport(width, height) > 0
+        } else if self.is_empty() {
+            files_empty_state_layout(width, height).is_some()
+        } else {
+            files_visible_rows_in_viewport(width, height) > 0
+        };
+        content_is_visible.then_some(Rect {
+            x: FILES_CONTENT_FOCUS_X,
+            y: FILES_CONTENT_FOCUS_Y,
+            width: width.saturating_sub(FILES_CONTENT_FOCUS_X + FILES_CONTENT_FOCUS_TRAILING_INSET),
+            height: height.saturating_sub(FILES_CONTENT_FOCUS_Y + FILES_CONTENT_FOCUS_BOTTOM_INSET),
+        })
+    }
+
     pub fn list_scrollbar(&self, width: u32) -> Option<FilesScrollbarLayout> {
         self.list_scrollbar_in_viewport(width, 420)
     }
@@ -3417,7 +3437,11 @@ impl FilesNavigator {
                 self.window.focused_sidebar = Some(focused);
                 FilesNavigation::FocusedSidebar(focused)
             }
-            FilesKey::Right if self.window.focused_sidebar.take().is_some() => {
+            FilesKey::Right if self.window.focused_sidebar.is_some() => {
+                if self.window.content_focus_rect(width, height).is_none() {
+                    return FilesNavigation::None;
+                }
+                self.window.focused_sidebar = None;
                 FilesNavigation::FocusedContent
             }
             FilesKey::Right => FilesNavigation::None,
@@ -6643,6 +6667,30 @@ mod tests {
         assert!(compact_empty_state.label.bottom() < 260 - 34);
         assert!(files_empty_state_layout(640, 219).is_none());
         assert!(files_empty_state_layout(475, 420).is_none());
+        assert_eq!(
+            home.content_focus_rect(640, 420),
+            Some(Rect {
+                x: 176,
+                y: 112,
+                width: 458,
+                height: 270,
+            })
+        );
+        assert!(home.content_focus_rect(274, 420).is_none());
+        assert!(home.content_focus_rect(640, 179).is_none());
+        let empty = FilesWindowModel::empty("Aqua / Empty");
+        assert!(empty.content_focus_rect(640, 220).is_some());
+        assert!(empty.content_focus_rect(475, 420).is_none());
+        let preview = FilesWindowModel {
+            preview: Some(FilesTextPreview {
+                name: "Notes.txt".to_string(),
+                content: "line 1\nline 2".to_string(),
+                scroll_offset: 0,
+            }),
+            ..FilesWindowModel::default()
+        };
+        assert!(preview.content_focus_rect(275, 420).is_some());
+        assert!(preview.content_focus_rect(274, 420).is_none());
         let files_toolbar = files_toolbar_layout(640, 420).expect("reference Files toolbar layout");
         assert_eq!(files_toolbar.toolbar, super::files_toolbar(640));
         assert_eq!(files_toolbar.back, files_back_button());
@@ -6913,6 +6961,16 @@ mod tests {
         assert_eq!(navigator.window().selected_sidebar, 1);
         assert_eq!(navigator.window().focused_sidebar, Some(1));
         assert!(navigator.window().keyboard_focus);
+        assert_eq!(
+            navigator.handle_key_in_viewport(274, 420, FilesKey::Right),
+            FilesNavigation::None
+        );
+        assert_eq!(navigator.window().focused_sidebar, Some(1));
+        assert_eq!(
+            navigator.handle_key_in_viewport(640, 219, FilesKey::Right),
+            FilesNavigation::None
+        );
+        assert_eq!(navigator.window().focused_sidebar, Some(1));
         assert_eq!(
             navigator.handle_key_in_viewport(640, 420, FilesKey::Right),
             FilesNavigation::FocusedContent

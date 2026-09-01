@@ -1823,7 +1823,9 @@ grep -Fq 'sidebar_row(height, index)' crates/aqua-shell/src/lib.rs
 grep -Fq 'self.sidebar_at(height, x, y)' crates/aqua-shell/src/lib.rs
 grep -Fq 'files_visible_rows_in_viewport(width, height)' crates/aqua-shell/src/lib.rs
 grep -Fq 'files_preview_visible_lines_in_viewport(width, height)' crates/aqua-shell/src/lib.rs
+grep -Fq 'self.window.content_focus_rect(width, height)' crates/aqua-shell/src/lib.rs
 grep -Fq 'preview_scrollbar_in_viewport(width, height)' crates/aqua-renderer/src/lib.rs
+grep -Fq 'model.content_focus_rect(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'files_empty_state_layout(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'navigator.handle_pointer_in_viewport(' crates/aqua-compositor/src/lib.rs
 grep -Fq 'navigator.handle_scroll_in_viewport(' crates/aqua-compositor/src/lib.rs

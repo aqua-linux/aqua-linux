@@ -3,7 +3,7 @@
 ## Status
 
 Accepted on 2026-08-29. Framework consolidation began on 2026-09-01 after the
-core desktop functionality supplied real consumers. The first thirty-two bounded
+core desktop functionality supplied real consumers. The first thirty-three bounded
 slices replaced Settings Network's duplicated Wi-Fi row/action hit geometry,
 Files content-row render/input geometry, and launcher panel/child pointer
 routing with existing shared component contracts, then consolidated Files list
@@ -80,6 +80,10 @@ or narrow layouts reposition or omit the group before it can overlap chrome;
 Files toolbar rendering and Back/Forward pointer routing now consume one
 viewport-validated layout for the toolbar, buttons, and location field, so
 clipped compact controls are neither drawn nor actionable;
+Files content focus transfer and rendering now consume the same
+viewport-validated content rectangle, so layouts without a visible list,
+preview, or empty-state composition retain sidebar focus and omit the content
+focus ring;
 the broader consolidation remains in progress.
 
 ## Context
