@@ -7,12 +7,12 @@ use aqua_installer::{
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     desktop_context_menu_with_selection, desktop_grid_cell, files_empty_state_layout,
-    files_preview_visible_lines_in_viewport, files_sidebar_navigation, files_status_layout,
-    files_toolbar_layout, files_visible_rows_in_viewport, running_app_dock, top_system_bar,
-    workspace_switcher, AquaTheme, AudioControlStatus, DesktopIconState, DesktopPropertiesModel,
-    DockItem, DockState, FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode,
-    LauncherState, NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel,
-    SystemOverviewModel, TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_SIDEBAR_NAVIGATION,
+    files_preview_layout, files_sidebar_navigation, files_status_layout, files_toolbar_layout,
+    files_visible_rows_in_viewport, running_app_dock, top_system_bar, workspace_switcher,
+    AquaTheme, AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
+    FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
+    NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
+    TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_SIDEBAR_NAVIGATION,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -4814,7 +4814,6 @@ pub fn render_files_window_rgba_with_theme(
         );
     }
 
-    let sidebar_width = 170;
     let navigation = files_sidebar_navigation(height);
     primitives += draw_sidebar_navigation(&mut buffer, width, height, navigation, theme);
     for index in 0..model.sidebar_items.len() {
@@ -4832,48 +4831,51 @@ pub fn render_files_window_rgba_with_theme(
         );
         primitives += 1;
     }
-    let list_x = sidebar_width + 18;
     if let Some(preview) = model.preview.as_ref() {
-        let visible_lines = files_preview_visible_lines_in_viewport(width, height);
-        if visible_lines > 0 {
-            draw_file_icon(&mut buffer, width, height, list_x + 12, 136);
-            draw_bitmap_text(
+        if let Some(layout) = files_preview_layout(width, height) {
+            draw_file_icon(&mut buffer, width, height, layout.icon.x, layout.icon.y);
+            draw_fitted_bitmap_text(
                 &mut buffer,
                 (width, height),
-                (list_x + 54, 142),
+                layout.title,
                 &preview.name,
                 palette.text,
-                1,
+                FittedTextOptions::new(TextRole::Caption, OutputScale::One, false),
             );
             for (line_index, line) in preview
                 .content
                 .lines()
                 .skip(preview.scroll_offset)
-                .take(visible_lines)
+                .take(layout.visible_lines)
                 .enumerate()
             {
                 let bounded = line.chars().take(48).collect::<String>();
-                draw_bitmap_text(
+                draw_fitted_bitmap_text(
                     &mut buffer,
                     (width, height),
-                    (list_x + 16, 194 + line_index as u32 * 22),
+                    Rect {
+                        x: layout.text.x,
+                        y: layout.text.y + line_index as u32 * layout.line_stride,
+                        width: layout.text.width,
+                        height: 8,
+                    },
                     &bounded,
                     palette.text,
-                    1,
+                    FittedTextOptions::new(TextRole::Caption, OutputScale::One, false),
                 );
             }
-            if let Some(status_y) = height.checked_sub(80).filter(|status_y| *status_y >= 220) {
-                draw_bitmap_text(
+            if let Some(read_only) = layout.read_only {
+                draw_fitted_bitmap_text(
                     &mut buffer,
                     (width, height),
-                    (list_x + 16, status_y.min(340)),
+                    read_only,
                     "READ ONLY",
                     palette.secondary_text,
-                    1,
+                    FittedTextOptions::new(TextRole::Caption, OutputScale::One, false),
                 );
             }
             let line_count = preview.content.lines().count();
-            primitives += 2 + line_count.min(visible_lines);
+            primitives += 2 + line_count.min(layout.visible_lines);
             if let Some(scrollbar) = model.preview_scrollbar_in_viewport(width, height) {
                 fill_rect(
                     &mut buffer,
@@ -8926,6 +8928,20 @@ mod tests {
         let (narrow_preview, _) = render_files_window_rgba(274, 420, &preview_model);
         let (narrow_home, _) = render_files_window_rgba(274, 420, &FilesWindowModel::default());
         assert_eq!(narrow_preview, narrow_home);
+        let narrow_preview_model = FilesWindowModel {
+            preview: Some(aqua_shell::FilesTextPreview {
+                name: "Notes-with-a-different-suffix.txt".to_string(),
+                content: preview_model.preview.as_ref().unwrap().content.clone(),
+                scroll_offset: 0,
+            }),
+            ..FilesWindowModel::default()
+        };
+        let (minimum_preview, _) = render_files_window_rgba(275, 420, &preview_model);
+        let (minimum_preview_long_name, _) =
+            render_files_window_rgba(275, 420, &narrow_preview_model);
+        assert_eq!(minimum_preview, minimum_preview_long_name);
+        let (wide_preview_long_name, _) = render_files_window_rgba(640, 420, &narrow_preview_model);
+        assert_ne!(wide_preview, wide_preview_long_name);
 
         let content_focused = FilesWindowModel {
             keyboard_focus: true,
