@@ -399,9 +399,13 @@ pub const LAUNCHER_PANEL_HEIGHT: u32 = 460;
 pub const FILES_VISIBLE_ROWS: usize = 4;
 pub const FILES_TEXT_PREVIEW_LIMIT: u64 = 4096;
 pub const FILES_PREVIEW_VISIBLE_LINES: usize = 6;
-pub const FILES_SCROLLBAR_X: u32 = 620;
-pub const FILES_SCROLLBAR_Y: u32 = 124;
-pub const FILES_SCROLLBAR_HEIGHT: u32 = 248;
+const FILES_SCROLLBAR_TRAILING_INSET: u32 = 12;
+const FILES_SCROLLBAR_WIDTH: u32 = 5;
+const FILES_SCROLLBAR_MIN_THUMB_HEIGHT: u32 = 24;
+const FILES_LIST_SCROLLBAR_Y: u32 = 124;
+const FILES_LIST_SCROLLBAR_HEIGHT: u32 = 248;
+const FILES_PREVIEW_SCROLLBAR_Y: u32 = 188;
+const FILES_PREVIEW_SCROLLBAR_HEIGHT: u32 = 136;
 pub const NOTIFICATION_DEFAULT_TIMEOUT_MS: u64 = 30_000;
 pub const NOTIFICATION_QUEUE_LIMIT: usize = 8;
 pub const SYSTEM_OVERVIEW_REFRESH_MS: u64 = 60_000;
@@ -2548,6 +2552,48 @@ pub struct FilesTextPreview {
     pub scroll_offset: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesScrollbarLayout {
+    pub track: Rect,
+    pub thumb: Rect,
+    maximum_offset: usize,
+}
+
+impl FilesScrollbarLayout {
+    fn new(track: Rect, item_count: usize, visible_count: usize, offset: usize) -> Option<Self> {
+        let maximum_offset = item_count.checked_sub(visible_count)?;
+        if maximum_offset == 0 || track.height == 0 {
+            return None;
+        }
+        let thumb_height = ((track.height as usize).saturating_mul(visible_count) / item_count)
+            .max(FILES_SCROLLBAR_MIN_THUMB_HEIGHT as usize)
+            .min(track.height as usize) as u32;
+        let thumb_travel = track.height.saturating_sub(thumb_height);
+        let bounded_offset = offset.min(maximum_offset);
+        let thumb_offset = (thumb_travel as usize).saturating_mul(bounded_offset) / maximum_offset;
+        Some(Self {
+            track,
+            thumb: Rect {
+                x: track.x,
+                y: track.y + thumb_offset as u32,
+                width: track.width,
+                height: thumb_height,
+            },
+            maximum_offset,
+        })
+    }
+
+    pub const fn pointer_hit(self, x: u32, y: u32) -> bool {
+        x >= self.track.x && x < self.track.right() && y >= self.track.y && y < self.track.bottom()
+    }
+
+    pub fn offset_for_pointer(self, y: u32) -> usize {
+        let position = y.clamp(self.track.y, self.track.bottom()) - self.track.y;
+        ((u128::from(position) * self.maximum_offset as u128 + u128::from(self.track.height) / 2)
+            / u128::from(self.track.height)) as usize
+    }
+}
+
 impl Default for FilesWindowModel {
     fn default() -> Self {
         Self {
@@ -2600,6 +2646,38 @@ impl FilesWindowModel {
 
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
+    }
+
+    pub fn list_scrollbar(&self, width: u32) -> Option<FilesScrollbarLayout> {
+        if self.preview.is_some() {
+            return None;
+        }
+        FilesScrollbarLayout::new(
+            Rect {
+                x: width.saturating_sub(FILES_SCROLLBAR_TRAILING_INSET),
+                y: FILES_LIST_SCROLLBAR_Y,
+                width: FILES_SCROLLBAR_WIDTH,
+                height: FILES_LIST_SCROLLBAR_HEIGHT,
+            },
+            self.entries.len(),
+            FILES_VISIBLE_ROWS,
+            self.scroll_offset,
+        )
+    }
+
+    pub fn preview_scrollbar(&self, width: u32) -> Option<FilesScrollbarLayout> {
+        let preview = self.preview.as_ref()?;
+        FilesScrollbarLayout::new(
+            Rect {
+                x: width.saturating_sub(FILES_SCROLLBAR_TRAILING_INSET),
+                y: FILES_PREVIEW_SCROLLBAR_Y,
+                width: FILES_SCROLLBAR_WIDTH,
+                height: FILES_PREVIEW_SCROLLBAR_HEIGHT,
+            },
+            preview.content.lines().count(),
+            FILES_PREVIEW_VISIBLE_LINES,
+            preview.scroll_offset,
+        )
     }
 
     pub fn entry_row(&self, width: u32, index: usize) -> Option<ListRow<'_>> {
@@ -2885,24 +2963,17 @@ impl FilesNavigator {
         FilesNavigation::Scrolled
     }
 
-    pub fn scrollbar_hit(&self, x: u32, y: u32) -> bool {
-        self.window.preview.is_none()
-            && self.window.entries.len() > FILES_VISIBLE_ROWS
-            && x >= FILES_SCROLLBAR_X
-            && (FILES_SCROLLBAR_Y..=FILES_SCROLLBAR_Y + FILES_SCROLLBAR_HEIGHT).contains(&y)
+    pub fn scrollbar_hit(&self, width: u32, x: u32, y: u32) -> bool {
+        self.window
+            .list_scrollbar(width)
+            .is_some_and(|scrollbar| scrollbar.pointer_hit(x, y))
     }
 
-    pub fn handle_scrollbar_drag(&mut self, y: u32) -> FilesNavigation {
-        if self.window.preview.is_some() || self.window.entries.len() <= FILES_VISIBLE_ROWS {
+    pub fn handle_scrollbar_drag(&mut self, width: u32, y: u32) -> FilesNavigation {
+        let Some(scrollbar) = self.window.list_scrollbar(width) else {
             return FilesNavigation::None;
-        }
-        let max_offset = self.window.entries.len() - FILES_VISIBLE_ROWS;
-        let position = y.clamp(
-            FILES_SCROLLBAR_Y,
-            FILES_SCROLLBAR_Y + FILES_SCROLLBAR_HEIGHT,
-        ) - FILES_SCROLLBAR_Y;
-        let offset = (position as usize * max_offset + FILES_SCROLLBAR_HEIGHT as usize / 2)
-            / FILES_SCROLLBAR_HEIGHT as usize;
+        };
+        let offset = scrollbar.offset_for_pointer(y);
         if offset == self.window.scroll_offset {
             return FilesNavigation::None;
         }
@@ -5891,6 +5962,23 @@ mod tests {
             navigator.window().preview.as_ref().unwrap().scroll_offset,
             1
         );
+        let preview_scrollbar = navigator
+            .window()
+            .preview_scrollbar(640)
+            .expect("scrollable Files preview");
+        assert_eq!(
+            preview_scrollbar.track,
+            Rect {
+                x: 628,
+                y: 188,
+                width: 5,
+                height: 136,
+            }
+        );
+        assert_eq!(preview_scrollbar.maximum_offset, 2);
+        assert_eq!(preview_scrollbar.thumb.height, 102);
+        assert_eq!(preview_scrollbar.thumb.y, 205);
+        assert!(navigator.window().list_scrollbar(640).is_none());
         assert_eq!(
             navigator.handle_key(FilesKey::Back),
             FilesNavigation::PreviewClosed
@@ -5910,14 +5998,33 @@ mod tests {
             FilesNavigation::Selected(7)
         );
         assert_eq!(navigator.window().scroll_offset, 4);
-        assert!(navigator.scrollbar_hit(FILES_SCROLLBAR_X, FILES_SCROLLBAR_Y));
+        let scrollbar = navigator
+            .window()
+            .list_scrollbar(640)
+            .expect("scrollable Files list");
         assert_eq!(
-            navigator.handle_scrollbar_drag(FILES_SCROLLBAR_Y),
+            scrollbar.track,
+            Rect {
+                x: 628,
+                y: 124,
+                width: 5,
+                height: 248,
+            }
+        );
+        assert_eq!(scrollbar.maximum_offset, 4);
+        assert_eq!(scrollbar.thumb.height, 124);
+        assert_eq!(scrollbar.thumb.y, 248);
+        assert!(navigator.scrollbar_hit(640, scrollbar.track.x, scrollbar.track.y));
+        assert!(!navigator.scrollbar_hit(640, 620, scrollbar.track.y));
+        assert!(!navigator.scrollbar_hit(640, scrollbar.track.right(), scrollbar.track.y));
+        assert!(!navigator.scrollbar_hit(640, scrollbar.track.x, scrollbar.track.bottom()));
+        assert_eq!(
+            navigator.handle_scrollbar_drag(640, scrollbar.track.y),
             FilesNavigation::Scrolled
         );
         assert_eq!(navigator.window().scroll_offset, 0);
         assert_eq!(
-            navigator.handle_scrollbar_drag(FILES_SCROLLBAR_Y + FILES_SCROLLBAR_HEIGHT),
+            navigator.handle_scrollbar_drag(640, scrollbar.track.bottom()),
             FilesNavigation::Scrolled
         );
         assert_eq!(navigator.window().scroll_offset, 4);

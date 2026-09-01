@@ -4859,32 +4859,20 @@ pub fn render_files_window_rgba_with_theme(
         );
         let line_count = preview.content.lines().count();
         primitives += 2 + line_count.min(FILES_PREVIEW_VISIBLE_LINES);
-        if line_count > FILES_PREVIEW_VISIBLE_LINES {
-            let track = Rect {
-                x: width.saturating_sub(12),
-                y: 188,
-                width: 5,
-                height: 136,
-            };
-            fill_rect(&mut buffer, width, height, track, palette.border, 255);
-            let thumb_height =
-                (track.height as usize * FILES_PREVIEW_VISIBLE_LINES / line_count).max(24) as u32;
-            let max_offset = line_count
-                .saturating_sub(FILES_PREVIEW_VISIBLE_LINES)
-                .max(1);
-            let thumb_y = track.y
-                + (track.height.saturating_sub(thumb_height) as usize * preview.scroll_offset
-                    / max_offset) as u32;
+        if let Some(scrollbar) = model.preview_scrollbar(width) {
             fill_rect(
                 &mut buffer,
                 width,
                 height,
-                Rect {
-                    x: track.x,
-                    y: thumb_y,
-                    width: track.width,
-                    height: thumb_height,
-                },
+                scrollbar.track,
+                palette.border,
+                255,
+            );
+            fill_rect(
+                &mut buffer,
+                width,
+                height,
+                scrollbar.thumb,
                 palette.accent,
                 255,
             );
@@ -4949,34 +4937,20 @@ pub fn render_files_window_rgba_with_theme(
             );
             primitives += 2;
         }
-        if model.entries.len() > FILES_VISIBLE_ROWS {
-            let track = Rect {
-                x: width.saturating_sub(12),
-                y: 124,
-                width: 5,
-                height: 248,
-            };
-            fill_rect(&mut buffer, width, height, track, palette.border, 255);
-            let thumb_height =
-                (track.height as usize * FILES_VISIBLE_ROWS / model.entries.len()).max(24) as u32;
-            let max_offset = model
-                .entries
-                .len()
-                .saturating_sub(FILES_VISIBLE_ROWS)
-                .max(1);
-            let thumb_y = track.y
-                + (track.height.saturating_sub(thumb_height) as usize * model.scroll_offset
-                    / max_offset) as u32;
+        if let Some(scrollbar) = model.list_scrollbar(width) {
             fill_rect(
                 &mut buffer,
                 width,
                 height,
-                Rect {
-                    x: track.x,
-                    y: thumb_y,
-                    width: track.width,
-                    height: thumb_height,
-                },
+                scrollbar.track,
+                palette.border,
+                255,
+            );
+            fill_rect(
+                &mut buffer,
+                width,
+                height,
+                scrollbar.thumb,
                 palette.accent,
                 255,
             );

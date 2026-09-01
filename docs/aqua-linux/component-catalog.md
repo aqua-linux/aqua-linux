@@ -140,9 +140,14 @@ security remains disabled at the component boundary. Files content entries use
 the same row object for rendered bounds, leading icon and trailing metadata
 slots, selected/hover state, pointer activation, and `option` semantics. Their
 eight-pixel inter-row gaps and area beyond the rendered right edge reject
-input. Installer steps consume the same list-row composition with a
-step-specific leading marker. Settings Network rescan and saved-credential
-removal use `StandardButton`, including a non-actionable inter-button gap and
+input. Files list and text-preview scrollbars now derive their track, thumb,
+bounded offset, and resized-window placement from one renderer-neutral layout;
+list pointer and drag routing consumes that exact half-open track. This remains
+a Files layout contract rather than a new catalog primitive until another real
+consumer establishes reusable scrollbar semantics. Installer steps consume the
+same list-row composition with a step-specific leading marker. Settings Network
+rescan and saved-credential removal use `StandardButton`, including a
+non-actionable inter-button gap and
 broker-authority disabled states. The generic deterministic matrix is recorded
 in `component-fixtures.txt`, while consumer tests cover the Settings and Files
 compositions.
@@ -662,10 +667,11 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first ADR
-0003 consolidation slices replace Settings Network's duplicated Wi-Fi
-row/action hit geometry, Files content-entry render/input geometry, and
-launcher panel/child pointer routing with existing shared components. Further
+All catalog entries now satisfy the shared primitive contract. The first four
+ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
+row/action hit geometry, Files content-entry render/input geometry, launcher
+panel/child pointer routing, and Files scrollbar render/input geometry with
+shared contracts. Further
 extractions must continue from real first-party consumers and repeat the same
 geometry, input, accessibility, deterministic-fixture, and packaged-QEMU
 evidence path. The actual audio service/backend remains a separate R4 decision
