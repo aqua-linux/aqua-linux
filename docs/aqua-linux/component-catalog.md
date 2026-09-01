@@ -236,7 +236,10 @@ three-viewport deterministic matrix is recorded in `component-fixtures.txt`.
 
 Settings now uses one switch geometry for reduced motion, desktop icons, and
 key repeat. Its four-theme selector uses one segmented-control geometry for
-both renderer and pointer routing; inter-segment gaps reject input. The Audio
+renderer, pointer routing, and compositor-owned Left/Right selection;
+inter-segment gaps reject pointer input, and Previous/Next keyboard targets
+wrap through the four persisted themes. Up, Down, Home, and End retain Settings
+category ownership. The Audio
 category uses the slider for a persistent 0–100 output-volume preference and a
 shared switch for mute. Availability is derived only from a ready authoritative
 `aqua-service-adapters` snapshot with a valid default output route; `/dev/snd`
@@ -704,7 +707,7 @@ build evidence and are not repository artifacts.
 
 ## Next Extraction Order
 
-All catalog entries now satisfy the shared primitive contract. The first fourteen
+All catalog entries now satisfy the shared primitive contract. The first fifteen
 ADR 0003 consolidation slices replace Settings Network's duplicated Wi-Fi
 row/action hit geometry, Files content-entry render/input geometry, launcher
 panel/child pointer routing, and Files scrollbar render/input geometry with
@@ -729,6 +732,9 @@ Previous/Next target, while Home/End select the respective visible bounds.
 Files content-list arrows, Page Up/Down, Home, and End now consume the shared
 list target and reveal-offset contract while preview-key routing remains
 separate.
+Settings Appearance Left/Right now consumes the shared segmented-control
+Previous/Next targets and persists the selected theme without changing
+category, Wi-Fi credential, or Audio key ownership.
 Further extractions must continue from real first-party consumers and repeat
 the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a

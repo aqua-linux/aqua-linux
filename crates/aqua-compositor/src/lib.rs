@@ -15654,7 +15654,7 @@ mod tests {
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     #[test]
-    fn first_party_settings_keyboard_uses_shared_sidebar_targets() {
+    fn first_party_settings_keyboard_uses_shared_control_targets() {
         let mut model = aqua_shell::SettingsWindowModel::default();
 
         assert_eq!(
@@ -15668,6 +15668,18 @@ mod tests {
         assert_eq!(
             settings_key_for_code(102).map(|key| model.handle_key(key)),
             Some(aqua_shell::SettingsUpdate::CategorySelected(0))
+        );
+        assert_eq!(
+            settings_key_for_code(105).map(|key| model.handle_key(key)),
+            Some(aqua_shell::SettingsUpdate::ThemeChanged(
+                aqua_shell::AquaTheme::Nightmare
+            ))
+        );
+        assert_eq!(
+            settings_key_for_code(106).map(|key| model.handle_key(key)),
+            Some(aqua_shell::SettingsUpdate::ThemeChanged(
+                aqua_shell::AquaTheme::LightWhite
+            ))
         );
         assert_eq!(settings_key_for_code(0), None);
     }

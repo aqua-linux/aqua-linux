@@ -3,7 +3,7 @@
 ## Status
 
 Accepted on 2026-08-29. Framework consolidation began on 2026-09-01 after the
-core desktop functionality supplied real consumers. The first fourteen bounded
+core desktop functionality supplied real consumers. The first fifteen bounded
 slices replaced Settings Network's duplicated Wi-Fi row/action hit geometry,
 Files content-row render/input geometry, and launcher panel/child pointer
 routing with existing shared component contracts, then consolidated Files list
@@ -33,6 +33,9 @@ visible-item targets owned separately by `ApplicationOverview` and
 Files list Up, Down, Page Up, Page Down, Home, and End navigation now resolves
 selection and the offset required to reveal it through the shared bounded list
 navigation contract without changing preview-key ownership;
+Settings Appearance Left and Right now resolve the persisted theme through the
+shared `SegmentedControl` Previous and Next targets while category navigation
+and Wi-Fi or Audio key ownership remain unchanged;
 the broader consolidation remains in progress.
 
 ## Context
