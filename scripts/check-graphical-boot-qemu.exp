@@ -497,6 +497,7 @@ if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) close-propertie
 }
 run_shell_check {i=0; while [ "$i" -lt 60 ] && ! grep -Fq 'desktop_runtime_process_exited_properties=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Properties close lifecycle"
 run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_client_surface_count=1' ]; do sleep 1; i=$((i + 1)); done} "waiting for the Properties stale surface cleanup"
+run_shell_check {printf '%s\n' '[AQUA-DIAG] properties-close'; grep -E 'desktop_runtime_process_(exited_properties|exit_properties_success|properties_restart_policy|properties_restart_attempted)=|desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 12} "reporting the Properties close lifecycle"
 run_shell_check {ok=1; grep -Fq 'desktop_runtime_process_exit_properties_success=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_runtime_process_properties_restart_policy=never' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_runtime_process_properties_restart_attempted=false' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Properties exit policy"
 run_shell_check {[ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=1' ] || ok=0} "checking the Properties stale surface cleanup"
 send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-close-qemu status=ok close=alt-f4 exit=clean stale_surface=removed restart=never clients=1'}
@@ -662,6 +663,31 @@ expect {
     -exact {# } {}
     timeout { puts stderr "Settings damage verification did not return to recovery shell"; exit 1 }
     eof { puts stderr "QEMU exited after Settings damage verification"; exit 1 }
+}
+
+run_shell_check {i=0; stable=0; previous="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; while [ "$i" -lt 30 ] && [ "$stable" -lt 2 ]; do sleep 1; current="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; if [ "$current" -eq "$previous" ]; then stable=$((stable + 1)); else stable=0; previous="$current"; fi; i=$((i + 1)); done; [ "$stable" -ge 2 ]} "waiting for the Settings keyboard repaint sequence to settle"
+run_shell_check {settings_nonprimary_phase_before="$(grep -Fc 'aqua_settings_pointer phase=' /run/aqua/graphical-session-supervisor.log)"; settings_nonprimary_action_before="$(grep -Fc 'aqua_settings_pointer x=' /run/aqua/graphical-session-supervisor.log)"; settings_nonprimary_motion_before="$(grep -Fc 'aqua_settings_pointer_motion' /run/aqua/graphical-session-supervisor.log)"; settings_nonprimary_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Settings non-primary pointer baselines"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) settings-nonprimary-pointer} input_error]} {
+    puts stderr "QEMU Settings non-primary pointer input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'aqua_settings_pointer phase=' /run/aqua/graphical-session-supervisor.log)" -lt "$((settings_nonprimary_phase_before + 2))" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Settings non-primary pointer rejection"
+run_shell_check {printf '[AQUA-DIAG] settings-primary-button phase_before=%s phase_after=%s action_before=%s action_after=%s motion_before=%s motion_after=%s repaint_before=%s repaint_after=%s\n' "$settings_nonprimary_phase_before" "$(grep -Fc 'aqua_settings_pointer phase=' /run/aqua/graphical-session-supervisor.log)" "$settings_nonprimary_action_before" "$(grep -Fc 'aqua_settings_pointer x=' /run/aqua/graphical-session-supervisor.log)" "$settings_nonprimary_motion_before" "$(grep -Fc 'aqua_settings_pointer_motion' /run/aqua/graphical-session-supervisor.log)" "$settings_nonprimary_repaint_before" "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; grep -F 'aqua_settings_pointer' /run/aqua/graphical-session-supervisor.log | tail -n 6} "reporting the Settings primary-button gate"
+run_shell_check {ok=1; grep -F 'aqua_settings_pointer phase=press' /run/aqua/graphical-session-supervisor.log | tail -n 1 | grep -Fq 'primary=false ignored=true focus=keyboard category=4' || ok=0; grep -F 'aqua_settings_pointer phase=release' /run/aqua/graphical-session-supervisor.log | tail -n 1 | grep -Fq 'primary=false ignored=true focus=keyboard category=4' || ok=0} "checking the Settings primary-button gate"
+run_shell_check {[ "$(grep -Fc 'aqua_settings_pointer phase=' /run/aqua/graphical-session-supervisor.log)" -eq "$((settings_nonprimary_phase_before + 2))" ] || ok=0; [ "$(grep -Fc 'aqua_settings_pointer x=' /run/aqua/graphical-session-supervisor.log)" -eq "$settings_nonprimary_action_before" ] || ok=0; [ "$(grep -Fc 'aqua_settings_pointer_motion' /run/aqua/graphical-session-supervisor.log)" -gt "$settings_nonprimary_motion_before" ] || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$settings_nonprimary_repaint_before" ] || ok=0} "checking the Settings non-primary no-op and pointer-device handoff repaint"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-settings-primary-button-qemu status=ok input=non-primary ignored=true focus=keyboard category=4 activation=false repaint=pointer-motion-only clients=2'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-settings-primary-button-qemu status=ok input=non-primary ignored=true focus=keyboard category=4 activation=false repaint=pointer-motion-only clients=2} {}
+    timeout { puts stderr "Settings primary-button gate was not proven"; exit 1 }
+    eof { puts stderr "QEMU exited before Settings primary-button verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Settings primary-button verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Settings primary-button verification"; exit 1 }
 }
 
 run_shell_check {settings_pointer_blur_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Settings pointer-blur repaint baseline"

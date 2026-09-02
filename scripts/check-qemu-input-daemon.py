@@ -62,6 +62,7 @@ def main() -> int:
             for mode in (
                 "basic",
                 "files-keyboard-focus",
+                "settings-nonprimary-pointer",
                 "settings-pointer-blur",
                 "settings-keyboard-refocus",
                 "settings-keyboard-blur",
@@ -110,6 +111,10 @@ def main() -> int:
             "sendkey b 100",
             "mouse_button 0",
             "sendkey left 100",
+            "info mice",
+            "mouse_set 4",
+            "mouse_button 2",
+            "mouse_button 0",
             "info mice",
             "mouse_set 4",
             "mouse_move -3000 -3000",

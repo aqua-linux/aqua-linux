@@ -106,6 +106,8 @@ keyboard leave, repaints without changing the selected category, and requires
 new keyboard input before a control regains keyboard focus;
 an in-surface pointer press likewise clears stale keyboard focus and repaints
 even when the background press produces no settings action;
+only primary pointer presses reach Settings controls or clear that focus, while
+non-primary press and release events remain inert without button-driven repaint;
 Settings section rendering and pointer or keyboard control activation now
 share a category-specific viewport-validated content group; Network's four-row
 group has its required 212-pixel height, while clipped switch, segmented,

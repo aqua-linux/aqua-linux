@@ -14297,6 +14297,25 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                 );
                 return;
             }
+            if button != 0x110 {
+                if let Some(model) = state.settings_model.as_ref() {
+                    println!(
+                        "aqua_settings_pointer phase={} button={button} primary=false ignored=true focus={} category={}",
+                        if button_state == client_wl_pointer::ButtonState::Pressed {
+                            "press"
+                        } else {
+                            "release"
+                        },
+                        if model.keyboard_focus {
+                            "keyboard"
+                        } else {
+                            "none"
+                        },
+                        model.selected_category
+                    );
+                    return;
+                }
+            }
             if button_state == client_wl_pointer::ButtonState::Released
                 && state.files_scrollbar_dragging
             {
