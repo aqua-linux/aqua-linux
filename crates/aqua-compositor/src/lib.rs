@@ -14233,10 +14233,31 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
         }
         if let client_wl_pointer::Event::Button {
             serial,
+            button,
             state: WEnum::Value(button_state),
             ..
         } = event
         {
+            if button != 0x110 && state.properties_model.is_some() {
+                println!(
+                    "aqua_properties_pointer phase={} button={button} primary=false ignored=true focus={}",
+                    if button_state == client_wl_pointer::ButtonState::Pressed {
+                        "press"
+                    } else {
+                        "release"
+                    },
+                    if state
+                        .properties_model
+                        .as_ref()
+                        .is_some_and(|model| model.primary_action_focused)
+                    {
+                        "primary-action"
+                    } else {
+                        "none"
+                    }
+                );
+                return;
+            }
             if button_state == client_wl_pointer::ButtonState::Released
                 && state.files_scrollbar_dragging
             {
