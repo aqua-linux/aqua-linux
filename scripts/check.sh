@@ -1849,6 +1849,9 @@ grep -Fq 'files-keyboard-focus' scripts/send-qemu-monitor-input.py
 grep -Fq 'desktop-files-keyboard-focus-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'desktop-files-keyboard-blur-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'desktop-files-keyboard-blur-qemu status=ok' scripts/check-graphical-boot-qemu.exp
+grep -Fq 'settings-nonprimary-pointer' scripts/send-qemu-monitor-input.py
+grep -Fq 'desktop-settings-primary-button-qemu status=ok' scripts/check-graphical-boot-qemu.sh
+grep -Fq 'desktop-settings-primary-button-qemu status=ok' scripts/check-graphical-boot-qemu.exp
 grep -Fq 'settings-keyboard-blur' scripts/send-qemu-monitor-input.py
 grep -Fq 'settings-refocus' scripts/send-qemu-monitor-input.py
 grep -Fq 'settings-pointer-blur' scripts/send-qemu-monitor-input.py

@@ -818,6 +818,10 @@ and then returns surface focus without restoring a control focus implicitly.
 An earlier background press in the same packaged flow also clears the
 client-local keyboard focus, preserves category four without activation, and
 requires a repaint before keyboard navigation explicitly restores focus.
+Before that blur, packaged QEMU sends a non-primary press and release and
+requires Settings to retain category four and its keyboard focus without
+activation or model pointer dispatch; the separately measured repaint comes
+only from the QEMU pointer-device handoff, not the ignored button events.
 Settings section rendering and pointer or keyboard control activation now
 consume one category-specific viewport-validated content group. Network's
 four-row group receives its valid 212-pixel height; clipped switch, segmented,

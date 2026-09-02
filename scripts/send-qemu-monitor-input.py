@@ -68,6 +68,7 @@ MODES = {
         "sendkey down 100", "sendkey down 100", "sendkey down 100",
         "sendkey down 100",
     ),
+    "settings-nonprimary-pointer": ("mouse_button 2", "mouse_button 0"),
     "settings-pointer-blur": (
         "mouse_move -3000 -3000", "mouse_move 520 235",
         "mouse_button 1", "mouse_button 0",
