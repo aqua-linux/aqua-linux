@@ -61,6 +61,7 @@ def main() -> int:
             }
             for mode in (
                 "basic",
+                "files-keyboard-focus",
                 "properties-nonprimary-pointer",
                 "properties-pointer-cancel",
                 "properties-refresh-pointer",
@@ -103,6 +104,7 @@ def main() -> int:
             "mouse_button 1",
             "sendkey b 100",
             "mouse_button 0",
+            "sendkey left 100",
             "info mice",
             "mouse_set 4",
             "mouse_move -3000 -3000",

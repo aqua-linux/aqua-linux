@@ -204,6 +204,27 @@ expect {
     eof { puts stderr "QEMU exited after runtime launcher verification"; exit 1 }
 }
 
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) files-keyboard-focus} input_error]} {
+    puts stderr "QEMU Files keyboard-focus input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -F 'aqua_files_keyboard key=105' /run/aqua/graphical-session-supervisor.log | grep -Fq 'navigation=FocusedSidebar(0)'; do sleep 1; i=$((i + 1)); done} "waiting for the Files sidebar keyboard focus"
+run_shell_check {ok=1; grep -F 'aqua_files_keyboard key=105' /run/aqua/graphical-session-supervisor.log | grep -Fq 'navigation=FocusedSidebar(0)' || ok=0} "checking the Files sidebar keyboard focus"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-files-keyboard-focus-qemu status=ok input=left focus=sidebar-0 clients=1'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-files-keyboard-focus-qemu status=ok input=left focus=sidebar-0 clients=1} {}
+    timeout { puts stderr "Files sidebar keyboard focus was not proven"; exit 1 }
+    eof { puts stderr "QEMU exited before Files sidebar keyboard-focus verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Files sidebar keyboard-focus verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Files sidebar keyboard-focus verification"; exit 1 }
+}
+
 run_shell_check {ok=1; grep -Fq 'desktop_notification_overlay_texture_ready=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_notification_visible=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_notification_active_id=1' /run/aqua/graphical-session-supervisor.log || ok=0} "checking runtime notification toast"
 send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-notification-qemu status=ok source=launcher toast=visible gpu_texture=true active_id=1'}
 send -- "\r"
@@ -268,6 +289,8 @@ run_shell_check {i=0; while [ "$i" -lt 60 ] && ! grep -Fq 'desktop_launch_surfac
 run_shell_check {ok=1; grep -Fq 'desktop_launch_request_app=properties' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_preflight=accepted' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_surface_app_id=aqua.properties' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Properties launch"
 run_shell_check {grep -Fq 'aqua_properties_target=files' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_properties_kind=Folder' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_properties_location=/home/aqua' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Properties target metadata"
 run_shell_check {[ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=2' ] || ok=0} "checking the Properties composition"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_files_keyboard focus=none focused_sidebar=none reason=keyboard-leave repaint=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Files keyboard focus leave"
+run_shell_check {grep -Fq 'aqua_files_keyboard focus=none focused_sidebar=none reason=keyboard-leave repaint=true' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Files keyboard focus leave"
 send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-qemu status=ok target=files surface=aqua.properties kind=Folder location=/home/aqua clients=2'}
 send -- "\r"
 
@@ -281,6 +304,21 @@ expect {
     -exact {# } {}
     timeout { puts stderr "Properties verification did not return to recovery shell"; exit 1 }
     eof { puts stderr "QEMU exited after Properties verification"; exit 1 }
+}
+
+send -- {echo '[AQUA-TEST] stage=desktop-files-keyboard-blur-qemu status=ok input=surface-transfer focus=none focused_sidebar=none repaint=true clients=2'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-files-keyboard-blur-qemu status=ok input=surface-transfer focus=none focused_sidebar=none repaint=true clients=2} {}
+    timeout { puts stderr "Files keyboard focus transfer was not proven"; exit 1 }
+    eof { puts stderr "QEMU exited before Files keyboard-blur verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Files keyboard-blur verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Files keyboard-blur verification"; exit 1 }
 }
 
 run_shell_check {properties_nonprimary_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Properties non-primary pointer repaint baseline"

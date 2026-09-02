@@ -23,6 +23,7 @@ MODES = {
         "sendkey f 100", "sendkey i 100", "sendkey l 100",
         "sendkey e 100", "sendkey s 100", "sendkey ret 100",
     ),
+    "files-keyboard-focus": ("sendkey left 100",),
     "bottom-applications-activate": (
         "mouse_move -3000 -3000", "mouse_move 146 370",
         "mouse_button 1", "mouse_button 0",
