@@ -208,6 +208,7 @@ pub struct ComponentAccessibility<'a> {
     pub disabled: bool,
     pub busy: bool,
     pub selected: bool,
+    pub focused: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -384,6 +385,7 @@ impl<'a> TopSystemBar<'a> {
             disabled: false,
             busy: false,
             selected: false,
+            focused: false,
         }
     }
 
@@ -1206,6 +1208,7 @@ impl<'a> Toolbar<'a> {
             disabled: false,
             busy: false,
             selected: false,
+            focused: false,
         }
     }
 }
@@ -3203,6 +3206,7 @@ impl<'a> NotificationToast<'a> {
             disabled: false,
             busy: false,
             selected: false,
+            focused: false,
         }
     }
 }
@@ -3500,6 +3504,7 @@ impl<'a> SidebarNavigation<'a> {
             disabled: false,
             busy: false,
             selected: false,
+            focused: false,
         }
     }
 }
@@ -3515,6 +3520,7 @@ const fn accessibility<'a>(
         disabled: matches!(state, ComponentState::Disabled),
         busy: matches!(state, ComponentState::Loading),
         selected: matches!(state, ComponentState::Selected),
+        focused: matches!(state, ComponentState::KeyboardFocus),
     }
 }
 
@@ -3749,6 +3755,13 @@ mod tests {
             assert!(!checkbox.keyboard_toggles(ActivationKey::Space));
             assert_eq!(slider.keyboard_value(SliderKey::Increase), None);
         }
+
+        let focused = StandardButton::new(rect, "Action", StandardButtonVariant::Primary)
+            .with_state(ComponentState::KeyboardFocus)
+            .accessibility();
+        assert!(focused.focused);
+        assert!(!focused.disabled);
+        assert!(!focused.busy);
     }
 
     #[test]

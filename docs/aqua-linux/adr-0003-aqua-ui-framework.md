@@ -107,9 +107,10 @@ Settings About now replaces its placeholder with three shared, read-only
 pinned Buildroot LTS base, preserving bounded geometry and accessibility
 semantics without making release or hardware-support claims;
 Properties now derives its footer action from the shared `StandardButton`
-contract for rendering and pointer hit testing, while retaining F5 as a
-non-authorizing shortcut and keeping refresh or application verification in
-the Properties domain model;
+contract for rendering, pointer hit testing, visible keyboard focus, and
+Enter/Space activation. Tab focuses the bounded action, refresh preserves that
+focus, F5 remains a non-authorizing shortcut, and refresh or application
+verification stays in the Properties domain model;
 the broader consolidation remains in progress.
 
 ## Context

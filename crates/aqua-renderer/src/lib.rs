@@ -8546,6 +8546,7 @@ mod tests {
             item_count: Some(4),
             enumeration_capped: false,
             refresh_generation: 1,
+            primary_action_focused: false,
         };
         let mut files_checksums = Vec::new();
         for theme in AquaTheme::ALL {
@@ -8589,6 +8590,7 @@ mod tests {
             item_count: Some(4),
             enumeration_capped: false,
             refresh_generation: 2,
+            primary_action_focused: false,
         };
         let (pixels, probe) = render_properties_window_rgba(480, 300, &model);
         assert!(probe.rendered);
@@ -8598,6 +8600,12 @@ mod tests {
         assert!(probe.primitive_count >= 8);
         assert_ne!(probe.checksum, 0);
         assert_eq!(pixels.len(), 480 * 300 * 4);
+
+        let mut focused_model = model.clone();
+        assert!(focused_model.focus_primary_action(480, 300));
+        let (_, focused_probe) = render_properties_window_rgba(480, 300, &focused_model);
+        assert_eq!(focused_probe.primitive_count, probe.primitive_count + 1);
+        assert_ne!(focused_probe.checksum, probe.checksum);
 
         let (_, compact_probe) = render_properties_window_rgba(480, 250, &model);
         assert!(compact_probe.rendered);

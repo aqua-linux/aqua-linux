@@ -85,8 +85,8 @@ fractional-scale 1536x1024. Packaged-QEMU component acceptance is covered by the
   rectangle.
 - Enter and Space are activation keys. Other keys do not activate the button.
 - Disabled and loading states reject both pointer and keyboard activation.
-- The semantic role is `button`; name, disabled, busy, and selected values are
-  exposed independently from visual styling.
+- The semantic role is `button`; name, disabled, busy, selected, and focused
+  values are exposed independently from visual styling.
 - Keyboard focus draws an external accent ring without moving the control.
 
 ### Applicable States
@@ -816,9 +816,12 @@ Status, and Base. The rows expose definition semantics, keep `Prototype`
 explicit, and identify the pinned Buildroot 2025.02.17 LTS base without
 claiming release readiness or physical-hardware support.
 Properties now renders and pointer-activates its Refresh Contents or Verify
-Application footer action through one shared `StandardButton`. Compact layouts
-that cannot contain the complete section omit the button and reject its hit;
-the model still owns the selected action and the existing F5 shortcut remains.
+Application footer action through one shared `StandardButton`. Tab applies the
+button's visible keyboard-focus state and accessibility focus, while Enter or
+Space resolves through the same activation gate; refresh preserves focus.
+Compact layouts that cannot contain the complete section omit the button and
+reject pointer or keyboard activation; the model still owns the selected
+action and the existing F5 shortcut remains.
 Further extractions must continue from real first-party consumers and repeat
 the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a
