@@ -110,9 +110,11 @@ Properties now derives its footer action from the shared `StandardButton`
 contract for rendering, exact pointer hit testing, hover feedback, visible
 keyboard focus, pressed feedback, release-inside pointer activation, and
 Enter/Space activation. Pointer leave clears hover and cancels an armed press,
-release outside rejects activation, Tab focuses the bounded action, refresh
-preserves durable interaction state, F5 remains a non-authorizing shortcut,
-and refresh or application verification stays in the Properties domain model;
+release outside rejects activation without advancing refresh generation, Tab
+focuses the bounded action, refresh preserves durable interaction state, F5
+remains a non-authorizing shortcut, and refresh or application verification
+stays in the Properties domain model. Packaged QEMU proves both release-inside
+activation and press-drag-release cancellation;
 the broader consolidation remains in progress.
 
 ## Context
