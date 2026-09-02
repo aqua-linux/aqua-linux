@@ -14411,6 +14411,7 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                     return;
                 }
             } else if let Some(model) = state.settings_model.as_mut() {
+                let keyboard_focus_before = model.keyboard_focus;
                 let update = model.handle_pointer_in_viewport(
                     state.buffer_width.max(1),
                     state.buffer_height.max(1),
@@ -14422,6 +14423,13 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                     state.pointer_surface_x.max(0.0) as u32,
                     state.pointer_surface_y.max(0.0) as u32
                 );
+                let keyboard_focus_changed = keyboard_focus_before && !model.keyboard_focus;
+                if keyboard_focus_changed {
+                    println!(
+                        "aqua_settings_pointer focus=none reason=pointer-press category={} update={update:?} repaint=true",
+                        model.selected_category
+                    );
+                }
                 if let aqua_shell::SettingsUpdate::ThemeChanged(theme) = update {
                     state.theme = theme;
                     println!("aqua_settings_theme={}", theme.id());
@@ -14446,7 +14454,7 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                 ) {
                     state.persist_settings();
                 }
-                if update.changed() {
+                if keyboard_focus_changed || update.changed() {
                     state.redraw_settings_buffer(qh);
                     return;
                 }
