@@ -14286,12 +14286,16 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
             } else if let Some(model) = state.properties_model.as_mut() {
                 let pointer_x = state.pointer_surface_x.max(0.0) as u32;
                 let pointer_y = state.pointer_surface_y.max(0.0) as u32;
+                let interaction_before =
+                    (model.primary_action_pressed, model.primary_action_focused);
                 let pressed = model.begin_primary_action_press(
                     state.buffer_width.max(1),
                     state.buffer_height.max(1),
                     pointer_x,
                     pointer_y,
                 );
+                let interaction_changed = interaction_before
+                    != (model.primary_action_pressed, model.primary_action_focused);
                 println!(
                     "aqua_properties_pointer phase=press x={pointer_x} y={pointer_y} pressed={pressed} focus={} action=none",
                     if model.primary_action_focused {
@@ -14300,8 +14304,10 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                         "none"
                     }
                 );
-                if pressed {
+                if interaction_changed {
                     state.redraw_properties_buffer(qh);
+                }
+                if pressed || interaction_changed {
                     return;
                 }
             } else if let Some(navigator) = state.files_navigator.as_mut() {

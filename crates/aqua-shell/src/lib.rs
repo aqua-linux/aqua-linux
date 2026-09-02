@@ -1577,9 +1577,7 @@ impl DesktopPropertiesModel {
     pub fn begin_primary_action_press(&mut self, width: u32, height: u32, x: u32, y: u32) -> bool {
         let pressed = self.primary_action_at(width, height, x, y).is_some();
         self.primary_action_pressed = pressed;
-        if pressed {
-            self.primary_action_focused = true;
-        }
+        self.primary_action_focused = pressed;
         pressed
     }
 
@@ -5841,9 +5839,17 @@ mod tests {
             Some(DesktopPropertiesAction::RefreshContents)
         );
         assert!(!files.focus_primary_action(480, 300));
-        files.primary_action_focused = false;
+        assert!(!files.begin_primary_action_press(480, 300, 0, 0));
+        assert!(!files.primary_action_focused);
+        assert!(
+            !files
+                .primary_action_button(480, 300)
+                .expect("blurred Properties action should remain visible")
+                .accessibility()
+                .focused
+        );
         assert_eq!(
-            files.primary_action_for_key(480, 300, ActivationKey::Enter),
+            files.primary_action_for_key(480, 300, ActivationKey::Space),
             None
         );
         assert!(!files.focus_primary_action(480, 250));
