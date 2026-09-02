@@ -2352,6 +2352,12 @@ impl SettingsWindowModel {
         changed
     }
 
+    pub fn clear_hovered_category(&mut self) -> bool {
+        let changed = self.hovered_category.is_some();
+        self.hovered_category = None;
+        changed
+    }
+
     pub fn section_group(&self) -> SectionGroup<'static> {
         let (row_count, row_height, row_gap) = match self.selected_category {
             0 => (2, 48, 40),
@@ -6140,6 +6146,10 @@ mod tests {
         assert!(model.audio.muted());
         assert!(model.handle_hover(40, 100));
         assert_eq!(model.hovered_category, Some(0));
+        assert!(model.clear_hovered_category());
+        assert_eq!(model.hovered_category, None);
+        assert!(!model.clear_hovered_category());
+        assert!(model.handle_hover(40, 100));
         assert_eq!(model.handle_pointer(40, 138), SettingsUpdate::None);
         assert!(model.handle_hover(40, 138));
         assert_eq!(model.hovered_category, None);
