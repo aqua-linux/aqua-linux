@@ -2346,6 +2346,12 @@ impl Default for SettingsWindowModel {
 }
 
 impl SettingsWindowModel {
+    pub fn clear_keyboard_focus(&mut self) -> bool {
+        let changed = self.keyboard_focus;
+        self.keyboard_focus = false;
+        changed
+    }
+
     pub fn section_group(&self) -> SectionGroup<'static> {
         let (row_count, row_height, row_gap) = match self.selected_category {
             0 => (2, 48, 40),
@@ -6038,10 +6044,14 @@ mod tests {
             SettingsUpdate::ReducedMotionChanged(false)
         );
         assert!(model.keyboard_focus);
+        assert!(model.clear_keyboard_focus());
+        assert!(!model.keyboard_focus);
+        assert!(!model.clear_keyboard_focus());
         assert_eq!(
             model.handle_key(SettingsKey::Home),
             SettingsUpdate::CategorySelected(0)
         );
+        assert!(model.keyboard_focus);
         assert_eq!(
             model.handle_key(SettingsKey::Decrease),
             SettingsUpdate::ThemeChanged(AquaTheme::Nightmare)
