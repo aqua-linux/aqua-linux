@@ -808,6 +808,13 @@ Wayland keyboard leave clears Files' visible and accessibility focus plus its
 focused sidebar target while preserving the selected location. Packaged QEMU
 focuses sidebar row zero, transfers compositor focus to Properties, and
 requires Files to clear that client-local focus and repaint.
+Files also owns an idempotent pointer-hover clear transition for both sidebar
+and content rows. Wayland pointer leave consumes it, cancels any active
+scrollbar drag so an out-of-surface release is not required, and redraws only
+when visible hover changed on an active surface. A closing surface clears the
+client state without a final commit. Packaged QEMU establishes a real Files
+sidebar hover, transfers the pointer to Properties, and requires the leave
+transition plus its repaint while both client surfaces remain active.
 Settings category rendering, pointer selection, hover, and keyboard navigation
 now consume one width-and-height validated sidebar composition derived from the
 actual client buffer. Clipped category rows are omitted and remain inert.
