@@ -804,6 +804,10 @@ fitted region and cannot escape the field at the minimum valid toolbar width.
 Files sidebar rendering, pointer selection, hover, focus transfer, navigation,
 and activation now consume one width-and-height validated full-composition
 gate. A clipped sidebar is omitted and remains inert.
+Wayland keyboard leave clears Files' visible and accessibility focus plus its
+focused sidebar target while preserving the selected location. Packaged QEMU
+focuses sidebar row zero, transfers compositor focus to Properties, and
+requires Files to clear that client-local focus and repaint.
 Settings category rendering, pointer selection, hover, and keyboard navigation
 now consume one width-and-height validated sidebar composition derived from the
 actual client buffer. Clipped category rows are omitted and remain inert.

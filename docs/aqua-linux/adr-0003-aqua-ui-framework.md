@@ -95,6 +95,9 @@ stays inside the field at the minimum valid toolbar width;
 Files sidebar rendering, pointer selection, hover, focus transfer, navigation,
 and activation now share a width-and-height validated full-composition gate,
 so clipped sidebars are omitted and inert;
+Files also clears its visible keyboard and accessibility focus plus the focused
+sidebar target on Wayland keyboard leave, repaints the client surface, and
+requires new navigation before a sidebar can regain keyboard focus;
 Settings category rendering, pointer selection, hover, and keyboard navigation
 now share a width-and-height validated sidebar composition derived from the
 actual client buffer, so clipped category rows are omitted and inert;

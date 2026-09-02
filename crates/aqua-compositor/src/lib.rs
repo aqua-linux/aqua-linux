@@ -13915,13 +13915,27 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
         qh: &QueueHandle<Self>,
     ) {
         if matches!(event, client_wl_keyboard::Event::Leave { .. }) {
-            let focus_changed = state
+            let properties_focus_changed = state
                 .properties_model
                 .as_mut()
                 .is_some_and(aqua_shell::DesktopPropertiesModel::clear_primary_action_focus);
-            if focus_changed {
+            if properties_focus_changed {
                 println!("aqua_properties_keyboard focus=none reason=keyboard-leave");
                 state.redraw_properties_buffer(qh);
+            }
+            let files_focus_changed = state
+                .files_navigator
+                .as_mut()
+                .is_some_and(aqua_shell::FilesNavigator::clear_keyboard_focus);
+            if files_focus_changed {
+                state.files_model = state
+                    .files_navigator
+                    .as_ref()
+                    .map(|navigator| navigator.window().clone());
+                state.redraw_files_buffer(qh);
+                println!(
+                    "aqua_files_keyboard focus=none focused_sidebar=none reason=keyboard-leave repaint=true"
+                );
             }
             return;
         }

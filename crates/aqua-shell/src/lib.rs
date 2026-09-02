@@ -3654,6 +3654,13 @@ impl FilesNavigator {
         &self.window
     }
 
+    pub fn clear_keyboard_focus(&mut self) -> bool {
+        let changed = self.window.keyboard_focus || self.window.focused_sidebar.is_some();
+        self.window.keyboard_focus = false;
+        self.window.focused_sidebar = None;
+        changed
+    }
+
     pub fn current(&self) -> &Path {
         &self.current
     }
@@ -7733,6 +7740,14 @@ mod tests {
         assert_eq!(navigator.window().selected_sidebar, 1);
         assert_eq!(navigator.window().focused_sidebar, Some(1));
         assert!(navigator.window().keyboard_focus);
+        assert!(navigator.clear_keyboard_focus());
+        assert!(!navigator.window().keyboard_focus);
+        assert_eq!(navigator.window().focused_sidebar, None);
+        assert!(!navigator.clear_keyboard_focus());
+        assert_eq!(
+            navigator.handle_key_in_viewport(640, 420, FilesKey::Left),
+            FilesNavigation::FocusedSidebar(1)
+        );
         assert_eq!(
             navigator.handle_key_in_viewport(274, 420, FilesKey::Right),
             FilesNavigation::None
