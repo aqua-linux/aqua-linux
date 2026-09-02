@@ -24,6 +24,8 @@ pub use presentation::{
     QEMU_TCG_BOCHS_SOAK_V1_BUDGET, QEMU_TCG_BOCHS_V1_BUDGET,
 };
 
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+use aqua_components::ActivationKey;
 use aqua_components::{NotificationToast, WindowControl, WindowFrame};
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_installer::{
@@ -13960,11 +13962,63 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
                 }
                 return;
             }
-            let files_key = files_key_for_code(key);
-            if key == 63 && state.properties_model.is_some() {
-                state.refresh_properties(qh);
-                return;
+            if state.properties_model.is_some() {
+                let width = state.buffer_width.max(1);
+                let height = state.buffer_height.max(1);
+                if key == 15 {
+                    let changed = state
+                        .properties_model
+                        .as_mut()
+                        .is_some_and(|model| model.focus_primary_action(width, height));
+                    println!(
+                        "aqua_properties_keyboard key={key} focus={} action=none",
+                        if state
+                            .properties_model
+                            .as_ref()
+                            .is_some_and(|model| { model.primary_action_focused })
+                        {
+                            "primary-action"
+                        } else {
+                            "none"
+                        }
+                    );
+                    if changed {
+                        state.redraw_properties_buffer(qh);
+                    }
+                    return;
+                }
+                if let Some(activation_key) = match key {
+                    28 => Some(ActivationKey::Enter),
+                    57 => Some(ActivationKey::Space),
+                    _ => None,
+                } {
+                    let action = state.properties_model.as_ref().and_then(|model| {
+                        model.primary_action_for_key(width, height, activation_key)
+                    });
+                    println!(
+                        "aqua_properties_keyboard key={key} focus={} action={}",
+                        if state
+                            .properties_model
+                            .as_ref()
+                            .is_some_and(|model| { model.primary_action_focused })
+                        {
+                            "primary-action"
+                        } else {
+                            "none"
+                        },
+                        action.map_or("none", aqua_shell::DesktopPropertiesAction::log_name)
+                    );
+                    if action.is_some() {
+                        state.refresh_properties(qh);
+                    }
+                    return;
+                }
+                if key == 63 {
+                    state.refresh_properties(qh);
+                    return;
+                }
             }
+            let files_key = files_key_for_code(key);
             let files_width = state.buffer_width.max(1);
             let files_height = state.buffer_height.max(1);
             if let (Some(files_key), Some(navigator)) = (files_key, state.files_navigator.as_mut())

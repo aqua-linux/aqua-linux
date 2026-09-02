@@ -1437,6 +1437,7 @@ pub struct DesktopPropertiesModel {
     pub item_count: Option<usize>,
     pub enumeration_capped: bool,
     pub refresh_generation: u32,
+    pub primary_action_focused: bool,
 }
 
 impl DesktopPropertiesModel {
@@ -1490,6 +1491,7 @@ impl DesktopPropertiesModel {
             item_count,
             enumeration_capped,
             refresh_generation: 0,
+            primary_action_focused: false,
         })
     }
 
@@ -1513,11 +1515,18 @@ impl DesktopPropertiesModel {
         if rect.width == 0 || rect.height == 0 {
             return None;
         }
-        Some(StandardButton::new(
-            rect,
-            self.primary_action().label(),
-            StandardButtonVariant::Primary,
-        ))
+        Some(
+            StandardButton::new(
+                rect,
+                self.primary_action().label(),
+                StandardButtonVariant::Primary,
+            )
+            .with_state(if self.primary_action_focused {
+                ComponentState::KeyboardFocus
+            } else {
+                ComponentState::Idle
+            }),
+        )
     }
 
     pub fn primary_action_at(
@@ -1529,6 +1538,26 @@ impl DesktopPropertiesModel {
     ) -> Option<DesktopPropertiesAction> {
         self.primary_action_button(width, height)
             .filter(|button| button.pointer_hit(x, y))
+            .map(|_| self.primary_action())
+    }
+
+    pub fn focus_primary_action(&mut self, width: u32, height: u32) -> bool {
+        let focused = self.primary_action_button(width, height).is_some();
+        let changed = self.primary_action_focused != focused;
+        self.primary_action_focused = focused;
+        changed
+    }
+
+    pub fn primary_action_for_key(
+        &self,
+        width: u32,
+        height: u32,
+        key: ActivationKey,
+    ) -> Option<DesktopPropertiesAction> {
+        self.primary_action_focused
+            .then(|| self.primary_action_button(width, height))
+            .flatten()
+            .filter(|button| button.keyboard_activates(key))
             .map(|_| self.primary_action())
     }
 
@@ -1569,8 +1598,10 @@ impl DesktopPropertiesModel {
     ) -> io::Result<DesktopPropertiesAction> {
         let generation = self.refresh_generation.saturating_add(1);
         let action = self.primary_action();
+        let primary_action_focused = self.primary_action_focused;
         let mut refreshed = Self::load(self.icon_id, home_root, system_root)?;
         refreshed.refresh_generation = generation;
+        refreshed.primary_action_focused = primary_action_focused;
         *self = refreshed;
         Ok(action)
     }
@@ -5609,7 +5640,7 @@ mod tests {
             .expect("create Settings fixture");
         fs::write(home.join("note.txt"), b"note").expect("create home item");
 
-        let files =
+        let mut files =
             DesktopPropertiesModel::load("files", &home, &system).expect("load Files properties");
         assert_eq!(files.name, "Files");
         assert_eq!(files.kind, "Folder");
@@ -5627,6 +5658,7 @@ mod tests {
         assert_eq!(action_button.variant, StandardButtonVariant::Primary);
         assert_eq!(action_button.rect, details.footer_trailing_rect(138, 30));
         assert_eq!(action_button.accessibility().role, "button");
+        assert!(!action_button.accessibility().focused);
         assert_eq!(
             files.primary_action_at(480, 300, action_button.rect.x, action_button.rect.y),
             Some(DesktopPropertiesAction::RefreshContents)
@@ -5641,6 +5673,27 @@ mod tests {
             None
         );
         assert_eq!(files.primary_action_button(480, 250), None);
+        assert!(files.focus_primary_action(480, 300));
+        let focused_action = files
+            .primary_action_button(480, 300)
+            .expect("focused Properties action should remain visible");
+        assert_eq!(focused_action.state, ComponentState::KeyboardFocus);
+        assert!(focused_action.accessibility().focused);
+        assert_eq!(
+            files.primary_action_for_key(480, 300, ActivationKey::Enter),
+            Some(DesktopPropertiesAction::RefreshContents)
+        );
+        assert_eq!(
+            files.primary_action_for_key(480, 300, ActivationKey::Space),
+            Some(DesktopPropertiesAction::RefreshContents)
+        );
+        assert!(!files.focus_primary_action(480, 300));
+        files.primary_action_focused = false;
+        assert_eq!(
+            files.primary_action_for_key(480, 300, ActivationKey::Enter),
+            None
+        );
+        assert!(!files.focus_primary_action(480, 250));
         let location = files.details_metadata_row(480, 300, 0, "Location", &files.location);
         assert!(location.is_valid());
         assert_eq!(location.slots().label.width, 80);
@@ -5653,6 +5706,7 @@ mod tests {
         assert_eq!(settings.status, "Available");
         assert_eq!(settings.item_count, None);
         assert_eq!(settings.primary_action().label(), "Verify Application");
+        assert!(settings.focus_primary_action(480, 300));
         fs::remove_file(system.join("usr/bin/aqua-settings")).expect("remove Settings fixture");
         assert_eq!(
             settings
@@ -5662,6 +5716,7 @@ mod tests {
         );
         assert_eq!(settings.status, "Not found");
         assert_eq!(settings.refresh_generation, 1);
+        assert!(settings.primary_action_focused);
         assert!(DesktopPropertiesModel::load("unknown", &home, &system).is_err());
         assert_eq!(
             properties_launch_request("trash"),

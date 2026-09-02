@@ -38,6 +38,7 @@ fn main() {
         item_count: Some(4),
         enumeration_capped: false,
         refresh_generation: 1,
+        primary_action_focused: false,
     };
     for theme in AquaTheme::ALL {
         let suffix = theme.id().to_ascii_lowercase();
