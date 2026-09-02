@@ -283,6 +283,29 @@ expect {
     eof { puts stderr "QEMU exited after Properties verification"; exit 1 }
 }
 
+run_shell_check {properties_cancel_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Properties pointer-cancel repaint baseline"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) properties-pointer-cancel} input_error]} {
+    puts stderr "QEMU Properties pointer-cancel input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -F 'aqua_properties_pointer phase=release' /run/aqua/graphical-session-supervisor.log | grep -Fq 'action=none was_pressed=true'; do sleep 1; i=$((i + 1)); done} "waiting for the Properties release-outside cancellation"
+run_shell_check {i=0; while [ "$i" -lt 60 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$properties_cancel_repaint_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Properties pointer-cancel repaint"
+run_shell_check {ok=1; grep -F 'aqua_properties_pointer phase=press' /run/aqua/graphical-session-supervisor.log | grep -Fq 'pressed=true action=none' || ok=0; grep -F 'aqua_properties_hover' /run/aqua/graphical-session-supervisor.log | grep -Fq 'hovered=false pressed=true' || ok=0; grep -F 'aqua_properties_pointer phase=release' /run/aqua/graphical-session-supervisor.log | grep -Fq 'pressed=false action=none was_pressed=true' || ok=0; [ "$(grep -F 'aqua_properties_refresh_generation=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'aqua_properties_refresh_generation=0' ] || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$properties_cancel_repaint_before" ] || ok=0} "checking the Properties release-outside cancellation"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-pointer-cancel-qemu status=ok shared_button=true pressed=true dragged_out=true release_activation=false generation=0 repaint=true clients=2'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-properties-pointer-cancel-qemu status=ok shared_button=true pressed=true dragged_out=true release_activation=false generation=0 repaint=true clients=2} {}
+    timeout { puts stderr "Properties release-outside cancellation was not proven"; exit 1 }
+    eof { puts stderr "QEMU exited before Properties pointer-cancel verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Properties pointer-cancel verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Properties pointer-cancel verification"; exit 1 }
+}
+
 run_shell_check {properties_refresh_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Properties repaint baseline"
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) properties-refresh-pointer} input_error]} {
     puts stderr "QEMU Properties refresh input injection failed: $input_error"

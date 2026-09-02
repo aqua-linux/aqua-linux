@@ -14156,8 +14156,8 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                         pointer_y,
                     ) {
                         println!(
-                            "aqua_properties_hover x={pointer_x} y={pointer_y} hovered={}",
-                            model.primary_action_hovered
+                            "aqua_properties_hover x={pointer_x} y={pointer_y} hovered={} pressed={}",
+                            model.primary_action_hovered, model.primary_action_pressed
                         );
                         state.redraw_properties_buffer(qh);
                     }
@@ -14261,8 +14261,8 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                     })
                     .unwrap_or((false, None));
                 println!(
-                    "aqua_properties_pointer phase=release x={pointer_x} y={pointer_y} pressed=false action={}",
-                    action.map_or("none", aqua_shell::DesktopPropertiesAction::log_name)
+                    "aqua_properties_pointer phase=release x={pointer_x} y={pointer_y} pressed=false action={} was_pressed={press_changed}",
+                    action.map_or("none", aqua_shell::DesktopPropertiesAction::log_name),
                 );
                 if action.is_some() {
                     state.refresh_properties(qh);

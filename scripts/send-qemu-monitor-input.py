@@ -82,6 +82,10 @@ MODES = {
         "mouse_move -3000 -3000", "mouse_move 480 315",
         "mouse_button 1", "mouse_button 0",
     ),
+    "properties-pointer-cancel": (
+        "mouse_move -3000 -3000", "mouse_move 480 315",
+        "mouse_button 1", "mouse_move 0 -80", "mouse_button 0",
+    ),
     "properties-keyboard-action": ("sendkey tab 100", "sendkey ret 100"),
     "close-properties": ("sendkey alt-f4 250",),
     "terminal-launch": (

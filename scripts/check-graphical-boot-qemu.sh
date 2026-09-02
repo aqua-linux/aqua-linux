@@ -97,6 +97,7 @@ grep -Fq '[AQUA-TEST] stage=desktop-runtime-launch-qemu status=ok app=files surf
 grep -Fq '[AQUA-TEST] stage=desktop-notification-qemu status=ok source=launcher toast=visible gpu_texture=true active_id=1' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-notification-promotion-qemu status=ok dismissed=1 promoted=2 queued=0 pointer=true' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-properties-qemu status=ok target=files surface=aqua.properties kind=Folder location=/home/aqua clients=2' "${SERIAL_LOG}"
+grep -Fq '[AQUA-TEST] stage=desktop-properties-pointer-cancel-qemu status=ok shared_button=true pressed=true dragged_out=true release_activation=false generation=0 repaint=true clients=2' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-properties-refresh-qemu status=ok input=pointer shared_button=true hover=true pressed=true release_activation=true action=refresh-contents generation=1 repaint=true clients=2' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-properties-keyboard-qemu status=ok input=tab-enter shared_button=true focus=primary-action action=refresh-contents generation=2 repaint=true clients=2' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-properties-close-qemu status=ok close=alt-f4 exit=clean stale_surface=removed restart=never clients=1' "${SERIAL_LOG}"
