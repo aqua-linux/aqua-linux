@@ -8547,6 +8547,7 @@ mod tests {
             enumeration_capped: false,
             refresh_generation: 1,
             primary_action_focused: false,
+            primary_action_hovered: false,
         };
         let mut files_checksums = Vec::new();
         for theme in AquaTheme::ALL {
@@ -8591,6 +8592,7 @@ mod tests {
             enumeration_capped: false,
             refresh_generation: 2,
             primary_action_focused: false,
+            primary_action_hovered: false,
         };
         let (pixels, probe) = render_properties_window_rgba(480, 300, &model);
         assert!(probe.rendered);
@@ -8600,6 +8602,15 @@ mod tests {
         assert!(probe.primitive_count >= 8);
         assert_ne!(probe.checksum, 0);
         assert_eq!(pixels.len(), 480 * 300 * 4);
+
+        let mut hovered_model = model.clone();
+        let action = hovered_model
+            .primary_action_button(480, 300)
+            .expect("Properties action should fit");
+        assert!(hovered_model.handle_primary_action_hover(480, 300, action.rect.x, action.rect.y));
+        let (_, hovered_probe) = render_properties_window_rgba(480, 300, &hovered_model);
+        assert_eq!(hovered_probe.primitive_count, probe.primitive_count);
+        assert_ne!(hovered_probe.checksum, probe.checksum);
 
         let mut focused_model = model.clone();
         assert!(focused_model.focus_primary_action(480, 300));
