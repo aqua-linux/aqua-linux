@@ -283,6 +283,29 @@ expect {
     eof { puts stderr "QEMU exited after Properties verification"; exit 1 }
 }
 
+run_shell_check {properties_nonprimary_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Properties non-primary pointer repaint baseline"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) properties-nonprimary-pointer} input_error]} {
+    puts stderr "QEMU Properties non-primary pointer input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -F 'aqua_properties_pointer phase=release' /run/aqua/graphical-session-supervisor.log | grep -Fq 'primary=false ignored=true focus=none'; do sleep 1; i=$((i + 1)); done} "waiting for the Properties non-primary release rejection"
+run_shell_check {i=0; while [ "$i" -lt 60 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$properties_nonprimary_repaint_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Properties non-primary hover repaint"
+run_shell_check {ok=1; grep -F 'aqua_properties_pointer phase=press' /run/aqua/graphical-session-supervisor.log | grep -Fq 'primary=false ignored=true focus=none' || ok=0; grep -F 'aqua_properties_pointer phase=release' /run/aqua/graphical-session-supervisor.log | grep -Fq 'primary=false ignored=true focus=none' || ok=0; [ "$(grep -F 'aqua_properties_refresh_generation=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'aqua_properties_refresh_generation=0' ] || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$properties_nonprimary_repaint_before" ] || ok=0} "checking the Properties primary-button gate"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-primary-button-qemu status=ok input=non-primary shared_button=true ignored=true focus=none activation=false generation=0 repaint=hover-only clients=2'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-properties-primary-button-qemu status=ok input=non-primary shared_button=true ignored=true focus=none activation=false generation=0 repaint=hover-only clients=2} {}
+    timeout { puts stderr "Properties primary-button gate was not proven"; exit 1 }
+    eof { puts stderr "QEMU exited before Properties primary-button verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Properties primary-button verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Properties primary-button verification"; exit 1 }
+}
+
 run_shell_check {properties_cancel_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Properties pointer-cancel repaint baseline"
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) properties-pointer-cancel} input_error]} {
     puts stderr "QEMU Properties pointer-cancel input injection failed: $input_error"

@@ -818,12 +818,15 @@ claiming release readiness or physical-hardware support.
 Properties now renders and pointer-activates its Refresh Contents or Verify
 Application footer action through one shared `StandardButton`. Exact half-open
 pointer geometry applies the shared hover and pressed states and emits repaint
-only on state changes. Pointer press arms the action, release inside activates
-it, and release outside or leaving the surface cancels it. The packaged QEMU
-path presses inside, drags outside, and requires no action, generation change,
-or lost repaint before separately proving release-inside activation. A valid
-pointer press also transfers visible keyboard and accessibility focus to the
-button; packaged QEMU then activates it with Space and no intermediate Tab.
+only on state changes. Only a primary pointer press arms the action; non-primary
+press and release events are ignored without focus, activation, or generation
+changes. Release inside activates an armed primary press, while release outside
+or leaving the surface cancels it. The packaged QEMU path first proves the
+primary-button gate, then presses inside, drags outside, and requires no action,
+generation change, or lost repaint before separately proving release-inside
+activation. A valid pointer press also transfers visible keyboard and
+accessibility focus to the button; packaged QEMU then activates it with Space
+and no intermediate Tab.
 A background click clears that focus, repaints, and makes a following Space
 inert without advancing refresh generation. Tab can independently reapply the
 same focus, while Enter or Space resolves through the shared activation gate;

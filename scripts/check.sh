@@ -1829,6 +1829,9 @@ grep -Fq 'settings-about' scripts/send-qemu-monitor-input.py
 grep -Fq 'desktop-settings-about-qemu' scripts/check-graphical-boot-qemu.exp
 grep -Fq 'primary_action_button(width, height)' crates/aqua-renderer/src/lib.rs
 grep -Fq 'properties-refresh-pointer' scripts/send-qemu-monitor-input.py
+grep -Fq 'properties-nonprimary-pointer' scripts/send-qemu-monitor-input.py
+grep -Fq 'desktop-properties-primary-button-qemu status=ok' scripts/check-graphical-boot-qemu.sh
+grep -Fq 'desktop-properties-primary-button-qemu status=ok' scripts/check-graphical-boot-qemu.exp
 grep -Fq 'properties-pointer-cancel' scripts/send-qemu-monitor-input.py
 grep -Fq 'desktop-properties-pointer-cancel-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'desktop-properties-pointer-cancel-qemu status=ok' scripts/check-graphical-boot-qemu.exp
