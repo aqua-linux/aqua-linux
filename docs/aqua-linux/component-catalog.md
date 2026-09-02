@@ -822,6 +822,11 @@ Before that blur, packaged QEMU sends a non-primary press and release and
 requires Settings to retain category four and its keyboard focus without
 activation or model pointer dispatch; the separately measured repaint comes
 only from the QEMU pointer-device handoff, not the ignored button events.
+Settings also owns an idempotent sidebar-hover clear transition. The real
+Wayland pointer-leave handler consumes it and redraws only when an unselected
+category was visibly hovered on an active surface. After xdg close it clears
+the model without committing a closing surface, while deterministic model
+coverage proves both the changed and already-clear paths.
 Settings section rendering and pointer or keyboard control activation now
 consume one category-specific viewport-validated content group. Network's
 four-row group receives its valid 212-pixel height; clipped switch, segmented,

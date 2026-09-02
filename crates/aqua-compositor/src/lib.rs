@@ -14230,6 +14230,16 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                         state.pointer_surface_x.max(0.0) as u32,
                         state.pointer_surface_y.max(0.0) as u32,
                     ) {
+                        match model.hovered_category {
+                            Some(hovered_category) => println!(
+                                "aqua_settings_hover hovered={hovered_category} reason=pointer-motion category={} repaint=true",
+                                model.selected_category
+                            ),
+                            None => println!(
+                                "aqua_settings_hover hovered=none reason=pointer-motion category={} repaint=true",
+                                model.selected_category
+                            ),
+                        }
                         state.redraw_settings_buffer(qh);
                     }
                 }
@@ -14247,6 +14257,23 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                 });
                 if interaction_changed {
                     state.redraw_properties_buffer(qh);
+                }
+                let settings_hover_changed = state
+                    .settings_model
+                    .as_mut()
+                    .is_some_and(aqua_shell::SettingsWindowModel::clear_hovered_category);
+                if settings_hover_changed {
+                    let selected_category = state
+                        .settings_model
+                        .as_ref()
+                        .map_or(0, |model| model.selected_category);
+                    let repaint = !state.close_event_received;
+                    println!(
+                        "aqua_settings_hover hovered=none reason=pointer-leave category={selected_category} repaint={repaint}"
+                    );
+                    if repaint {
+                        state.redraw_settings_buffer(qh);
+                    }
                 }
             }
             _ => {}

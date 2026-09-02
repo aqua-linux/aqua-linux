@@ -108,6 +108,10 @@ an in-surface pointer press likewise clears stale keyboard focus and repaints
 even when the background press produces no settings action;
 only primary pointer presses reach Settings controls or clear that focus, while
 non-primary press and release events remain inert without button-driven repaint;
+Wayland pointer leave also clears any Settings sidebar hover through an
+idempotent model transition and repaints only when a visible hover was active,
+preventing a category row from remaining highlighted after surface exit; a
+surface that has already received xdg close clears state without a final commit;
 Settings section rendering and pointer or keyboard control activation now
 share a category-specific viewport-validated content group; Network's four-row
 group has its required 212-pixel height, while clipped switch, segmented,
