@@ -87,6 +87,10 @@ MODES = {
         "mouse_button 1", "mouse_move 0 -80", "mouse_button 0",
     ),
     "properties-focused-space-action": ("sendkey spc 100",),
+    "properties-pointer-blur-space": (
+        "mouse_move 0 -80", "mouse_button 1", "mouse_button 0",
+        "sendkey spc 100",
+    ),
     "properties-keyboard-action": ("sendkey tab 100", "sendkey ret 100"),
     "close-properties": ("sendkey alt-f4 250",),
     "terminal-launch": (
