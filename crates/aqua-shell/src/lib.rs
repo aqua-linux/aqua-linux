@@ -1535,7 +1535,8 @@ impl DesktopPropertiesModel {
                 } else {
                     ComponentState::Idle
                 },
-            ),
+            )
+            .with_focus(self.primary_action_focused),
         )
     }
 
@@ -1576,6 +1577,9 @@ impl DesktopPropertiesModel {
     pub fn begin_primary_action_press(&mut self, width: u32, height: u32, x: u32, y: u32) -> bool {
         let pressed = self.primary_action_at(width, height, x, y).is_some();
         self.primary_action_pressed = pressed;
+        if pressed {
+            self.primary_action_focused = true;
+        }
         pressed
     }
 
@@ -5776,6 +5780,14 @@ mod tests {
             action_button.rect.x,
             action_button.rect.y,
         ));
+        assert!(files.primary_action_focused);
+        assert!(
+            files
+                .primary_action_button(480, 300)
+                .expect("pointer-focused Properties action should remain visible")
+                .accessibility()
+                .focused
+        );
         assert_eq!(
             files
                 .primary_action_button(480, 300)
@@ -5812,6 +5824,8 @@ mod tests {
         ));
         assert!(files.cancel_primary_action_press());
         assert!(!files.cancel_primary_action_press());
+        assert!(files.primary_action_focused);
+        files.primary_action_focused = false;
         assert!(files.focus_primary_action(480, 300));
         let focused_action = files
             .primary_action_button(480, 300)

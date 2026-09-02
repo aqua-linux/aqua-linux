@@ -1832,10 +1832,13 @@ grep -Fq 'properties-refresh-pointer' scripts/send-qemu-monitor-input.py
 grep -Fq 'properties-pointer-cancel' scripts/send-qemu-monitor-input.py
 grep -Fq 'desktop-properties-pointer-cancel-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'desktop-properties-pointer-cancel-qemu status=ok' scripts/check-graphical-boot-qemu.exp
-grep -Fq 'shared_button=true hover=true pressed=true release_activation=true action=refresh-contents' scripts/check-graphical-boot-qemu.sh
+grep -Fq 'properties-focused-space-action' scripts/send-qemu-monitor-input.py
+grep -Fq 'desktop-properties-pointer-focus-qemu status=ok' scripts/check-graphical-boot-qemu.sh
+grep -Fq 'desktop-properties-pointer-focus-qemu status=ok' scripts/check-graphical-boot-qemu.exp
+grep -Fq 'shared_button=true hover=true pressed=true focus=primary-action release_activation=true action=refresh-contents' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'properties-keyboard-action' scripts/send-qemu-monitor-input.py
 grep -Fq 'desktop-properties-keyboard-qemu status=ok' scripts/check-graphical-boot-qemu.sh
-grep -Fq 'shared_button=true hover=true pressed=true release_activation=true action=refresh-contents' scripts/check-graphical-boot-qemu.exp
+grep -Fq 'shared_button=true hover=true pressed=true focus=primary-action release_activation=true action=refresh-contents' scripts/check-graphical-boot-qemu.exp
 grep -Fq 'model.handle_key_in_viewport(files_width, files_height, settings_key)' crates/aqua-compositor/src/lib.rs
 grep -Fq 'model.handle_hover_in_viewport(' crates/aqua-compositor/src/lib.rs
 grep -Fq 'model.handle_pointer_in_viewport(' crates/aqua-compositor/src/lib.rs

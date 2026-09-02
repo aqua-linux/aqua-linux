@@ -63,6 +63,7 @@ def main() -> int:
                 "basic",
                 "properties-pointer-cancel",
                 "properties-refresh-pointer",
+                "properties-focused-space-action",
                 "properties-keyboard-action",
                 "close-properties",
             ):
@@ -111,6 +112,7 @@ def main() -> int:
             "mouse_move 480 315",
             "mouse_button 1",
             "mouse_button 0",
+            "sendkey spc 100",
             "sendkey tab 100",
             "sendkey ret 100",
             "sendkey alt-f4 250",

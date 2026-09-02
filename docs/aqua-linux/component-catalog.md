@@ -821,13 +821,14 @@ pointer geometry applies the shared hover and pressed states and emits repaint
 only on state changes. Pointer press arms the action, release inside activates
 it, and release outside or leaving the surface cancels it. The packaged QEMU
 path presses inside, drags outside, and requires no action, generation change,
-or lost repaint before separately proving release-inside activation. Tab
-applies the button's visible keyboard-focus state and accessibility focus,
-while Enter or Space resolves through the same activation gate; refresh
-preserves focus and hover but never a transient press. Compact layouts that
-cannot contain the complete section omit the button and reject pointer or
-keyboard activation; the model still owns the selected action and the existing
-F5 shortcut remains.
+or lost repaint before separately proving release-inside activation. A valid
+pointer press also transfers visible keyboard and accessibility focus to the
+button; packaged QEMU then activates it with Space and no intermediate Tab.
+Tab can independently apply the same focus, while Enter or Space resolves
+through the shared activation gate; refresh preserves focus and hover but
+never a transient press. Compact layouts that cannot contain the complete
+section omit the button and reject pointer or keyboard activation; the model
+still owns the selected action and the existing F5 shortcut remains.
 Further extractions must continue from real first-party consumers and repeat
 the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a

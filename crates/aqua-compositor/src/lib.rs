@@ -14293,7 +14293,12 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                     pointer_y,
                 );
                 println!(
-                    "aqua_properties_pointer phase=press x={pointer_x} y={pointer_y} pressed={pressed} action=none"
+                    "aqua_properties_pointer phase=press x={pointer_x} y={pointer_y} pressed={pressed} focus={} action=none",
+                    if model.primary_action_focused {
+                        "primary-action"
+                    } else {
+                        "none"
+                    }
                 );
                 if pressed {
                     state.redraw_properties_buffer(qh);
