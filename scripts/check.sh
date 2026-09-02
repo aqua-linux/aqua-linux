@@ -1849,6 +1849,10 @@ grep -Fq 'files-keyboard-focus' scripts/send-qemu-monitor-input.py
 grep -Fq 'desktop-files-keyboard-focus-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'desktop-files-keyboard-blur-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'desktop-files-keyboard-blur-qemu status=ok' scripts/check-graphical-boot-qemu.exp
+grep -Fq 'settings-keyboard-blur' scripts/send-qemu-monitor-input.py
+grep -Fq 'settings-refocus' scripts/send-qemu-monitor-input.py
+grep -Fq 'desktop-settings-keyboard-blur-qemu status=ok' scripts/check-graphical-boot-qemu.sh
+grep -Fq 'desktop-settings-keyboard-blur-qemu status=ok' scripts/check-graphical-boot-qemu.exp
 grep -Fq 'shared_button=true hover=true pressed=true focus=primary-action release_activation=true action=refresh-contents' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'properties-keyboard-action' scripts/send-qemu-monitor-input.py
 grep -Fq 'desktop-properties-keyboard-qemu status=ok' scripts/check-graphical-boot-qemu.sh

@@ -68,7 +68,18 @@ MODES = {
         "sendkey down 100", "sendkey down 100", "sendkey down 100",
         "sendkey down 100",
     ),
-    "settings-about": ("sendkey end 100",),
+    "settings-keyboard-blur": (
+        "mouse_move -3000 -3000", "mouse_move 220 200",
+        "mouse_button 1", "mouse_button 0",
+    ),
+    "settings-refocus": (
+        "mouse_move -3000 -3000", "mouse_move 520 235",
+        "mouse_button 1", "mouse_button 0",
+    ),
+    "settings-about": (
+        "mouse_move -3000 -3000", "mouse_move 520 235",
+        "mouse_button 1", "mouse_button 0", "sendkey end 100",
+    ),
     "input-burst": (
         ("sendkey a 80",) * 12
         + ("mouse_move 350 0",)

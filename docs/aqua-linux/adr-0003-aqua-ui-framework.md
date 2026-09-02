@@ -101,6 +101,9 @@ requires new navigation before a sidebar can regain keyboard focus;
 Settings category rendering, pointer selection, hover, and keyboard navigation
 now share a width-and-height validated sidebar composition derived from the
 actual client buffer, so clipped category rows are omitted and inert;
+Settings clears its visible keyboard and accessibility focus on Wayland
+keyboard leave, repaints without changing the selected category, and requires
+new keyboard input before a control regains keyboard focus;
 Settings section rendering and pointer or keyboard control activation now
 share a category-specific viewport-validated content group; Network's four-row
 group has its required 212-pixel height, while clipped switch, segmented,

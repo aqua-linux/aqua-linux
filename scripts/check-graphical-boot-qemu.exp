@@ -664,13 +664,40 @@ expect {
     eof { puts stderr "QEMU exited after Settings damage verification"; exit 1 }
 }
 
+run_shell_check {settings_blur_pointer_before="$(grep -Fc 'aqua_settings_pointer_motion' /run/aqua/graphical-session-supervisor.log)"} "recording the Settings keyboard-blur pointer baseline"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) settings-keyboard-blur} input_error]} {
+    puts stderr "QEMU Settings keyboard-blur input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_settings_keyboard focus=none reason=keyboard-leave category=4 repaint=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Settings keyboard focus leave"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) settings-refocus} input_error]} {
+    puts stderr "QEMU Settings surface-refocus input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'aqua_settings_pointer_motion' /run/aqua/graphical-session-supervisor.log)" -le "$settings_blur_pointer_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Settings surface refocus"
+run_shell_check {ok=1; grep -Fq 'aqua_settings_keyboard focus=none reason=keyboard-leave category=4 repaint=true' /run/aqua/graphical-session-supervisor.log || ok=0; [ "$(grep -F 'aqua_settings_keyboard' /run/aqua/graphical-session-supervisor.log | grep -F 'update=CategorySelected' | tail -n 1 | sed -n 's/.*update=CategorySelected(\([0-9][0-9]*\)).*/\1/p')" = 4 ] || ok=0; [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=2' ] || ok=0; [ "$(grep -Fc 'aqua_settings_pointer_motion' /run/aqua/graphical-session-supervisor.log)" -gt "$settings_blur_pointer_before" ] || ok=0} "checking the Settings keyboard blur, retained category, repaint, and surface refocus"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-settings-keyboard-blur-qemu status=ok input=surface-transfer focus=none category=4 repaint=true refocus=true clients=2'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-settings-keyboard-blur-qemu status=ok input=surface-transfer focus=none category=4 repaint=true refocus=true clients=2} {}
+    timeout { puts stderr "Settings keyboard focus transfer and surface refocus were not proven"; exit 1 }
+    eof { puts stderr "QEMU exited before Settings keyboard-blur verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Settings keyboard-blur verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Settings keyboard-blur verification"; exit 1 }
+}
+
 run_shell_check {burst_keyboard_before="$(grep -Fc 'desktop_keyboard_forward_event' /run/aqua/graphical-session-supervisor.log)"; burst_pointer_before="$(grep -Fc 'aqua_settings_pointer_motion' /run/aqua/graphical-session-supervisor.log)"} "recording the pre-burst input counters"
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) input-burst} input_error]} {
     puts stderr "QEMU sustained input burst injection failed: $input_error"
     exit 1
 }
 run_shell_check {i=0; while [ "$i" -lt 30 ]; do keyboard_now="$(grep -Fc 'desktop_keyboard_forward_event' /run/aqua/graphical-session-supervisor.log)"; pointer_now="$(grep -Fc 'aqua_settings_pointer_motion' /run/aqua/graphical-session-supervisor.log)"; [ "$((keyboard_now - burst_keyboard_before))" -ge 24 ] && [ "$((pointer_now - burst_pointer_before))" -ge 1 ] && break; sleep 1; i=$((i + 1)); done} "waiting for the sustained Settings input burst"
-run_shell_check {ok=1; keyboard_delta="$((keyboard_now - burst_keyboard_before))"; pointer_delta="$((pointer_now - burst_pointer_before))"; printf '[AQUA-DIAG] input-burst keyboard_events=%s pointer_motion_events=%s pointer_commands=17\n' "$keyboard_delta" "$pointer_delta"; [ "$keyboard_delta" -ge 24 ] || ok=0; [ "$pointer_delta" -ge 1 ] || ok=0; [ "$(grep -F 'aqua_settings_keyboard' /run/aqua/graphical-session-supervisor.log | tail -n 1 | sed -n 's/.*update=CategorySelected(\([0-9][0-9]*\)).*/\1/p')" = 4 ] || ok=0} "checking the sustained Settings input burst"
+run_shell_check {ok=1; keyboard_delta="$((keyboard_now - burst_keyboard_before))"; pointer_delta="$((pointer_now - burst_pointer_before))"; printf '[AQUA-DIAG] input-burst keyboard_events=%s pointer_motion_events=%s pointer_commands=17\n' "$keyboard_delta" "$pointer_delta"; [ "$keyboard_delta" -ge 24 ] || ok=0; [ "$pointer_delta" -ge 1 ] || ok=0; [ "$(grep -F 'aqua_settings_keyboard' /run/aqua/graphical-session-supervisor.log | grep -F 'update=CategorySelected' | tail -n 1 | sed -n 's/.*update=CategorySelected(\([0-9][0-9]*\)).*/\1/p')" = 4 ] || ok=0} "checking the sustained Settings input burst"
 send -- {[ "$ok" = 1 ] && echo "[AQUA-TEST] stage=desktop-input-burst-qemu status=ok keyboard_events=$keyboard_delta pointer_commands=17 pointer_motion_events=$pointer_delta pointer_coalescing=allowed category=4 monitor_connection=persistent"}
 send -- "\r"
 

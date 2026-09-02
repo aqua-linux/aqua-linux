@@ -13937,6 +13937,20 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
                     "aqua_files_keyboard focus=none focused_sidebar=none reason=keyboard-leave repaint=true"
                 );
             }
+            let settings_focus_changed = state
+                .settings_model
+                .as_mut()
+                .is_some_and(aqua_shell::SettingsWindowModel::clear_keyboard_focus);
+            if settings_focus_changed {
+                let selected_category = state
+                    .settings_model
+                    .as_ref()
+                    .map_or(0, |model| model.selected_category);
+                state.redraw_settings_buffer(qh);
+                println!(
+                    "aqua_settings_keyboard focus=none reason=keyboard-leave category={selected_category} repaint=true"
+                );
+            }
             return;
         }
         if let client_wl_keyboard::Event::Modifiers { mods_depressed, .. } = event {
