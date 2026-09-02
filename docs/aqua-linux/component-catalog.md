@@ -829,7 +829,10 @@ accessibility focus to the button; packaged QEMU then activates it with Space
 and no intermediate Tab.
 A background click clears that focus, repaints, and makes a following Space
 inert without advancing refresh generation. Tab can independently reapply the
-same focus, while Enter or Space resolves through the shared activation gate;
+same focus. A Wayland keyboard leave clears visible and accessibility focus,
+and packaged QEMU transfers focus to Files before proving that Space cannot
+activate the blurred Properties action or advance its generation. Enter or
+Space otherwise resolves through the shared activation gate;
 refresh preserves focus and hover but never a transient press. Compact layouts
 that cannot contain the complete section omit the button and reject pointer or
 keyboard activation; the model still owns the selected action and the existing

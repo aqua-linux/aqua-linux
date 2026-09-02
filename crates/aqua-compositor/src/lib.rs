@@ -13914,6 +13914,17 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
         _: &ClientConnection,
         qh: &QueueHandle<Self>,
     ) {
+        if matches!(event, client_wl_keyboard::Event::Leave { .. }) {
+            let focus_changed = state
+                .properties_model
+                .as_mut()
+                .is_some_and(aqua_shell::DesktopPropertiesModel::clear_primary_action_focus);
+            if focus_changed {
+                println!("aqua_properties_keyboard focus=none reason=keyboard-leave");
+                state.redraw_properties_buffer(qh);
+            }
+            return;
+        }
         if let client_wl_keyboard::Event::Modifiers { mods_depressed, .. } = event {
             state.keyboard_shift = mods_depressed & 1 != 0;
             state.keyboard_ctrl = mods_depressed & 4 != 0;

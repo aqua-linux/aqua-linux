@@ -400,6 +400,34 @@ expect {
     eof { puts stderr "QEMU exited after Properties pointer-blur verification"; exit 1 }
 }
 
+run_shell_check {properties_keyboard_blur_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; properties_keyboard_blur_space_before="$(grep -Fc 'aqua_properties_keyboard key=57' /run/aqua/graphical-session-supervisor.log)"} "recording the Properties keyboard-blur baselines"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) properties-keyboard-blur} input_error]} {
+    puts stderr "QEMU Properties keyboard-blur input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_properties_keyboard focus=none reason=keyboard-leave' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Properties keyboard focus leave"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) properties-blurred-space} input_error]} {
+    puts stderr "QEMU Properties blurred Space input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 60 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$properties_keyboard_blur_repaint_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Properties keyboard-blur repaint"
+run_shell_check {printf '[AQUA-DIAG] properties-keyboard-blur space_before=%s space_after=%s generation=%s clients=%s repaint_before=%s repaint_after=%s\n' "$properties_keyboard_blur_space_before" "$(grep -Fc 'aqua_properties_keyboard key=57' /run/aqua/graphical-session-supervisor.log)" "$(grep -F 'aqua_properties_refresh_generation=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" "$properties_keyboard_blur_repaint_before" "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; grep -E 'aqua_properties_keyboard|aqua_files_pointer|aqua_desktop_pointer|desktop_primary_pointer_press' /run/aqua/graphical-session-supervisor.log | tail -n 24} "reporting the Properties keyboard-blur evidence"
+run_shell_check {ok=1; grep -F 'aqua_properties_keyboard key=15' /run/aqua/graphical-session-supervisor.log | grep -Fq 'focus=primary-action action=none' || ok=0; grep -Fq 'aqua_properties_keyboard focus=none reason=keyboard-leave' /run/aqua/graphical-session-supervisor.log || ok=0; [ "$(grep -Fc 'aqua_properties_keyboard key=57' /run/aqua/graphical-session-supervisor.log)" = "$properties_keyboard_blur_space_before" ] || ok=0; [ "$(grep -F 'aqua_properties_refresh_generation=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'aqua_properties_refresh_generation=2' ] || ok=0; [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=2' ] || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$properties_keyboard_blur_repaint_before" ] || ok=0} "checking the Properties keyboard focus transfer and Space rejection"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-keyboard-blur-qemu status=ok input=surface-transfer shared_button=true focus=none activation=false generation=2 repaint=true clients=2'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-properties-keyboard-blur-qemu status=ok input=surface-transfer shared_button=true focus=none activation=false generation=2 repaint=true clients=2} {}
+    timeout { puts stderr "Properties keyboard focus transfer and Space rejection were not proven"; exit 1 }
+    eof { puts stderr "QEMU exited before Properties keyboard-blur verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Properties keyboard-blur verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Properties keyboard-blur verification"; exit 1 }
+}
+
 run_shell_check {properties_keyboard_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Properties keyboard repaint baseline"
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) properties-keyboard-action} input_error]} {
     puts stderr "QEMU Properties keyboard input injection failed: $input_error"

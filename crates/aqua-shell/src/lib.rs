@@ -1559,6 +1559,12 @@ impl DesktopPropertiesModel {
         changed
     }
 
+    pub fn clear_primary_action_focus(&mut self) -> bool {
+        let changed = self.primary_action_focused;
+        self.primary_action_focused = false;
+        changed
+    }
+
     pub fn handle_primary_action_hover(&mut self, width: u32, height: u32, x: u32, y: u32) -> bool {
         let hovered = self
             .primary_action_button(width, height)
@@ -5852,6 +5858,11 @@ mod tests {
             files.primary_action_for_key(480, 300, ActivationKey::Space),
             None
         );
+        assert!(!files.clear_primary_action_focus());
+        assert!(files.focus_primary_action(480, 300));
+        assert!(files.clear_primary_action_focus());
+        assert!(!files.clear_primary_action_focus());
+        assert!(!files.primary_action_focused);
         assert!(!files.focus_primary_action(480, 250));
         let location = files.details_metadata_row(480, 300, 0, "Location", &files.location);
         assert!(location.is_valid());
