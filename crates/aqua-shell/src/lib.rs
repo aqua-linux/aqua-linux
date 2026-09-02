@@ -1439,6 +1439,7 @@ pub struct DesktopPropertiesModel {
     pub refresh_generation: u32,
     pub primary_action_focused: bool,
     pub primary_action_hovered: bool,
+    pub primary_action_pressed: bool,
 }
 
 impl DesktopPropertiesModel {
@@ -1494,6 +1495,7 @@ impl DesktopPropertiesModel {
             refresh_generation: 0,
             primary_action_focused: false,
             primary_action_hovered: false,
+            primary_action_pressed: false,
         })
     }
 
@@ -1523,13 +1525,17 @@ impl DesktopPropertiesModel {
                 self.primary_action().label(),
                 StandardButtonVariant::Primary,
             )
-            .with_state(if self.primary_action_focused {
-                ComponentState::KeyboardFocus
-            } else if self.primary_action_hovered {
-                ComponentState::Hover
-            } else {
-                ComponentState::Idle
-            }),
+            .with_state(
+                if self.primary_action_pressed && self.primary_action_hovered {
+                    ComponentState::Pressed
+                } else if self.primary_action_focused {
+                    ComponentState::KeyboardFocus
+                } else if self.primary_action_hovered {
+                    ComponentState::Hover
+                } else {
+                    ComponentState::Idle
+                },
+            ),
         )
     }
 
@@ -1564,6 +1570,33 @@ impl DesktopPropertiesModel {
     pub fn clear_primary_action_hover(&mut self) -> bool {
         let changed = self.primary_action_hovered;
         self.primary_action_hovered = false;
+        changed
+    }
+
+    pub fn begin_primary_action_press(&mut self, width: u32, height: u32, x: u32, y: u32) -> bool {
+        let pressed = self.primary_action_at(width, height, x, y).is_some();
+        self.primary_action_pressed = pressed;
+        pressed
+    }
+
+    pub fn finish_primary_action_press(
+        &mut self,
+        width: u32,
+        height: u32,
+        x: u32,
+        y: u32,
+    ) -> (bool, Option<DesktopPropertiesAction>) {
+        let was_pressed = self.primary_action_pressed;
+        self.primary_action_pressed = false;
+        let action = was_pressed
+            .then(|| self.primary_action_at(width, height, x, y))
+            .flatten();
+        (was_pressed, action)
+    }
+
+    pub fn cancel_primary_action_press(&mut self) -> bool {
+        let changed = self.primary_action_pressed;
+        self.primary_action_pressed = false;
         changed
     }
 
@@ -5729,6 +5762,56 @@ mod tests {
         assert!(files.clear_primary_action_hover());
         assert!(!files.clear_primary_action_hover());
         assert!(!files.handle_primary_action_hover(480, 250, 0, 0));
+        assert!(!files.begin_primary_action_press(480, 250, 0, 0));
+        assert!(!files.primary_action_pressed);
+        assert!(files.handle_primary_action_hover(
+            480,
+            300,
+            action_button.rect.x,
+            action_button.rect.y,
+        ));
+        assert!(files.begin_primary_action_press(
+            480,
+            300,
+            action_button.rect.x,
+            action_button.rect.y,
+        ));
+        assert_eq!(
+            files
+                .primary_action_button(480, 300)
+                .expect("pressed Properties action should remain visible")
+                .state,
+            ComponentState::Pressed
+        );
+        assert_eq!(
+            files.finish_primary_action_press(
+                480,
+                300,
+                action_button.rect.right(),
+                action_button.rect.y,
+            ),
+            (true, None)
+        );
+        assert!(!files.primary_action_pressed);
+        assert!(files.begin_primary_action_press(
+            480,
+            300,
+            action_button.rect.x,
+            action_button.rect.y,
+        ));
+        assert_eq!(
+            files
+                .finish_primary_action_press(480, 300, action_button.rect.x, action_button.rect.y,),
+            (true, Some(DesktopPropertiesAction::RefreshContents))
+        );
+        assert!(files.begin_primary_action_press(
+            480,
+            300,
+            action_button.rect.x,
+            action_button.rect.y,
+        ));
+        assert!(files.cancel_primary_action_press());
+        assert!(!files.cancel_primary_action_press());
         assert!(files.focus_primary_action(480, 300));
         let focused_action = files
             .primary_action_button(480, 300)

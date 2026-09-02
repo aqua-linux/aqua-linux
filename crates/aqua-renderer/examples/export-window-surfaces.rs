@@ -40,6 +40,7 @@ fn main() {
         refresh_generation: 1,
         primary_action_focused: false,
         primary_action_hovered: false,
+        primary_action_pressed: false,
     };
     for theme in AquaTheme::ALL {
         let suffix = theme.id().to_ascii_lowercase();

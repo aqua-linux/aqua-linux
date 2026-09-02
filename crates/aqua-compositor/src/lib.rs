@@ -14196,12 +14196,17 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                 }
             }
             client_wl_pointer::Event::Leave { .. } => {
-                if state
-                    .properties_model
-                    .as_mut()
-                    .is_some_and(aqua_shell::DesktopPropertiesModel::clear_primary_action_hover)
-                {
-                    println!("aqua_properties_hover hovered=false reason=pointer-leave");
+                let interaction_changed = state.properties_model.as_mut().is_some_and(|model| {
+                    let hover_changed = model.clear_primary_action_hover();
+                    let press_cancelled = model.cancel_primary_action_press();
+                    if hover_changed || press_cancelled {
+                        println!(
+                            "aqua_properties_hover hovered=false reason=pointer-leave press_cancelled={press_cancelled}"
+                        );
+                    }
+                    hover_changed || press_cancelled
+                });
+                if interaction_changed {
                     state.redraw_properties_buffer(qh);
                 }
             }
@@ -14238,6 +14243,34 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                 state.files_scrollbar_dragging = false;
                 return;
             }
+            if button_state == client_wl_pointer::ButtonState::Released
+                && state.properties_model.is_some()
+            {
+                let pointer_x = state.pointer_surface_x.max(0.0) as u32;
+                let pointer_y = state.pointer_surface_y.max(0.0) as u32;
+                let (press_changed, action) = state
+                    .properties_model
+                    .as_mut()
+                    .map(|model| {
+                        model.finish_primary_action_press(
+                            state.buffer_width.max(1),
+                            state.buffer_height.max(1),
+                            pointer_x,
+                            pointer_y,
+                        )
+                    })
+                    .unwrap_or((false, None));
+                println!(
+                    "aqua_properties_pointer phase=release x={pointer_x} y={pointer_y} pressed=false action={}",
+                    action.map_or("none", aqua_shell::DesktopPropertiesAction::log_name)
+                );
+                if action.is_some() {
+                    state.refresh_properties(qh);
+                } else if press_changed {
+                    state.redraw_properties_buffer(qh);
+                }
+                return;
+            }
             if button_state != client_wl_pointer::ButtonState::Pressed {
                 return;
             }
@@ -14250,21 +14283,20 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
             } else if state.terminal_session.is_some() {
                 state.handle_window_frame_pointer(serial);
                 return;
-            } else if let Some(model) = state.properties_model.as_ref() {
+            } else if let Some(model) = state.properties_model.as_mut() {
                 let pointer_x = state.pointer_surface_x.max(0.0) as u32;
                 let pointer_y = state.pointer_surface_y.max(0.0) as u32;
-                let action = model.primary_action_at(
+                let pressed = model.begin_primary_action_press(
                     state.buffer_width.max(1),
                     state.buffer_height.max(1),
                     pointer_x,
                     pointer_y,
                 );
                 println!(
-                    "aqua_properties_pointer x={pointer_x} y={pointer_y} action={}",
-                    action.map_or("none", aqua_shell::DesktopPropertiesAction::log_name)
+                    "aqua_properties_pointer phase=press x={pointer_x} y={pointer_y} pressed={pressed} action=none"
                 );
-                if action.is_some() {
-                    state.refresh_properties(qh);
+                if pressed {
+                    state.redraw_properties_buffer(qh);
                     return;
                 }
             } else if let Some(navigator) = state.files_navigator.as_mut() {

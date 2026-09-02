@@ -8548,6 +8548,7 @@ mod tests {
             refresh_generation: 1,
             primary_action_focused: false,
             primary_action_hovered: false,
+            primary_action_pressed: false,
         };
         let mut files_checksums = Vec::new();
         for theme in AquaTheme::ALL {
@@ -8593,6 +8594,7 @@ mod tests {
             refresh_generation: 2,
             primary_action_focused: false,
             primary_action_hovered: false,
+            primary_action_pressed: false,
         };
         let (pixels, probe) = render_properties_window_rgba(480, 300, &model);
         assert!(probe.rendered);
@@ -8611,6 +8613,13 @@ mod tests {
         let (_, hovered_probe) = render_properties_window_rgba(480, 300, &hovered_model);
         assert_eq!(hovered_probe.primitive_count, probe.primitive_count);
         assert_ne!(hovered_probe.checksum, probe.checksum);
+
+        let mut pressed_model = hovered_model.clone();
+        assert!(pressed_model.begin_primary_action_press(480, 300, action.rect.x, action.rect.y,));
+        let (_, pressed_probe) = render_properties_window_rgba(480, 300, &pressed_model);
+        assert_eq!(pressed_probe.primitive_count, probe.primitive_count);
+        assert_ne!(pressed_probe.checksum, probe.checksum);
+        assert_ne!(pressed_probe.checksum, hovered_probe.checksum);
 
         let mut focused_model = model.clone();
         assert!(focused_model.focus_primary_action(480, 300));
