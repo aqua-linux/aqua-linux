@@ -96,6 +96,7 @@ grep -Fq '[AQUA-TEST] stage=desktop-trash-qemu status=ok confirmation=true remov
 grep -Fq '[AQUA-TEST] stage=desktop-runtime-launch-qemu status=ok app=files surface=aqua.files repaint=true supervised=true' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-files-keyboard-focus-qemu status=ok input=left focus=sidebar-0 clients=1' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-files-keyboard-blur-qemu status=ok input=surface-transfer focus=none focused_sidebar=none repaint=true clients=2' "${SERIAL_LOG}"
+grep -Fq '[AQUA-TEST] stage=desktop-files-pointer-leave-qemu status=ok hover=cleared drag_cancelled=false repaint=true clients=2' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-notification-qemu status=ok source=launcher toast=visible gpu_texture=true active_id=1' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-notification-promotion-qemu status=ok dismissed=1 promoted=2 queued=0 pointer=true' "${SERIAL_LOG}"
 grep -Fq '[AQUA-TEST] stage=desktop-properties-qemu status=ok target=files surface=aqua.properties kind=Folder location=/home/aqua clients=2' "${SERIAL_LOG}"

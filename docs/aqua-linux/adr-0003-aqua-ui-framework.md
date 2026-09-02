@@ -98,6 +98,10 @@ so clipped sidebars are omitted and inert;
 Files also clears its visible keyboard and accessibility focus plus the focused
 sidebar target on Wayland keyboard leave, repaints the client surface, and
 requires new navigation before a sidebar can regain keyboard focus;
+Files clears sidebar and content-row hover through an idempotent model
+transition on Wayland pointer leave, cancels an active scrollbar drag even if
+no release follows outside the surface, and repaints only for visible hover on
+an active surface without committing after xdg close;
 Settings category rendering, pointer selection, hover, and keyboard navigation
 now share a width-and-height validated sidebar composition derived from the
 actual client buffer, so clipped category rows are omitted and inert;

@@ -14245,6 +14245,26 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                 }
             }
             client_wl_pointer::Event::Leave { .. } => {
+                let files_drag_cancelled = std::mem::take(&mut state.files_scrollbar_dragging);
+                let files_hover_changed = state
+                    .files_navigator
+                    .as_mut()
+                    .is_some_and(aqua_shell::FilesNavigator::clear_pointer_hover);
+                if files_hover_changed {
+                    state.files_model = state
+                        .files_navigator
+                        .as_ref()
+                        .map(|navigator| navigator.window().clone());
+                }
+                if files_hover_changed || files_drag_cancelled {
+                    let repaint = files_hover_changed && !state.close_event_received;
+                    println!(
+                        "aqua_files_hover hovered=none reason=pointer-leave drag_cancelled={files_drag_cancelled} repaint={repaint}"
+                    );
+                    if repaint {
+                        state.redraw_files_buffer(qh);
+                    }
+                }
                 let interaction_changed = state.properties_model.as_mut().is_some_and(|model| {
                     let hover_changed = model.clear_primary_action_hover();
                     let press_cancelled = model.cancel_primary_action_press();

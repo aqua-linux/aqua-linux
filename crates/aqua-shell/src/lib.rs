@@ -3627,6 +3627,13 @@ impl FilesWindowModel {
         }
         previous != (self.hovered_sidebar, self.hovered_entry)
     }
+
+    pub fn clear_pointer_hover(&mut self) -> bool {
+        let changed = self.hovered_sidebar.is_some() || self.hovered_entry.is_some();
+        self.hovered_sidebar = None;
+        self.hovered_entry = None;
+        changed
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3742,6 +3749,10 @@ impl FilesNavigator {
 
     pub fn handle_hover_in_viewport(&mut self, width: u32, height: u32, x: u32, y: u32) -> bool {
         self.window.hover_at_in_viewport(width, height, x, y)
+    }
+
+    pub fn clear_pointer_hover(&mut self) -> bool {
+        self.window.clear_pointer_hover()
     }
 
     pub fn handle_scroll(&mut self, rows: isize) -> FilesNavigation {
@@ -7595,6 +7606,11 @@ mod tests {
             model.entry_row(640, 1).expect("hovered row").state,
             ComponentState::Hover
         );
+        assert!(model.clear_pointer_hover());
+        assert_eq!(model.hovered_sidebar, None);
+        assert_eq!(model.hovered_entry, None);
+        assert!(!model.clear_pointer_hover());
+        assert!(model.hover_at(640, 220, 204));
         assert_eq!(model.select_at(640, 40, 180), FilesSelection::Sidebar(1));
         assert_eq!(model.selected_sidebar, 1);
         assert_eq!(model.selected_entry, None);
@@ -7602,6 +7618,9 @@ mod tests {
         assert!(model.hover_at(640, 40, 164));
         assert_eq!(model.hovered_entry, None);
         assert!(!model.hover_at(640, 40, 164));
+        assert!(model.hover_at(640, 40, 180));
+        assert_eq!(model.hovered_sidebar, Some(1));
+        assert!(model.clear_pointer_hover());
 
         assert_eq!(
             FilesWindowModel::read_only_directory(&home, &root),
