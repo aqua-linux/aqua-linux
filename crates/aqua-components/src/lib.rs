@@ -410,6 +410,7 @@ pub struct StandardButton<'a> {
     pub label: &'a str,
     pub variant: StandardButtonVariant,
     pub state: ComponentState,
+    pub focused: bool,
 }
 
 impl<'a> StandardButton<'a> {
@@ -419,11 +420,17 @@ impl<'a> StandardButton<'a> {
             label,
             variant,
             state: ComponentState::Idle,
+            focused: false,
         }
     }
 
     pub const fn with_state(mut self, state: ComponentState) -> Self {
         self.state = state;
+        self
+    }
+
+    pub const fn with_focus(mut self, focused: bool) -> Self {
+        self.focused = focused;
         self
     }
 
@@ -453,7 +460,9 @@ impl<'a> StandardButton<'a> {
     }
 
     pub const fn accessibility(self) -> ComponentAccessibility<'a> {
-        accessibility("button", self.label, self.state)
+        let mut accessibility = accessibility("button", self.label, self.state);
+        accessibility.focused = accessibility.focused || self.focused;
+        accessibility
     }
 }
 
@@ -3762,6 +3771,13 @@ mod tests {
         assert!(focused.focused);
         assert!(!focused.disabled);
         assert!(!focused.busy);
+
+        let pressed_and_focused =
+            StandardButton::new(rect, "Action", StandardButtonVariant::Primary)
+                .with_state(ComponentState::Pressed)
+                .with_focus(true)
+                .accessibility();
+        assert!(pressed_and_focused.focused);
     }
 
     #[test]

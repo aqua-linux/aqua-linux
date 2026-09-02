@@ -290,12 +290,12 @@ if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) properties-poin
 }
 run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -F 'aqua_properties_pointer phase=release' /run/aqua/graphical-session-supervisor.log | grep -Fq 'action=none was_pressed=true'; do sleep 1; i=$((i + 1)); done} "waiting for the Properties release-outside cancellation"
 run_shell_check {i=0; while [ "$i" -lt 60 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$properties_cancel_repaint_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Properties pointer-cancel repaint"
-run_shell_check {ok=1; grep -F 'aqua_properties_pointer phase=press' /run/aqua/graphical-session-supervisor.log | grep -Fq 'pressed=true action=none' || ok=0; grep -F 'aqua_properties_hover' /run/aqua/graphical-session-supervisor.log | grep -Fq 'hovered=false pressed=true' || ok=0; grep -F 'aqua_properties_pointer phase=release' /run/aqua/graphical-session-supervisor.log | grep -Fq 'pressed=false action=none was_pressed=true' || ok=0; [ "$(grep -F 'aqua_properties_refresh_generation=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'aqua_properties_refresh_generation=0' ] || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$properties_cancel_repaint_before" ] || ok=0} "checking the Properties release-outside cancellation"
-send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-pointer-cancel-qemu status=ok shared_button=true pressed=true dragged_out=true release_activation=false generation=0 repaint=true clients=2'}
+run_shell_check {ok=1; grep -F 'aqua_properties_pointer phase=press' /run/aqua/graphical-session-supervisor.log | grep -Fq 'pressed=true focus=primary-action action=none' || ok=0; grep -F 'aqua_properties_hover' /run/aqua/graphical-session-supervisor.log | grep -Fq 'hovered=false pressed=true' || ok=0; grep -F 'aqua_properties_pointer phase=release' /run/aqua/graphical-session-supervisor.log | grep -Fq 'pressed=false action=none was_pressed=true' || ok=0; [ "$(grep -F 'aqua_properties_refresh_generation=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'aqua_properties_refresh_generation=0' ] || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$properties_cancel_repaint_before" ] || ok=0} "checking the Properties release-outside cancellation and retained focus"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-pointer-cancel-qemu status=ok shared_button=true pressed=true focus=primary-action dragged_out=true release_activation=false generation=0 repaint=true clients=2'}
 send -- "\r"
 
 expect {
-    -exact {[AQUA-TEST] stage=desktop-properties-pointer-cancel-qemu status=ok shared_button=true pressed=true dragged_out=true release_activation=false generation=0 repaint=true clients=2} {}
+    -exact {[AQUA-TEST] stage=desktop-properties-pointer-cancel-qemu status=ok shared_button=true pressed=true focus=primary-action dragged_out=true release_activation=false generation=0 repaint=true clients=2} {}
     timeout { puts stderr "Properties release-outside cancellation was not proven"; exit 1 }
     eof { puts stderr "QEMU exited before Properties pointer-cancel verification"; exit 1 }
 }
@@ -314,13 +314,13 @@ if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) properties-refr
 run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_properties_refresh_generation=1' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Properties pointer refresh"
 run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_client_surface_count=2' ]; do sleep 1; i=$((i + 1)); done} "waiting for the refreshed Properties composition"
 run_shell_check {i=0; while [ "$i" -lt 60 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$properties_refresh_repaint_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Properties repaint to complete"
-run_shell_check {ok=1; grep -F 'aqua_properties_hover' /run/aqua/graphical-session-supervisor.log | grep -Fq 'hovered=true' || ok=0; grep -F 'aqua_properties_pointer phase=press' /run/aqua/graphical-session-supervisor.log | grep -Fq 'pressed=true action=none' || ok=0; grep -F 'aqua_properties_pointer phase=release' /run/aqua/graphical-session-supervisor.log | grep -Fq 'pressed=false action=refresh-contents' || ok=0; grep -Fq 'aqua_properties_primary_action=refresh-contents' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_properties_action=refresh-contents' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_properties_refresh_generation=1' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_properties_refresh_status=Available' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Properties shared-button pressed lifecycle and pointer refresh"
+run_shell_check {ok=1; grep -F 'aqua_properties_hover' /run/aqua/graphical-session-supervisor.log | grep -Fq 'hovered=true' || ok=0; grep -F 'aqua_properties_pointer phase=press' /run/aqua/graphical-session-supervisor.log | grep -Fq 'pressed=true focus=primary-action action=none' || ok=0; grep -F 'aqua_properties_pointer phase=release' /run/aqua/graphical-session-supervisor.log | grep -Fq 'pressed=false action=refresh-contents' || ok=0; grep -Fq 'aqua_properties_primary_action=refresh-contents' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_properties_action=refresh-contents' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_properties_refresh_generation=1' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'aqua_properties_refresh_status=Available' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Properties shared-button pressed lifecycle, focus handoff, and pointer refresh"
 run_shell_check {[ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=2' ] || ok=0} "checking the refreshed Properties composition"
-send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-refresh-qemu status=ok input=pointer shared_button=true hover=true pressed=true release_activation=true action=refresh-contents generation=1 repaint=true clients=2'}
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-refresh-qemu status=ok input=pointer shared_button=true hover=true pressed=true focus=primary-action release_activation=true action=refresh-contents generation=1 repaint=true clients=2'}
 send -- "\r"
 
 expect {
-    -exact {[AQUA-TEST] stage=desktop-properties-refresh-qemu status=ok input=pointer shared_button=true hover=true pressed=true release_activation=true action=refresh-contents generation=1 repaint=true clients=2} {}
+    -exact {[AQUA-TEST] stage=desktop-properties-refresh-qemu status=ok input=pointer shared_button=true hover=true pressed=true focus=primary-action release_activation=true action=refresh-contents generation=1 repaint=true clients=2} {}
     timeout { puts stderr "Properties pointer refresh was not committed and repainted"; exit 1 }
     eof { puts stderr "QEMU exited before Properties refresh verification"; exit 1 }
 }
@@ -331,20 +331,43 @@ expect {
     eof { puts stderr "QEMU exited after Properties refresh verification"; exit 1 }
 }
 
+run_shell_check {properties_focus_handoff_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Properties pointer-focus handoff repaint baseline"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) properties-focused-space-action} input_error]} {
+    puts stderr "QEMU Properties focused Space input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_properties_refresh_generation=2' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the pointer-focused Properties Space refresh"
+run_shell_check {i=0; while [ "$i" -lt 60 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$properties_focus_handoff_repaint_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the pointer-focused Properties Space repaint"
+run_shell_check {ok=1; grep -F 'aqua_properties_pointer phase=press' /run/aqua/graphical-session-supervisor.log | grep -Fq 'pressed=true focus=primary-action action=none' || ok=0; grep -F 'aqua_properties_keyboard key=57' /run/aqua/graphical-session-supervisor.log | grep -Fq 'focus=primary-action action=refresh-contents' || ok=0; grep -Fq 'aqua_properties_refresh_generation=2' /run/aqua/graphical-session-supervisor.log || ok=0; [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=2' ] || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$properties_focus_handoff_repaint_before" ] || ok=0} "checking the Properties pointer-to-keyboard focus handoff"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-pointer-focus-qemu status=ok input=pointer-space shared_button=true focus=primary-action handoff=true action=refresh-contents generation=2 repaint=true clients=2'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-properties-pointer-focus-qemu status=ok input=pointer-space shared_button=true focus=primary-action handoff=true action=refresh-contents generation=2 repaint=true clients=2} {}
+    timeout { puts stderr "Properties pointer-to-keyboard focus handoff was not committed and repainted"; exit 1 }
+    eof { puts stderr "QEMU exited before Properties pointer-focus verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Properties pointer-focus verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Properties pointer-focus verification"; exit 1 }
+}
+
 run_shell_check {properties_keyboard_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Properties keyboard repaint baseline"
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) properties-keyboard-action} input_error]} {
     puts stderr "QEMU Properties keyboard input injection failed: $input_error"
     exit 1
 }
-run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_properties_refresh_generation=2' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Properties keyboard refresh"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_properties_refresh_generation=3' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Properties keyboard refresh"
 run_shell_check {i=0; while [ "$i" -lt 60 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$properties_keyboard_repaint_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Properties keyboard repaint to complete"
-run_shell_check {ok=1; grep -F 'aqua_properties_keyboard key=15' /run/aqua/graphical-session-supervisor.log | grep -Fq 'focus=primary-action action=none' || ok=0; grep -F 'aqua_properties_keyboard key=28' /run/aqua/graphical-session-supervisor.log | grep -Fq 'focus=primary-action action=refresh-contents' || ok=0; grep -Fq 'aqua_properties_refresh_generation=2' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Properties shared-button keyboard refresh"
+run_shell_check {ok=1; grep -F 'aqua_properties_keyboard key=15' /run/aqua/graphical-session-supervisor.log | grep -Fq 'focus=primary-action action=none' || ok=0; grep -F 'aqua_properties_keyboard key=28' /run/aqua/graphical-session-supervisor.log | grep -Fq 'focus=primary-action action=refresh-contents' || ok=0; grep -Fq 'aqua_properties_refresh_generation=3' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Properties shared-button keyboard refresh"
 run_shell_check {[ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=2' ] || ok=0} "checking the keyboard-refreshed Properties composition"
-send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-keyboard-qemu status=ok input=tab-enter shared_button=true focus=primary-action action=refresh-contents generation=2 repaint=true clients=2'}
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-keyboard-qemu status=ok input=tab-enter shared_button=true focus=primary-action action=refresh-contents generation=3 repaint=true clients=2'}
 send -- "\r"
 
 expect {
-    -exact {[AQUA-TEST] stage=desktop-properties-keyboard-qemu status=ok input=tab-enter shared_button=true focus=primary-action action=refresh-contents generation=2 repaint=true clients=2} {}
+    -exact {[AQUA-TEST] stage=desktop-properties-keyboard-qemu status=ok input=tab-enter shared_button=true focus=primary-action action=refresh-contents generation=3 repaint=true clients=2} {}
     timeout { puts stderr "Properties keyboard focus and activation were not committed and repainted"; exit 1 }
     eof { puts stderr "QEMU exited before Properties keyboard verification"; exit 1 }
 }
