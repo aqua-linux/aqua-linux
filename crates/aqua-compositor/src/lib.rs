@@ -14146,7 +14146,22 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                         surface_y.max(0.0) as u32
                     );
                 }
-                if let Some(navigator) = state.files_navigator.as_mut() {
+                if let Some(model) = state.properties_model.as_mut() {
+                    let pointer_x = state.pointer_surface_x.max(0.0) as u32;
+                    let pointer_y = state.pointer_surface_y.max(0.0) as u32;
+                    if model.handle_primary_action_hover(
+                        state.buffer_width.max(1),
+                        state.buffer_height.max(1),
+                        pointer_x,
+                        pointer_y,
+                    ) {
+                        println!(
+                            "aqua_properties_hover x={pointer_x} y={pointer_y} hovered={}",
+                            model.primary_action_hovered
+                        );
+                        state.redraw_properties_buffer(qh);
+                    }
+                } else if let Some(navigator) = state.files_navigator.as_mut() {
                     let buffer_width = state.buffer_width.max(1);
                     let buffer_height = state.buffer_height.max(1);
                     let navigation = state.files_scrollbar_dragging.then(|| {
@@ -14178,6 +14193,16 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                     ) {
                         state.redraw_settings_buffer(qh);
                     }
+                }
+            }
+            client_wl_pointer::Event::Leave { .. } => {
+                if state
+                    .properties_model
+                    .as_mut()
+                    .is_some_and(aqua_shell::DesktopPropertiesModel::clear_primary_action_hover)
+                {
+                    println!("aqua_properties_hover hovered=false reason=pointer-leave");
+                    state.redraw_properties_buffer(qh);
                 }
             }
             _ => {}

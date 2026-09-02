@@ -1438,6 +1438,7 @@ pub struct DesktopPropertiesModel {
     pub enumeration_capped: bool,
     pub refresh_generation: u32,
     pub primary_action_focused: bool,
+    pub primary_action_hovered: bool,
 }
 
 impl DesktopPropertiesModel {
@@ -1492,6 +1493,7 @@ impl DesktopPropertiesModel {
             enumeration_capped,
             refresh_generation: 0,
             primary_action_focused: false,
+            primary_action_hovered: false,
         })
     }
 
@@ -1523,6 +1525,8 @@ impl DesktopPropertiesModel {
             )
             .with_state(if self.primary_action_focused {
                 ComponentState::KeyboardFocus
+            } else if self.primary_action_hovered {
+                ComponentState::Hover
             } else {
                 ComponentState::Idle
             }),
@@ -1545,6 +1549,21 @@ impl DesktopPropertiesModel {
         let focused = self.primary_action_button(width, height).is_some();
         let changed = self.primary_action_focused != focused;
         self.primary_action_focused = focused;
+        changed
+    }
+
+    pub fn handle_primary_action_hover(&mut self, width: u32, height: u32, x: u32, y: u32) -> bool {
+        let hovered = self
+            .primary_action_button(width, height)
+            .is_some_and(|button| button.pointer_hit(x, y));
+        let changed = self.primary_action_hovered != hovered;
+        self.primary_action_hovered = hovered;
+        changed
+    }
+
+    pub fn clear_primary_action_hover(&mut self) -> bool {
+        let changed = self.primary_action_hovered;
+        self.primary_action_hovered = false;
         changed
     }
 
@@ -1599,9 +1618,11 @@ impl DesktopPropertiesModel {
         let generation = self.refresh_generation.saturating_add(1);
         let action = self.primary_action();
         let primary_action_focused = self.primary_action_focused;
+        let primary_action_hovered = self.primary_action_hovered;
         let mut refreshed = Self::load(self.icon_id, home_root, system_root)?;
         refreshed.refresh_generation = generation;
         refreshed.primary_action_focused = primary_action_focused;
+        refreshed.primary_action_hovered = primary_action_hovered;
         *self = refreshed;
         Ok(action)
     }
@@ -5673,6 +5694,41 @@ mod tests {
             None
         );
         assert_eq!(files.primary_action_button(480, 250), None);
+        assert!(files.handle_primary_action_hover(
+            480,
+            300,
+            action_button.rect.x,
+            action_button.rect.y,
+        ));
+        assert_eq!(
+            files
+                .primary_action_button(480, 300)
+                .expect("hovered Properties action should remain visible")
+                .state,
+            ComponentState::Hover
+        );
+        assert!(!files.handle_primary_action_hover(
+            480,
+            300,
+            action_button.rect.x,
+            action_button.rect.y,
+        ));
+        assert!(files.handle_primary_action_hover(
+            480,
+            300,
+            action_button.rect.right(),
+            action_button.rect.y,
+        ));
+        assert!(!files.primary_action_hovered);
+        assert!(files.handle_primary_action_hover(
+            480,
+            300,
+            action_button.rect.x,
+            action_button.rect.y,
+        ));
+        assert!(files.clear_primary_action_hover());
+        assert!(!files.clear_primary_action_hover());
+        assert!(!files.handle_primary_action_hover(480, 250, 0, 0));
         assert!(files.focus_primary_action(480, 300));
         let focused_action = files
             .primary_action_button(480, 300)
@@ -5707,6 +5763,15 @@ mod tests {
         assert_eq!(settings.item_count, None);
         assert_eq!(settings.primary_action().label(), "Verify Application");
         assert!(settings.focus_primary_action(480, 300));
+        let settings_action = settings
+            .primary_action_button(480, 300)
+            .expect("Settings Properties action should fit");
+        assert!(settings.handle_primary_action_hover(
+            480,
+            300,
+            settings_action.rect.x,
+            settings_action.rect.y,
+        ));
         fs::remove_file(system.join("usr/bin/aqua-settings")).expect("remove Settings fixture");
         assert_eq!(
             settings
@@ -5717,6 +5782,7 @@ mod tests {
         assert_eq!(settings.status, "Not found");
         assert_eq!(settings.refresh_generation, 1);
         assert!(settings.primary_action_focused);
+        assert!(settings.primary_action_hovered);
         assert!(DesktopPropertiesModel::load("unknown", &home, &system).is_err());
         assert_eq!(
             properties_launch_request("trash"),

@@ -816,11 +816,13 @@ Status, and Base. The rows expose definition semantics, keep `Prototype`
 explicit, and identify the pinned Buildroot 2025.02.17 LTS base without
 claiming release readiness or physical-hardware support.
 Properties now renders and pointer-activates its Refresh Contents or Verify
-Application footer action through one shared `StandardButton`. Tab applies the
+Application footer action through one shared `StandardButton`. Exact half-open
+pointer geometry applies the shared hover state, emits repaint only on state
+changes, and clears hover when the pointer leaves the surface. Tab applies the
 button's visible keyboard-focus state and accessibility focus, while Enter or
-Space resolves through the same activation gate; refresh preserves focus.
-Compact layouts that cannot contain the complete section omit the button and
-reject pointer or keyboard activation; the model still owns the selected
+Space resolves through the same activation gate; refresh preserves focus and
+hover. Compact layouts that cannot contain the complete section omit the button
+and reject pointer or keyboard activation; the model still owns the selected
 action and the existing F5 shortcut remains.
 Further extractions must continue from real first-party consumers and repeat
 the same geometry, input, accessibility, deterministic-fixture, and
