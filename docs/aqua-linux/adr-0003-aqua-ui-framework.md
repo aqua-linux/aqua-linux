@@ -113,12 +113,15 @@ Enter/Space activation. Only the primary pointer button enters the action
 lifecycle; other buttons leave focus and generation unchanged. A valid primary
 press transfers durable keyboard and accessibility focus to the action, so a
 following Space activation needs no intermediate Tab. A background press
-clears that focus, and Space then rejects activation. Pointer leave clears
-hover and cancels an armed press, release outside rejects activation without
-advancing refresh generation, Tab focuses the bounded action, refresh preserves
-durable interaction state, F5 remains a non-authorizing shortcut, and refresh
-or application verification stays in the Properties domain model. Packaged
-QEMU proves the primary-button gate, release-inside activation,
+clears that focus, and Space then rejects activation. A Wayland keyboard leave
+also clears the action's visible and accessibility focus, so transferring focus
+to another surface cannot leave a stale focused control or authorize a later
+Space. Pointer leave clears hover and cancels an armed press, release outside
+rejects activation without advancing refresh generation, Tab focuses the
+bounded action, refresh preserves durable interaction state, F5 remains a
+non-authorizing shortcut, and refresh or application verification stays in the
+Properties domain model. Packaged QEMU proves the primary-button gate,
+keyboard-focus transfer, release-inside activation,
 press-drag-release cancellation, pointer-to-Space focus handoff, and
 background-click blur;
 the broader consolidation remains in progress.

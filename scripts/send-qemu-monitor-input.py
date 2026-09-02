@@ -95,7 +95,16 @@ MODES = {
         "mouse_move 0 -80", "mouse_button 1", "mouse_button 0",
         "sendkey spc 100",
     ),
-    "properties-keyboard-action": ("sendkey tab 100", "sendkey ret 100"),
+    "properties-keyboard-blur": (
+        "sendkey tab 100", "mouse_move -3000 -3000", "mouse_move 220 200",
+        "mouse_button 1", "mouse_button 0",
+    ),
+    "properties-blurred-space": ("sendkey spc 100",),
+    "properties-keyboard-action": (
+        "mouse_move -3000 -3000", "mouse_move 520 235",
+        "mouse_button 1", "mouse_button 0",
+        "sendkey tab 100", "sendkey ret 100",
+    ),
     "close-properties": ("sendkey alt-f4 250",),
     "terminal-launch": (
         "sendkey meta_l 100", "sendkey t 100", "sendkey e 100",

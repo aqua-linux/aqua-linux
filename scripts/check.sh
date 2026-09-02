@@ -1841,6 +1841,10 @@ grep -Fq 'desktop-properties-pointer-focus-qemu status=ok' scripts/check-graphic
 grep -Fq 'properties-pointer-blur-space' scripts/send-qemu-monitor-input.py
 grep -Fq 'desktop-properties-pointer-blur-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'desktop-properties-pointer-blur-qemu status=ok' scripts/check-graphical-boot-qemu.exp
+grep -Fq 'properties-keyboard-blur' scripts/send-qemu-monitor-input.py
+grep -Fq 'properties-blurred-space' scripts/send-qemu-monitor-input.py
+grep -Fq 'desktop-properties-keyboard-blur-qemu status=ok' scripts/check-graphical-boot-qemu.sh
+grep -Fq 'desktop-properties-keyboard-blur-qemu status=ok' scripts/check-graphical-boot-qemu.exp
 grep -Fq 'shared_button=true hover=true pressed=true focus=primary-action release_activation=true action=refresh-contents' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'properties-keyboard-action' scripts/send-qemu-monitor-input.py
 grep -Fq 'desktop-properties-keyboard-qemu status=ok' scripts/check-graphical-boot-qemu.sh
