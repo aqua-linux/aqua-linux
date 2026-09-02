@@ -6044,6 +6044,13 @@ mod tests {
             SettingsUpdate::ReducedMotionChanged(false)
         );
         assert!(model.keyboard_focus);
+        assert_eq!(model.handle_pointer(440, 150), SettingsUpdate::None);
+        assert!(!model.keyboard_focus);
+        assert_eq!(
+            model.handle_key(SettingsKey::Home),
+            SettingsUpdate::CategorySelected(0)
+        );
+        assert!(model.keyboard_focus);
         assert!(model.clear_keyboard_focus());
         assert!(!model.keyboard_focus);
         assert!(!model.clear_keyboard_focus());

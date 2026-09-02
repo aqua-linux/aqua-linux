@@ -664,6 +664,37 @@ expect {
     eof { puts stderr "QEMU exited after Settings damage verification"; exit 1 }
 }
 
+run_shell_check {settings_pointer_blur_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Settings pointer-blur repaint baseline"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) settings-pointer-blur} input_error]} {
+    puts stderr "QEMU Settings pointer-blur input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_settings_pointer focus=none reason=pointer-press category=4 update=None repaint=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Settings pointer focus clear"
+run_shell_check {i=0; while [ "$i" -lt 60 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$settings_pointer_blur_repaint_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Settings pointer-blur repaint"
+run_shell_check {ok=1; grep -Fq 'aqua_settings_pointer focus=none reason=pointer-press category=4 update=None repaint=true' /run/aqua/graphical-session-supervisor.log || ok=0; [ "$(grep -F 'aqua_settings_keyboard' /run/aqua/graphical-session-supervisor.log | grep -F 'update=CategorySelected' | tail -n 1 | sed -n 's/.*update=CategorySelected(\([0-9][0-9]*\)).*/\1/p')" = 4 ] || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$settings_pointer_blur_repaint_before" ] || ok=0} "checking the Settings pointer blur, retained category, and repaint"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-settings-pointer-blur-qemu status=ok input=background-click focus=none category=4 activation=false repaint=true clients=2'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-settings-pointer-blur-qemu status=ok input=background-click focus=none category=4 activation=false repaint=true clients=2} {}
+    timeout { puts stderr "Settings pointer blur was not proven"; exit 1 }
+    eof { puts stderr "QEMU exited before Settings pointer-blur verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Settings pointer-blur verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Settings pointer-blur verification"; exit 1 }
+}
+
+run_shell_check {settings_keyboard_refocus_before="$(grep -Fc 'update=CategorySelected(4)' /run/aqua/graphical-session-supervisor.log)"} "recording the Settings keyboard-refocus baseline"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) settings-keyboard-refocus} input_error]} {
+    puts stderr "QEMU Settings keyboard-refocus input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'update=CategorySelected(4)' /run/aqua/graphical-session-supervisor.log)" -le "$settings_keyboard_refocus_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for Settings keyboard focus to be re-established"
+run_shell_check {[ "$(grep -F 'aqua_settings_keyboard' /run/aqua/graphical-session-supervisor.log | grep -F 'update=CategorySelected' | tail -n 1 | sed -n 's/.*update=CategorySelected(\([0-9][0-9]*\)).*/\1/p')" = 4 ]} "checking the Settings keyboard refocus category"
+
 run_shell_check {settings_blur_pointer_before="$(grep -Fc 'aqua_settings_pointer_motion' /run/aqua/graphical-session-supervisor.log)"} "recording the Settings keyboard-blur pointer baseline"
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) settings-keyboard-blur} input_error]} {
     puts stderr "QEMU Settings keyboard-blur input injection failed: $input_error"
@@ -743,6 +774,7 @@ if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) close-settings}
 }
 run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_runtime_process_exited_settings=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the Settings close lifecycle"
 run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_client_surface_count=1' ]; do sleep 1; i=$((i + 1)); done} "waiting for the Settings stale surface cleanup"
+run_shell_check {printf '%s\n' '[AQUA-DIAG] settings-close'; grep -E 'desktop_close_(shortcut_received|request_sent)=|desktop_runtime_process_(exited_settings|exit_settings_success|settings_restart_policy|settings_restart_attempted)=|desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 16} "reporting the Settings close lifecycle"
 run_shell_check {ok=1; grep -Fq 'desktop_close_shortcut_received=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_close_request_sent=true' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Settings close request"
 run_shell_check {grep -Fq 'desktop_runtime_process_exit_settings_success=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_runtime_process_settings_restart_policy=never' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_runtime_process_settings_restart_attempted=false' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the Settings exit policy"
 run_shell_check {[ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=1' ] || ok=0} "checking the Settings stale surface cleanup"

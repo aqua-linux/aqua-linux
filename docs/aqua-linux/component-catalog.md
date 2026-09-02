@@ -815,6 +815,9 @@ Wayland keyboard leave clears Settings' visible and accessibility focus while
 preserving the selected category. Packaged QEMU focuses category four,
 transfers compositor focus to Files, requires Settings to repaint without focus,
 and then returns surface focus without restoring a control focus implicitly.
+An earlier background press in the same packaged flow also clears the
+client-local keyboard focus, preserves category four without activation, and
+requires a repaint before keyboard navigation explicitly restores focus.
 Settings section rendering and pointer or keyboard control activation now
 consume one category-specific viewport-validated content group. Network's
 four-row group receives its valid 212-pixel height; clipped switch, segmented,

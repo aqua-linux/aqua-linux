@@ -68,6 +68,11 @@ MODES = {
         "sendkey down 100", "sendkey down 100", "sendkey down 100",
         "sendkey down 100",
     ),
+    "settings-pointer-blur": (
+        "mouse_move -3000 -3000", "mouse_move 520 235",
+        "mouse_button 1", "mouse_button 0",
+    ),
+    "settings-keyboard-refocus": ("sendkey down 100", "sendkey up 100"),
     "settings-keyboard-blur": (
         "mouse_move -3000 -3000", "mouse_move 220 200",
         "mouse_button 1", "mouse_button 0",

@@ -104,6 +104,8 @@ actual client buffer, so clipped category rows are omitted and inert;
 Settings clears its visible keyboard and accessibility focus on Wayland
 keyboard leave, repaints without changing the selected category, and requires
 new keyboard input before a control regains keyboard focus;
+an in-surface pointer press likewise clears stale keyboard focus and repaints
+even when the background press produces no settings action;
 Settings section rendering and pointer or keyboard control activation now
 share a category-specific viewport-validated content group; Network's four-row
 group has its required 212-pixel height, while clipped switch, segmented,
