@@ -188,6 +188,8 @@ keyboard focus styling, with deterministic order and z-index capacity checks;
 Files, Settings, and Properties share redraw buffer allocation and Wayland
 submission with a close guard at the shared boundary, while retaining their
 domain renderers and existing initial-attachment lifecycle;
+one-shot shared-memory pools are destroyed after client buffer creation, with
+real-server object enumeration covering initial attachment and repeated redraws;
 the broader consolidation remains in progress.
 
 ## Context
