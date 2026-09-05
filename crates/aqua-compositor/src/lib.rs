@@ -10316,6 +10316,11 @@ impl SmithayDrmSession {
 
     pub fn client_surface_snapshots(&self) -> Vec<SmithayClientSurfaceSnapshot> {
         let state = &self.session.wayland_state;
+        // The current owner can differ from the hit-test target during a pointer grab.
+        let pointer_focus = state
+            .seat
+            .get_pointer()
+            .and_then(|pointer| pointer.current_focus());
         state
             .mapped_surfaces
             .iter()
@@ -10340,7 +10345,7 @@ impl SmithayDrmSession {
                 frame_callbacks_sent: state.frame_callbacks_sent,
                 keyboard_focus_assigned: state.keyboard_focus_assigned
                     && state.mapped_surface.as_ref() == Some(&surface.surface),
-                pointer_focus_assigned: state.pointer_focus_assigned,
+                pointer_focus_assigned: pointer_focus.as_ref() == Some(&surface.surface),
                 mapped_surface_count: state.mapped_surfaces.len(),
                 surface_focus_change_count: state.surface_focus_change_count,
                 stacking_change_count: state.stacking_change_count,
@@ -17083,6 +17088,134 @@ mod tests {
                 height: 88,
             })
         );
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn surface_pointer_focus_snapshot_tracks_only_the_actual_owner() {
+        let mut session = SmithayDrmSession::new().expect("Smithay session should start");
+        let (files_server, files_client) =
+            std::os::unix::net::UnixStream::pair().expect("Files Wayland stream pair should open");
+        let (settings_server, settings_client) = std::os::unix::net::UnixStream::pair()
+            .expect("Settings Wayland stream pair should open");
+        session
+            .insert_client(files_server)
+            .expect("Files client should insert");
+        session
+            .insert_client(settings_server)
+            .expect("Settings client should insert");
+
+        let files_connection =
+            ClientConnection::from_socket(files_client).expect("Files connection should open");
+        let settings_connection = ClientConnection::from_socket(settings_client)
+            .expect("Settings connection should open");
+        let mut files_queue = files_connection.new_event_queue();
+        let mut settings_queue = settings_connection.new_event_queue();
+        let files_qh = files_queue.handle();
+        let settings_qh = settings_queue.handle();
+        files_connection.display().get_registry(&files_qh, ());
+        settings_connection.display().get_registry(&settings_qh, ());
+        files_connection.flush().expect("Files registry flush");
+        settings_connection
+            .flush()
+            .expect("Settings registry flush");
+        session.dispatch_clients().expect("registry dispatch");
+        session.flush_clients().expect("registry response flush");
+
+        let mut files = XdgSmokeClientState::files_app();
+        let mut settings = XdgSmokeClientState::settings_app().expect("Settings state");
+        files_queue
+            .blocking_dispatch(&mut files)
+            .expect("Files globals dispatch");
+        settings_queue
+            .blocking_dispatch(&mut settings)
+            .expect("Settings globals dispatch");
+        files_connection.flush().expect("Files surface flush");
+        settings_connection.flush().expect("Settings surface flush");
+        session.dispatch_clients().expect("surface dispatch");
+        session.flush_clients().expect("configure flush");
+        files_queue
+            .blocking_dispatch(&mut files)
+            .expect("Files configure dispatch");
+        settings_queue
+            .blocking_dispatch(&mut settings)
+            .expect("Settings configure dispatch");
+        files_connection.flush().expect("Files buffer flush");
+        settings_connection.flush().expect("Settings buffer flush");
+        session.dispatch_clients().expect("buffer dispatch");
+        session.flush_clients().expect("buffer response flush");
+
+        for record in &mut session.session.wayland_state.mapped_surfaces {
+            record.x = if record.width == 640 { 80 } else { 800 };
+            record.y = 100;
+        }
+        let assert_owner = |session: &SmithayDrmSession, owner: Option<&str>| {
+            for app_id in ["aqua.files", "aqua.settings"] {
+                let snapshot = session
+                    .client_surface_snapshot_for_app_id(app_id)
+                    .expect("snapshot");
+                assert_eq!(
+                    snapshot.pointer_focus_assigned,
+                    owner == Some(app_id),
+                    "{app_id}"
+                );
+            }
+            assert_eq!(
+                session
+                    .client_surface_snapshots()
+                    .iter()
+                    .filter(|s| s.pointer_focus_assigned)
+                    .count(),
+                usize::from(owner.is_some())
+            );
+        };
+        assert_owner(&session, None);
+        session.session.wayland_state.pointer_location = (100.0, 120.0);
+        assert!(session.raise_surface_with_app_id("aqua.files"));
+        assert!(session.present_client_surface(150));
+        assert_owner(&session, Some("aqua.files"));
+        assert!(session.dispatch_pointer_motion(800.0, 80.0, 151));
+        assert_owner(&session, Some("aqua.settings"));
+        assert!(
+            session
+                .client_surface_snapshot_for_app_id("aqua.files")
+                .expect("Files")
+                .keyboard_focus_assigned
+        );
+        assert!(
+            !session
+                .client_surface_snapshot_for_app_id("aqua.settings")
+                .expect("Settings")
+                .keyboard_focus_assigned
+        );
+        // During a button grab, the pointer owner differs from the new hit-test target.
+        assert!(session.dispatch_pointer_button(0x110, true, 152));
+        assert!(session.dispatch_pointer_motion(-800.0, 0.0, 153));
+        let pointer = session
+            .session
+            .wayland_state
+            .seat
+            .get_pointer()
+            .expect("pointer");
+        assert_ne!(
+            pointer.current_focus(),
+            session.session.wayland_state.pointer_focus_surface
+        );
+        assert_owner(&session, Some("aqua.settings"));
+        assert!(session.dispatch_pointer_button(0x110, false, 154));
+        // Smithay retains the old focus until the next ordinary motion after release.
+        assert_owner(&session, Some("aqua.settings"));
+        assert!(session.dispatch_pointer_motion(0.0, 0.0, 155));
+        assert_owner(&session, Some("aqua.files"));
+        assert!(session.dispatch_pointer_motion(1300.0, 200.0, 155));
+        assert_owner(&session, None);
+        assert!(session.move_active_toplevel_to_workspace(1, 156));
+        assert_owner(&session, None);
+        assert_eq!(session.visible_client_surface_snapshots().len(), 1);
+        assert!(session
+            .visible_client_surface_snapshots()
+            .iter()
+            .all(|s| !s.pointer_focus_assigned));
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
