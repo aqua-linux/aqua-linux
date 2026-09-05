@@ -935,6 +935,18 @@ frame requests, and rejects a separate attempted initial attachment. Packaged
 QEMU verifies normal live theme updates, window interaction, Terminal resize,
 and close; the deliberately late-event ordering remains source-test evidence.
 
+Explicit client activation supplies Smithay with the window's global origin
+alongside the global pointer location. Smithay performs the single conversion
+to surface-local coordinates, matching ordinary pointer motion. Previously the
+activation path supplied an already-subtracted local point as the origin, so
+the client received the window origin instead of the actual pointer position.
+The real Wayland `activation_pointer_coordinates` regression checks initial
+enter and subsequent activation motion at two nonzero window origins, integer
+and fractional local positions, and a following ordinary pointer movement.
+It requires exact local coordinates, retained global position during activation,
+and keyboard focus on the active surface. Packaged graphical-boot QEMU exercises
+Properties and Settings reactivation, hover, keyboard actions, and close.
+
 A background buffer commit now updates that surface without replacing the
 active window. Desktop repaint completion drains frame callbacks independently
 of the explicit activation/focus path. This prevents a focus-loss redraw from
