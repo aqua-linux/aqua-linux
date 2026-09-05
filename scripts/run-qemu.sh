@@ -11,11 +11,26 @@ MEMORY="${MEMORY:-1024M}"
 CPUS="${CPUS:-2}"
 QEMU_ACCELERATOR="${QEMU_ACCELERATOR:-}"
 QEMU_CPU_MODEL="${QEMU_CPU_MODEL:-}"
+QEMU_HOST_CURSOR="${QEMU_HOST_CURSOR:-true}"
 KERNEL_APPEND="${AQUA_KERNEL_APPEND:-}"
 KERNEL_COMMAND_LINE="root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.desktop_icons=1"
 if [ -n "${KERNEL_APPEND}" ]; then
     KERNEL_COMMAND_LINE="${KERNEL_COMMAND_LINE} ${KERNEL_APPEND}"
 fi
+
+case "${QEMU_HOST_CURSOR}" in
+    true)
+        KERNEL_COMMAND_LINE="${KERNEL_COMMAND_LINE} aqua.host_cursor=1"
+        QEMU_SHOW_CURSOR=on
+        ;;
+    false)
+        QEMU_SHOW_CURSOR=off
+        ;;
+    *)
+        echo "QEMU_HOST_CURSOR must be true or false." >&2
+        exit 1
+        ;;
+esac
 
 if [ ! -f "${KERNEL}" ]; then
     echo "Missing kernel: ${KERNEL}" >&2
@@ -48,7 +63,7 @@ fi
 mkdir -p "$(dirname "${SERIAL_LOG}")"
 rm -f "${SERIAL_LOG}"
 
-echo "Starting Aqua Linux with QEMU accelerator=${QEMU_ACCELERATOR} cpu=${QEMU_CPU_MODEL}"
+echo "Starting Aqua Linux with QEMU accelerator=${QEMU_ACCELERATOR} cpu=${QEMU_CPU_MODEL} host_cursor=${QEMU_HOST_CURSOR}"
 
 exec qemu-system-x86_64 \
     -machine "accel=${QEMU_ACCELERATOR}" \
@@ -59,7 +74,7 @@ exec qemu-system-x86_64 \
     -drive file="${ROOTFS}",if=virtio,format=raw \
     -append "${KERNEL_COMMAND_LINE}" \
     -serial "file:${SERIAL_LOG}" \
-    -display sdl,gl=off,show-cursor=off,window-close=on \
+    -display "sdl,gl=off,show-cursor=${QEMU_SHOW_CURSOR},window-close=on" \
     -vga none \
     -device virtio-vga,xres=1280,yres=800 \
     -device virtio-keyboard-pci \

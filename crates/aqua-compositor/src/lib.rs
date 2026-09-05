@@ -7874,6 +7874,38 @@ fn files_axis_scroll_rows(value: f64) -> Option<isize> {
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn pointer_location_in_surface_space(
+    surface: Rect,
+    location: (f64, f64),
+    viewport: Viewport,
+) -> Option<(f64, f64)> {
+    if viewport.width == 0 || viewport.height == 0 || surface.width == 0 || surface.height == 0 {
+        return None;
+    }
+    let output = Rect {
+        x: surface.x * viewport.width / 1536,
+        y: surface.y * viewport.height / 1024,
+        width: (surface.width * viewport.width / 1536).max(1),
+        height: (surface.height * viewport.height / 1024).max(1),
+    };
+    if location.0 < f64::from(output.x)
+        || location.0 >= f64::from(output.right())
+        || location.1 < f64::from(output.y)
+        || location.1 >= f64::from(output.bottom())
+    {
+        return None;
+    }
+    Some((
+        f64::from(surface.x)
+            + (location.0 - f64::from(output.x)) * f64::from(surface.width)
+                / f64::from(output.width),
+        f64::from(surface.y)
+            + (location.1 - f64::from(output.y)) * f64::from(surface.height)
+                / f64::from(output.height),
+    ))
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl ClientDispatch<wl_registry::WlRegistry, ()> for V1BufferRegistryClientState {
     fn event(
         state: &mut Self,
@@ -10130,7 +10162,7 @@ impl SmithayDrmSession {
             self.session.wayland_state.pointer_motion_count += 1;
             return true;
         }
-        let surface_focus = self
+        let surface_hit = self
             .session
             .wayland_state
             .mapped_surfaces
@@ -10138,28 +10170,38 @@ impl SmithayDrmSession {
             .rev()
             .filter(|record| record.workspace == self.session.wayland_state.active_workspace)
             .find_map(|record| {
-                let origin_x = f64::from(record.x);
-                let origin_y = f64::from(record.y);
-                let local_x = pointer_location.0 - origin_x;
-                let local_y = pointer_location.1 - origin_y;
-                (local_x >= 0.0
-                    && local_x < f64::from(record.display_width)
-                    && local_y >= 0.0
-                    && local_y < f64::from(record.display_height))
-                .then(|| (record.surface.clone(), (origin_x, origin_y).into()))
+                let surface = Rect {
+                    x: record.x,
+                    y: record.y,
+                    width: record.display_width,
+                    height: record.display_height,
+                };
+                pointer_location_in_surface_space(surface, pointer_location, viewport).map(
+                    |surface_pointer_location| {
+                        (
+                            record.surface.clone(),
+                            (f64::from(record.x), f64::from(record.y)).into(),
+                            surface_pointer_location,
+                        )
+                    },
+                )
             });
         self.session.wayland_state.pointer_hit_test_count += 1;
-        if surface_focus.is_some() {
+        if surface_hit.is_some() {
             self.session.wayland_state.pointer_surface_hit_count += 1;
         }
-        self.session.wayland_state.pointer_focus_assigned = surface_focus.is_some();
+        self.session.wayland_state.pointer_focus_assigned = surface_hit.is_some();
         self.session.wayland_state.pointer_focus_surface =
-            surface_focus.as_ref().map(|(surface, _)| surface.clone());
+            surface_hit.as_ref().map(|(surface, _, _)| surface.clone());
+        let motion_location = surface_hit
+            .as_ref()
+            .map_or(pointer_location, |(_, _, location)| *location);
+        let surface_focus = surface_hit.map(|(surface, origin, _)| (surface, origin));
         pointer.motion(
             &mut self.session.wayland_state,
             surface_focus,
             &MotionEvent {
-                location: pointer_location.into(),
+                location: motion_location.into(),
                 serial: Serial::from(time.max(1)),
                 time,
             },
@@ -15282,6 +15324,28 @@ mod tests {
             launcher.pointer_target_in_viewport(790, 140, viewport.width, viewport.height),
             Some(LauncherPointerTarget::SearchField)
         );
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn pointer_coordinates_follow_scaled_window_geometry() {
+        let viewport = Viewport::new(1280, 800);
+        let surface = Rect {
+            x: 448,
+            y: 302,
+            width: 640,
+            height: 420,
+        };
+        let top_left = pointer_location_in_surface_space(surface, (373.0, 235.0), viewport)
+            .expect("rendered top-left pixel should focus the window");
+        assert_eq!(top_left, (448.0, 302.0));
+
+        let bottom_right = pointer_location_in_surface_space(surface, (905.0, 562.0), viewport)
+            .expect("rendered bottom-right pixel should focus the window");
+        assert!(bottom_right.0 < 1088.0);
+        assert!(bottom_right.1 < 722.0);
+        assert!(pointer_location_in_surface_space(surface, (906.0, 562.0), viewport).is_none());
+        assert!(pointer_location_in_surface_space(surface, (905.0, 563.0), viewport).is_none());
     }
 
     #[test]
