@@ -952,11 +952,23 @@ owner. A session-wide boolean previously marked every mapped surface as focused.
 Reading the pointer handle also preserves implicit-grab semantics: the surface
 under the cursor may differ from the pointer owner while a button is held, and
 release retains that owner until the next ordinary motion. The two-client
-`surface_pointer_focus_snapshot` regression covers no owner, explicit activation,
+`surface_focus_snapshots` regression covers no owner, explicit activation,
 independent keyboard and pointer owners, cross-window motion during a grab,
 release and subsequent motion, leaving all windows, and workspace filtering.
 The snapshot checks use real Files and Settings Wayland connections and require
 at most one marked surface. This reporting contract has source-test evidence.
+
+Per-surface keyboard-focus snapshots likewise use the actual seat keyboard
+owner. Raising a window updates stacking before keyboard focus is assigned;
+snapshots must retain the old owner during that interval. Explicitly clearing
+focus must report no keyboard owner even when the cached session flag and active
+window remain set. The shared two-client focus regression now checks these
+transitions alongside independent pointer focus, occupied and empty workspace
+changes, and destruction of the focused Files surface while Settings remains
+on another workspace. The renderer's focused-window state therefore follows
+keyboard ownership. Packaged QEMU covers live application activation, keyboard
+interaction, window close, and session cleanup; the intermediate raise-only and
+explicit-clear cases are source-test evidence.
 
 A background buffer commit now updates that surface without replacing the
 active window. Desktop repaint completion drains frame callbacks independently

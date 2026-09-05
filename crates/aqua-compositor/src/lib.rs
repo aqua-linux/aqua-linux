@@ -10316,6 +10316,10 @@ impl SmithayDrmSession {
 
     pub fn client_surface_snapshots(&self) -> Vec<SmithayClientSurfaceSnapshot> {
         let state = &self.session.wayland_state;
+        let keyboard_focus = state
+            .seat
+            .get_keyboard()
+            .and_then(|keyboard| keyboard.current_focus());
         // The current owner can differ from the hit-test target during a pointer grab.
         let pointer_focus = state
             .seat
@@ -10343,8 +10347,7 @@ impl SmithayDrmSession {
                 damage_rect_count: state.damage_rect_count,
                 pending_frame_callback_count: state.pending_frame_callbacks.len(),
                 frame_callbacks_sent: state.frame_callbacks_sent,
-                keyboard_focus_assigned: state.keyboard_focus_assigned
-                    && state.mapped_surface.as_ref() == Some(&surface.surface),
+                keyboard_focus_assigned: keyboard_focus.as_ref() == Some(&surface.surface),
                 pointer_focus_assigned: pointer_focus.as_ref() == Some(&surface.surface),
                 mapped_surface_count: state.mapped_surfaces.len(),
                 surface_focus_change_count: state.surface_focus_change_count,
@@ -17092,7 +17095,7 @@ mod tests {
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     #[test]
-    fn surface_pointer_focus_snapshot_tracks_only_the_actual_owner() {
+    fn surface_focus_snapshots_track_actual_pointer_and_keyboard_owners() {
         let mut session = SmithayDrmSession::new().expect("Smithay session should start");
         let (files_server, files_client) =
             std::os::unix::net::UnixStream::pair().expect("Files Wayland stream pair should open");
@@ -17169,25 +17172,56 @@ mod tests {
                 usize::from(owner.is_some())
             );
         };
+        let assert_keyboard_owner = |session: &SmithayDrmSession, owner: Option<&str>| {
+            for app_id in ["aqua.files", "aqua.settings"] {
+                let snapshot = session
+                    .client_surface_snapshot_for_app_id(app_id)
+                    .expect("snapshot");
+                assert_eq!(
+                    snapshot.keyboard_focus_assigned,
+                    owner == Some(app_id),
+                    "keyboard {app_id}"
+                );
+            }
+            assert_eq!(
+                session
+                    .client_surface_snapshots()
+                    .iter()
+                    .filter(|s| s.keyboard_focus_assigned)
+                    .count(),
+                usize::from(owner.is_some())
+            );
+        };
+        assert_keyboard_owner(&session, None);
         assert_owner(&session, None);
         session.session.wayland_state.pointer_location = (100.0, 120.0);
         assert!(session.raise_surface_with_app_id("aqua.files"));
         assert!(session.present_client_surface(150));
         assert_owner(&session, Some("aqua.files"));
-        assert!(session.dispatch_pointer_motion(800.0, 80.0, 151));
+        assert_keyboard_owner(&session, Some("aqua.files"));
+        assert!(session.raise_surface_with_app_id("aqua.settings"));
+        assert_eq!(
+            session.active_toplevel_app_id().as_deref(),
+            Some("aqua.settings")
+        );
+        // Raising changes stacking, but keyboard events still belong to Files.
+        assert_keyboard_owner(&session, Some("aqua.files"));
+        assert!(session.focus_keyboard_surface_with_app_id("aqua.settings", 151));
+        assert_keyboard_owner(&session, Some("aqua.settings"));
+        assert_owner(&session, Some("aqua.files"));
+        let keyboard = session
+            .session
+            .wayland_state
+            .seat
+            .get_keyboard()
+            .expect("keyboard");
+        keyboard.set_focus(&mut session.session.wayland_state, None, Serial::from(152));
+        assert_keyboard_owner(&session, None);
+        assert!(session.focus_keyboard_surface_with_app_id("aqua.files", 153));
+        assert_keyboard_owner(&session, Some("aqua.files"));
+        assert!(session.dispatch_pointer_motion(800.0, 80.0, 154));
         assert_owner(&session, Some("aqua.settings"));
-        assert!(
-            session
-                .client_surface_snapshot_for_app_id("aqua.files")
-                .expect("Files")
-                .keyboard_focus_assigned
-        );
-        assert!(
-            !session
-                .client_surface_snapshot_for_app_id("aqua.settings")
-                .expect("Settings")
-                .keyboard_focus_assigned
-        );
+        assert_keyboard_owner(&session, Some("aqua.files"));
         // During a button grab, the pointer owner differs from the new hit-test target.
         assert!(session.dispatch_pointer_button(0x110, true, 152));
         assert!(session.dispatch_pointer_motion(-800.0, 0.0, 153));
@@ -17216,6 +17250,28 @@ mod tests {
             .visible_client_surface_snapshots()
             .iter()
             .all(|s| !s.pointer_focus_assigned));
+        assert_keyboard_owner(&session, Some("aqua.files"));
+        assert!(session.activate_workspace(1, 160));
+        assert_keyboard_owner(&session, Some("aqua.settings"));
+        assert!(session.activate_workspace(2, 161));
+        assert_keyboard_owner(&session, None);
+        assert!(session.visible_client_surface_snapshots().is_empty());
+        assert!(session.activate_workspace(0, 162));
+        assert_keyboard_owner(&session, Some("aqua.files"));
+        files.xdg_toplevel.as_ref().expect("toplevel").destroy();
+        files.xdg_surface.as_ref().expect("xdg surface").destroy();
+        files.base_surface.as_ref().expect("surface").destroy();
+        files_connection.flush().expect("destroy flush");
+        session.dispatch_clients().expect("destroy dispatch");
+        assert!(keyboard.current_focus().is_none());
+        assert!(session
+            .client_surface_snapshot_for_app_id("aqua.files")
+            .is_none());
+        assert_eq!(session.client_surface_snapshots().len(), 1);
+        assert!(session
+            .client_surface_snapshots()
+            .iter()
+            .all(|s| !s.keyboard_focus_assigned));
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
