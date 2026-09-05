@@ -1965,51 +1965,75 @@ fn draw_desktop_identity(rgba: &mut [u8], width: u32, height: u32) -> usize {
         ink,
     );
 
-    let name = "A Q U A   L I N U X";
-    let tagline = "SIMPLER   .   FASTER   .   FREER";
-    let name_x = center_x.saturating_sub(name.len() as u32 * 6);
-    let tagline_x = center_x.saturating_sub(tagline.len() as u32 * 3);
-    draw_bitmap_text(
+    let text = desktop_identity_text_layout(width, height);
+    draw_fitted_bitmap_text(
         rgba,
         (width, height),
-        (name_x, center_y + 54),
-        name,
+        text.name,
+        "A Q U A   L I N U X",
         secondary,
-        2,
+        FittedTextOptions::new(TextRole::Title, OutputScale::One, true),
     );
-    draw_bitmap_text(
+    draw_fitted_bitmap_text(
         rgba,
         (width, height),
-        (tagline_x, center_y + 88),
-        tagline,
+        text.tagline,
+        "SIMPLER   ·   FASTER   ·   FREER",
         secondary,
-        1,
+        FittedTextOptions::new(TextRole::Caption, OutputScale::One, true),
     );
-    draw_bitmap_text(
-        rgba,
-        (width, height),
-        (12, height.saturating_sub(104)),
-        "B U I L T",
-        secondary,
-        1,
-    );
-    draw_bitmap_text(
-        rgba,
-        (width, height),
-        (12, height.saturating_sub(88)),
-        "F O R  A  C L E A R E R",
-        secondary,
-        1,
-    );
-    draw_bitmap_text(
-        rgba,
-        (width, height),
-        (12, height.saturating_sub(72)),
-        "T O M O R R O W",
-        secondary,
-        1,
-    );
+    for (rect, line) in
+        text.slogan
+            .into_iter()
+            .zip(["B U I L T", "F O R  A  C L E A R E R", "T O M O R R O W"])
+    {
+        draw_fitted_bitmap_text(
+            rgba,
+            (width, height),
+            rect,
+            line,
+            secondary,
+            FittedTextOptions::new(TextRole::Caption, OutputScale::One, false),
+        );
+    }
     13
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DesktopIdentityTextLayout {
+    name: Rect,
+    tagline: Rect,
+    slogan: [Rect; 3],
+}
+
+fn desktop_identity_text_layout(width: u32, height: u32) -> DesktopIdentityTextLayout {
+    let center_x = width / 2;
+    let center_y = height.saturating_mul(45) / 100;
+    let slogan_offsets = if height < 460 {
+        [60_u32, 42, 24]
+    } else {
+        [108_u32, 90, 72]
+    };
+    DesktopIdentityTextLayout {
+        name: Rect {
+            x: center_x.saturating_sub(130),
+            y: center_y + 48,
+            width: 260.min(width),
+            height: 28,
+        },
+        tagline: Rect {
+            x: center_x.saturating_sub(180),
+            y: center_y + 78,
+            width: 360.min(width),
+            height: 20,
+        },
+        slogan: slogan_offsets.map(|bottom_offset| Rect {
+            x: 12,
+            y: height.saturating_sub(bottom_offset),
+            width: 220.min(width.saturating_sub(12)),
+            height: 16,
+        }),
+    }
 }
 
 pub fn export_desktop_icons_png(width: u32, height: u32, state: &DesktopIconState) -> Vec<u8> {
@@ -9509,6 +9533,22 @@ mod tests {
         assert!(identity_region(&light) > 200);
         assert!(identity_region(&dark) > 200);
         assert_ne!(light.rgba, dark.rgba);
+    }
+
+    #[test]
+    fn desktop_identity_typography_is_centered_bounded_and_separated() {
+        for (width, height) in [(640, 320), (1232, 590), (1536, 1024)] {
+            let layout = desktop_identity_text_layout(width, height);
+            assert_eq!(layout.name.x + layout.name.width / 2, width / 2);
+            assert_eq!(layout.tagline.x + layout.tagline.width / 2, width / 2);
+            assert!(layout.name.bottom() <= layout.tagline.y);
+            assert!(layout.tagline.bottom() <= layout.slogan[0].y);
+            assert!(layout
+                .slogan
+                .windows(2)
+                .all(|rows| rows[0].bottom() <= rows[1].y));
+            assert!(layout.slogan[2].bottom() <= height);
+        }
     }
 
     #[test]
