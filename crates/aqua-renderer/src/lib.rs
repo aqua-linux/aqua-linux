@@ -6629,7 +6629,14 @@ pub fn export_runtime_desktop_rgba_with_launcher_and_theme(
         );
     }
 
-    let probe = draw_launcher_overlay(&mut image.rgba, viewport, launcher, theme);
+    let probe = draw_launcher_overlay(
+        &mut image.rgba,
+        viewport,
+        launcher,
+        theme,
+        &mut icons::IconRasterCache::default(),
+    )
+    .map_err(|error| format!("cannot render launcher icons: {error:?}"))?;
     let byte_count = image.rgba.len();
     let checksum = checksum_bytes(&image.rgba);
     Ok((
@@ -6653,6 +6660,21 @@ pub fn render_launcher_overlay_rgba_with_theme(
     launcher: &LauncherState,
     theme: AquaTheme,
 ) -> (Vec<u8>, LauncherOverlayProbe) {
+    render_launcher_overlay_rgba_with_cached_icons(
+        viewport,
+        launcher,
+        theme,
+        &mut icons::IconRasterCache::default(),
+    )
+    .expect("embedded launcher icons satisfy the raster contract")
+}
+
+pub fn render_launcher_overlay_rgba_with_cached_icons(
+    viewport: aqua_scene::Viewport,
+    launcher: &LauncherState,
+    theme: AquaTheme,
+    cache: &mut icons::IconRasterCache,
+) -> Result<(Vec<u8>, LauncherOverlayProbe), icons::IconError> {
     let mut rgba = vec![
         0_u8;
         viewport
@@ -6660,8 +6682,8 @@ pub fn render_launcher_overlay_rgba_with_theme(
             .saturating_mul(viewport.height)
             .saturating_mul(4) as usize
     ];
-    let probe = draw_launcher_overlay(&mut rgba, viewport, launcher, theme);
-    (rgba, probe)
+    let probe = draw_launcher_overlay(&mut rgba, viewport, launcher, theme, cache)?;
+    Ok((rgba, probe))
 }
 
 pub fn export_software_raster_rgba_for_static_scene(
@@ -6787,9 +6809,10 @@ fn draw_launcher_overlay(
     viewport: aqua_scene::Viewport,
     launcher: &LauncherState,
     theme: AquaTheme,
-) -> LauncherOverlayProbe {
+    cache: &mut icons::IconRasterCache,
+) -> Result<LauncherOverlayProbe, icons::IconError> {
     if !launcher.is_open() {
-        return LauncherOverlayProbe {
+        return Ok(LauncherOverlayProbe {
             rendered: false,
             mode: launcher.mode().id(),
             category_count: LauncherCategory::ALL.len(),
@@ -6797,7 +6820,7 @@ fn draw_launcher_overlay(
             selected_index: 0,
             query_visible: false,
             primitive_count: 0,
-        };
+        });
     }
 
     let overview = (launcher.mode() == LauncherMode::Applications)
@@ -6888,14 +6911,7 @@ fn draw_launcher_overlay(
                 };
                 let slots = cell.slots();
                 primitives += draw_grid_cell(buffer, viewport.width, viewport.height, cell, theme);
-                draw_app_icon(
-                    buffer,
-                    viewport.width,
-                    viewport.height,
-                    slots.icon.x,
-                    slots.icon.y,
-                    index,
-                );
+                draw_launcher_icon(buffer, viewport, slots.icon, app.id, theme, cache)?;
                 draw_fitted_bitmap_text(
                     buffer,
                     (viewport.width, viewport.height),
@@ -6938,29 +6954,44 @@ fn draw_launcher_overlay(
                     primitives += 1;
                 }
                 let slots = row.slots();
-                draw_app_icon(
+                draw_launcher_icon(
                     buffer,
-                    viewport.width,
-                    viewport.height,
-                    slots.leading.x,
-                    row.rect.y + 6,
-                    index,
-                );
-                draw_bitmap_text(
+                    viewport,
+                    Rect {
+                        x: slots.leading.x,
+                        y: row.rect.y + 10,
+                        width: 32,
+                        height: 32,
+                    },
+                    app.id,
+                    theme,
+                    cache,
+                )?;
+                draw_fitted_bitmap_text(
                     buffer,
                     (viewport.width, viewport.height),
-                    (slots.label.x, row.rect.y + 10),
+                    Rect {
+                        x: slots.label.x,
+                        y: row.rect.y + 6,
+                        width: slots.label.width,
+                        height: 22,
+                    },
                     app.name,
                     palette.text,
-                    1,
+                    FittedTextOptions::new(TextRole::Control, OutputScale::One, false),
                 );
-                draw_bitmap_text(
+                draw_fitted_bitmap_text(
                     buffer,
                     (viewport.width, viewport.height),
-                    (slots.label.x, row.rect.y + 29),
+                    Rect {
+                        x: slots.label.x,
+                        y: row.rect.y + 28,
+                        width: slots.label.width,
+                        height: 20,
+                    },
                     app.description,
                     palette.secondary_text,
-                    1,
+                    FittedTextOptions::new(TextRole::Control, OutputScale::One, false),
                 );
                 primitives += 1;
             }
@@ -6981,28 +7012,38 @@ fn draw_launcher_overlay(
                     palette.elevated,
                     220,
                 );
-                draw_category_icon(
+                draw_launcher_icon(
                     buffer,
-                    viewport.width,
-                    viewport.height,
-                    action.rect.x + 12,
-                    action.rect.y + 17,
-                    index,
-                );
-                draw_bitmap_text(
+                    viewport,
+                    Rect {
+                        x: action.rect.x + 12,
+                        y: action.rect.y + 13,
+                        width: 24,
+                        height: 24,
+                    },
+                    ["software", "settings", "files"][index],
+                    theme,
+                    cache,
+                )?;
+                draw_fitted_bitmap_text(
                     buffer,
                     (viewport.width, viewport.height),
-                    (action.rect.x + 42, action.rect.y + 18),
+                    Rect {
+                        x: action.rect.x + 46,
+                        y: action.rect.y + 14,
+                        width: action.rect.width.saturating_sub(58),
+                        height: 22,
+                    },
                     label,
                     palette.text,
-                    1,
+                    FittedTextOptions::new(TextRole::Control, OutputScale::One, false),
                 );
                 primitives += 2;
             }
         }
     }
 
-    LauncherOverlayProbe {
+    Ok(LauncherOverlayProbe {
         rendered: true,
         mode: launcher.mode().id(),
         category_count: LauncherCategory::ALL.len(),
@@ -7010,7 +7051,7 @@ fn draw_launcher_overlay(
         selected_index: launcher.selected_index(),
         query_visible: !launcher.query().is_empty(),
         primitive_count: primitives,
-    }
+    })
 }
 
 fn draw_category_icon(buffer: &mut [u8], width: u32, height: u32, x: u32, y: u32, index: usize) {
@@ -7053,54 +7094,37 @@ fn draw_category_icon(buffer: &mut [u8], width: u32, height: u32, x: u32, y: u32
     );
 }
 
-fn draw_app_icon(buffer: &mut [u8], width: u32, height: u32, x: u32, y: u32, index: usize) {
-    let colors = [
-        [0x4f, 0xc9, 0xff, 0xff],
-        [0x38, 0x8f, 0xf0, 0xff],
-        [0x1c, 0x31, 0x48, 0xff],
-        [0x85, 0xd7, 0xe9, 0xff],
-        [0xe8, 0xb5, 0x54, 0xff],
-        [0x36, 0xb9, 0xf3, 0xff],
-    ];
-    fill_rect(
+fn draw_launcher_icon(
+    buffer: &mut [u8],
+    viewport: aqua_scene::Viewport,
+    rect: Rect,
+    app_id: &str,
+    theme: AquaTheme,
+    cache: &mut icons::IconRasterCache,
+) -> Result<(), icons::IconError> {
+    let Some(role) = icons::IconRole::ALL
+        .into_iter()
+        .find(|role| role.id() == app_id)
+    else {
+        return Ok(());
+    };
+    let key = icons::IconRasterKey::new(
+        role,
+        theme,
+        icons::IconState::Normal,
+        rect.width as u16,
+        OutputScale::One,
+    )?;
+    let raster = cache.get_or_render(key)?;
+    icons::composite_icon(
         buffer,
-        width,
-        height,
-        Rect {
-            x,
-            y,
-            width: 38,
-            height: 38,
-        },
-        colors[index % colors.len()],
-        245,
+        viewport.width,
+        viewport.height,
+        rect.x,
+        rect.y,
+        &raster,
     );
-    fill_rect(
-        buffer,
-        width,
-        height,
-        Rect {
-            x: x + 3,
-            y: y + 3,
-            width: 32,
-            height: 2,
-        },
-        [0xff, 0xff, 0xff, 0xff],
-        180,
-    );
-    fill_rect(
-        buffer,
-        width,
-        height,
-        Rect {
-            x: x + 10,
-            y: y + 11,
-            width: 18,
-            height: 16,
-        },
-        [0xee, 0xfb, 0xff, 0xff],
-        150,
-    );
+    Ok(())
 }
 
 fn draw_window_controls(buffer: &mut [u8], width: u32, height: u32, x: u32, y: u32) {
@@ -9328,6 +9352,74 @@ mod tests {
         assert!(!probe.query_visible);
         assert_eq!(frame.status, "rgba-runtime-desktop-launcher-ready");
         assert_ne!(frame.checksum, 0);
+    }
+
+    #[test]
+    fn launcher_icons_keep_application_identity_after_filtering_and_reuse_cache() {
+        for theme in [AquaTheme::Light, AquaTheme::Dark] {
+            for viewport in [
+                Viewport::new(800, 600),
+                Viewport::new(1280, 800),
+                Viewport::new(1536, 1024),
+            ] {
+                let mut cache = icons::IconRasterCache::default();
+                let mut launcher = LauncherState::default();
+                launcher.open();
+                render_launcher_overlay_rgba_with_cached_icons(
+                    viewport, &launcher, theme, &mut cache,
+                )
+                .unwrap();
+                assert_eq!(cache.stats().misses, 6);
+                launcher.set_query("settings");
+                let (rgba, probe) = render_launcher_overlay_rgba_with_cached_icons(
+                    viewport, &launcher, theme, &mut cache,
+                )
+                .unwrap();
+                assert_eq!(probe.visible_app_count, 1);
+                assert_eq!(cache.stats().misses, 9);
+                let row = launcher
+                    .search_result_row(0, viewport.width, viewport.height)
+                    .unwrap();
+                let raster = cache
+                    .get_or_render(
+                        icons::IconRasterKey::new(
+                            icons::IconRole::Settings,
+                            theme,
+                            icons::IconState::Normal,
+                            32,
+                            OutputScale::One,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
+                let mut opaque_pixels = 0;
+                for y in 0..32 {
+                    for x in 0..32 {
+                        let source = ((y * 32 + x) * 4) as usize;
+                        if raster.rgba[source + 3] == 255 {
+                            let destination = (((row.rect.y + 10 + y) * viewport.width
+                                + row.slots().leading.x
+                                + x)
+                                * 4) as usize;
+                            assert_eq!(
+                                &rgba[destination..destination + 4],
+                                &raster.rgba[source..source + 4]
+                            );
+                            opaque_pixels += 1;
+                        }
+                    }
+                }
+                assert!(opaque_pixels > 0);
+                let before = cache.stats();
+                let (repeated, _) = render_launcher_overlay_rgba_with_cached_icons(
+                    viewport, &launcher, theme, &mut cache,
+                )
+                .unwrap();
+                assert_eq!(rgba, repeated);
+                assert_eq!(cache.stats().misses, before.misses);
+                assert_eq!(cache.stats().hits, before.hits + 4);
+            }
+        }
     }
 
     #[test]
