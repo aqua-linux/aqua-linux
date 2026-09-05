@@ -953,7 +953,13 @@ requires one live buffer after release dispatch as well as zero pools. The
 current buffer remains available for later commits. UI and Terminal socket reads
 retry `WouldBlock`, including wakeups that consume only protocol housekeeping;
 other read failures still propagate. A socket-pair regression distinguishes an
-empty nonblocking read from peer disconnection.
+empty nonblocking read from peer disconnection. Committed buffer ownership is
+transferred out of Smithay's cached surface attributes into Aqua's surface
+registry. Replacement and surface destruction release a buffer only when no
+registered surface still uses it, including surfaces on hidden workspaces.
+The real-client `shared_buffer_release` regression attaches one buffer to two
+surfaces, recommits the same buffer, replaces each user in turn, and destroys
+both surfaces. It checks retention until the final user is removed.
 
 Explicit client activation supplies Smithay with the window's global origin
 alongside the global pointer location. Smithay performs the single conversion

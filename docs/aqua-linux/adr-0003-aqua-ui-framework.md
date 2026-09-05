@@ -192,6 +192,8 @@ one-shot shared-memory pools are destroyed after client buffer creation, with
 real-server object enumeration covering initial attachment and repeated redraws;
 replaced client buffers retire after server release, with batched-redraw checks
 requiring one live buffer after release dispatch;
+committed buffer ownership lives in the surface registry, with release delayed
+until the final surface user replaces the buffer or is destroyed;
 the broader consolidation remains in progress.
 
 ## Context
