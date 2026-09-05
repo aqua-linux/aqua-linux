@@ -944,8 +944,16 @@ exercises this boundary directly. Initial attachment and Terminal frame pacing
 retain their existing lifecycle paths. All client buffer creation paths destroy
 the one-shot shared-memory pool after creating its buffer. The buffer retains
 its backing storage independently. The real-client regression checks that no
-pool objects remain after initial attachment or three successive UI redraws,
-while surface commits and buffer import remain functional.
+pool objects remain after initial attachment or successive UI redraw batches,
+while surface commits and buffer import remain functional. The server releases the old buffer when a new buffer replaces it on the
+surface. The client destroys retired buffers only after `wl_buffer.release`;
+a release for the current buffer is remembered until replacement. The
+real-server regression covers batches of one, two, and three redraws and
+requires one live buffer after release dispatch as well as zero pools. The
+current buffer remains available for later commits. UI and Terminal socket reads
+retry `WouldBlock`, including wakeups that consume only protocol housekeeping;
+other read failures still propagate. A socket-pair regression distinguishes an
+empty nonblocking read from peer disconnection.
 
 Explicit client activation supplies Smithay with the window's global origin
 alongside the global pointer location. Smithay performs the single conversion

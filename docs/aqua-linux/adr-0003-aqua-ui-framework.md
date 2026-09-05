@@ -190,6 +190,8 @@ submission with a close guard at the shared boundary, while retaining their
 domain renderers and existing initial-attachment lifecycle;
 one-shot shared-memory pools are destroyed after client buffer creation, with
 real-server object enumeration covering initial attachment and repeated redraws;
+replaced client buffers retire after server release, with batched-redraw checks
+requiring one live buffer after release dispatch;
 the broader consolidation remains in progress.
 
 ## Context

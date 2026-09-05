@@ -7689,6 +7689,7 @@ struct XdgSmokeClientState {
     xdg_toplevel: Option<client_xdg_toplevel::XdgToplevel>,
     seat: Option<client_wl_seat::WlSeat>,
     shm_buffer: Option<client_wl_buffer::WlBuffer>,
+    shm_buffer_released: bool,
     shm: Option<client_wl_shm::WlShm>,
     wm_base: Option<client_xdg_wm_base::XdgWmBase>,
     buffer_width: u32,
@@ -8326,7 +8327,7 @@ impl XdgSmokeClientState {
             surface.damage(0, 0, width as i32, height as i32);
             surface.frame(qh, ());
             surface.commit();
-            self.shm_buffer = Some(buffer);
+            self.replace_shm_buffer(buffer);
             self.installer_redraw_count += 1;
             println!(
                 "aqua_installer_redraw_count={}",
@@ -9014,7 +9015,7 @@ impl XdgSmokeClientState {
             (),
         );
         pool.destroy();
-        self.shm_buffer = Some(buffer);
+        self.replace_shm_buffer(buffer);
         self.shm_buffer_created = true;
         self.attach_client_buffer(qh);
     }
@@ -9071,6 +9072,15 @@ impl XdgSmokeClientState {
         self.submit_ui_redraw_buffer(qh, width, height, &pixels);
     }
 
+    fn replace_shm_buffer(&mut self, buffer: client_wl_buffer::WlBuffer) {
+        if let Some(previous) = self.shm_buffer.replace(buffer) {
+            if self.shm_buffer_released {
+                previous.destroy();
+            }
+        }
+        self.shm_buffer_released = false;
+    }
+
     fn submit_ui_redraw_buffer(
         &mut self,
         qh: &QueueHandle<Self>,
@@ -9107,7 +9117,7 @@ impl XdgSmokeClientState {
         surface.damage(0, 0, width as i32, height as i32);
         surface.frame(qh, ());
         surface.commit();
-        self.shm_buffer = Some(buffer);
+        self.replace_shm_buffer(buffer);
     }
 
     fn redraw_terminal_buffer(&mut self, qh: &QueueHandle<Self>) {
@@ -9151,7 +9161,7 @@ impl XdgSmokeClientState {
             surface.damage(0, 0, width as i32, height as i32);
             surface.frame(qh, ());
             surface.commit();
-            self.shm_buffer = Some(buffer);
+            self.replace_shm_buffer(buffer);
             self.terminal_frame_pending = true;
             self.terminal_frame_requested_at = Some(std::time::Instant::now());
             self.terminal_dirty = false;
@@ -9221,6 +9231,20 @@ impl XdgSmokeClientState {
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn read_client_events(
+    guard: wayland_client::backend::ReadEventsGuard,
+) -> Result<usize, wayland_client::backend::WaylandError> {
+    match guard.read() {
+        Err(wayland_client::backend::WaylandError::Io(error))
+            if error.kind() == std::io::ErrorKind::WouldBlock =>
+        {
+            Ok(0)
+        }
+        result => result,
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 fn run_aqua_ui_event_loop(
     connection: &ClientConnection,
     event_queue: &mut wayland_client::EventQueue<XdgSmokeClientState>,
@@ -9251,7 +9275,7 @@ fn run_aqua_ui_event_loop(
         };
         events.clear();
         if poller.wait(&mut events, Some(Duration::from_millis(100)))? > 0 {
-            read_guard.read()?;
+            read_client_events(read_guard)?;
         }
     }
     poller.delete(event_queue.as_fd())?;
@@ -11192,7 +11216,7 @@ pub fn run_aqua_terminal_client(
         };
         events.clear();
         if poller.wait(&mut events, Some(Duration::from_millis(16)))? > 0 {
-            read_guard.read()?;
+            read_client_events(read_guard)?;
         }
     }
     poller.delete(event_queue.as_fd())?;
@@ -11725,6 +11749,9 @@ impl CompositorHandler for WaylandSmokeState {
                             let restore_geometry = existing.restore_geometry;
                             let workspace = existing.workspace;
                             let damage_commit_count = existing.damage_commit_count;
+                            if existing.buffer != record.buffer {
+                                existing.buffer.release();
+                            }
                             *existing = record;
                             existing.workspace = workspace;
                             existing.damage_commit_count =
@@ -14766,7 +14793,24 @@ delegate_noop!(XdgSmokeClientState: ignore client_wl_shm::WlShm);
 delegate_noop!(XdgSmokeClientState: ignore client_wl_shm_pool::WlShmPool);
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
-delegate_noop!(XdgSmokeClientState: ignore client_wl_buffer::WlBuffer);
+impl wayland_client::Dispatch<client_wl_buffer::WlBuffer, ()> for XdgSmokeClientState {
+    fn event(
+        state: &mut Self,
+        buffer: &client_wl_buffer::WlBuffer,
+        event: client_wl_buffer::Event,
+        _data: &(),
+        _connection: &ClientConnection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        if let client_wl_buffer::Event::Release = event {
+            if state.shm_buffer.as_ref() == Some(buffer) {
+                state.shm_buffer_released = true;
+            } else {
+                buffer.destroy();
+            }
+        }
+    }
+}
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl ClientDispatch<wl_registry::WlRegistry, ()> for PopupLifecycleClientState {
@@ -16284,6 +16328,19 @@ mod tests {
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     #[test]
+    fn closed_client_render_read_retries_empty_socket_and_reports_disconnect() {
+        let (server, client) = std::os::unix::net::UnixStream::pair().expect("stream pair");
+        let connection = ClientConnection::from_socket(client).expect("connection");
+        assert_eq!(
+            read_client_events(connection.prepare_read().expect("read guard")).expect("retry"),
+            0
+        );
+        drop(server);
+        assert!(read_client_events(connection.prepare_read().expect("read guard")).is_err());
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
     fn closed_client_render_rejects_initial_configure_and_late_redraw() {
         for close_before_configure in [false, true] {
             let mut session = SmithayDrmSession::new().expect("Smithay session");
@@ -16319,7 +16376,7 @@ mod tests {
                 assert!(state.configure_ack_sent);
                 assert!(state.client_buffer_attached);
                 assert_eq!(session.visible_client_surface_snapshots().len(), 1);
-                let assert_no_shm_pools = |session: &SmithayDrmSession| {
+                let assert_bounded_shm_resources = |session: &SmithayDrmSession| {
                     let handle = session
                         .session
                         .wayland_state
@@ -16341,17 +16398,33 @@ mod tests {
                         0,
                         "one-shot shared memory pools must be destroyed after buffer creation"
                     );
+                    assert_eq!(
+                        objects
+                            .iter()
+                            .filter(|object| object.interface().name == "wl_buffer")
+                            .count(),
+                        1,
+                        "only the current client buffer should remain"
+                    );
                 };
-                assert_no_shm_pools(&session);
-                for _ in 0..3 {
+                assert_bounded_shm_resources(&session);
+                for redraws in 1..=3 {
                     let commits_before = session.session.wayland_state.surface_commit_count;
-                    state.redraw_settings_buffer(&qh);
+                    for _ in 0..redraws {
+                        state.redraw_settings_buffer(&qh);
+                    }
                     connection.flush().expect("live redraw flush");
                     session.dispatch_clients().expect("live redraw dispatch");
-                    assert_no_shm_pools(&session);
+                    session.flush_clients().expect("buffer release flush");
+                    queue
+                        .blocking_dispatch(&mut state)
+                        .expect("buffer release dispatch");
+                    connection.flush().expect("retired buffer flush");
+                    session.dispatch_clients().expect("retired buffer dispatch");
+                    assert_bounded_shm_resources(&session);
                     assert_eq!(
                         session.session.wayland_state.surface_commit_count,
-                        commits_before + 1
+                        commits_before + redraws
                     );
                     assert!(session.visible_client_surface_snapshots()[0].is_ready());
                 }
