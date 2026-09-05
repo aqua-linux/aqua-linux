@@ -8016,7 +8016,7 @@ impl XdgSmokeClientState {
     }
 
     fn apply_runtime_theme(&mut self, theme: aqua_shell::AquaTheme) -> bool {
-        if self.theme == theme {
+        if self.close_event_received || self.theme == theme {
             return false;
         }
         self.theme = theme;
@@ -8027,6 +8027,9 @@ impl XdgSmokeClientState {
     }
 
     fn refresh_runtime_theme(&mut self, qh: &QueueHandle<Self>) -> bool {
+        if self.close_event_received {
+            return false;
+        }
         let theme = Self::configured_theme();
         if !self.apply_runtime_theme(theme) {
             return false;
@@ -8285,6 +8288,9 @@ impl XdgSmokeClientState {
     }
 
     fn redraw_installer_buffer(&mut self, qh: &QueueHandle<Self>) {
+        if self.close_event_received {
+            return;
+        }
         let Some(shm) = self.shm.clone() else {
             return;
         };
@@ -9012,6 +9018,9 @@ impl XdgSmokeClientState {
     }
 
     fn redraw_files_buffer(&mut self, qh: &QueueHandle<Self>) {
+        if self.close_event_received {
+            return;
+        }
         let Some(shm) = self.shm.clone() else {
             return;
         };
@@ -9050,6 +9059,9 @@ impl XdgSmokeClientState {
     }
 
     fn redraw_settings_buffer(&mut self, qh: &QueueHandle<Self>) {
+        if self.close_event_received {
+            return;
+        }
         let (Some(shm), Some(model)) = (self.shm.clone(), self.settings_model.as_ref()) else {
             return;
         };
@@ -9093,6 +9105,9 @@ impl XdgSmokeClientState {
     }
 
     fn redraw_properties_buffer(&mut self, qh: &QueueHandle<Self>) {
+        if self.close_event_received {
+            return;
+        }
         let (Some(shm), Some(model)) = (self.shm.clone(), self.properties_model.as_ref()) else {
             return;
         };
@@ -9129,6 +9144,9 @@ impl XdgSmokeClientState {
     }
 
     fn redraw_terminal_buffer(&mut self, qh: &QueueHandle<Self>) {
+        if self.close_event_received {
+            return;
+        }
         let Some(shm) = self.shm.clone() else {
             return;
         };
@@ -9210,7 +9228,7 @@ impl XdgSmokeClientState {
     }
 
     fn attach_client_buffer(&mut self, qh: &QueueHandle<Self>) {
-        if !self.configure_ack_sent || self.client_buffer_attached {
+        if self.close_event_received || !self.configure_ack_sent || self.client_buffer_attached {
             return;
         }
 
@@ -9254,11 +9272,11 @@ fn run_aqua_ui_event_loop(
     let mut events = polling::Events::new();
     while !state.close_event_received {
         event_queue.dispatch_pending(state)?;
-        state.refresh_runtime_theme(&queue_handle);
-        connection.flush()?;
         if state.close_event_received {
             break;
         }
+        state.refresh_runtime_theme(&queue_handle);
+        connection.flush()?;
 
         let Some(read_guard) = event_queue.prepare_read() else {
             continue;
@@ -11143,6 +11161,9 @@ pub fn run_aqua_terminal_client(
     let mut last_output_at = None;
     while !state.close_event_received {
         event_queue.dispatch_pending(&mut state)?;
+        if state.close_event_received {
+            break;
+        }
         state.refresh_runtime_theme(&queue_handle);
         connection.flush()?;
 
@@ -11182,9 +11203,6 @@ pub fn run_aqua_terminal_client(
             state.redraw_terminal_buffer(&queue_handle);
             connection.flush()?;
             last_output_at = None;
-        }
-        if state.close_event_received {
-            break;
         }
 
         let Some(read_guard) = event_queue.prepare_read() else {
@@ -13765,6 +13783,9 @@ impl ClientDispatch<client_xdg_surface::XdgSurface, ()> for XdgSmokeClientState 
         _: &ClientConnection,
         qh: &QueueHandle<Self>,
     ) {
+        if state.close_event_received {
+            return;
+        }
         if let client_xdg_surface::Event::Configure { serial, .. } = event {
             xdg_surface.ack_configure(serial);
             state.configure_ack_sent = true;
@@ -13783,6 +13804,9 @@ impl ClientDispatch<client_xdg_toplevel::XdgToplevel, ()> for XdgSmokeClientStat
         _: &ClientConnection,
         qh: &QueueHandle<Self>,
     ) {
+        if state.close_event_received {
+            return;
+        }
         match event {
             client_xdg_toplevel::Event::Close => state.begin_close(),
             client_xdg_toplevel::Event::Configure { width, height, .. }
@@ -13842,7 +13866,7 @@ impl ClientDispatch<client_wl_callback::WlCallback, ()> for XdgSmokeClientState 
                 state.terminal_frame_requested_at = None;
                 return;
             }
-            if !state.partial_damage_commit_sent {
+            if !state.close_event_received && !state.partial_damage_commit_sent {
                 if let Some(surface) = state.base_surface.as_ref() {
                     surface.damage(32, 24, 96, 64);
                     surface.commit();
@@ -16204,6 +16228,89 @@ mod tests {
             .expect_err("payload above the probe limit must fail");
 
         assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn closed_client_render_rejects_initial_configure_and_late_redraw() {
+        for close_before_configure in [false, true] {
+            let mut session = SmithayDrmSession::new().expect("Smithay session");
+            let (server, client) = std::os::unix::net::UnixStream::pair().expect("stream pair");
+            session.insert_client(server).expect("insert client");
+            let connection = ClientConnection::from_socket(client).expect("connection");
+            let mut queue = connection.new_event_queue::<XdgSmokeClientState>();
+            let qh = queue.handle();
+            connection.display().get_registry(&qh, ());
+            connection.flush().expect("registry flush");
+            session.dispatch_clients().expect("registry dispatch");
+            session.flush_clients().expect("globals flush");
+            let mut state = XdgSmokeClientState::settings_app().expect("Settings");
+            queue
+                .blocking_dispatch(&mut state)
+                .expect("globals dispatch");
+            connection.flush().expect("surface flush");
+            session.dispatch_clients().expect("surface dispatch");
+            session.flush_clients().expect("configure flush");
+            if close_before_configure {
+                state.begin_close();
+            }
+            queue
+                .blocking_dispatch(&mut state)
+                .expect("configure dispatch");
+            connection.flush().expect("buffer flush");
+            session.dispatch_clients().expect("buffer dispatch");
+            if close_before_configure {
+                assert!(!state.configure_ack_sent);
+                assert!(!state.client_buffer_attached);
+                assert!(session.visible_client_surface_snapshots().is_empty());
+            } else {
+                assert!(state.configure_ack_sent);
+                assert!(state.client_buffer_attached);
+                assert_eq!(session.visible_client_surface_snapshots().len(), 1);
+                state.redraw_settings_buffer(&qh);
+                connection.flush().expect("live redraw flush");
+                session.dispatch_clients().expect("live redraw dispatch");
+                // The server sends close before the still-pending frame completions.
+                assert!(session.close_active_toplevel());
+                state.state_cycle_started = true;
+                assert!(session.session.wayland_state.resize_active_toplevel());
+                assert!(session.complete_client_frame_callbacks(1) > 0);
+                session.flush_clients().expect("close flush");
+                queue.blocking_dispatch(&mut state).expect("close dispatch");
+                assert!(state.close_event_received);
+                assert!(state.frame_callback_received);
+                assert!(!state.partial_damage_commit_sent);
+                assert_eq!(state.state_configure_count, 0);
+            }
+            let commits_before = session.session.wayland_state.surface_commit_count;
+            let buffer_before = state.shm_buffer.clone();
+            let theme_before = state.theme;
+            let settings_before = state.settings_model.clone();
+            state.redraw_settings_buffer(&qh);
+            assert!(!state.apply_runtime_theme(
+                if theme_before == aqua_shell::AquaTheme::LightWhite {
+                    aqua_shell::AquaTheme::Deepside
+                } else {
+                    aqua_shell::AquaTheme::LightWhite
+                }
+            ));
+            assert!(!state.refresh_runtime_theme(&qh));
+            // Exercise the initial attachment fence independently of configure dispatch.
+            state.configure_ack_sent = true;
+            state.client_buffer_attached = false;
+            state.attach_client_buffer(&qh);
+            assert!(!state.client_buffer_attached);
+            connection.flush().expect("late request flush");
+            session.dispatch_clients().expect("late request dispatch");
+            assert_eq!(
+                session.session.wayland_state.surface_commit_count,
+                commits_before
+            );
+            assert_eq!(state.shm_buffer, buffer_before);
+            assert_eq!(state.theme, theme_before);
+            assert_eq!(state.settings_model, settings_before);
+            assert_eq!(session.complete_client_frame_callbacks(2), 0);
+        }
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]

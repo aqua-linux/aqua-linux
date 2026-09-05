@@ -26,6 +26,7 @@ cargo test --workspace
 cargo test -p aqua-compositor --features smithay-smoke properties_pointer_leave
 cargo test -p aqua-compositor --features smithay-smoke shared_pointer_leave
 cargo test -p aqua-compositor --features smithay-smoke closed_client_input
+AQUA_TRASH_ROOT="${CHECK_TEMP_ROOT}/closed-render-trash" cargo test -p aqua-compositor --features smithay-smoke closed_client_render
 AQUA_TRASH_ROOT="${CHECK_TEMP_ROOT}/keyboard-leave-trash" cargo test -p aqua-compositor --features smithay-smoke shared_keyboard_leave
 cargo test -p aqua-compositor --features smithay-smoke files_axis_scroll_rows
 scripts/check-typography-fixtures.sh

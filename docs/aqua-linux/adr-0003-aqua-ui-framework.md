@@ -167,6 +167,10 @@ is preserved. Files drag-only cancellation carries no visual repaint;
 window-frame and xdg close also share an input shutdown transition that clears
 transient state before accepting no further keyboard or pointer actions. Late
 leave remains safe and inert; queued-input regressions preserve domain state;
+closed clients also reject redraw, initial attachment, theme refresh, and late
+xdg configure work. Frame completion cannot trigger a new damage commit after
+close; polling turns stop before further theme or PTY work. A real Wayland
+regression covers pre-configure shutdown and close-before-frame-completion;
 the broader consolidation remains in progress.
 
 ## Context
