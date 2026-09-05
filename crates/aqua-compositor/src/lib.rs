@@ -6798,6 +6798,17 @@ const TURKISH_DEAD_KEY_XKB_KEYCODE: u32 = 39 + XKB_KEYCODE_OFFSET;
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl WaylandSmokeState {
+    fn release_unused_buffer(&self, buffer: &wl_buffer::WlBuffer) {
+        if buffer.is_alive()
+            && !self
+                .mapped_surfaces
+                .iter()
+                .any(|record| record.buffer == *buffer)
+        {
+            buffer.release();
+        }
+    }
+
     fn new(display_handle: &DisplayHandle) -> Result<Self, Box<dyn std::error::Error>> {
         Self::new_with_keyboard_layout(display_handle, KEYBOARD_LAYOUT_SPECS[2])
     }
@@ -7690,6 +7701,8 @@ struct XdgSmokeClientState {
     seat: Option<client_wl_seat::WlSeat>,
     shm_buffer: Option<client_wl_buffer::WlBuffer>,
     shm_buffer_released: bool,
+    #[cfg(test)]
+    test_compositor: Option<wl_compositor::WlCompositor>,
     shm: Option<client_wl_shm::WlShm>,
     wm_base: Option<client_xdg_wm_base::XdgWmBase>,
     buffer_width: u32,
@@ -11620,8 +11633,10 @@ impl CompositorHandler for WaylandSmokeState {
             }
             self.pending_frame_callbacks
                 .append(&mut attributes.frame_callbacks);
-            let new_buffer = match attributes.buffer.as_ref() {
-                Some(BufferAssignment::NewBuffer(buffer)) => Some(buffer.clone()),
+            // The surface registry owns committed buffers and decides when all
+            // surface users have released them, rather than the cached attributes.
+            let new_buffer = match attributes.buffer.take() {
+                Some(BufferAssignment::NewBuffer(buffer)) => Some(buffer),
                 _ => None,
             };
             let buffer = new_buffer.clone().or_else(|| {
@@ -11733,6 +11748,13 @@ impl CompositorHandler for WaylandSmokeState {
                             display_height: buffer_height,
                             restore_geometry: None,
                         };
+                        let retired_buffer = self
+                            .mapped_surfaces
+                            .iter()
+                            .find(|existing| {
+                                existing.surface == *surface && existing.buffer != record.buffer
+                            })
+                            .map(|existing| existing.buffer.clone());
                         let newly_mapped = !self
                             .mapped_surfaces
                             .iter()
@@ -11749,9 +11771,6 @@ impl CompositorHandler for WaylandSmokeState {
                             let restore_geometry = existing.restore_geometry;
                             let workspace = existing.workspace;
                             let damage_commit_count = existing.damage_commit_count;
-                            if existing.buffer != record.buffer {
-                                existing.buffer.release();
-                            }
                             *existing = record;
                             existing.workspace = workspace;
                             existing.damage_commit_count =
@@ -11803,6 +11822,9 @@ impl CompositorHandler for WaylandSmokeState {
                                 }
                             }
                         }
+                        if let Some(buffer) = retired_buffer {
+                            self.release_unused_buffer(&buffer);
+                        }
                         if newly_mapped
                             && self.mapped_surfaces.iter().any(|record| {
                                 record.surface == *surface
@@ -11821,8 +11843,16 @@ impl CompositorHandler for WaylandSmokeState {
         self.committed_surfaces
             .retain(|committed| committed != surface);
         let previous_count = self.mapped_surfaces.len();
+        let retired_buffer = self
+            .mapped_surfaces
+            .iter()
+            .find(|record| record.surface == *surface)
+            .map(|record| record.buffer.clone());
         self.mapped_surfaces
             .retain(|record| record.surface != *surface);
+        if let Some(buffer) = retired_buffer {
+            self.release_unused_buffer(&buffer);
+        }
         self.toplevel_surfaces
             .retain(|toplevel| toplevel.wl_surface() != surface);
         if self.mapped_surfaces.len() == previous_count {
@@ -13738,6 +13768,10 @@ impl ClientDispatch<wl_registry::WlRegistry, ()> for XdgSmokeClientState {
                         region.add(0, 0, state.buffer_width as i32, state.buffer_height as i32);
                         surface.set_opaque_region(Some(&region));
                         region.destroy();
+                    }
+                    #[cfg(test)]
+                    {
+                        state.test_compositor = Some(compositor);
                     }
                     state.base_surface = Some(surface);
                     state.compositor_global_seen = true;
@@ -16337,6 +16371,96 @@ mod tests {
         );
         drop(server);
         assert!(read_client_events(connection.prepare_read().expect("read guard")).is_err());
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn shared_buffer_release_waits_for_last_surface() {
+        let mut session = SmithayDrmSession::new().expect("Smithay session");
+        let (server, client) = std::os::unix::net::UnixStream::pair().expect("stream pair");
+        session.insert_client(server).expect("insert client");
+        let connection = ClientConnection::from_socket(client).expect("connection");
+        let mut queue = connection.new_event_queue::<XdgSmokeClientState>();
+        let qh = queue.handle();
+        connection.display().get_registry(&qh, ());
+        connection.flush().expect("registry flush");
+        session.dispatch_clients().expect("registry dispatch");
+        session.flush_clients().expect("globals flush");
+        let mut state = XdgSmokeClientState::settings_app().expect("Settings");
+        queue
+            .blocking_dispatch(&mut state)
+            .expect("globals dispatch");
+        connection.flush().expect("surface flush");
+        session.dispatch_clients().expect("surface dispatch");
+        session.flush_clients().expect("configure flush");
+        queue
+            .blocking_dispatch(&mut state)
+            .expect("configure dispatch");
+        let secondary = state
+            .test_compositor
+            .as_ref()
+            .expect("compositor")
+            .create_surface(&qh, ());
+        let shared = state.shm_buffer.clone().expect("initial buffer");
+        secondary.attach(Some(&shared), 0, 0);
+        secondary.commit();
+        connection.flush().expect("shared attachment flush");
+        session
+            .dispatch_clients()
+            .expect("shared attachment dispatch");
+        assert_eq!(session.session.wayland_state.mapped_surfaces.len(), 2);
+
+        let pump = |session: &mut SmithayDrmSession,
+                    queue: &mut wayland_client::EventQueue<XdgSmokeClientState>,
+                    state: &mut XdgSmokeClientState| {
+            connection.flush().expect("request flush");
+            session.dispatch_clients().expect("request dispatch");
+            session.flush_clients().expect("release flush");
+            if let Some(guard) = queue.prepare_read() {
+                read_client_events(guard).expect("release read");
+            }
+            queue.dispatch_pending(state).expect("release dispatch");
+            connection.flush().expect("cleanup flush");
+            session.dispatch_clients().expect("cleanup dispatch");
+        };
+        session.session.wayland_state.mapped_surfaces[1].workspace = 1;
+        secondary.attach(Some(&shared), 0, 0);
+        secondary.commit();
+        pump(&mut session, &mut queue, &mut state);
+        assert!(
+            !state.shm_buffer_released,
+            "same-buffer commit must retain ownership"
+        );
+        state.redraw_settings_buffer(&qh);
+        pump(&mut session, &mut queue, &mut state);
+        assert!(
+            shared.is_alive(),
+            "secondary surface still owns the old buffer"
+        );
+        let current = state.shm_buffer.clone().expect("replacement buffer");
+        secondary.attach(Some(&current), 0, 0);
+        secondary.commit();
+        pump(&mut session, &mut queue, &mut state);
+        assert!(
+            !shared.is_alive(),
+            "last replacement must release the old buffer"
+        );
+        assert!(!state.shm_buffer_released);
+        secondary.destroy();
+        pump(&mut session, &mut queue, &mut state);
+        assert!(!state.shm_buffer_released, "primary still owns the buffer");
+        state.xdg_toplevel.as_ref().expect("toplevel").destroy();
+        state.xdg_surface.as_ref().expect("xdg surface").destroy();
+        state.base_surface.as_ref().expect("surface").destroy();
+        pump(&mut session, &mut queue, &mut state);
+        assert!(
+            state.shm_buffer_released,
+            "last surface destruction must release"
+        );
+        assert!(
+            current.is_alive(),
+            "current released buffer is retained for reuse"
+        );
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
