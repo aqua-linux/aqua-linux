@@ -9021,7 +9021,7 @@ impl XdgSmokeClientState {
         if self.close_event_received {
             return;
         }
-        let Some(shm) = self.shm.clone() else {
+        let Some(_) = self.shm.as_ref() else {
             return;
         };
         let Some(model) = self.files_model.as_ref() else {
@@ -9029,46 +9029,20 @@ impl XdgSmokeClientState {
         };
         let width = self.buffer_width.max(1);
         let height = self.buffer_height.max(1);
-        let stride = width * 4;
-        let size = stride * height;
         let pixels = render_files_window_rgba_with_theme(width, height, model, self.theme).0;
 
-        use std::io::Write;
-        use std::os::unix::io::AsFd;
-        let mut file = tempfile::tempfile().expect("Aqua Files redraw tempfile should open");
-        file.write_all(&pixels)
-            .expect("Aqua Files redraw buffer should be writable");
-        file.flush().expect("Aqua Files redraw buffer should flush");
-        let pool = shm.create_pool(file.as_fd(), size as i32, qh, ());
-        let buffer = pool.create_buffer(
-            0,
-            width as i32,
-            height as i32,
-            stride as i32,
-            client_wl_shm::Format::Argb8888,
-            qh,
-            (),
-        );
-        if let Some(surface) = self.base_surface.as_ref() {
-            surface.attach(Some(&buffer), 0, 0);
-            surface.damage(0, 0, width as i32, height as i32);
-            surface.frame(qh, ());
-            surface.commit();
-            self.shm_buffer = Some(buffer);
-        }
+        self.submit_ui_redraw_buffer(qh, width, height, &pixels);
     }
 
     fn redraw_settings_buffer(&mut self, qh: &QueueHandle<Self>) {
         if self.close_event_received {
             return;
         }
-        let (Some(shm), Some(model)) = (self.shm.clone(), self.settings_model.as_ref()) else {
+        let (Some(_), Some(model)) = (self.shm.as_ref(), self.settings_model.as_ref()) else {
             return;
         };
         let width = self.buffer_width.max(1);
         let height = self.buffer_height.max(1);
-        let stride = width * 4;
-        let size = stride * height;
         let (pixels, probe) = render_settings_window_rgba(width, height, model);
         if model.selected_category == 5 {
             println!(
@@ -9078,52 +9052,44 @@ impl XdgSmokeClientState {
             );
         }
 
-        use std::io::Write;
-        use std::os::unix::io::AsFd;
-        let mut file = tempfile::tempfile().expect("Aqua Settings redraw tempfile should open");
-        file.write_all(&pixels)
-            .expect("Aqua Settings redraw buffer should be writable");
-        file.flush()
-            .expect("Aqua Settings redraw buffer should flush");
-        let pool = shm.create_pool(file.as_fd(), size as i32, qh, ());
-        let buffer = pool.create_buffer(
-            0,
-            width as i32,
-            height as i32,
-            stride as i32,
-            client_wl_shm::Format::Argb8888,
-            qh,
-            (),
-        );
-        if let Some(surface) = self.base_surface.as_ref() {
-            surface.attach(Some(&buffer), 0, 0);
-            surface.damage(0, 0, width as i32, height as i32);
-            surface.frame(qh, ());
-            surface.commit();
-            self.shm_buffer = Some(buffer);
-        }
+        self.submit_ui_redraw_buffer(qh, width, height, &pixels);
     }
 
     fn redraw_properties_buffer(&mut self, qh: &QueueHandle<Self>) {
         if self.close_event_received {
             return;
         }
-        let (Some(shm), Some(model)) = (self.shm.clone(), self.properties_model.as_ref()) else {
+        let (Some(_), Some(model)) = (self.shm.as_ref(), self.properties_model.as_ref()) else {
             return;
         };
         let width = self.buffer_width.max(1);
         let height = self.buffer_height.max(1);
-        let stride = width * 4;
-        let size = stride * height;
         let pixels = render_properties_window_rgba_with_theme(width, height, model, self.theme).0;
 
+        self.submit_ui_redraw_buffer(qh, width, height, &pixels);
+    }
+
+    fn submit_ui_redraw_buffer(
+        &mut self,
+        qh: &QueueHandle<Self>,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+    ) {
+        if self.close_event_received {
+            return;
+        }
+        let (Some(shm), Some(surface)) = (self.shm.as_ref(), self.base_surface.as_ref()) else {
+            return;
+        };
+        let stride = width * 4;
+        let size = stride * height;
         use std::io::Write;
         use std::os::unix::io::AsFd;
-        let mut file = tempfile::tempfile().expect("Aqua Properties redraw tempfile should open");
-        file.write_all(&pixels)
-            .expect("Aqua Properties redraw buffer should be writable");
-        file.flush()
-            .expect("Aqua Properties redraw buffer should flush");
+        let mut file = tempfile::tempfile().expect("Aqua UI redraw tempfile should open");
+        file.write_all(pixels)
+            .expect("Aqua UI redraw buffer should be writable");
+        file.flush().expect("Aqua UI redraw buffer should flush");
         let pool = shm.create_pool(file.as_fd(), size as i32, qh, ());
         let buffer = pool.create_buffer(
             0,
@@ -9134,13 +9100,11 @@ impl XdgSmokeClientState {
             qh,
             (),
         );
-        if let Some(surface) = self.base_surface.as_ref() {
-            surface.attach(Some(&buffer), 0, 0);
-            surface.damage(0, 0, width as i32, height as i32);
-            surface.frame(qh, ());
-            surface.commit();
-            self.shm_buffer = Some(buffer);
-        }
+        surface.attach(Some(&buffer), 0, 0);
+        surface.damage(0, 0, width as i32, height as i32);
+        surface.frame(qh, ());
+        surface.commit();
+        self.shm_buffer = Some(buffer);
     }
 
     fn redraw_terminal_buffer(&mut self, qh: &QueueHandle<Self>) {
@@ -16370,6 +16334,7 @@ mod tests {
             let buffer_before = state.shm_buffer.clone();
             let theme_before = state.theme;
             let settings_before = state.settings_model.clone();
+            state.submit_ui_redraw_buffer(&qh, 1, 1, &[0; 4]);
             state.redraw_settings_buffer(&qh);
             assert!(!state.apply_runtime_theme(
                 if theme_before == aqua_shell::AquaTheme::LightWhite {

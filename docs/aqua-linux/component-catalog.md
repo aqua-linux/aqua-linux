@@ -935,6 +935,14 @@ frame requests, and rejects a separate attempted initial attachment. Packaged
 QEMU verifies normal live theme updates, window interaction, Terminal resize,
 and close; the deliberately late-event ordering remains source-test evidence.
 
+Files, Settings, and Properties share the redraw buffer submission path: shared
+memory allocation, full-surface damage, one frame request, commit, and retained
+buffer replacement. Each window keeps its own renderer and domain behavior.
+The common submission boundary rejects closed clients and missing Wayland
+resources before allocation; the real-client closed-render regression also
+exercises this boundary directly. Initial attachment and Terminal frame pacing
+retain their existing lifecycle paths.
+
 Explicit client activation supplies Smithay with the window's global origin
 alongside the global pointer location. Smithay performs the single conversion
 to surface-local coordinates, matching ordinary pointer motion. Previously the

@@ -185,6 +185,9 @@ aggregate session snapshots likewise use live seat owners for both focus flags,
 including grabs outside window bounds and exclusion of destroyed resources;
 the external-client paint adapter preserves compositor stacking independently of
 keyboard focus styling, with deterministic order and z-index capacity checks;
+Files, Settings, and Properties share redraw buffer allocation and Wayland
+submission with a close guard at the shared boundary, while retaining their
+domain renderers and existing initial-attachment lifecycle;
 the broader consolidation remains in progress.
 
 ## Context
