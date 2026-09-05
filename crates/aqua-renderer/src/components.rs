@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-20";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-21";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -1205,7 +1205,7 @@ pub fn render_component_acceptance_rgba(
             x: 8,
             y: 8,
             width: viewport.width.saturating_sub(16),
-            height: 40,
+            height: 56,
         },
         "Fixture system bar",
     );
@@ -1988,9 +1988,9 @@ pub fn render_component_acceptance_rgba(
     let fixture_workspace_switcher = WorkspaceSwitcher::new(
         Rect {
             x: 20,
-            y: viewport.height.saturating_sub(88),
-            width: 180,
-            height: 72,
+            y: viewport.height.saturating_sub(72),
+            width: 108,
+            height: 56,
         },
         "Workspaces",
         3,

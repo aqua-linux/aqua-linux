@@ -14,7 +14,7 @@ fn main() {
         settings_running: true,
         active_workspace: 0,
     };
-    let png = export_dock_png(760, 72, &state);
+    let png = export_dock_png(1232, 64, &state);
     if let Some(parent) = output.parent() {
         fs::create_dir_all(parent).expect("create dock export directory");
     }

@@ -83,7 +83,12 @@ pub fn top_system_bar_session_hit(viewport: Viewport, pointer_x: u32, pointer_y:
     static_shell_scene(viewport)
         .surface_rect(SurfaceKind::TopPanel)
         .is_some_and(|rect| {
-            top_system_bar(rect.width, rect.height).session_hit(pointer_x, pointer_y)
+            pointer_x >= rect.x
+                && pointer_x < rect.right()
+                && pointer_y >= rect.y
+                && pointer_y < rect.bottom()
+                && top_system_bar(rect.width, rect.height)
+                    .session_hit(pointer_x - rect.x, pointer_y - rect.y)
         })
 }
 
@@ -4083,13 +4088,13 @@ pub fn probe_static_software_raster(viewport: Viewport) -> SoftwareRasterContrac
     SoftwareRasterContractProbe {
         rect_count_ready: probe.filled_rect_count == aqua_scene::REQUIRED_KINDS.len(),
         wallpaper_sample_ready: probe.wallpaper_sample == [0x04, 0x3b, 0x5c, 0xff],
-        surface_sample_ready: probe.surface_sample == [0x51, 0xac, 0xd2, 0xff],
+        surface_sample_ready: probe.surface_sample == [0x84, 0xe0, 0xff, 0xff],
         dock_sample_ready: probe.dock_sample == [0x51, 0xac, 0xd2, 0xff],
         surface_border_sample_ready: probe.surface_border_sample == [0x3d, 0x72, 0x8c, 0xff],
-        surface_highlight_sample_ready: probe.surface_highlight_sample == [0xa3, 0xd3, 0xe7, 0xff],
+        surface_highlight_sample_ready: probe.surface_highlight_sample == [0xbe, 0xef, 0xff, 0xff],
         surface_corner_sample_ready: probe.surface_corner_sample == [0x2a, 0x6c, 0x8c, 0xff],
-        surface_shadow_sample_ready: probe.surface_shadow_sample == [0x33, 0x86, 0xaa, 0xff],
-        checksum_ready: probe.raster_checksum == 0x7015_58d1_5395_21df,
+        surface_shadow_sample_ready: probe.surface_shadow_sample == [0x52, 0xa6, 0xc6, 0xff],
+        checksum_ready: probe.raster_checksum == 0x717b_7e2c_50c3_29f1,
         surface_primitives_ready: probe.surface_primitive_count == 15,
         renderer_started: probe.renderer_started,
         boot_graphics: false,
@@ -4103,7 +4108,7 @@ pub fn probe_static_raster_export(viewport: Viewport) -> RasterExportContractPro
     RasterExportContractProbe {
         format_ready: export.format == "ppm-p6-rgb888",
         byte_count_ready: export.byte_count == 4_718_609,
-        checksum_ready: export.checksum == 0xefdc_ba78_578c_2cd5,
+        checksum_ready: export.checksum == 0x553f_5b26_26c1_5af1,
         renderer_started: export.renderer_started,
         boot_graphics: false,
         export,
@@ -4116,7 +4121,7 @@ pub fn probe_static_raster_png_export(viewport: Viewport) -> RasterPngExportCont
     RasterPngExportContractProbe {
         format_ready: export.format == "png-rgba8888",
         byte_count_ready: export.byte_count == 6_293_028 && export.byte_count == export.bytes.len(),
-        checksum_ready: export.checksum == 0x2cdb_1d86_a1ba_9300,
+        checksum_ready: export.checksum == 0x1554_b44a_4319_fe02,
         renderer_started: export.renderer_started,
         boot_graphics: false,
         export,
@@ -15115,10 +15120,10 @@ mod tests {
     #[test]
     fn shared_top_system_bar_routes_only_the_session_control() {
         let viewport = Viewport::new(1536, 1024);
-        assert!(top_system_bar_session_hit(viewport, 1535, 18));
-        assert!(top_system_bar_session_hit(viewport, 1508, 18));
-        assert!(!top_system_bar_session_hit(viewport, 1507, 18));
-        assert!(!top_system_bar_session_hit(viewport, 1535, 36));
+        assert!(top_system_bar_session_hit(viewport, 1476, 42));
+        assert!(!top_system_bar_session_hit(viewport, 1457, 42));
+        assert!(!top_system_bar_session_hit(viewport, 1476, 17));
+        assert!(!top_system_bar_session_hit(viewport, 1476, 74));
     }
 
     #[test]
@@ -15130,10 +15135,10 @@ mod tests {
         assert_eq!(
             dock,
             Rect {
-                x: 388,
-                y: 928,
-                width: 760,
-                height: 72,
+                x: 24,
+                y: 936,
+                width: 1488,
+                height: 64,
             }
         );
         assert_eq!(
@@ -15143,7 +15148,7 @@ mod tests {
         assert_eq!(
             bottom_shell_pointer_target(
                 viewport,
-                dock.x + dock.width - 60 * WORKSPACE_COUNT as u32 + 30,
+                dock.x + dock.width - 108 + 18,
                 dock.y + dock.height / 2,
             ),
             Some(BottomShellTarget::Workspace(0))
@@ -15204,7 +15209,7 @@ mod tests {
             panel,
             Rect {
                 x: 680,
-                y: 60,
+                y: 98,
                 width: 320,
                 height: 220,
             }
@@ -17885,7 +17890,7 @@ mod tests {
         let dock = static_shell_scene(Viewport::new(1536, 1024))
             .surface_rect(SurfaceKind::Dock)
             .expect("Dock geometry should exist");
-        let pointer_x = dock.x + dock.width - 60 * WORKSPACE_COUNT as u32 + 30;
+        let pointer_x = dock.x + dock.width - 108 + 18;
         let pointer_y = dock.y + dock.height / 2;
         let input = session.input_snapshot();
         assert!(session.dispatch_pointer_motion(
@@ -17950,7 +17955,7 @@ mod tests {
 
         assert!(session.dispatch_pointer_motion(
             48.0 - f64::from(input.pointer_x),
-            194.0 - f64::from(input.pointer_y),
+            232.0 - f64::from(input.pointer_y),
             1,
         ));
         assert!(session.dispatch_pointer_button(0x111, true, 2));

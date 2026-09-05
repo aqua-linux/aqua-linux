@@ -9,8 +9,8 @@ local-only and excluded from Git.
 - Aqua Linux remains a Buildroot distribution with its own Smithay Wayland compositor.
 - Light is the default theme; Light and Dark are equally supported theme targets.
 - Theme changes never alter geometry, workflow, keyboard order, or content hierarchy.
-- A compact top bar is always available during the desktop session.
-- Bottom controls are split into applications/search, centered running applications, and workspace switching.
+- Three compact floating top panels are always available during the desktop session.
+- Bottom controls are split into applications/search at left and workspace switching at right.
 - Applications and global search are separate surfaces with separate activation states.
 - Terminal is an application, not the desktop identity.
 - Runtime labels, clock, system status, files, and results use real localized data.
@@ -31,19 +31,18 @@ hit-testing, focus indication, and accessibility bounds must consume the same
 component geometry; privileged authorization remains in the owning domain
 model.
 
-## Top Bar
+## Top Panels
 
-- Left: Aqua mark and `Aqua Linux` session identity.
+- Left floating panel: Aqua mark and `Aqua Linux` session identity.
 - Light uses the primary dark mark; Dark uses the inverse mark.
-- Center: localized date and time.
-- Right: volume, network, power/battery, and session controls.
+- Center floating panel: calendar, localized date and time, and notifications.
+- Right floating panel: network, volume, power/battery, and settings controls.
 - Status items are keyboard reachable and expose menus only when activated.
 
 ## Bottom Controls
 
 - Left group: applications overview and global search.
-- Center group: pinned/running application icons with active and attention states.
-- Right group: workspace thumbnails with a clearly selected workspace.
+- Right group: three compact workspace dots with a clearly selected workspace.
 - Groups keep stable dimensions and do not shift when state changes.
 
 ## Applications Overview
@@ -145,8 +144,9 @@ and four supported output scales. Sources pass the bounded static-SVG subset,
 each physical dimension is rasterized directly from vector geometry, symbolic
 roles receive theme/state colors, and a 256-entry LRU proves complete cache
 keys, reuse, and bounded eviction. The live compositor consumes those rasters
-in its top bar, desktop, dock, and notification textures. Packaged QEMU captures
-cover both themes and verify cache reuse, bounded retention, and recovery
+in its top panels, desktop, and notification textures. Bottom controls use
+code-native symbols and workspace dots. Packaged QEMU captures cover both
+themes and verify bounded retention and recovery
 return after every session.
 
 ## Accessibility And Localization

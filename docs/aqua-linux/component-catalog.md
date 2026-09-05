@@ -35,8 +35,8 @@ wallpaper and redraws Shell and first-party surfaces without restarting them.
 | Section group | Shared packaged-QEMU-proven primitive | Settings and Properties share bounded heading, row, trailing-control, and footer geometry |
 | Application overview | Shared packaged-QEMU-proven primitive | Applications panel surface, title, search, grid layout, and pointer geometry |
 | Global search | Shared packaged-QEMU-proven primitive | Split result list, quick-action panel, and exact pointer geometry |
-| Running-app dock | Shared packaged-QEMU-proven primitive | Centered Files, Settings, and Trash targets with running indicators |
-| Workspace switcher | Shared packaged-QEMU-proven primitive | Three real workspace targets, thumbnails, and active indicator |
+| Running-app dock | Retained shared primitive | Available to bounded application surfaces; no longer composed on the desktop |
+| Workspace switcher | Shared packaged-QEMU-proven primitive | Three real workspace dot targets and active indicator |
 | Notification | Shared packaged-QEMU-proven primitive | Shell toast content, dismissal target, timeout/queue model, and compositor pointer routing |
 | Confirmation dialog | Shared packaged-QEMU-proven primitive | Session, Empty Trash, and Installer confirmation presentation; authorization remains model-owned |
 
@@ -47,18 +47,18 @@ has not yet passed the shared-component completion contract.
 
 ### Anatomy And Geometry
 
-- The top system bar owns one full-width surface, bottom separator, bounded
-  brand slot, centered clock slot, Audio/Network/Battery status slots, and a
-  trailing Session controls target.
+- The top system area owns three separated floating panels: a bounded brand
+  panel, a centered calendar/clock/notification panel, and a trailing
+  Network/Audio/Battery/Settings panel.
 - Clock width adapts to the space between brand and status groups while fitted
   text prevents either side from being displaced. Status and session slots
   retain stable geometry as live values change.
-- The current compact contract requires at least 480x28. Invalid dimensions or
+- The current compact contract requires at least 720x48. Invalid dimensions or
   an empty accessible name fail closed.
 
 ### Input And Accessibility
 
-- Only the trailing Session controls rectangle is actionable. Its pointer hit
+- Only the trailing Settings controls rectangle is actionable. Its pointer hit
   opens or closes the existing bounded Session menu; status slots and their
   inter-item gaps do not activate it.
 - The container exposes the `banner` role, each live status exposes a named
@@ -573,8 +573,9 @@ run covers this shared primitive.
 
 ### Anatomy And Geometry
 
-- The running-app dock owns the centered bottom-shell surface and three stable
-  72-pixel item targets for Files, Settings, and Trash.
+- The running-app dock remains a reusable shared primitive with three stable
+  72-pixel item targets for Files, Settings, and Trash. The desktop shell does
+  not currently compose this primitive.
 - Each target derives a centered 64-pixel visual container, a centered 48-pixel
   production icon raster slot, and a bounded bottom running indicator. Cached
   Aqua Core icons and deterministic placeholder rendering consume these slots.
@@ -584,9 +585,9 @@ run covers this shared primitive.
 
 ### Input, Semantics, And Consumption
 
-- Pointer routing uses the exact half-open item rectangles rendered in the
-  centered group. The surrounding transparent bottom-shell space cannot launch
-  an application, and the dock's right edge does not spill into workspaces.
+- When composed by a consumer, pointer routing uses the exact half-open item
+  rectangles rendered in its group. The current desktop routes application
+  launching through Applications and Search.
 - The container exposes a named `toolbar` role. Files, Settings, and Trash retain
   independent `button` names plus running state; their existing allowlisted
   launch requests and duplicate-instance behavior remain unchanged.
@@ -605,11 +606,10 @@ viewports including fractional scale. Packaged-QEMU acceptance is covered by the
 
 ### Anatomy And Geometry
 
-- The switcher owns the bottom-right surface and three stable 60-pixel targets
+- The switcher owns the bottom-right surface and three stable 36-pixel targets
   matching the compositor's three real workspaces.
-- Every target derives a bounded inset thumbnail. The selected workspace derives
-  one 40-by-3 active indicator from its thumbnail without changing target or
-  thumbnail geometry.
+- Every target derives a compact centered dot. The selected workspace uses the
+  active fill without changing target or dot geometry.
 - Workspace count, active index, item width, thumbnail insets, and indicator
   dimensions are explicit. Empty names, invalid active indexes, unsupported
   counts, undersized bounds, and overflowing geometry fail closed.
@@ -714,7 +714,7 @@ once and launches the packaged `aqua.component-acceptance` `wl_shm`
 `xdg-toplevel` through the real Smithay, GLES, and DRM path for Light,
 Light and Dark. The acceptance client renders the complete
 22-primitive shared matrix at 1280x800 from fixture revision
-`aqua-component-fixtures-20`; serial gates verify the 22-entry catalog and
+`aqua-component-fixtures-21`; serial gates verify the 22-entry catalog and
 22 shared primitives, while HMP screendumps must be nonblank, theme-distinct,
 and exactly 1280x800.
 

@@ -52,14 +52,14 @@ need_marker() {
 need_marker '[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh'
 need_marker 'icon_wayland_raster_cache_ready=true'
 need_marker 'icon_wayland_raster_roles=7'
-need_marker 'icon_wayland_raster_surfaces=4'
+need_marker 'icon_wayland_raster_surfaces=3'
 need_marker 'desktop_icon_rasters_ready=true surface=top-bar roles=3'
 need_marker 'desktop_icon_rasters_ready=true surface=desktop roles=3'
-need_marker 'desktop_icon_rasters_ready=true surface=dock roles=3'
+need_marker 'desktop_icon_rasters_ready=true surface=dock roles=0'
 need_marker 'desktop_icon_rasters_ready=true surface=notification roles=1'
-need_marker 'desktop_icon_raster_cache_entries=10'
-need_marker 'desktop_icon_raster_cache_hits=3'
-need_marker 'desktop_icon_raster_cache_misses=10'
+need_marker 'desktop_icon_raster_cache_entries=7'
+need_marker 'desktop_icon_raster_cache_hits=0'
+need_marker 'desktop_icon_raster_cache_misses=7'
 need_marker 'desktop_icon_raster_cache_parsed_sources=7'
 need_marker 'desktop_icon_raster_cache_evictions=0'
 need_marker 'session_scenario=icon-acceptance'
@@ -75,13 +75,13 @@ text = pathlib.Path(sys.argv[1]).read_text(errors="replace").replace("\r", "")
 for marker, expected in (
     ("icon_wayland_raster_cache_ready=true", 2),
     ("icon_wayland_raster_roles=7", 2),
-    ("icon_wayland_raster_surfaces=4", 2),
+    ("icon_wayland_raster_surfaces=3", 2),
     ("desktop_icon_rasters_ready=true surface=top-bar roles=3", 2),
     ("desktop_icon_rasters_ready=true surface=desktop roles=3", 2),
-    ("desktop_icon_rasters_ready=true surface=dock roles=3", 4),
+    ("desktop_icon_rasters_ready=true surface=dock roles=0", 4),
     ("desktop_icon_rasters_ready=true surface=notification roles=1", 2),
-    ("desktop_icon_raster_cache_hits=3", 2),
-    ("desktop_icon_raster_cache_misses=10", 4),
+    ("desktop_icon_raster_cache_hits=0", 2),
+    ("desktop_icon_raster_cache_misses=7", 4),
     ("desktop_icon_raster_cache_parsed_sources=7", 4),
     ("session_scenario=icon-acceptance", 2),
     ("[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok", 2),
