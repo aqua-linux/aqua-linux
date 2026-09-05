@@ -9,6 +9,11 @@ ROOTFS="${ROOTFS:-${IMAGE_DIR}/rootfs.ext2}"
 SERIAL_LOG="${SERIAL_LOG:-${ROOT_DIR}/build/qemu-serial.log}"
 MEMORY="${MEMORY:-1024M}"
 CPUS="${CPUS:-2}"
+KERNEL_APPEND="${AQUA_KERNEL_APPEND:-}"
+KERNEL_COMMAND_LINE="root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1"
+if [ -n "${KERNEL_APPEND}" ]; then
+    KERNEL_COMMAND_LINE="${KERNEL_COMMAND_LINE} ${KERNEL_APPEND}"
+fi
 
 if [ ! -f "${KERNEL}" ]; then
     echo "Missing kernel: ${KERNEL}" >&2
@@ -32,11 +37,13 @@ exec qemu-system-x86_64 \
     -m "${MEMORY}" \
     -kernel "${KERNEL}" \
     -drive file="${ROOTFS}",if=virtio,format=raw \
-    -append "root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1" \
+    -append "${KERNEL_COMMAND_LINE}" \
     -serial "file:${SERIAL_LOG}" \
     -display default \
     -vga none \
     -device virtio-vga \
+    -device virtio-keyboard-pci \
+    -device virtio-mouse-pci \
     -netdev user,id=net0 \
     -device virtio-net-pci,netdev=net0 \
     -device virtio-rng-pci \
