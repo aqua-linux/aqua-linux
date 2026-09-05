@@ -7753,6 +7753,17 @@ struct PropertiesPointerLeaveTransition {
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn files_axis_scroll_rows(value: f64) -> Option<isize> {
+    if !value.is_finite() || value == 0.0 {
+        None
+    } else if value > 0.0 {
+        Some(1)
+    } else {
+        Some(-1)
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl ClientDispatch<wl_registry::WlRegistry, ()> for V1BufferRegistryClientState {
     fn event(
         state: &mut Self,
@@ -14328,11 +14339,14 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
             ..
         } = event
         {
+            let Some(rows) = files_axis_scroll_rows(value) else {
+                return;
+            };
             if let Some(navigator) = state.files_navigator.as_mut() {
                 let navigation = navigator.handle_scroll_in_viewport(
                     state.buffer_width.max(1),
                     state.buffer_height.max(1),
-                    if value > 0.0 { 1 } else { -1 },
+                    rows,
                 );
                 println!("aqua_files_axis value={value} navigation={navigation:?}");
                 if navigation.changed() {
@@ -16050,6 +16064,19 @@ mod tests {
             Some(aqua_shell::AquaTheme::Deepside)
         );
         assert!(!state.apply_runtime_theme(aqua_shell::AquaTheme::Deepside));
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn files_axis_scroll_rows_ignores_stop_and_preserves_direction() {
+        for value in [0.0, -0.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(files_axis_scroll_rows(value), None, "value={value}");
+        }
+        // Wayland fixed-point axis values can contain fractional motion.
+        for value in [1.0 / 256.0, 1.0, 10.0, 100.0] {
+            assert_eq!(files_axis_scroll_rows(value), Some(1));
+            assert_eq!(files_axis_scroll_rows(-value), Some(-1));
+        }
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]

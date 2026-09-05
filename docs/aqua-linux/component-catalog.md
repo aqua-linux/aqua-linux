@@ -874,3 +874,10 @@ the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a
 separate R4 decision and acceptance item; the Settings preference must not be
 treated as playback or hardware evidence.
+
+Files ignores zero-valued vertical pointer-axis events before navigation or
+repaint, so stopping a scroll cannot move the list or preview upward. Finite
+positive and negative motion retain one-row direction, including fractional
+values. Non-finite input is ignored defensively. A feature-enabled compositor
+regression test covers this conversion in the local source checks; this change
+has no new packaged-QEMU evidence.
