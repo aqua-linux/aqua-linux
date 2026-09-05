@@ -5848,7 +5848,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 || process_exited
                                 || session_action.is_some();
                             let repaint_requested = session_action.is_none()
-                                && (launcher_changed
+                                && (input_event_time_us.is_some()
+                                    || launcher_changed
                                     || dock_changed
                                     || desktop_icons_changed
                                     || session_menu_changed
