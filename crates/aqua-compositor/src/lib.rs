@@ -7745,6 +7745,14 @@ struct XdgSmokeClientState {
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PropertiesPointerLeaveTransition {
+    interaction_changed: bool,
+    press_cancelled: bool,
+    repaint: bool,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl ClientDispatch<wl_registry::WlRegistry, ()> for V1BufferRegistryClientState {
     fn event(
         state: &mut Self,
@@ -7794,6 +7802,25 @@ impl ClientDispatch<client_wl_shm::WlShm, ()> for V1BufferRegistryClientState {
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl XdgSmokeClientState {
+    fn clear_properties_pointer_interaction(&mut self) -> PropertiesPointerLeaveTransition {
+        let (hover_changed, press_cancelled) = self
+            .properties_model
+            .as_mut()
+            .map(|model| {
+                (
+                    model.clear_primary_action_hover(),
+                    model.cancel_primary_action_press(),
+                )
+            })
+            .unwrap_or((false, false));
+        let interaction_changed = hover_changed || press_cancelled;
+        PropertiesPointerLeaveTransition {
+            interaction_changed,
+            press_cancelled,
+            repaint: interaction_changed && !self.close_event_received,
+        }
+    }
+
     fn handle_window_frame_pointer(&mut self, serial: u32) -> bool {
         let titlebar_height = match self.app_id.as_str() {
             "aqua.terminal" | "aqua.files" => 48,
@@ -14265,17 +14292,14 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                         state.redraw_files_buffer(qh);
                     }
                 }
-                let interaction_changed = state.properties_model.as_mut().is_some_and(|model| {
-                    let hover_changed = model.clear_primary_action_hover();
-                    let press_cancelled = model.cancel_primary_action_press();
-                    if hover_changed || press_cancelled {
-                        println!(
-                            "aqua_properties_hover hovered=false reason=pointer-leave press_cancelled={press_cancelled}"
-                        );
-                    }
-                    hover_changed || press_cancelled
-                });
-                if interaction_changed {
+                let properties_leave = state.clear_properties_pointer_interaction();
+                if properties_leave.interaction_changed {
+                    println!(
+                        "aqua_properties_hover hovered=false reason=pointer-leave press_cancelled={} repaint={}",
+                        properties_leave.press_cancelled, properties_leave.repaint
+                    );
+                }
+                if properties_leave.repaint {
                     state.redraw_properties_buffer(qh);
                 }
                 let settings_hover_changed = state
@@ -16026,6 +16050,126 @@ mod tests {
             Some(aqua_shell::AquaTheme::Deepside)
         );
         assert!(!state.apply_runtime_theme(aqua_shell::AquaTheme::Deepside));
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn properties_pointer_leave_clears_state_without_repainting_after_close() {
+        let properties_model = || aqua_shell::DesktopPropertiesModel {
+            icon_id: "files",
+            title: "Files Properties".to_string(),
+            name: "Files",
+            kind: "Folder",
+            location: "/home/aqua".to_string(),
+            status: "Available",
+            item_count: Some(0),
+            enumeration_capped: false,
+            refresh_generation: 0,
+            primary_action_focused: true,
+            primary_action_hovered: true,
+            primary_action_pressed: true,
+        };
+        let mut state = XdgSmokeClientState {
+            properties_model: Some(properties_model()),
+            ..XdgSmokeClientState::default()
+        };
+
+        assert_eq!(
+            state.clear_properties_pointer_interaction(),
+            PropertiesPointerLeaveTransition {
+                interaction_changed: true,
+                press_cancelled: true,
+                repaint: true,
+            }
+        );
+        let model = state.properties_model.as_ref().expect("Properties model");
+        assert!(!model.primary_action_hovered);
+        assert!(!model.primary_action_pressed);
+        assert!(model.primary_action_focused);
+        assert_eq!(
+            state.clear_properties_pointer_interaction(),
+            PropertiesPointerLeaveTransition {
+                interaction_changed: false,
+                press_cancelled: false,
+                repaint: false,
+            }
+        );
+
+        state.properties_model = Some(properties_model());
+        state.close_event_received = true;
+        assert_eq!(
+            state.clear_properties_pointer_interaction(),
+            PropertiesPointerLeaveTransition {
+                interaction_changed: true,
+                press_cancelled: true,
+                repaint: false,
+            }
+        );
+        let model = state.properties_model.as_ref().expect("Properties model");
+        assert!(!model.primary_action_hovered);
+        assert!(!model.primary_action_pressed);
+        assert!(model.primary_action_focused);
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn properties_pointer_leave_handles_independent_hover_and_press_states() {
+        for close_event_received in [false, true] {
+            for (hovered, pressed) in [(false, false), (true, false), (false, true)] {
+                let mut state = XdgSmokeClientState {
+                    close_event_received,
+                    properties_model: Some(aqua_shell::DesktopPropertiesModel {
+                        icon_id: "files",
+                        title: "Files Properties".to_string(),
+                        name: "Files",
+                        kind: "Folder",
+                        location: "/home/aqua".to_string(),
+                        status: "Available",
+                        item_count: Some(0),
+                        enumeration_capped: false,
+                        refresh_generation: 7,
+                        primary_action_focused: false,
+                        primary_action_hovered: hovered,
+                        primary_action_pressed: pressed,
+                    }),
+                    ..XdgSmokeClientState::default()
+                };
+                assert_eq!(
+                    state.clear_properties_pointer_interaction(),
+                    PropertiesPointerLeaveTransition {
+                        interaction_changed: hovered || pressed,
+                        press_cancelled: pressed,
+                        repaint: (hovered || pressed) && !close_event_received,
+                    }
+                );
+                let model = state.properties_model.as_ref().expect("Properties model");
+                assert!(!model.primary_action_hovered);
+                assert!(!model.primary_action_pressed);
+                assert!(!model.primary_action_focused);
+                assert_eq!(model.refresh_generation, 7);
+                assert_eq!(
+                    state.clear_properties_pointer_interaction(),
+                    PropertiesPointerLeaveTransition {
+                        interaction_changed: false,
+                        press_cancelled: false,
+                        repaint: false,
+                    }
+                );
+            }
+            let mut state = XdgSmokeClientState {
+                close_event_received,
+                ..XdgSmokeClientState::default()
+            };
+            assert_eq!(
+                state.clear_properties_pointer_interaction(),
+                PropertiesPointerLeaveTransition {
+                    interaction_changed: false,
+                    press_cancelled: false,
+                    repaint: false,
+                }
+            );
+            assert!(state.properties_model.is_none());
+        }
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
