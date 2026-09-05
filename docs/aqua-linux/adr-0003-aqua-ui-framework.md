@@ -183,6 +183,8 @@ focus clearing. The shared two-client matrix covers workspace and destruction
 transitions as well;
 aggregate session snapshots likewise use live seat owners for both focus flags,
 including grabs outside window bounds and exclusion of destroyed resources;
+the external-client paint adapter preserves compositor stacking independently of
+keyboard focus styling, with deterministic order and z-index capacity checks;
 the broader consolidation remains in progress.
 
 ## Context
