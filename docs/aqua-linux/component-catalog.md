@@ -907,6 +907,19 @@ remain intact. Existing packaged graphical-boot pointer-leave, press-cancel,
 blur, and activation checks exercise the shared dispatch path; after-close
 coverage remains a source-test claim.
 
+First-party window-frame close and compositor xdg close now enter the same
+client input shutdown transition. It marks the client closed before clearing
+keyboard/accessibility focus, hover, armed primary-action press, scrollbar drag,
+and Shift/Ctrl state, without scheduling a cleanup repaint. The production
+keyboard and pointer dispatchers reject subsequent keys, modifiers, motion,
+buttons, and axis input; leave events retain their idempotent cleanup path.
+The `closed_client_input` regressions invoke those dispatchers with late events
+for Files, Properties, and Settings, and verify both close entry points preserve
+location, selection, settings values, and refresh generation. The former Files
+behavior navigated into Documents after close; the regression now requires an
+unchanged model. This late-event ordering has deterministic source coverage;
+packaged QEMU continues to verify live interaction and normal close delivery.
+
 A background buffer commit now updates that surface without replacing the
 active window. Desktop repaint completion drains frame callbacks independently
 of the explicit activation/focus path. This prevents a focus-loss redraw from

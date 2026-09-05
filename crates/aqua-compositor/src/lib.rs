@@ -7838,6 +7838,15 @@ impl ClientDispatch<client_wl_shm::WlShm, ()> for V1BufferRegistryClientState {
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl XdgSmokeClientState {
+    fn begin_close(&mut self) {
+        self.close_event_received = true;
+        // Retire transient interaction state without scheduling another frame.
+        let _ = self.clear_first_party_keyboard_focus();
+        let _ = self.clear_first_party_pointer_interaction();
+        self.keyboard_shift = false;
+        self.keyboard_ctrl = false;
+    }
+
     fn clear_first_party_keyboard_focus(&mut self) -> [Option<KeyboardLeaveTransition>; 3] {
         let properties_changed = self
             .properties_model
@@ -7952,7 +7961,7 @@ impl XdgSmokeClientState {
 
         match action {
             FirstPartyWindowAction::Close => {
-                self.close_event_received = true;
+                self.begin_close();
                 self.interactive_requests_sent = true;
             }
             FirstPartyWindowAction::Minimize => {
@@ -13775,7 +13784,7 @@ impl ClientDispatch<client_xdg_toplevel::XdgToplevel, ()> for XdgSmokeClientStat
         qh: &QueueHandle<Self>,
     ) {
         match event {
-            client_xdg_toplevel::Event::Close => state.close_event_received = true,
+            client_xdg_toplevel::Event::Close => state.begin_close(),
             client_xdg_toplevel::Event::Configure { width, height, .. }
                 if state.terminal_session.is_some()
                     && state.client_buffer_attached
@@ -14128,6 +14137,9 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
             }
             return;
         }
+        if state.close_event_received {
+            return;
+        }
         if let client_wl_keyboard::Event::Modifiers { mods_depressed, .. } = event {
             state.keyboard_shift = mods_depressed & 1 != 0;
             state.keyboard_ctrl = mods_depressed & 4 != 0;
@@ -14332,6 +14344,9 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
         _: &ClientConnection,
         qh: &QueueHandle<Self>,
     ) {
+        if state.close_event_received && !matches!(event, client_wl_pointer::Event::Leave { .. }) {
+            return;
+        }
         if matches!(
             event,
             client_wl_pointer::Event::Enter { .. }
@@ -16422,6 +16437,218 @@ mod tests {
             assert_eq!(empty.clear_first_party_pointer_interaction(), [None; 3]);
         }
         fs::remove_dir_all(root).expect("remove isolated root");
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn closed_client_input_rejects_queued_keyboard_and_pointer_events() {
+        let (_server, client) = std::os::unix::net::UnixStream::pair().expect("stream pair");
+        let connection = ClientConnection::from_socket(client).expect("client connection");
+        let queue = connection.new_event_queue::<XdgSmokeClientState>();
+        let qh = queue.handle();
+        let registry = connection.display().get_registry(&qh, ());
+        let seat = registry.bind::<client_wl_seat::WlSeat, _, _>(1, 5, &qh, ());
+        let keyboard = seat.get_keyboard(&qh, ());
+        let pointer = seat.get_pointer(&qh, ());
+        let root = tempfile::tempdir().expect("isolated root");
+        fs::create_dir(root.path().join("Documents")).expect("Documents");
+        for surface in [
+            FirstPartyUiSurface::Files,
+            FirstPartyUiSurface::Properties,
+            FirstPartyUiSurface::Settings,
+        ] {
+            let mut state = XdgSmokeClientState {
+                close_event_received: true,
+                buffer_width: 640,
+                buffer_height: 420,
+                ..XdgSmokeClientState::default()
+            };
+            match surface {
+                FirstPartyUiSurface::Files => {
+                    let navigator = aqua_shell::FilesNavigator::open(root.path()).expect("Files");
+                    state.files_model = Some(navigator.window().clone());
+                    state.files_navigator = Some(navigator);
+                }
+                FirstPartyUiSurface::Properties => {
+                    state.properties_model = Some(
+                        aqua_shell::DesktopPropertiesModel::load("files", root.path(), root.path())
+                            .expect("Properties"),
+                    )
+                }
+                FirstPartyUiSurface::Settings => {
+                    state.settings_model = Some(aqua_shell::SettingsWindowModel::default())
+                }
+            }
+            let expected_files = state.files_model.clone();
+            let expected_properties = state.properties_model.clone();
+            let expected_settings = state.settings_model.clone();
+            for key in [15, 28, 57, 108, 105] {
+                <XdgSmokeClientState as ClientDispatch<client_wl_keyboard::WlKeyboard, ()>>::event(
+                    &mut state,
+                    &keyboard,
+                    client_wl_keyboard::Event::Key {
+                        serial: 1,
+                        time: 1,
+                        key,
+                        state: WEnum::Value(client_wl_keyboard::KeyState::Pressed),
+                    },
+                    &(),
+                    &connection,
+                    &qh,
+                );
+            }
+            <XdgSmokeClientState as ClientDispatch<client_wl_keyboard::WlKeyboard, ()>>::event(
+                &mut state,
+                &keyboard,
+                client_wl_keyboard::Event::Modifiers {
+                    serial: 2,
+                    mods_depressed: 5,
+                    mods_latched: 0,
+                    mods_locked: 0,
+                    group: 0,
+                },
+                &(),
+                &connection,
+                &qh,
+            );
+            for event in [
+                client_wl_pointer::Event::Motion {
+                    time: 3,
+                    surface_x: 40.0,
+                    surface_y: 180.0,
+                },
+                client_wl_pointer::Event::Button {
+                    serial: 3,
+                    time: 3,
+                    button: 0x110,
+                    state: WEnum::Value(client_wl_pointer::ButtonState::Pressed),
+                },
+                client_wl_pointer::Event::Button {
+                    serial: 4,
+                    time: 4,
+                    button: 0x110,
+                    state: WEnum::Value(client_wl_pointer::ButtonState::Released),
+                },
+                client_wl_pointer::Event::Axis {
+                    time: 5,
+                    axis: WEnum::Value(client_wl_pointer::Axis::VerticalScroll),
+                    value: 10.0,
+                },
+            ] {
+                <XdgSmokeClientState as ClientDispatch<client_wl_pointer::WlPointer, ()>>::event(
+                    &mut state,
+                    &pointer,
+                    event,
+                    &(),
+                    &connection,
+                    &qh,
+                );
+            }
+            assert_eq!(state.files_model, expected_files, "{surface:?}");
+            assert_eq!(state.properties_model, expected_properties, "{surface:?}");
+            assert_eq!(state.settings_model, expected_settings, "{surface:?}");
+            if let Some(navigator) = state.files_navigator.as_ref() {
+                assert_eq!(Some(navigator.window()), state.files_model.as_ref());
+                assert_eq!(
+                    navigator.current(),
+                    root.path().canonicalize().expect("root")
+                );
+            }
+            assert!(!state.keyboard_event_received);
+            assert!(!state.pointer_event_received);
+            assert!(!state.keyboard_shift);
+            assert!(!state.keyboard_ctrl);
+            assert!(!state.files_scrollbar_dragging);
+            assert!(!state.interactive_requests_sent);
+            assert_eq!(
+                (state.pointer_surface_x, state.pointer_surface_y),
+                (0.0, 0.0)
+            );
+        }
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn closed_client_input_close_sources_retire_interactions() {
+        let (_server, client) = std::os::unix::net::UnixStream::pair().expect("stream pair");
+        let connection = ClientConnection::from_socket(client).expect("connection");
+        let queue = connection.new_event_queue::<XdgSmokeClientState>();
+        let qh = queue.handle();
+        let registry = connection.display().get_registry(&qh, ());
+        let compositor = registry.bind::<wl_compositor::WlCompositor, _, _>(1, 1, &qh, ());
+        let surface = compositor.create_surface(&qh, ());
+        let wm_base = registry.bind::<client_xdg_wm_base::XdgWmBase, _, _>(2, 1, &qh, ());
+        let xdg_surface = wm_base.get_xdg_surface(&surface, &qh, ());
+        let toplevel = xdg_surface.get_toplevel(&qh, ());
+        let root = tempfile::tempdir().expect("isolated root");
+        fs::create_dir(root.path().join("Documents")).expect("Documents");
+        for frame_close in [false, true] {
+            let mut navigator = aqua_shell::FilesNavigator::open(root.path()).expect("Files");
+            navigator.handle_key_in_viewport(640, 420, aqua_shell::FilesKey::Left);
+            assert!(navigator.handle_hover(640, 40, 180));
+            let mut properties =
+                aqua_shell::DesktopPropertiesModel::load("files", root.path(), root.path())
+                    .expect("Properties");
+            properties.primary_action_focused = true;
+            properties.primary_action_hovered = true;
+            properties.primary_action_pressed = true;
+            properties.refresh_generation = 7;
+            let mut settings = aqua_shell::SettingsWindowModel {
+                keyboard_focus: true,
+                hovered_category: Some(1),
+                selected_category: 4,
+                ..aqua_shell::SettingsWindowModel::default()
+            };
+            let mut expected_files = navigator.window().clone();
+            expected_files.keyboard_focus = false;
+            expected_files.focused_sidebar = None;
+            expected_files.hovered_sidebar = None;
+            expected_files.hovered_entry = None;
+            let mut state = XdgSmokeClientState {
+                app_id: "aqua.files".to_string(),
+                buffer_width: 640,
+                buffer_height: 420,
+                pointer_surface_x: 25.0,
+                pointer_surface_y: 24.0,
+                files_model: Some(navigator.window().clone()),
+                files_navigator: Some(navigator),
+                properties_model: Some(properties.clone()),
+                settings_model: Some(settings.clone()),
+                files_scrollbar_dragging: true,
+                keyboard_shift: true,
+                keyboard_ctrl: true,
+                ..XdgSmokeClientState::default()
+            };
+            if frame_close {
+                assert!(state.handle_window_frame_pointer(1));
+            } else {
+                <XdgSmokeClientState as ClientDispatch<client_xdg_toplevel::XdgToplevel, ()>>::event(
+                    &mut state, &toplevel, client_xdg_toplevel::Event::Close,
+                    &(), &connection, &qh,
+                );
+            }
+            assert!(state.close_event_received);
+            assert_eq!(state.interactive_requests_sent, frame_close);
+            assert!(!state.files_scrollbar_dragging);
+            assert!(!state.keyboard_shift);
+            assert!(!state.keyboard_ctrl);
+            properties.primary_action_focused = false;
+            properties.primary_action_hovered = false;
+            properties.primary_action_pressed = false;
+            settings.keyboard_focus = false;
+            settings.hovered_category = None;
+            assert_eq!(state.files_model, Some(expected_files.clone()));
+            assert_eq!(
+                state.files_navigator.as_ref().expect("navigator").window(),
+                &expected_files
+            );
+            assert_eq!(state.properties_model, Some(properties));
+            assert_eq!(state.settings_model, Some(settings));
+            // A repeated close and later leave need no further model action or repaint.
+            state.begin_close();
+            assert_eq!(state.clear_first_party_keyboard_focus(), [None; 3]);
+            assert_eq!(state.clear_first_party_pointer_interaction(), [None; 3]);
+        }
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
