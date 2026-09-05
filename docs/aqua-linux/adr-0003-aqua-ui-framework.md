@@ -102,6 +102,10 @@ Files clears sidebar and content-row hover through an idempotent model
 transition on Wayland pointer leave, cancels an active scrollbar drag even if
 no release follows outside the surface, and repaints only for visible hover on
 an active surface without committing after xdg close;
+Files ignores zero-valued pointer-axis input before navigation and redraw;
+packaged QEMU delivers a real zero axis plus stop to the focused Files client,
+proves unchanged list and preview pixels with zero extra damage commits, and
+checks that reversing wheel direction and returning restores identical pixels;
 Settings category rendering, pointer selection, hover, and keyboard navigation
 now share a width-and-height validated sidebar composition derived from the
 actual client buffer, so clipped category rows are omitted and inert;

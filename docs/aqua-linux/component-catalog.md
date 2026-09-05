@@ -879,5 +879,15 @@ Files ignores zero-valued vertical pointer-axis events before navigation or
 repaint, so stopping a scroll cannot move the list or preview upward. Finite
 positive and negative motion retain one-row direction, including fractional
 values. Non-finite input is ignored defensively. A feature-enabled compositor
-regression test covers this conversion in the local source checks; this change
-has no new packaged-QEMU evidence.
+regression test covers this conversion in the local source checks. The packaged
+QEMU integration scenario now sends an explicit zero-valued Wayland axis event
+and axis-stop to the pointer-focused Files client after scrolling the list and
+Welcome.txt preview to offset one. Smithay normally filters zero AxisFrame
+values, so the acceptance helper uses the focused client's raw pointer resource
+for this case. Client receipt logs require offset one and no repaint; a bounded
+two-second observation requires unchanged buffer pixels and zero additional
+surface damage commits. Upward and downward wheel events must each commit a
+changed buffer and restore the exact initial scrolled pixels. The full
+`scripts/check-fbdev-presenter-qemu.sh` run also verifies the existing Smithay,
+GLES, DRM, application cleanup, and recovery-return contracts. This is controlled
+protocol injection in QEMU, not physical touchpad evidence.

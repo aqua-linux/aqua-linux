@@ -9501,6 +9501,40 @@ impl SmithayDrmSession {
         let Some(pointer) = self.session.wayland_state.seat.get_pointer() else {
             return false;
         };
+        if rows == 0 {
+            // Acceptance-only injection: Smithay filters zero AxisFrame values.
+            // Send an actual wire event to the focused Files client so the
+            // client's no-op guard, rather than that filter, is exercised.
+            use smithay::reexports::wayland_server::protocol::wl_pointer;
+            let Some(surface) = pointer.current_focus() else {
+                return false;
+            };
+            let is_files = with_states(&surface, |states| {
+                states
+                    .data_map
+                    .get::<XdgToplevelSurfaceData>()
+                    .and_then(|data| data.lock().ok())
+                    .and_then(|attributes| attributes.app_id.clone())
+                    .as_deref()
+                    == Some("aqua.files")
+            });
+            let Some(client) = surface.client().filter(|_| is_files) else {
+                return false;
+            };
+            let mut sent = false;
+            for resource in pointer.client_pointers(&client) {
+                if resource.version() >= 5 {
+                    resource.axis_source(wl_pointer::AxisSource::Finger);
+                }
+                resource.axis(time, wl_pointer::Axis::VerticalScroll, 0.0);
+                if resource.version() >= 5 {
+                    resource.axis_stop(time, wl_pointer::Axis::VerticalScroll);
+                    resource.frame();
+                }
+                sent = true;
+            }
+            return sent;
+        }
         self.session
             .wayland_state
             .apply_launcher_event(LauncherEvent::Dismiss);
@@ -14340,6 +14374,18 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
         } = event
         {
             let Some(rows) = files_axis_scroll_rows(value) else {
+                if let Some(navigator) = state.files_navigator.as_ref() {
+                    let model = navigator.window();
+                    let (view, offset) = model
+                        .preview
+                        .as_ref()
+                        .map_or(("list", model.scroll_offset), |preview| {
+                            ("preview", preview.scroll_offset)
+                        });
+                    println!(
+                        "aqua_files_axis value={value} navigation=None view={view} offset={offset} repaint=false"
+                    );
+                }
                 return;
             };
             if let Some(navigator) = state.files_navigator.as_mut() {

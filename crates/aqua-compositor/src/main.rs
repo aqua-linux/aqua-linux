@@ -6442,6 +6442,98 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         };
                         println!("drm_wayland_files_pointer_wheel=true");
                         println!("drm_wayland_files_scroll_offset=1");
+                        let verify_files_scroll_stop_and_reverse =
+                            |view: &str, time: u32, scrolled_checksum: u64| -> Result<(), String> {
+                                let snapshot = || {
+                                    smithay_session
+                                        .borrow()
+                                        .client_surface_snapshot_for_app_id("aqua.files")
+                                        .ok_or_else(|| "Aqua Files surface disappeared".to_string())
+                                };
+                                let before = snapshot()?;
+                                if checksum_bytes(&before.buffer_rgba) != scrolled_checksum {
+                                    return Err(format!("Aqua Files {view} baseline changed"));
+                                }
+                                if !smithay_session
+                                    .borrow_mut()
+                                    .dispatch_files_pointer_axis(0, time)
+                                {
+                                    return Err(format!(
+                                        "Aqua Files {view} zero axis was not sent"
+                                    ));
+                                }
+                                let stop_deadline =
+                                    std::time::Instant::now() + Duration::from_secs(2);
+                                loop {
+                                    smithay_session.borrow_mut().dispatch_clients().map_err(
+                                        |error| format!("cannot dispatch Files stop: {error}"),
+                                    )?;
+                                    smithay_session.borrow_mut().flush_clients().map_err(
+                                        |error| format!("cannot flush Files stop: {error}"),
+                                    )?;
+                                    let current = snapshot()?;
+                                    if current.damage_commit_count != before.damage_commit_count
+                                        || checksum_bytes(&current.buffer_rgba) != scrolled_checksum
+                                    {
+                                        return Err(format!(
+                                            "Aqua Files {view} zero axis repainted or moved"
+                                        ));
+                                    }
+                                    if std::time::Instant::now() >= stop_deadline {
+                                        break;
+                                    }
+                                    thread::sleep(Duration::from_millis(10));
+                                }
+                                println!("drm_wayland_files_{view}_zero_axis_stable=true");
+                                println!("drm_wayland_files_{view}_zero_axis_damage_delta=0");
+                                let mut previous_checksum = scrolled_checksum;
+                                let mut previous_damage = before.damage_commit_count;
+                                for (step, rows) in [-1, 1].into_iter().enumerate() {
+                                    if !smithay_session.borrow_mut().dispatch_files_pointer_axis(
+                                        rows,
+                                        time.saturating_add(step as u32 + 1),
+                                    ) {
+                                        return Err(format!(
+                                            "Aqua Files {view} reversal was not sent"
+                                        ));
+                                    }
+                                    let deadline =
+                                        std::time::Instant::now() + Duration::from_secs(2);
+                                    loop {
+                                        smithay_session.borrow_mut().dispatch_clients().map_err(
+                                            |error| {
+                                                format!("cannot dispatch Files reversal: {error}")
+                                            },
+                                        )?;
+                                        smithay_session.borrow_mut().flush_clients().map_err(
+                                            |error| format!("cannot flush Files reversal: {error}"),
+                                        )?;
+                                        let current = snapshot()?;
+                                        let checksum = checksum_bytes(&current.buffer_rgba);
+                                        if current.damage_commit_count > previous_damage
+                                            && checksum != previous_checksum
+                                        {
+                                            previous_checksum = checksum;
+                                            previous_damage = current.damage_commit_count;
+                                            break;
+                                        }
+                                        if std::time::Instant::now() >= deadline {
+                                            return Err(format!(
+                                                "Aqua Files {view} reversal did not repaint"
+                                            ));
+                                        }
+                                        thread::sleep(Duration::from_millis(10));
+                                    }
+                                }
+                                if previous_checksum != scrolled_checksum {
+                                    return Err(format!(
+                                        "Aqua Files {view} reversal did not restore pixels"
+                                    ));
+                                }
+                                println!("drm_wayland_files_{view}_axis_reverse_restored=true");
+                                Ok(())
+                            };
+                        verify_files_scroll_stop_and_reverse("list", 10_221, wheel_checksum)?;
                         let home_key_checksum =
                             dispatch_files_keyboard(102, 10_230, wheel_checksum, "home-key")?;
                         println!("drm_wayland_files_home_key=true");
@@ -6506,6 +6598,11 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         };
                         println!("drm_wayland_files_preview_pointer_wheel=true");
                         println!("drm_wayland_files_preview_scroll_offset=1");
+                        verify_files_scroll_stop_and_reverse(
+                            "preview",
+                            10_256,
+                            preview_scrolled_checksum,
+                        )?;
                         let preview_closed_checksum = dispatch_files_keyboard(
                             14,
                             10_260,
