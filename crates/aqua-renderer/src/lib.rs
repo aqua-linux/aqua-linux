@@ -584,6 +584,7 @@ pub struct LauncherOverlayProbe {
     pub visible_app_count: usize,
     pub selected_index: usize,
     pub query_visible: bool,
+    pub empty_results_visible: bool,
     pub primitive_count: usize,
 }
 
@@ -5426,8 +5427,11 @@ impl LauncherOverlayProbe {
         self.rendered
             && matches!(self.mode, "applications" | "search")
             && self.category_count == LauncherCategory::ALL.len()
-            && self.visible_app_count > 0
-            && self.selected_index < self.visible_app_count
+            && if self.visible_app_count == 0 {
+                self.mode == "search" && self.empty_results_visible && self.selected_index == 0
+            } else {
+                !self.empty_results_visible && self.selected_index < self.visible_app_count
+            }
             && self.primitive_count >= 12
     }
 }
@@ -6819,6 +6823,7 @@ fn draw_launcher_overlay(
             visible_app_count: 0,
             selected_index: 0,
             query_visible: false,
+            empty_results_visible: false,
             primitive_count: 0,
         });
     }
@@ -6901,6 +6906,7 @@ fn draw_launcher_overlay(
     );
 
     let visible_apps = launcher.visible_apps();
+    let mut empty_results_visible = false;
     match launcher.mode() {
         LauncherMode::Applications => {
             for (index, app) in visible_apps.iter().take(6).enumerate() {
@@ -6933,6 +6939,33 @@ fn draw_launcher_overlay(
         }
         LauncherMode::Search => {
             let search_layout = global_search.expect("search mode has shared layout");
+            if let Some(rect) = search_layout
+                .empty_results_rect()
+                .filter(|rect| rect.fits_in(viewport))
+            {
+                draw_fitted_bitmap_text(
+                    buffer,
+                    (viewport.width, viewport.height),
+                    Rect { height: 24, ..rect },
+                    "No applications found",
+                    palette.text,
+                    FittedTextOptions::new(TextRole::Control, OutputScale::One, false),
+                );
+                draw_fitted_bitmap_text(
+                    buffer,
+                    (viewport.width, viewport.height),
+                    Rect {
+                        y: rect.y + 30,
+                        height: 24,
+                        ..rect
+                    },
+                    "Try a different search.",
+                    palette.secondary_text,
+                    FittedTextOptions::new(TextRole::Control, OutputScale::One, false),
+                );
+                primitives += 2;
+                empty_results_visible = true;
+            }
             for (index, app) in visible_apps
                 .iter()
                 .take(search_layout.visible_result_count())
@@ -7050,6 +7083,7 @@ fn draw_launcher_overlay(
         visible_app_count: visible_apps.len(),
         selected_index: launcher.selected_index(),
         query_visible: !launcher.query().is_empty(),
+        empty_results_visible,
         primitive_count: primitives,
     })
 }
@@ -9418,6 +9452,98 @@ mod tests {
                 assert_eq!(rgba, repeated);
                 assert_eq!(cache.stats().misses, before.misses);
                 assert_eq!(cache.stats().hits, before.hits + 4);
+            }
+        }
+    }
+
+    #[test]
+    fn launcher_unmatched_query_remains_ready_and_recovers_after_editing() {
+        for theme in [AquaTheme::Light, AquaTheme::Dark] {
+            for viewport in [
+                Viewport::new(800, 600),
+                Viewport::new(1280, 800),
+                Viewport::new(1536, 1024),
+            ] {
+                let mut launcher = LauncherState::default();
+                launcher.open_search();
+                launcher.set_query("no-such-application");
+                let (rgba, empty) =
+                    render_launcher_overlay_rgba_with_theme(viewport, &launcher, theme);
+                assert_eq!(empty.visible_app_count, 0);
+                assert!(empty.empty_results_visible);
+                let search = launcher.global_search(viewport.width, viewport.height);
+                let rect = search.empty_results_rect().unwrap();
+                let origin = ((rect.y * viewport.width + rect.x) * 4) as usize;
+                let background = &rgba[origin..origin + 4];
+                assert!(
+                    (rect.y..rect.bottom()).any(|y| (rect.x..rect.right()).any(|x| {
+                        let offset = ((y * viewport.width + x) * 4) as usize;
+                        &rgba[offset..offset + 4] != background
+                    })),
+                    "empty result text must be visible"
+                );
+                assert_eq!(
+                    launcher.pointer_target_in_viewport(
+                        rect.x,
+                        rect.y,
+                        viewport.width,
+                        viewport.height
+                    ),
+                    Some(aqua_shell::LauncherPointerTarget::Panel)
+                );
+                assert!(!launcher.navigate_selection_in_viewport(
+                    aqua_components::CollectionNavigationKey::Next,
+                    viewport.width,
+                    viewport.height
+                ));
+                let action = search.quick_action_rect(1);
+                assert_eq!(
+                    launcher.pointer_target_in_viewport(
+                        action.x,
+                        action.y,
+                        viewport.width,
+                        viewport.height
+                    ),
+                    Some(aqua_shell::LauncherPointerTarget::QuickAction(
+                        aqua_shell::LauncherQuickAction::Settings
+                    ))
+                );
+                let mut quick_action = launcher.clone();
+                assert_eq!(
+                    quick_action
+                        .activate_quick_action(aqua_shell::LauncherQuickAction::Settings)
+                        .launch_request
+                        .unwrap()
+                        .app_id,
+                    "settings"
+                );
+                assert!(empty.is_ready(), "unmatched query must remain renderable");
+                assert!(launcher
+                    .activate_selected_in_viewport(viewport.width, viewport.height)
+                    .is_none());
+                launcher.set_query("settings");
+                let (_, matching) =
+                    render_launcher_overlay_rgba_with_theme(viewport, &launcher, theme);
+                assert!(matching.is_ready());
+                assert_eq!(matching.visible_app_count, 1);
+                assert!(!matching.empty_results_visible);
+                assert_eq!(
+                    launcher
+                        .activate_selected_in_viewport(viewport.width, viewport.height)
+                        .unwrap()
+                        .app_id,
+                    "settings"
+                );
+                launcher.set_query("");
+                let (_, cleared) =
+                    render_launcher_overlay_rgba_with_theme(viewport, &launcher, theme);
+                assert!(cleared.is_ready());
+                assert_eq!(cleared.visible_app_count, 6);
+                launcher.close();
+                let (_, closed) =
+                    render_launcher_overlay_rgba_with_theme(viewport, &launcher, theme);
+                assert!(!closed.is_ready());
+                assert!(!closed.empty_results_visible);
             }
         }
     }

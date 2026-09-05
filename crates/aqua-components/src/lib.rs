@@ -2662,6 +2662,26 @@ impl<'a> GlobalSearch<'a> {
         }
     }
 
+    pub const fn empty_results_rect(self) -> Option<Rect> {
+        if self.result_count != 0 || !self.is_valid() {
+            return None;
+        }
+        let header = self.results_header_rect();
+        let rect = Rect {
+            x: header.x,
+            y: header.bottom().saturating_add(16),
+            width: header.width.saturating_sub(18),
+            height: 56,
+        };
+        if rect.width == 0
+            || rect.right() > self.split_x()
+            || rect.bottom() > self.rect.bottom().saturating_sub(self.horizontal_inset)
+        {
+            return None;
+        }
+        Some(rect)
+    }
+
     pub const fn result_keyboard_target(
         self,
         selected_index: usize,
@@ -4201,6 +4221,56 @@ mod tests {
             .result_keyboard_target(0, CollectionNavigationKey::Next),
             None
         );
+    }
+
+    #[test]
+    fn global_search_empty_results_stay_inside_the_results_column() {
+        for width in [480, 600, 720] {
+            let search = GlobalSearch::new(
+                Rect {
+                    x: 40,
+                    y: 70,
+                    width,
+                    height: 460,
+                },
+                "Global Search",
+                "Search applications",
+                "Search apps",
+                ("Results", "Quick actions"),
+                0,
+                3,
+            );
+            let empty = search.empty_results_rect().unwrap();
+            assert!(empty.y > search.results_header_rect().bottom());
+            assert!(empty.right() < search.divider_rect().x);
+            assert!(empty.bottom() < search.rect.bottom());
+            assert_eq!(search.result_at(empty.x, empty.y), None);
+            assert_eq!(search.accessibility().result_count, 0);
+            assert!(GlobalSearch {
+                result_count: 1,
+                ..search
+            }
+            .empty_results_rect()
+            .is_none());
+            assert!(GlobalSearch {
+                rect: Rect {
+                    height: 160,
+                    ..search.rect
+                },
+                ..search
+            }
+            .empty_results_rect()
+            .is_none());
+            assert!(GlobalSearch {
+                rect: Rect {
+                    width: 320,
+                    ..search.rect
+                },
+                ..search
+            }
+            .empty_results_rect()
+            .is_none());
+        }
     }
 
     #[test]
