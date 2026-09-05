@@ -35,14 +35,14 @@ MODES = {
     ),
     "desktop-context": (),
     "notification-promote": (
-        "mouse_move -2000 -2000", "mouse_move 26 49",
+        "mouse_move -2000 -2000", "mouse_move 26 59",
         "mouse_button 2", "mouse_button 0",
-        "mouse_move 102 55", "mouse_button 1", "mouse_button 0",
+        "mouse_move 102 70", "mouse_button 1", "mouse_button 0",
         "mouse_move 3000 3000", "mouse_move -25 -87",
         "mouse_button 1", "mouse_button 0",
     ),
     "trash-empty": (
-        "mouse_move -3000 -3000", "mouse_move 26 163",
+        "mouse_move -3000 -3000", "mouse_move 26 180",
         "mouse_button 2", "mouse_button 0",
         "sendkey down 100", "sendkey ret 100", "sendkey ret 100",
     ),
@@ -131,7 +131,7 @@ MODES = {
     ),
     "properties-blurred-space": ("sendkey spc 100",),
     "properties-context-open": (
-        "mouse_move -3000 -3000", "mouse_move 26 49",
+        "mouse_move -3000 -3000", "mouse_move 26 59",
         "mouse_button 2", "mouse_button 0",
     ),
     "properties-refocus": ("sendkey down 100", "sendkey ret 100"),

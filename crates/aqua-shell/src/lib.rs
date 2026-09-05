@@ -2321,7 +2321,7 @@ impl Default for SettingsWindowModel {
             selected_category: 0,
             hovered_category: None,
             reduced_motion: false,
-            desktop_icons: true,
+            desktop_icons: false,
             key_repeat: true,
             audio: AudioVolumeModel::default(),
             network: NetworkAuthoritativeState::default(),
@@ -2691,7 +2691,7 @@ impl SettingsWindowModel {
         };
         Ok(Self {
             reduced_motion,
-            desktop_icons: desktop_icons.unwrap_or(true),
+            desktop_icons: desktop_icons.unwrap_or(false),
             key_repeat: key_repeat.unwrap_or(true),
             audio,
             theme: theme.unwrap_or_default(),
@@ -6082,9 +6082,9 @@ mod tests {
         );
         assert_eq!(
             model.handle_key(SettingsKey::Activate),
-            SettingsUpdate::DesktopIconsChanged(false)
+            SettingsUpdate::DesktopIconsChanged(true)
         );
-        assert!(!model.desktop_icons);
+        assert!(model.desktop_icons);
         assert_eq!(
             model.handle_key(SettingsKey::Down),
             SettingsUpdate::CategorySelected(2)
@@ -6519,11 +6519,11 @@ mod tests {
         model.persist(&path).expect("settings should persist");
         assert_eq!(
             fs::read_to_string(&path).expect("persisted config"),
-            "version=1\nreduced_motion=true\ndesktop_icons=true\nkey_repeat=true\ntheme=Light\naudio_volume=70\naudio_muted=false\n"
+            "version=1\nreduced_motion=true\ndesktop_icons=false\nkey_repeat=true\ntheme=Light\naudio_volume=70\naudio_muted=false\n"
         );
         let reloaded = SettingsWindowModel::load_or_default(&path).expect("settings should reload");
         assert!(reloaded.reduced_motion);
-        assert!(reloaded.desktop_icons);
+        assert!(!reloaded.desktop_icons);
         assert!(reloaded.key_repeat);
         assert_eq!(reloaded.theme, AquaTheme::Light);
         assert_eq!(reloaded.audio.volume_percent(), 70);
@@ -6548,7 +6548,7 @@ mod tests {
         ));
         let legacy = SettingsWindowModel::from_config("version=1\nreduced_motion=false\n")
             .expect("version 1 config without later optional key should remain compatible");
-        assert!(legacy.desktop_icons);
+        assert!(!legacy.desktop_icons);
         assert!(legacy.key_repeat);
         assert_eq!(legacy.theme, AquaTheme::Light);
         assert_eq!(legacy.audio.volume_percent(), 70);

@@ -187,7 +187,7 @@ def main() -> int:
             "info mice",
             "mouse_set 4",
             "mouse_move -3000 -3000",
-            "mouse_move 26 49",
+            "mouse_move 26 59",
             "mouse_button 2",
             "mouse_button 0",
             "sendkey down 100",

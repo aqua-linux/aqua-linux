@@ -34,7 +34,7 @@ EOF
 cat > "${TARGET_DIR}/home/aqua/.config/aqua/settings.conf" <<'EOF'
 version=1
 reduced_motion=false
-desktop_icons=true
+desktop_icons=false
 key_repeat=true
 theme=Light
 EOF

@@ -97,7 +97,7 @@ tar -xOf "${ROOTFS_TAR}" ./usr/share/doc/aqua/installer-binary.txt | grep -Fq "e
 tar -tf "${ROOTFS_TAR}" ./home/aqua/.config/aqua/settings.conf >/dev/null
 test "$(tar -xOf "${ROOTFS_TAR}" ./home/aqua/.config/aqua/settings.conf)" = "version=1
 reduced_motion=false
-desktop_icons=true
+desktop_icons=false
 key_repeat=true
 theme=Light"
 test "$(tar -tvf "${ROOTFS_TAR}" ./home/aqua/.config/aqua/settings.conf | cut -c1-10)" = "-rw-------"
