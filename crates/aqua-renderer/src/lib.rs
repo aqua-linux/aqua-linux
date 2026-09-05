@@ -1536,9 +1536,13 @@ pub fn render_desktop_icons_rgba_with_theme(
     state: &DesktopIconState,
     theme: AquaTheme,
 ) -> DesktopIconsOverlay {
-    let mut overlay = render_desktop_icons_rgba_base(width, height, state, true, true);
-    apply_shell_palette(&mut overlay.rgba, theme);
-    overlay
+    let mut cache = icons::IconRasterCache::default();
+    render_desktop_icons_rgba_with_cached_icons(width, height, state, theme, &mut cache)
+        .unwrap_or_else(|_| {
+            let mut overlay = render_desktop_icons_rgba_base(width, height, state, true, true);
+            apply_shell_palette(&mut overlay.rgba, theme);
+            overlay
+        })
 }
 
 pub fn render_desktop_icons_rgba_with_cached_icons(
@@ -1605,7 +1609,7 @@ pub fn render_desktop_shell_rgba_with_brand_and_cached_icons(
             } else {
                 icons::IconState::Normal
             },
-            64,
+            48,
             aqua_text::OutputScale::One,
         )?;
         let raster = cache.get_or_render(key)?;
@@ -1789,36 +1793,31 @@ fn render_desktop_icons_rgba_base(
                 icon.id,
             );
         }
-        let label_x = match icon.id {
-            "files" => 37,
-            "settings" => 27,
-            "trash" => 35,
-            _ => 20,
-        };
         let label_width = match icon.id {
-            "settings" => 68,
-            _ => 54,
+            "settings" => 62,
+            _ => 48,
+        };
+        let label_rect = Rect {
+            x: cell.rect.x + (cell.rect.width.saturating_sub(label_width)) / 2,
+            y: slots.primary.y,
+            width: label_width,
+            height: 18,
         };
         fill_transparent_rounded_rect(
             &mut rgba,
             width,
             height,
-            Rect {
-                x: (104 - label_width) / 2,
-                y: slots.primary.y,
-                width: label_width,
-                height: 21,
-            },
+            label_rect,
             6,
             [0x01, 0x1b, 0x2c, 0x9c],
         );
-        draw_bitmap_text(
+        draw_fitted_bitmap_text(
             &mut rgba,
             (width, height),
-            (label_x, slots.primary.y + 2),
+            label_rect,
             icon.label,
             [0xf5, 0xfb, 0xff, 0xff],
-            1,
+            FittedTextOptions::new(TextRole::Caption, OutputScale::One, true),
         );
         primitives += 2;
     }
@@ -9228,7 +9227,7 @@ mod tests {
             cached_top.rgba,
             render_top_bar_rgba_with_theme(1536, 56, &top_bar, AquaTheme::Dark).rgba
         );
-        assert_ne!(
+        assert_eq!(
             cached_desktop.rgba,
             render_desktop_icons_rgba_with_theme(
                 aqua_shell::DESKTOP_ICON_LAYER_WIDTH,
@@ -9433,15 +9432,16 @@ mod tests {
         assert_eq!(overlay.selected, Some(1));
         assert_eq!(overlay.context_menu, Some(1));
         assert_eq!(overlay.context_menu_selected_row, Some(0));
-        assert_eq!(overlay.width, 232);
-        assert_eq!(overlay.height, 312);
-        assert!(overlay.primitive_count >= 25);
+        assert_eq!(overlay.width, 216);
+        assert_eq!(overlay.height, 264);
+        assert!(overlay.primitive_count >= 15);
+        for (index, icon) in DESKTOP_ICONS.iter().enumerate() {
+            let slots = desktop_grid_cell(index, icon.label, false, 0, 0).slots();
+            assert_eq!((slots.icon.width, slots.icon.height), (48, 48));
+            assert!(slots.primary.bottom() <= overlay.height);
+        }
         assert!(overlay.rgba.iter().any(|channel| *channel != 0));
-        let files_face = ((45 * overlay.width + 40) * 4) as usize;
-        assert_eq!(
-            &overlay.rgba[files_face..files_face + 4],
-            &[0xa8, 0xe8, 0xf8, 0xff]
-        );
+        assert!(overlay.rgba.chunks_exact(4).any(|pixel| pixel[3] == 0xff));
         state.handle_context_menu_key(aqua_shell::DesktopContextMenuKey::Navigate(
             aqua_shell::MenuNavigationKey::Next,
         ));

@@ -451,12 +451,12 @@ pub const NOTIFICATION_QUEUE_LIMIT: usize = 8;
 pub const SYSTEM_OVERVIEW_REFRESH_MS: u64 = 60_000;
 pub const DESKTOP_ICON_X: u32 = 24;
 pub const DESKTOP_ICON_Y: u32 = 98;
-pub const DESKTOP_ICON_WIDTH: u32 = 104;
-pub const DESKTOP_ICON_ROW_HEIGHT: u32 = 104;
-pub const DESKTOP_ICON_LAYER_WIDTH: u32 = 232;
+pub const DESKTOP_ICON_WIDTH: u32 = 84;
+pub const DESKTOP_ICON_ROW_HEIGHT: u32 = 88;
+pub const DESKTOP_ICON_LAYER_WIDTH: u32 = 216;
 pub const DESKTOP_ICON_LAYER_HEIGHT: u32 = DESKTOP_ICON_ROW_HEIGHT * DESKTOP_ICONS.len() as u32;
 pub const DESKTOP_ICON_DOUBLE_CLICK_MS: u64 = 500;
-pub const DESKTOP_CONTEXT_MENU_X: u32 = DESKTOP_ICON_X + 108;
+pub const DESKTOP_CONTEXT_MENU_X: u32 = DESKTOP_ICON_X + 88;
 pub const DESKTOP_CONTEXT_MENU_WIDTH: u32 = 120;
 pub const DESKTOP_CONTEXT_MENU_ROW_HEIGHT: u32 = 36;
 pub const TRASH_ENTRY_LIMIT: usize = 256;
@@ -1371,7 +1371,7 @@ pub const fn desktop_grid_cell(
         label,
         GridCellLayout::IconAbove,
     )
-    .with_spacing(64, 8, 5, 0)
+    .with_spacing(48, 8, 4, 0)
     .with_idle_surface(false)
     .with_state(if selected {
         ComponentState::Selected
@@ -5594,8 +5594,8 @@ mod tests {
     fn desktop_icons_select_activate_and_open_context_menu() {
         let geometry = desktop_context_menu(1).expect("bounded icon menu should exist");
         assert!(geometry.is_valid());
-        assert_eq!(geometry.item_rect(0).y, 136);
-        assert_eq!(geometry.item_rect(1).y, 172);
+        assert_eq!(geometry.item_rect(0).y, 120);
+        assert_eq!(geometry.item_rect(1).y, 156);
         assert!(desktop_context_menu(DESKTOP_ICONS.len()).is_none());
 
         let mut state = DesktopIconState::default();
@@ -5618,7 +5618,7 @@ mod tests {
             Some(DesktopContextAction::MenuOpened)
         );
 
-        let properties = state.pointer_press(150, 283, DesktopPointerButton::Primary, 2_100);
+        let properties = state.pointer_press(150, 270, DesktopPointerButton::Primary, 2_100);
         assert_eq!(
             properties.context_action,
             Some(DesktopContextAction::Properties("settings"))
@@ -5626,7 +5626,7 @@ mod tests {
         assert_eq!(state.context_menu(), None);
 
         state.pointer_press(48, 336, DesktopPointerButton::Secondary, 2_200);
-        let request = state.pointer_press(150, 383, DesktopPointerButton::Primary, 2_300);
+        let request = state.pointer_press(150, 340, DesktopPointerButton::Primary, 2_300);
         assert_eq!(
             request.context_action,
             Some(DesktopContextAction::TrashEmptyConfirmationRequested)
@@ -5642,7 +5642,7 @@ mod tests {
             trash_dialog.requirement,
             ConfirmationRequirement::RepeatActivation
         );
-        let confirmed = state.pointer_press(150, 383, DesktopPointerButton::Primary, 2_400);
+        let confirmed = state.pointer_press(150, 340, DesktopPointerButton::Primary, 2_400);
         assert_eq!(
             confirmed.context_action,
             Some(DesktopContextAction::TrashEmptyConfirmed)
