@@ -99,7 +99,7 @@ test "$(tar -xOf "${ROOTFS_TAR}" ./home/aqua/.config/aqua/settings.conf)" = "ver
 reduced_motion=false
 desktop_icons=true
 key_repeat=true
-theme=LightWhite"
+theme=Light"
 test "$(tar -tvf "${ROOTFS_TAR}" ./home/aqua/.config/aqua/settings.conf | cut -c1-10)" = "-rw-------"
 
 echo "Aqua Linux compositor binary packaging checks passed."

@@ -16695,13 +16695,13 @@ mod tests {
             let settings_before = state.settings_model.clone();
             state.submit_ui_redraw_buffer(&qh, 1, 1, &[0; 4]);
             state.redraw_settings_buffer(&qh);
-            assert!(!state.apply_runtime_theme(
-                if theme_before == aqua_shell::AquaTheme::LightWhite {
-                    aqua_shell::AquaTheme::Deepside
+            assert!(
+                !state.apply_runtime_theme(if theme_before == aqua_shell::AquaTheme::Light {
+                    aqua_shell::AquaTheme::Dark
                 } else {
-                    aqua_shell::AquaTheme::LightWhite
-                }
-            ));
+                    aqua_shell::AquaTheme::Light
+                })
+            );
             assert!(!state.refresh_runtime_theme(&qh));
             // Exercise the initial attachment fence independently of configure dispatch.
             state.configure_ack_sent = true;
@@ -16725,19 +16725,19 @@ mod tests {
     #[test]
     fn first_party_runtime_theme_transition_is_idempotent() {
         let mut state = XdgSmokeClientState {
-            theme: aqua_shell::AquaTheme::LightWhite,
+            theme: aqua_shell::AquaTheme::Light,
             settings_model: Some(aqua_shell::SettingsWindowModel::default()),
             ..XdgSmokeClientState::default()
         };
 
-        assert!(!state.apply_runtime_theme(aqua_shell::AquaTheme::LightWhite));
-        assert!(state.apply_runtime_theme(aqua_shell::AquaTheme::Deepside));
-        assert_eq!(state.theme, aqua_shell::AquaTheme::Deepside);
+        assert!(!state.apply_runtime_theme(aqua_shell::AquaTheme::Light));
+        assert!(state.apply_runtime_theme(aqua_shell::AquaTheme::Dark));
+        assert_eq!(state.theme, aqua_shell::AquaTheme::Dark);
         assert_eq!(
             state.settings_model.as_ref().map(|model| model.theme),
-            Some(aqua_shell::AquaTheme::Deepside)
+            Some(aqua_shell::AquaTheme::Dark)
         );
-        assert!(!state.apply_runtime_theme(aqua_shell::AquaTheme::Deepside));
+        assert!(!state.apply_runtime_theme(aqua_shell::AquaTheme::Dark));
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -17319,13 +17319,13 @@ mod tests {
         assert_eq!(
             settings_key_for_code(105).map(|key| model.handle_key(key)),
             Some(aqua_shell::SettingsUpdate::ThemeChanged(
-                aqua_shell::AquaTheme::Nightmare
+                aqua_shell::AquaTheme::Dark
             ))
         );
         assert_eq!(
             settings_key_for_code(106).map(|key| model.handle_key(key)),
             Some(aqua_shell::SettingsUpdate::ThemeChanged(
-                aqua_shell::AquaTheme::LightWhite
+                aqua_shell::AquaTheme::Light
             ))
         );
         assert_eq!(

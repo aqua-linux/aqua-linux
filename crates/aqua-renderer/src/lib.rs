@@ -44,7 +44,7 @@ pub struct WindowChromePalette {
     pub row_alternate: [u8; 4],
 }
 
-pub const LIGHTWHITE_WINDOW_CHROME: WindowChromePalette = WindowChromePalette {
+pub const LIGHT_WINDOW_CHROME: WindowChromePalette = WindowChromePalette {
     surface: [0xf8, 0xfa, 0xfc, 0xff],
     titlebar: [0xf2, 0xf5, 0xf9, 0xff],
     toolbar: [0xf6, 0xf8, 0xfb, 0xff],
@@ -59,37 +59,7 @@ pub const LIGHTWHITE_WINDOW_CHROME: WindowChromePalette = WindowChromePalette {
     row_alternate: [0xf1, 0xf4, 0xf8, 0xff],
 };
 
-pub const SOFTTOUCH_WINDOW_CHROME: WindowChromePalette = WindowChromePalette {
-    surface: [0xf7, 0xf6, 0xf3, 0xff],
-    titlebar: [0xef, 0xee, 0xea, 0xff],
-    toolbar: [0xf2, 0xf1, 0xee, 0xff],
-    sidebar: [0xe7, 0xe6, 0xe2, 0xff],
-    field: [0xfb, 0xfa, 0xf7, 0xff],
-    border: [0xcf, 0xce, 0xc9, 0xff],
-    text: [0x20, 0x21, 0x24, 0xff],
-    secondary_text: [0x68, 0x69, 0x66, 0xff],
-    accent: [0x23, 0x7b, 0xe5, 0xff],
-    accent_soft: [0xd9, 0xe7, 0xf8, 0xff],
-    hover: [0xe0, 0xe1, 0xdf, 0xff],
-    row_alternate: [0xee, 0xed, 0xe9, 0xff],
-};
-
-pub const DEEPSIDE_WINDOW_CHROME: WindowChromePalette = WindowChromePalette {
-    surface: [0x0d, 0x27, 0x47, 0xff],
-    titlebar: [0x0a, 0x20, 0x3b, 0xff],
-    toolbar: [0x10, 0x2d, 0x50, 0xff],
-    sidebar: [0x12, 0x32, 0x58, 0xff],
-    field: [0x09, 0x20, 0x3c, 0xff],
-    border: [0x29, 0x4d, 0x73, 0xff],
-    text: [0xf6, 0xf9, 0xff, 0xff],
-    secondary_text: [0xa9, 0xbd, 0xd2, 0xff],
-    accent: [0x3d, 0x9c, 0xff, 0xff],
-    accent_soft: [0x17, 0x47, 0x78, 0xff],
-    hover: [0x16, 0x3b, 0x65, 0xff],
-    row_alternate: [0x10, 0x2d, 0x50, 0xff],
-};
-
-pub const NIGHTMARE_WINDOW_CHROME: WindowChromePalette = WindowChromePalette {
+pub const DARK_WINDOW_CHROME: WindowChromePalette = WindowChromePalette {
     surface: [0x1a, 0x1c, 0x1f, 0xff],
     titlebar: [0x15, 0x17, 0x19, 0xff],
     toolbar: [0x20, 0x22, 0x26, 0xff],
@@ -106,10 +76,8 @@ pub const NIGHTMARE_WINDOW_CHROME: WindowChromePalette = WindowChromePalette {
 
 pub const fn window_chrome_palette(theme: AquaTheme) -> WindowChromePalette {
     match theme {
-        AquaTheme::LightWhite => LIGHTWHITE_WINDOW_CHROME,
-        AquaTheme::Softtouch => SOFTTOUCH_WINDOW_CHROME,
-        AquaTheme::Deepside => DEEPSIDE_WINDOW_CHROME,
-        AquaTheme::Nightmare => NIGHTMARE_WINDOW_CHROME,
+        AquaTheme::Light => LIGHT_WINDOW_CHROME,
+        AquaTheme::Dark => DARK_WINDOW_CHROME,
     }
 }
 
@@ -137,7 +105,7 @@ pub const fn shell_palette(theme: AquaTheme) -> ShellPalette {
     }
 }
 
-pub const TYPOGRAPHY_LAYOUT_FIXTURE_REVISION: &str = "aqua-typography-layout-fixtures-1";
+pub const TYPOGRAPHY_LAYOUT_FIXTURE_REVISION: &str = "aqua-typography-layout-fixtures-2";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypographyLayoutAcceptanceProbe {
@@ -368,7 +336,7 @@ pub fn typography_layout_acceptance_report() -> String {
 }
 
 fn apply_shell_palette(rgba: &mut [u8], theme: AquaTheme) {
-    if theme == AquaTheme::LightWhite {
+    if theme == AquaTheme::Light {
         return;
     }
     let palette = shell_palette(theme);
@@ -643,7 +611,7 @@ pub fn render_notification_toast_rgba(
     height: u32,
     center: &NotificationCenter,
 ) -> NotificationToastOverlay {
-    render_notification_toast_rgba_with_theme(width, height, center, AquaTheme::LightWhite)
+    render_notification_toast_rgba_with_theme(width, height, center, AquaTheme::Light)
 }
 
 pub fn render_notification_toast_rgba_with_theme(
@@ -858,7 +826,7 @@ pub struct TopBarOverlay {
 }
 
 pub fn render_top_bar_rgba(width: u32, height: u32, state: &TopBarState) -> TopBarOverlay {
-    render_top_bar_rgba_with_theme(width, height, state, AquaTheme::LightWhite)
+    render_top_bar_rgba_with_theme(width, height, state, AquaTheme::Light)
 }
 
 pub fn render_top_bar_rgba_with_theme(
@@ -1268,7 +1236,7 @@ fn draw_top_bar_power_icon(
 }
 
 pub fn render_dock_rgba(width: u32, height: u32, state: &DockState) -> DockOverlay {
-    render_dock_rgba_with_theme(width, height, state, AquaTheme::LightWhite)
+    render_dock_rgba_with_theme(width, height, state, AquaTheme::Light)
 }
 
 pub fn render_dock_rgba_with_theme(
@@ -1500,7 +1468,7 @@ pub fn render_desktop_icons_rgba(
     height: u32,
     state: &DesktopIconState,
 ) -> DesktopIconsOverlay {
-    render_desktop_icons_rgba_with_theme(width, height, state, AquaTheme::LightWhite)
+    render_desktop_icons_rgba_with_theme(width, height, state, AquaTheme::Light)
 }
 
 pub fn render_desktop_icons_rgba_with_theme(
@@ -1568,7 +1536,7 @@ fn render_desktop_icons_rgba_base(
     for (index, icon) in DESKTOP_ICONS.iter().enumerate() {
         let cell = desktop_grid_cell(index, icon.label, state.selected() == Some(index), 0, 0);
         let slots = cell.slots();
-        primitives += draw_grid_cell(&mut rgba, width, height, cell, AquaTheme::LightWhite);
+        primitives += draw_grid_cell(&mut rgba, width, height, cell, AquaTheme::Light);
         if draw_placeholder_icons {
             primitives += draw_desktop_icon(
                 &mut rgba,
@@ -2016,7 +1984,7 @@ pub fn render_system_overview_rgba(
     height: u32,
     model: &SystemOverviewModel,
 ) -> SystemOverviewOverlay {
-    render_system_overview_rgba_with_theme(width, height, model, AquaTheme::LightWhite)
+    render_system_overview_rgba_with_theme(width, height, model, AquaTheme::Light)
 }
 
 pub fn render_system_overview_rgba_with_theme(
@@ -2165,7 +2133,7 @@ pub fn render_session_menu_overlay_rgba(
     height: u32,
     menu: &SessionMenuState,
 ) -> SessionMenuOverlay {
-    render_session_menu_overlay_rgba_with_theme(width, height, menu, AquaTheme::LightWhite)
+    render_session_menu_overlay_rgba_with_theme(width, height, menu, AquaTheme::Light)
 }
 
 pub fn render_session_menu_overlay_rgba_with_theme(
@@ -2628,7 +2596,7 @@ pub fn render_terminal_window_rgba(
     height: u32,
     view: &TerminalView,
 ) -> (Vec<u8>, TerminalWindowProbe) {
-    render_terminal_window_rgba_with_theme(width, height, view, AquaTheme::LightWhite)
+    render_terminal_window_rgba_with_theme(width, height, view, AquaTheme::Light)
 }
 
 pub fn render_terminal_window_rgba_with_theme(
@@ -2733,7 +2701,7 @@ pub fn render_properties_window_rgba(
     height: u32,
     model: &DesktopPropertiesModel,
 ) -> (Vec<u8>, PropertiesWindowProbe) {
-    render_properties_window_rgba_with_theme(width, height, model, AquaTheme::LightWhite)
+    render_properties_window_rgba_with_theme(width, height, model, AquaTheme::Light)
 }
 
 pub fn render_properties_window_rgba_with_theme(
@@ -2914,7 +2882,7 @@ impl Default for InstallerRenderOptions<'_> {
     fn default() -> Self {
         Self {
             progress: None,
-            theme: AquaTheme::LightWhite,
+            theme: AquaTheme::Light,
         }
     }
 }
@@ -2966,7 +2934,7 @@ pub fn render_installer_window_rgba_with_theme(
         height,
     };
     let palette = window_chrome_palette(theme);
-    let canvas_color = if theme == AquaTheme::LightWhite {
+    let canvas_color = if theme == AquaTheme::Light {
         [0x9a, 0xb9, 0xd9, 0xff]
     } else {
         palette.sidebar
@@ -2986,7 +2954,7 @@ pub fn render_installer_window_rgba_with_theme(
         height,
         shadow,
         8,
-        if theme == AquaTheme::LightWhite {
+        if theme == AquaTheme::Light {
             [0x1d, 0x45, 0x72, 0xff]
         } else {
             palette.border
@@ -4384,7 +4352,7 @@ pub fn render_settings_window_rgba(
                 width,
                 height,
                 model.theme_segmented_control(),
-                &["LightWhite", "Softtouch", "Deepside", "Nightmare"],
+                &["Light", "Dark"],
                 model.theme,
                 OutputScale::One,
             );
@@ -4723,7 +4691,7 @@ pub fn render_files_window_rgba(
     height: u32,
     model: &FilesWindowModel,
 ) -> (Vec<u8>, FilesWindowProbe) {
-    render_files_window_rgba_with_theme(width, height, model, AquaTheme::LightWhite)
+    render_files_window_rgba_with_theme(width, height, model, AquaTheme::Light)
 }
 
 pub fn render_files_window_rgba_with_theme(
@@ -6200,7 +6168,7 @@ pub fn export_runtime_desktop_rgba_with_launcher(
         wallpaper_rgba,
         client_paint_plan,
         launcher,
-        AquaTheme::LightWhite,
+        AquaTheme::Light,
     )
 }
 
@@ -7964,9 +7932,9 @@ mod tests {
     fn typography_layout_acceptance_report_is_stable_and_complete() {
         let first = typography_layout_acceptance_report();
         assert_eq!(first, typography_layout_acceptance_report());
-        assert_eq!(first.matches("viewport=").count(), 12);
-        assert_eq!(first.matches("ready=true").count(), 12);
-        assert_eq!(first.matches("missing_glyphs=0").count(), 12);
+        assert_eq!(first.matches("viewport=").count(), 6);
+        assert_eq!(first.matches("ready=true").count(), 6);
+        assert_eq!(first.matches("missing_glyphs=0").count(), 6);
     }
 
     #[test]
@@ -7997,7 +7965,7 @@ mod tests {
         let layout = InstallerWindowLayout::for_viewport(Viewport::new(1280, 800)).unwrap();
         assert_eq!(
             sample_pixel(&rgba, 1280, layout.titlebar.x + 400, layout.titlebar.y + 40),
-            LIGHTWHITE_WINDOW_CHROME.titlebar
+            LIGHT_WINDOW_CHROME.titlebar
         );
 
         let (png, png_probe) =
@@ -8694,37 +8662,32 @@ mod tests {
         );
         let mut cache = icons::IconRasterCache::default();
 
-        let cached_top = render_top_bar_rgba_with_cached_icons(
-            1536,
-            36,
-            &top_bar,
-            AquaTheme::Nightmare,
-            &mut cache,
-        )
-        .unwrap();
+        let cached_top =
+            render_top_bar_rgba_with_cached_icons(1536, 36, &top_bar, AquaTheme::Dark, &mut cache)
+                .unwrap();
         let cached_desktop = render_desktop_icons_rgba_with_cached_icons(
             aqua_shell::DESKTOP_ICON_LAYER_WIDTH,
             aqua_shell::DESKTOP_ICON_LAYER_HEIGHT,
             &desktop,
-            AquaTheme::Nightmare,
+            AquaTheme::Dark,
             &mut cache,
         )
         .unwrap();
         let cached_dock =
-            render_dock_rgba_with_cached_icons(760, 72, &dock, AquaTheme::Nightmare, &mut cache)
+            render_dock_rgba_with_cached_icons(760, 72, &dock, AquaTheme::Dark, &mut cache)
                 .unwrap();
         let cached_notification = render_notification_toast_rgba_with_cached_icons(
             420,
             112,
             &notifications,
-            AquaTheme::Nightmare,
+            AquaTheme::Dark,
             &mut cache,
         )
         .unwrap();
 
         assert_ne!(
             cached_top.rgba,
-            render_top_bar_rgba_with_theme(1536, 36, &top_bar, AquaTheme::Nightmare).rgba
+            render_top_bar_rgba_with_theme(1536, 36, &top_bar, AquaTheme::Dark).rgba
         );
         assert_ne!(
             cached_desktop.rgba,
@@ -8732,23 +8695,18 @@ mod tests {
                 aqua_shell::DESKTOP_ICON_LAYER_WIDTH,
                 aqua_shell::DESKTOP_ICON_LAYER_HEIGHT,
                 &desktop,
-                AquaTheme::Nightmare,
+                AquaTheme::Dark,
             )
             .rgba
         );
         assert_ne!(
             cached_dock.rgba,
-            render_dock_rgba_with_theme(760, 72, &dock, AquaTheme::Nightmare).rgba
+            render_dock_rgba_with_theme(760, 72, &dock, AquaTheme::Dark).rgba
         );
         assert_ne!(
             cached_notification.rgba,
-            render_notification_toast_rgba_with_theme(
-                420,
-                112,
-                &notifications,
-                AquaTheme::Nightmare,
-            )
-            .rgba
+            render_notification_toast_rgba_with_theme(420, 112, &notifications, AquaTheme::Dark,)
+                .rgba
         );
         assert_eq!(cache.len(), 10);
         assert_eq!(cache.stats().hits, 0);
@@ -8756,8 +8714,7 @@ mod tests {
         assert_eq!(cache.stats().parsed_sources, 7);
         assert_eq!(cache.stats().evictions, 0);
 
-        render_dock_rgba_with_cached_icons(760, 72, &dock, AquaTheme::Nightmare, &mut cache)
-            .unwrap();
+        render_dock_rgba_with_cached_icons(760, 72, &dock, AquaTheme::Dark, &mut cache).unwrap();
         assert_eq!(cache.len(), 10);
         assert_eq!(cache.stats().hits, 3);
         assert_eq!(cache.stats().misses, 10);

@@ -473,7 +473,7 @@ interaction foundation shared by the compositor and first-party applications.
 - Rasterize from source metrics at 1.0, 1.25, 1.5, and 2.0 scales.
 - Validate named caption, body, control, title, display, and monospace roles.
 
-Done when shaped fixture text has stable baselines and bounds in all four
+Done when shaped fixture text has stable baselines and bounds in both
 themes and supported scales, long localized labels do not overlap critical
 actions, and shell and first-party applications use the same text service.
 
@@ -488,7 +488,7 @@ actions, and shell and first-party applications use the same text service.
   frame budget.
 
 Done when deterministic captures show consistent neutral depth without glow,
-corner seams, clipping, or viewport-edge artifacts in all four themes.
+corner seams, clipping, or viewport-edge artifacts in both themes.
 
 ### Workstream 3: Scalable Icon Processing
 
@@ -531,7 +531,7 @@ menu, metadata row, section group, standard button, icon button, search field,
 checkbox, switch, segmented control, toolbar, list row, grid cell, application overview,
 global search, running-app dock, workspace switcher, notification, confirmation
 dialog, sidebar navigation, and slider are packaged-QEMU-proven across their applicable states,
-four themes, three required
+two themes, three required
 viewports, and a fractional scale. Installer,
 Applications, Global Search, Terminal, Properties, Settings, and Files consume
 the applicable primitives; the Applications surface composes the shared search
@@ -660,7 +660,7 @@ mute profile keeps selected 05.0 unmuted, prepares fallback 04.0 muted, removes
 acknowledge the removed target. Other error behavior remains open R4 work;
 physical hardware support is not claimed.
 The packaged acceptance-only component client proves all twenty-two shared
-primitives through the real Smithay/GLES/DRM path in all four themes and returns
+primitives through the real Smithay/GLES/DRM path in both themes and returns
 to recovery after each bounded session.
 
 Done when desktop, Applications, Search, Terminal, Files, Settings, and the

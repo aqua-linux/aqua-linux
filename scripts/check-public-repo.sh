@@ -91,10 +91,9 @@ for brand_asset in symbol-primary symbol-inverse symbol-accent wordmark-primary 
     test -s "docs/aqua-linux/assets/aqua-${brand_asset}.png"
 done
 
-grep -Fq '"defaultTheme": "LightWhite"' docs/aqua-linux/design-tokens.json
-grep -Fq '"Softtouch"' docs/aqua-linux/design-tokens.json
-grep -Fq '"Deepside"' docs/aqua-linux/design-tokens.json
-grep -Fq '"Nightmare"' docs/aqua-linux/design-tokens.json
+grep -Fq '"defaultTheme": "Light"' docs/aqua-linux/design-tokens.json
+grep -Fq '"Light"' docs/aqua-linux/design-tokens.json
+grep -Fq '"Dark"' docs/aqua-linux/design-tokens.json
 
 calculated_percent="$(jq '[.phases[].percent] | (((add / length) + 0.5) | floor)' docs/aqua-linux/progress.json)"
 reported_percent="$(jq '.overallPercent' docs/aqua-linux/progress.json)"

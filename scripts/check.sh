@@ -1204,7 +1204,7 @@ grep -Fq 'LauncherMode::Search' crates/aqua-renderer/src/lib.rs
 grep -Fq 'pub enum BottomShellTarget' crates/aqua-shell/src/lib.rs
 grep -Fq 'desktop_bottom_shell_group_count' crates/aqua-compositor/src/main.rs
 grep -Fq 'bottom-applications-activate' scripts/send-qemu-monitor-input.py
-grep -Fq 'pub const LIGHTWHITE_WINDOW_CHROME' crates/aqua-renderer/src/lib.rs
+grep -Fq 'pub const LIGHT_WINDOW_CHROME' crates/aqua-renderer/src/lib.rs
 grep -Fq 'fn draw_bright_window_titlebar' crates/aqua-renderer/src/lib.rs
 grep -Fq 'first_party_bright_window_chrome' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'Notifications, real system overview' docs/aqua-linux/progress.json
@@ -1290,7 +1290,7 @@ test -f docs/aqua-linux/ui-contract.md
 grep -Fxq '/docs/aqua-linux/local-references/' .gitignore
 test -z "$(find docs/aqua-linux/assets -maxdepth 1 -name 'reference-*.png' -print)"
 grep -Fq 'The bottom area is split into launcher/search controls, a centered running-app dock, and workspace thumbnails.' docs/aqua-linux/visual-reference.md
-grep -Fq 'Theme selection for LightWhite, Softtouch, Deepside, or Nightmare.' docs/aqua-linux/visual-reference.md
+grep -Fq 'Theme selection for Light or Dark.' docs/aqua-linux/visual-reference.md
 grep -Fq 'runningAppDock": "bottom-center"' docs/aqua-linux/design-tokens.json
 grep -Fq 'Third-party icons shown in references are composition examples only.' docs/aqua-linux/interface-style.md
 grep -Fq '## Elevation And Shadows' docs/aqua-linux/interface-style.md
@@ -1303,9 +1303,9 @@ grep -Fq 'stableLayoutAcrossStates' docs/aqua-linux/design-tokens.json
 grep -Fq '## Visual Fidelity Acceptance' docs/aqua-linux/ui-contract.md
 grep -Fq '## Milestone 12: Visual Fidelity And Component System' docs/aqua-linux/milestones.md
 grep -Fq 'pub enum AquaTheme' crates/aqua-shell/src/lib.rs
-grep -Fq 'pub const NIGHTMARE_WINDOW_CHROME' crates/aqua-renderer/src/lib.rs
+grep -Fq 'pub const DARK_WINDOW_CHROME' crates/aqua-renderer/src/lib.rs
 grep -Fq 'render_files_window_rgba_with_theme' crates/aqua-renderer/src/lib.rs
-grep -Fq 'runtime_theme_palettes = "AquaTheme bounds LightWhite, Softtouch, Deepside, and Nightmare' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'runtime_theme_palettes = "AquaTheme bounds Light and Dark' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'runtime_shell_theme_palettes = "the compositor applies one shared ShellPalette' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'pub struct ShellPalette' crates/aqua-renderer/src/lib.rs
 grep -Fq 'render_launcher_overlay_rgba_with_theme' crates/aqua-renderer/src/lib.rs
@@ -1349,7 +1349,7 @@ test -x br2-external/aqua/rootfs-overlay/usr/bin/aqua-hardware-inventory
 test -x scripts/check-hardware-inventory.sh
 scripts/check-hardware-inventory.sh
 grep -Fq 'desktop_shell_theme=' crates/aqua-compositor/src/main.rs
-grep -Fq 'theme=LightWhite' br2-external/aqua/board/aqua/x86_64/post-build.sh
+grep -Fq 'theme=Light' br2-external/aqua/board/aqua/x86_64/post-build.sh
 grep -Fq 'run-manual-nested-preview-execution' docs/aqua-linux/compositor.md
 grep -Fq 'aqua-visible-preview-request' docs/aqua-linux/compositor.md
 grep -Fq 'aqua-visible-preview-launch' docs/aqua-linux/compositor.md
@@ -1755,8 +1755,8 @@ grep -Fq 'pub fn shape_line' crates/aqua-text/src/lib.rs
 grep -Fq 'pub fn typography_fixture_report' crates/aqua-text/src/lib.rs
 grep -Fq 'noto-sans-arabic-regular-2.009' docs/aqua-linux/typography-fixtures.txt
 grep -Fq 'pub fn typography_layout_acceptance_report' crates/aqua-renderer/src/lib.rs
-grep -Fq 'aqua-typography-layout-fixtures-1' docs/aqua-linux/typography-layout-fixtures.txt
-grep -Fq 'aqua-component-fixtures-19' docs/aqua-linux/component-fixtures.txt
+grep -Fq 'aqua-typography-layout-fixtures-2' docs/aqua-linux/typography-layout-fixtures.txt
+grep -Fq 'aqua-component-fixtures-20' docs/aqua-linux/component-fixtures.txt
 test -f docs/aqua-linux/component-catalog.md
 grep -Fq 'Window frame and title bar | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Top system bar | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
@@ -1915,7 +1915,7 @@ grep -Fq 'aqua_settings_audio_controls_enabled={}' crates/aqua-compositor/src/li
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=typography-acceptance' scripts/check-typography-wayland-qemu.exp
 grep -Fq 'typography_wayland_surface_ready=true' scripts/check-typography-wayland-qemu.sh
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=component-acceptance' scripts/check-component-wayland-qemu.exp
-grep -Fq 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-19' scripts/check-component-wayland-qemu.sh
+grep -Fq 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-20' scripts/check-component-wayland-qemu.sh
 grep -Fq 'component_wayland_shared_primitive_count=22' scripts/check-component-wayland-qemu.sh
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=elevation-acceptance' scripts/check-elevation-wayland-qemu.exp
 grep -Fq 'elevation_wayland_focused_surface_count=1' scripts/check-elevation-wayland-qemu.sh

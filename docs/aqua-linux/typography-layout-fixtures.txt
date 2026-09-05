@@ -1,13 +1,7 @@
-fixture_revision=aqua-typography-layout-fixtures-1
-viewport=800x600 scale=4/4 theme=LightWhite ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=true fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=0277d0dae9b63cd2
-viewport=800x600 scale=4/4 theme=Softtouch ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=true fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=ca89b1ee226c3a1f
-viewport=800x600 scale=4/4 theme=Deepside ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=true fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=243f41c0fb6728ac
-viewport=800x600 scale=4/4 theme=Nightmare ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=true fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=fad772215f713957
-viewport=1280x800 scale=4/4 theme=LightWhite ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=false fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=ee9edf828b44ed72
-viewport=1280x800 scale=4/4 theme=Softtouch ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=false fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=36ecd048940dd502
-viewport=1280x800 scale=4/4 theme=Deepside ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=false fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=a421b254abb4d197
-viewport=1280x800 scale=4/4 theme=Nightmare ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=false fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=bc4e55f3560f4c49
-viewport=1536x1024 scale=5/4 theme=LightWhite ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=false fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=cad5ecbe872a8a86
-viewport=1536x1024 scale=5/4 theme=Softtouch ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=false fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=e095b96d27732f5a
-viewport=1536x1024 scale=5/4 theme=Deepside ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=false fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=c7597558b693defc
-viewport=1536x1024 scale=5/4 theme=Nightmare ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=false fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=ee413c5326412016
+fixture_revision=aqua-typography-layout-fixtures-2
+viewport=800x600 scale=4/4 theme=Light ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=true fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=0277d0dae9b63cd2
+viewport=800x600 scale=4/4 theme=Dark ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=true fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=fad772215f713957
+viewport=1280x800 scale=4/4 theme=Light ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=false fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=ee9edf828b44ed72
+viewport=1280x800 scale=4/4 theme=Dark ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=false fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=bc4e55f3560f4c49
+viewport=1536x1024 scale=5/4 theme=Light ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=false fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=cad5ecbe872a8a86
+viewport=1536x1024 scale=5/4 theme=Dark ready=true critical_labels_fit=true long_label_contained=true long_label_truncated=false fallback_glyphs=37 missing_glyphs=0 regions_are_separated=true checksum=ee413c5326412016

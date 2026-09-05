@@ -64,23 +64,23 @@ run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_clien
 
 after 500
 if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(LIGHT_SCREENSHOT) $env(LIGHT_SCREENSHOT_PNG)} capture_error]} {
-    puts stderr "QEMU LightWhite screendump failed: $capture_error"
+    puts stderr "QEMU Light screendump failed: $capture_error"
     exit 1
 }
 
 run_shell_check {files_pid_before="$(pidof aqua-files)"; settings_pid_before="$(pidof aqua-settings)"; repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; test -n "$files_pid_before"; test -n "$settings_pid_before"} "recording process state"
-run_shell_check {config=/home/aqua/.config/aqua/settings.conf; temporary="${config}.theme-test"; sed 's/^theme=.*/theme=Deepside/' "$config" > "$temporary" && chmod 600 "$temporary" && chown aqua:aqua "$temporary" && mv "$temporary" "$config"} "selecting Deepside"
-run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_runtime_theme_broadcast=Deepside' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_runtime_theme_broadcast=Deepside' /run/aqua/graphical-session-supervisor.log} "waiting for Shell theme broadcast"
-run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_runtime_theme_changed=Deepside app_id=aqua.files' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'aqua_runtime_theme_changed=Deepside app_id=aqua.files' /run/aqua/graphical-session-supervisor.log} "waiting for Files redraw"
-run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_runtime_theme_changed=Deepside app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'aqua_runtime_theme_changed=Deepside app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log} "waiting for Settings redraw"
+run_shell_check {config=/home/aqua/.config/aqua/settings.conf; temporary="${config}.theme-test"; sed 's/^theme=.*/theme=Dark/' "$config" > "$temporary" && chmod 600 "$temporary" && chown aqua:aqua "$temporary" && mv "$temporary" "$config"} "selecting Dark"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_runtime_theme_broadcast=Dark' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_runtime_theme_broadcast=Dark' /run/aqua/graphical-session-supervisor.log} "waiting for Shell theme broadcast"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_runtime_theme_changed=Dark app_id=aqua.files' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'aqua_runtime_theme_changed=Dark app_id=aqua.files' /run/aqua/graphical-session-supervisor.log} "waiting for Files redraw"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'aqua_runtime_theme_changed=Dark app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'aqua_runtime_theme_changed=Dark app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log} "waiting for Settings redraw"
 run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_event_theme_changed=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_event_theme_changed=true' /run/aqua/graphical-session-supervisor.log} "waiting for the presented theme frame"
-run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$repaint_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for Deepside repaint"
-run_shell_check {ok=1; grep -Fq 'desktop_shell_theme_changed=Deepside' /run/aqua/graphical-session-supervisor.log || ok=0; [ "$(pidof aqua-files)" = "$files_pid_before" ] || ok=0; [ "$(pidof aqua-settings)" = "$settings_pid_before" ] || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$repaint_before" ] || ok=0} "checking live redraw without restart"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$repaint_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for Dark repaint"
+run_shell_check {ok=1; grep -Fq 'desktop_shell_theme_changed=Dark' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_wallpaper_theme_changed=Dark' /run/aqua/graphical-session-supervisor.log || ok=0; [ "$(pidof aqua-files)" = "$files_pid_before" ] || ok=0; [ "$(pidof aqua-settings)" = "$settings_pid_before" ] || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$repaint_before" ] || ok=0} "checking live redraw without restart"
 run_shell_check {grep -E 'desktop_(runtime_theme_broadcast|shell_theme_changed|event_(theme_changed|repaint_(sequence|checksum)))=|aqua_runtime_theme_changed=' /run/aqua/graphical-session-supervisor.log | tail -n 28} "reporting live theme repaint evidence"
 
 after 500
 if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(DEEP_SCREENSHOT) $env(DEEP_SCREENSHOT_PNG)} capture_error]} {
-    puts stderr "QEMU Deepside screendump failed: $capture_error"
+    puts stderr "QEMU Dark screendump failed: $capture_error"
     exit 1
 }
 if {[catch {exec python3 $env(THEME_FRAME_CHECK) $env(LIGHT_SCREENSHOT) $env(DEEP_SCREENSHOT)} delta_error]} {
@@ -88,10 +88,10 @@ if {[catch {exec python3 $env(THEME_FRAME_CHECK) $env(LIGHT_SCREENSHOT) $env(DEE
     exit 1
 }
 
-send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-live-theme-qemu status=ok from=LightWhite to=Deepside shell=true apps=files,settings restart=false frame_delta=true'}
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-live-theme-qemu status=ok from=Light to=Dark shell=true apps=files,settings restart=false frame_delta=true'}
 send -- "\r"
 expect {
-    -exact {[AQUA-TEST] stage=desktop-live-theme-qemu status=ok from=LightWhite to=Deepside shell=true apps=files,settings restart=false frame_delta=true} {}
+    -exact {[AQUA-TEST] stage=desktop-live-theme-qemu status=ok from=Light to=Dark shell=true apps=files,settings restart=false frame_delta=true} {}
     timeout { puts stderr "Live theme marker missing"; exit 1 }
     eof { puts stderr "QEMU exited before live theme marker"; exit 1 }
 }

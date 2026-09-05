@@ -1,15 +1,15 @@
-revision=aqua-icon-fixtures-1
-role=aqua-drive kind=full-color cases=112 source_bytes=358 coverage=0.556-0.630 silhouette_stable=true checksum=a973858133417195 ready=true
-role=battery kind=symbolic cases=112 source_bytes=299 coverage=0.252-0.387 silhouette_stable=true checksum=8afdb0fd6ce90b77 ready=true
-role=browser kind=full-color cases=112 source_bytes=309 coverage=0.564-0.620 silhouette_stable=true checksum=74509e69242deeed ready=true
-role=files kind=full-color cases=112 source_bytes=303 coverage=0.561-0.642 silhouette_stable=true checksum=cec7bc3c5d02d13d ready=true
-role=home kind=symbolic cases=112 source_bytes=319 coverage=0.392-0.475 silhouette_stable=true checksum=d34d88d891c4eead ready=true
-role=notification kind=symbolic cases=112 source_bytes=308 coverage=0.306-0.360 silhouette_stable=true checksum=0f4754da40cbc6a5 ready=true
-role=settings kind=full-color cases=112 source_bytes=327 coverage=0.432-0.520 silhouette_stable=true checksum=274375d441555fc5 ready=true
-role=software kind=full-color cases=112 source_bytes=369 coverage=0.517-0.572 silhouette_stable=true checksum=3eebe39533814755 ready=true
-role=terminal kind=full-color cases=112 source_bytes=300 coverage=0.660-0.730 silhouette_stable=true checksum=4aea2f5d07ba9c35 ready=true
-role=trash kind=full-color cases=112 source_bytes=303 coverage=0.394-0.477 silhouette_stable=true checksum=adb10f95e21e1c9d ready=true
-role=updates kind=full-color cases=112 source_bytes=301 coverage=0.235-0.410 silhouette_stable=true checksum=9ba02d00886e4b85 ready=true
-role=volume kind=symbolic cases=112 source_bytes=308 coverage=0.252-0.367 silhouette_stable=true checksum=6a53b99cc28dd24d ready=true
-role=wifi kind=symbolic cases=112 source_bytes=263 coverage=0.193-0.328 silhouette_stable=true checksum=96a262cf3eded137 ready=true
-summary roles=13 cases=1456 dimensions=18 sources_valid=true rasters_ready=true transparent=true silhouette_stable=true state_keys=true entries=256 hits=1457 misses=1462 evictions=1206 parsed_sources=13 checksum=a4b4fedfad39678d ready=true
+revision=aqua-icon-fixtures-2
+role=aqua-drive kind=full-color cases=56 source_bytes=358 coverage=0.556-0.630 silhouette_stable=true checksum=5aa97922d7471bfd ready=true
+role=battery kind=symbolic cases=56 source_bytes=299 coverage=0.252-0.387 silhouette_stable=true checksum=14960fb5ea9b7f21 ready=true
+role=browser kind=full-color cases=56 source_bytes=309 coverage=0.564-0.620 silhouette_stable=true checksum=129cae3a59c8c929 ready=true
+role=files kind=full-color cases=56 source_bytes=303 coverage=0.561-0.642 silhouette_stable=true checksum=33cd21fcceecb5b1 ready=true
+role=home kind=symbolic cases=56 source_bytes=319 coverage=0.392-0.475 silhouette_stable=true checksum=21489bf0030265f3 ready=true
+role=notification kind=symbolic cases=56 source_bytes=308 coverage=0.306-0.360 silhouette_stable=true checksum=87a76c7025bbf3dd ready=true
+role=settings kind=full-color cases=56 source_bytes=327 coverage=0.432-0.520 silhouette_stable=true checksum=5afe5962b66d7775 ready=true
+role=software kind=full-color cases=56 source_bytes=369 coverage=0.517-0.572 silhouette_stable=true checksum=09d7021cd0c5392d ready=true
+role=terminal kind=full-color cases=56 source_bytes=300 coverage=0.660-0.730 silhouette_stable=true checksum=f07f60dfd3d5893d ready=true
+role=trash kind=full-color cases=56 source_bytes=303 coverage=0.394-0.477 silhouette_stable=true checksum=c3369cd0673ddf81 ready=true
+role=updates kind=full-color cases=56 source_bytes=301 coverage=0.235-0.410 silhouette_stable=true checksum=8e8956622b719d15 ready=true
+role=volume kind=symbolic cases=56 source_bytes=308 coverage=0.252-0.367 silhouette_stable=true checksum=9287ef5498dcf6e7 ready=true
+role=wifi kind=symbolic cases=56 source_bytes=263 coverage=0.193-0.328 silhouette_stable=true checksum=f467f78c7eac0e53 ready=true
+summary roles=13 cases=728 dimensions=18 sources_valid=true rasters_ready=true transparent=true silhouette_stable=true state_keys=true entries=256 hits=729 misses=734 evictions=478 parsed_sources=13 checksum=a7bc0b1e7db80273 ready=true

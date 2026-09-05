@@ -12,14 +12,10 @@ MEMORY="${MEMORY:-1024M}"
 CPUS="${CPUS:-2}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-240}"
 
-SCREENSHOT_lightwhite="${SCREENSHOT_lightwhite:-${ROOT_DIR}/build/qemu-icon-lightwhite.ppm}"
-SCREENSHOT_lightwhite_PNG="${SCREENSHOT_lightwhite_PNG:-${ROOT_DIR}/build/qemu-icon-lightwhite.png}"
-SCREENSHOT_softtouch="${SCREENSHOT_softtouch:-${ROOT_DIR}/build/qemu-icon-softtouch.ppm}"
-SCREENSHOT_softtouch_PNG="${SCREENSHOT_softtouch_PNG:-${ROOT_DIR}/build/qemu-icon-softtouch.png}"
-SCREENSHOT_deepside="${SCREENSHOT_deepside:-${ROOT_DIR}/build/qemu-icon-deepside.ppm}"
-SCREENSHOT_deepside_PNG="${SCREENSHOT_deepside_PNG:-${ROOT_DIR}/build/qemu-icon-deepside.png}"
-SCREENSHOT_nightmare="${SCREENSHOT_nightmare:-${ROOT_DIR}/build/qemu-icon-nightmare.ppm}"
-SCREENSHOT_nightmare_PNG="${SCREENSHOT_nightmare_PNG:-${ROOT_DIR}/build/qemu-icon-nightmare.png}"
+SCREENSHOT_light="${SCREENSHOT_light:-${ROOT_DIR}/build/qemu-icon-light.ppm}"
+SCREENSHOT_light_PNG="${SCREENSHOT_light_PNG:-${ROOT_DIR}/build/qemu-icon-light.png}"
+SCREENSHOT_dark="${SCREENSHOT_dark:-${ROOT_DIR}/build/qemu-icon-dark.ppm}"
+SCREENSHOT_dark_PNG="${SCREENSHOT_dark_PNG:-${ROOT_DIR}/build/qemu-icon-dark.png}"
 
 for tool in expect file python3 qemu-system-x86_64; do
     command -v "${tool}" >/dev/null 2>&1 || {
@@ -36,16 +32,13 @@ done
 
 mkdir -p "$(dirname "${SERIAL_LOG}")"
 rm -f "${SERIAL_LOG}" "${MONITOR_SOCKET}" \
-    "${SCREENSHOT_lightwhite}" "${SCREENSHOT_lightwhite_PNG}" \
-    "${SCREENSHOT_softtouch}" "${SCREENSHOT_softtouch_PNG}" \
-    "${SCREENSHOT_deepside}" "${SCREENSHOT_deepside_PNG}" \
-    "${SCREENSHOT_nightmare}" "${SCREENSHOT_nightmare_PNG}"
+    "${SCREENSHOT_light}" "${SCREENSHOT_light_PNG}" \
+    "${SCREENSHOT_dark}" "${SCREENSHOT_dark_PNG}"
+
 
 export KERNEL ROOTFS SERIAL_LOG MONITOR_SOCKET CAPTURE_HELPER MEMORY CPUS TIMEOUT_SECONDS
-export SCREENSHOT_lightwhite SCREENSHOT_lightwhite_PNG
-export SCREENSHOT_softtouch SCREENSHOT_softtouch_PNG
-export SCREENSHOT_deepside SCREENSHOT_deepside_PNG
-export SCREENSHOT_nightmare SCREENSHOT_nightmare_PNG
+export SCREENSHOT_light SCREENSHOT_light_PNG
+export SCREENSHOT_dark SCREENSHOT_dark_PNG
 "${ROOT_DIR}/scripts/check-icon-wayland-qemu.exp" >/dev/null
 
 need_marker() {
@@ -80,32 +73,30 @@ import sys
 
 text = pathlib.Path(sys.argv[1]).read_text(errors="replace").replace("\r", "")
 for marker, expected in (
-    ("icon_wayland_raster_cache_ready=true", 4),
-    ("icon_wayland_raster_roles=7", 4),
-    ("icon_wayland_raster_surfaces=4", 4),
-    ("desktop_icon_rasters_ready=true surface=top-bar roles=3", 4),
-    ("desktop_icon_rasters_ready=true surface=desktop roles=3", 4),
-    ("desktop_icon_rasters_ready=true surface=dock roles=3", 8),
-    ("desktop_icon_rasters_ready=true surface=notification roles=1", 4),
-    ("desktop_icon_raster_cache_hits=3", 4),
-    ("desktop_icon_raster_cache_misses=10", 8),
-    ("desktop_icon_raster_cache_parsed_sources=7", 8),
-    ("session_scenario=icon-acceptance", 4),
-    ("[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok", 4),
+    ("icon_wayland_raster_cache_ready=true", 2),
+    ("icon_wayland_raster_roles=7", 2),
+    ("icon_wayland_raster_surfaces=4", 2),
+    ("desktop_icon_rasters_ready=true surface=top-bar roles=3", 2),
+    ("desktop_icon_rasters_ready=true surface=desktop roles=3", 2),
+    ("desktop_icon_rasters_ready=true surface=dock roles=3", 4),
+    ("desktop_icon_rasters_ready=true surface=notification roles=1", 2),
+    ("desktop_icon_raster_cache_hits=3", 2),
+    ("desktop_icon_raster_cache_misses=10", 4),
+    ("desktop_icon_raster_cache_parsed_sources=7", 4),
+    ("session_scenario=icon-acceptance", 2),
+    ("[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok", 2),
 ):
     actual = text.count(marker)
     if actual != expected:
         raise SystemExit(f"expected {expected} occurrences of {marker!r}, got {actual}")
 PY
 
-for png in "${SCREENSHOT_lightwhite_PNG}" "${SCREENSHOT_softtouch_PNG}" \
-    "${SCREENSHOT_deepside_PNG}" "${SCREENSHOT_nightmare_PNG}"; do
+for png in "${SCREENSHOT_light_PNG}" "${SCREENSHOT_dark_PNG}"; do
     file "${png}" | grep -Fq 'PNG image data, 1280 x 800'
 done
 
 python3 - \
-    "${SCREENSHOT_lightwhite}" "${SCREENSHOT_softtouch}" \
-    "${SCREENSHOT_deepside}" "${SCREENSHOT_nightmare}" <<'PY'
+    "${SCREENSHOT_light}" "${SCREENSHOT_dark}" <<'PY'
 import hashlib
 import pathlib
 import sys
@@ -129,9 +120,9 @@ for raw in sys.argv[1:]:
     if len(set(desktop_crop[::97])) < 12:
         raise SystemExit(f"desktop icon crop lacks visual detail: {path}")
     digests.add(hashlib.sha256(pixels).digest())
-if len(digests) != 4:
+if len(digests) != 2:
     raise SystemExit("icon theme captures are not visually distinct")
 PY
 
 echo "Aqua packaged icon Wayland QEMU check passed."
-echo "Screenshots: ${SCREENSHOT_lightwhite_PNG} ${SCREENSHOT_softtouch_PNG} ${SCREENSHOT_deepside_PNG} ${SCREENSHOT_nightmare_PNG}"
+echo "Screenshots: ${SCREENSHOT_light_PNG} ${SCREENSHOT_dark_PNG}"

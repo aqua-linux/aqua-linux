@@ -5,31 +5,29 @@ This document defines the shared visual system derived from the canonical screen
 ## Product Character
 
 Aqua Linux is calm, precise, and desktop-oriented. Its identity comes from
-disciplined layout, four deliberate light/dark palettes, responsive system
+disciplined layout, deliberate Light and Dark palettes, responsive system
 surfaces, restrained depth, and a small set of recognizable Aqua controls.
 
 ## Palette
 
-The product ships four named themes. Theme names and capitalization are part of
+The product ships two named themes. Theme names and capitalization are part of
 the public UI contract:
 
 | Theme | Character | Brand symbol |
 | --- | --- | --- |
-| **LightWhite** | White and ice-white with very light gray surfaces | Primary dark symbol |
-| **Softtouch** | Warm light gray with softer contrast | Primary dark symbol |
-| **Deepside** | Aqua navy and deep-sea blue | Inverse white symbol |
-| **Nightmare** | Neutral charcoal and near-black gray | Inverse white symbol |
+| **Light** | White and ice-white with quiet cool-gray separation | Primary dark symbol |
+| **Dark** | Neutral charcoal and near-black surfaces | Inverse white symbol |
 
-LightWhite is the default. Themes change color tokens, not layout, dimensions,
+Light is the default. Themes change color tokens, not layout, dimensions,
 typography, control placement, or interaction behavior. The accent symbol may
 replace the normal theme symbol only for selected, focused, or active states.
 
-The current runtime implementation exposes all four choices in Aqua Settings,
+The current runtime implementation exposes both choices in Aqua Settings,
 persists the selected theme in the v1 settings file, and applies it when Files,
 Settings, Terminal, Properties, or a desktop session starts. The desktop theme
 covers the top bar, Applications, Search, bottom shell, desktop overlays,
 system overview, session menu, and notifications. Existing settings files
-without a theme key continue as LightWhite. Installer loads the same persisted
+without a theme key continue as Light. Installer loads the same persisted
 or `AQUA_THEME`-selected palette on launch across all setup screens. A running
 desktop polls the persisted selection at a bounded interval; Shell surfaces and
 open first-party windows redraw only when the selected theme actually changes.
@@ -41,10 +39,9 @@ open first-party windows redraw only when the selected theme actually changes.
 - Destructive: red, reserved for irreversible actions.
 - Domain colors: green, orange, purple, and cyan only where content semantics require them.
 
-Do not wash LightWhite or Softtouch in one hue. Deepside may use the Aqua navy
-family and Nightmare may use neutral charcoal, but both must retain readable
-surface separation without cyan glow, gloss streaks, grain, refraction, or
-high-opacity blur.
+Both modes retain readable surface separation without cyan glow, gloss streaks,
+grain, refraction, or high-opacity blur. Light uses cool whites and subtle gray;
+Dark uses neutral charcoal with restrained blue accents.
 
 ## Surface Construction
 
@@ -88,7 +85,7 @@ pixel labels. The shared text pipeline must:
   scaling a previously rendered bitmap;
 - truncate only at grapheme boundaries and perform wrapping, ellipsis, and
   alignment after shaping; and
-- preserve readable grayscale antialiasing in all four themes. Subpixel color
+- preserve readable grayscale antialiasing in both themes. Subpixel color
   antialiasing must not be required because output order and rotation vary.
 
 Typography acceptance covers 1.0, 1.25, 1.5, and 2.0 output scales, Turkish
@@ -133,7 +130,7 @@ serve a larger request.
 - Missing or invalid assets use one documented Aqua fallback mark and emit a
   diagnostic; they must not silently display third-party artwork.
 - Pixel alignment, stroke survival, alpha edges, and clear space are inspected
-  at 1.0, 1.25, 1.5, and 2.0 scales in all four themes.
+  at 1.0, 1.25, 1.5, and 2.0 scales in both themes.
 
 ## Motion
 
@@ -184,7 +181,7 @@ keyboard and pointer behavior, token dependencies, accessibility semantics,
 and applicable state matrix are documented and implemented. Required states
 are idle, hover, keyboard focus, pressed, selected/active, disabled, loading,
 empty, error, success, and attention where the component's behavior permits
-them. Components must have deterministic renders for all four themes, compact
+them. Components must have deterministic renders for both themes, compact
 and desktop viewports, and every supported output scale. A screen-specific
 drawing helper does not count as a shared component.
 

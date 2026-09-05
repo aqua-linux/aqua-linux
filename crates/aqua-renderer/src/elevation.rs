@@ -5,7 +5,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 pub const DEFAULT_SHADOW_MASK_CACHE_CAPACITY: usize = 64;
-pub const ELEVATION_FIXTURE_REVISION: &str = "aqua-elevation-fixtures-1";
+pub const ELEVATION_FIXTURE_REVISION: &str = "aqua-elevation-fixtures-2";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ElevationLevel {
@@ -430,10 +430,8 @@ fn combine_alpha(first: u8, second: u8) -> u8 {
 
 const fn theme_opacity_percent(theme: AquaTheme) -> u16 {
     match theme {
-        AquaTheme::LightWhite => 100,
-        AquaTheme::Softtouch => 92,
-        AquaTheme::Deepside => 80,
-        AquaTheme::Nightmare => 74,
+        AquaTheme::Light => 100,
+        AquaTheme::Dark => 74,
     }
 }
 
@@ -709,7 +707,7 @@ mod tests {
             60,
             10,
             OutputScale::One,
-            AquaTheme::LightWhite,
+            AquaTheme::Light,
             ElevationLevel::Panel,
         );
         let second = ShadowMaskKey {
@@ -790,12 +788,12 @@ mod tests {
             160,
             18,
             OutputScale::ThreeHalves,
-            AquaTheme::LightWhite,
+            AquaTheme::Light,
             ElevationLevel::Dialog,
         );
         let light = render_shadow_mask(key);
         let dark = render_shadow_mask(ShadowMaskKey {
-            theme: AquaTheme::Nightmare,
+            theme: AquaTheme::Dark,
             ..key
         });
         assert_eq!((light.width, light.height), (dark.width, dark.height));

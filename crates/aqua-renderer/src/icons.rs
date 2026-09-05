@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
 pub const AQUA_CORE_ICON_REVISION: &str = "aqua-core-icons-2026-08-29-r1";
-pub const ICON_FIXTURE_REVISION: &str = "aqua-icon-fixtures-1";
+pub const ICON_FIXTURE_REVISION: &str = "aqua-icon-fixtures-2";
 pub const DEFAULT_ICON_RASTER_CACHE_CAPACITY: usize = 256;
 pub const REQUIRED_LOGICAL_ICON_SIZES: [u16; 7] = [16, 20, 24, 32, 48, 64, 128];
 const MAX_ICON_SOURCE_BYTES: usize = 16 * 1024;
@@ -452,17 +452,15 @@ fn adjust_rgb(pixel: &mut [u8], percent: u16, mix: Option<[u8; 3]>) {
 
 const fn symbolic_palette(theme: AquaTheme) -> ([u8; 3], [u8; 3]) {
     match theme {
-        AquaTheme::LightWhite => ([0x10, 0x18, 0x28], [0x16, 0x86, 0xf5]),
-        AquaTheme::Softtouch => ([0x26, 0x3b, 0x53], [0x00, 0x9a, 0xce]),
-        AquaTheme::Deepside => ([0xe1, 0xee, 0xfa], [0x62, 0xc6, 0xff]),
-        AquaTheme::Nightmare => ([0xe8, 0xef, 0xf6], [0x60, 0xb7, 0xff]),
+        AquaTheme::Light => ([0x10, 0x18, 0x28], [0x16, 0x86, 0xf5]),
+        AquaTheme::Dark => ([0xe8, 0xef, 0xf6], [0x60, 0xb7, 0xff]),
     }
 }
 
 const fn attention_color(theme: AquaTheme) -> [u8; 3] {
     match theme {
-        AquaTheme::LightWhite | AquaTheme::Softtouch => [0xd8, 0x55, 0x32],
-        AquaTheme::Deepside | AquaTheme::Nightmare => [0xff, 0xa1, 0x79],
+        AquaTheme::Light => [0xd8, 0x55, 0x32],
+        AquaTheme::Dark => [0xff, 0xa1, 0x79],
     }
 }
 
@@ -630,7 +628,7 @@ fn run_icon_acceptance() -> (Vec<String>, IconAcceptanceProbe) {
     for state in IconState::ALL {
         let key = IconRasterKey::new(
             IconRole::Wifi,
-            AquaTheme::Nightmare,
+            AquaTheme::Dark,
             state,
             32,
             OutputScale::FiveQuarters,
@@ -696,7 +694,7 @@ mod tests {
         let mut cache = IconRasterCache::new(2);
         let first = IconRasterKey::new(
             IconRole::Files,
-            AquaTheme::LightWhite,
+            AquaTheme::Light,
             IconState::Normal,
             20,
             OutputScale::FiveQuarters,
@@ -704,7 +702,7 @@ mod tests {
         .unwrap();
         let selected = IconRasterKey::new(
             IconRole::Files,
-            AquaTheme::LightWhite,
+            AquaTheme::Light,
             IconState::Selected,
             20,
             OutputScale::FiveQuarters,
@@ -712,7 +710,7 @@ mod tests {
         .unwrap();
         let scaled = IconRasterKey::new(
             IconRole::Files,
-            AquaTheme::LightWhite,
+            AquaTheme::Light,
             IconState::Normal,
             20,
             OutputScale::Two,

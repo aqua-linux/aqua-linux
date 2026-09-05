@@ -18,7 +18,7 @@ from elementary, GNOME, KDE, Apple, or another desktop product.
   identifiable in a 24-pixel silhouette check.
 - Preserve alpha. Do not add a tile unless the tile is part of the application
   icon itself.
-- LightWhite, Softtouch, Deepside, and Nightmare use the same SVG geometry.
+- Light and Dark use the same SVG geometry.
   Theme and interaction colors are renderer tokens, not duplicate files.
 - Hover, focus, pressed, selected, disabled, and attention normally reuse the
   same SVG. Produce a separate file only when the meaning or silhouette
