@@ -171,6 +171,9 @@ closed clients also reject redraw, initial attachment, theme refresh, and late
 xdg configure work. Frame completion cannot trigger a new damage commit after
 close; polling turns stop before further theme or PTY work. A real Wayland
 regression covers pre-configure shutdown and close-before-frame-completion;
+explicit activation also uses the same global surface-origin contract as normal
+pointer motion, with real-client regression coverage for relocated windows and
+fractional local positions;
 the broader consolidation remains in progress.
 
 ## Context

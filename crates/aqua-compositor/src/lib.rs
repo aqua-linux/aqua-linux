@@ -10398,10 +10398,8 @@ impl SmithayDrmSession {
         let pointer_location = self.session.wayland_state.pointer_location;
         pointer.motion(
             &mut self.session.wayland_state,
-            Some((
-                surface.clone(),
-                (pointer_location.0 - origin_x, pointer_location.1 - origin_y).into(),
-            )),
+            // Smithay converts global pointer coordinates using the surface origin.
+            Some((surface.clone(), (origin_x, origin_y).into())),
             &MotionEvent {
                 location: pointer_location.into(),
                 serial: Serial::from(time.max(1)),
@@ -16228,6 +16226,76 @@ mod tests {
             .expect_err("payload above the probe limit must fail");
 
         assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn activation_pointer_coordinates_match_surface_origin_and_normal_motion() {
+        let mut session = SmithayDrmSession::new().expect("Smithay session");
+        let (server, client) = std::os::unix::net::UnixStream::pair().expect("stream pair");
+        session.insert_client(server).expect("insert client");
+        let connection = ClientConnection::from_socket(client).expect("connection");
+        let mut queue = connection.new_event_queue::<XdgSmokeClientState>();
+        let qh = queue.handle();
+        connection.display().get_registry(&qh, ());
+        connection.flush().expect("registry flush");
+        session.dispatch_clients().expect("registry dispatch");
+        session.flush_clients().expect("globals flush");
+        let mut state = XdgSmokeClientState::with_buffer_size(320, 220);
+        queue
+            .blocking_dispatch(&mut state)
+            .expect("globals dispatch");
+        connection.flush().expect("surface flush");
+        session.dispatch_clients().expect("surface dispatch");
+        session.flush_clients().expect("configure flush");
+        queue
+            .blocking_dispatch(&mut state)
+            .expect("configure dispatch");
+        connection.flush().expect("buffer flush");
+        session.dispatch_clients().expect("buffer dispatch");
+        assert_eq!(session.visible_client_surface_snapshots().len(), 1);
+        for (origin_x, origin_y) in [(96, 72), (224, 160)] {
+            let record = &mut session.session.wayland_state.mapped_surfaces[0];
+            record.x = origin_x;
+            record.y = origin_y;
+            for (local_x, local_y) in [(25.5, 24.25), (200.0, 100.0)] {
+                let global = (f64::from(origin_x) + local_x, f64::from(origin_y) + local_y);
+                session.session.wayland_state.pointer_location = global;
+                assert!(session.present_client_surface(100));
+                session.flush_clients().expect("activation flush");
+                queue
+                    .blocking_dispatch(&mut state)
+                    .expect("activation dispatch");
+                assert_eq!(
+                    (state.pointer_surface_x, state.pointer_surface_y),
+                    (local_x, local_y)
+                );
+                assert_eq!(session.session.wayland_state.pointer_location, global);
+                let keyboard = session
+                    .session
+                    .wayland_state
+                    .seat
+                    .get_keyboard()
+                    .expect("keyboard");
+                assert_eq!(
+                    keyboard.current_focus(),
+                    session.session.wayland_state.mapped_surface
+                );
+                assert!(session.dispatch_pointer_motion(7.5, 3.25, 101));
+                session.flush_clients().expect("motion flush");
+                queue
+                    .blocking_dispatch(&mut state)
+                    .expect("motion dispatch");
+                assert_eq!(
+                    (state.pointer_surface_x, state.pointer_surface_y),
+                    (local_x + 7.5, local_y + 3.25)
+                );
+                assert_eq!(
+                    keyboard.current_focus(),
+                    session.session.wayland_state.mapped_surface
+                );
+            }
+        }
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
