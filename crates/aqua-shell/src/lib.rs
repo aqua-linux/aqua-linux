@@ -4368,6 +4368,7 @@ pub enum LauncherEvent {
     Toggle,
     OpenApplications,
     OpenSearch,
+    FocusSearch,
     Dismiss,
     SelectCategory(LauncherCategory),
     ReplaceQuery(String),
@@ -4859,6 +4860,19 @@ impl LauncherState {
                 LauncherUpdate {
                     redraw_requested: true,
                     visibility_changed,
+                    launch_request: None,
+                }
+            }
+            LauncherEvent::FocusSearch => {
+                if !self.open || self.mode == LauncherMode::Search {
+                    return LauncherUpdate::unchanged();
+                }
+                self.mode = LauncherMode::Search;
+                self.category = LauncherCategory::AllApplications;
+                self.selected_index = 0;
+                LauncherUpdate {
+                    redraw_requested: true,
+                    visibility_changed: false,
                     launch_request: None,
                 }
             }
@@ -7018,6 +7032,27 @@ mod tests {
             launcher.pointer_target_in_viewport(200, 150, 400, 300),
             None
         );
+
+        let focused = launcher.handle_event(LauncherEvent::FocusSearch);
+        assert!(!focused.redraw_requested);
+        assert_eq!(launcher.query(), "settings");
+    }
+
+    #[test]
+    fn launcher_search_focus_preserves_an_existing_query_and_selection() {
+        let mut launcher = LauncherState::default();
+        launcher.open_search();
+        launcher.set_query("system");
+        assert!(launcher.select_visible_index(1));
+
+        let focused = launcher.handle_event(LauncherEvent::FocusSearch);
+
+        assert!(!focused.redraw_requested);
+        assert!(!focused.visibility_changed);
+        assert!(focused.launch_request.is_none());
+        assert_eq!(launcher.mode(), LauncherMode::Search);
+        assert_eq!(launcher.query(), "system");
+        assert_eq!(launcher.selected_index(), 1);
     }
 
     #[test]
