@@ -160,6 +160,10 @@ completion delivers frame callbacks without reassigning keyboard or pointer
 focus. Explicit launch, raise, pointer, and workspace actions retain focus
 ownership, so focus-loss redraws cannot reactivate the background application
 or redirect a subsequent close request;
+the matching shared pointer-leave transition now clears hover and retires armed
+press or scrollbar-drag state across all three clients. Its common close gate
+prevents redraw after close, repeated leave is inert, and keyboard/domain state
+is preserved. Files drag-only cancellation carries no visual repaint;
 the broader consolidation remains in progress.
 
 ## Context

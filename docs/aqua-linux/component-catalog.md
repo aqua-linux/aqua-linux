@@ -894,6 +894,19 @@ then checks that the existing process was raised before testing Tab/Enter.
 Settings reactivation uses its launcher entry. These explicit activation paths
 avoid relying on clicks through overlapping windows or background redraws.
 
+The same three consumers share a typed pointer-leave transition. Files clears
+sidebar/content hover, synchronizes its render model, and retires scrollbar drag
+ownership; cancelling a drag alone does not request a repaint. Properties clears
+both hover and an armed primary-action press. Settings clears sidebar hover.
+One common gate permits visible changes to redraw only before close. Repeated
+leave is inert, including when no application model exists. The deterministic
+`shared_pointer_leave` matrix crosses open/closed, hover, press, and drag states
+and verifies full model equality after only the expected pointer fields change:
+keyboard focus, selection, location, settings values, and refresh generation
+remain intact. Existing packaged graphical-boot pointer-leave, press-cancel,
+blur, and activation checks exercise the shared dispatch path; after-close
+coverage remains a source-test claim.
+
 A background buffer commit now updates that surface without replacing the
 active window. Desktop repaint completion drains frame callbacks independently
 of the explicit activation/focus path. This prevents a focus-loss redraw from

@@ -7770,6 +7770,14 @@ struct KeyboardLeaveTransition {
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PointerLeaveTransition {
+    surface: FirstPartyUiSurface,
+    interaction_cancelled: bool,
+    repaint: bool,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 fn files_axis_scroll_rows(value: f64) -> Option<isize> {
     if !value.is_finite() || value == 0.0 {
         None
@@ -7858,6 +7866,46 @@ impl XdgSmokeClientState {
             changed.then_some(KeyboardLeaveTransition {
                 surface,
                 repaint: !self.close_event_received,
+            })
+        })
+    }
+
+    fn clear_first_party_pointer_interaction(&mut self) -> [Option<PointerLeaveTransition>; 3] {
+        let files_drag_cancelled = std::mem::take(&mut self.files_scrollbar_dragging);
+        let files_hover_changed = self
+            .files_navigator
+            .as_mut()
+            .is_some_and(aqua_shell::FilesNavigator::clear_pointer_hover);
+        if files_hover_changed {
+            self.files_model = self
+                .files_navigator
+                .as_ref()
+                .map(|navigator| navigator.window().clone());
+        }
+        let properties = self.clear_properties_pointer_interaction();
+        let settings_hover_changed = self
+            .settings_model
+            .as_mut()
+            .is_some_and(aqua_shell::SettingsWindowModel::clear_hovered_category);
+        [
+            (
+                FirstPartyUiSurface::Files,
+                files_hover_changed,
+                files_drag_cancelled,
+            ),
+            (
+                FirstPartyUiSurface::Properties,
+                properties.interaction_changed,
+                properties.press_cancelled,
+            ),
+            (FirstPartyUiSurface::Settings, settings_hover_changed, false),
+        ]
+        .map(|(surface, visual_changed, interaction_cancelled)| {
+            (visual_changed || interaction_cancelled).then_some(PointerLeaveTransition {
+                surface,
+                interaction_cancelled,
+                // Files drag ownership has no separate painted state.
+                repaint: visual_changed && !self.close_event_received,
             })
         })
     }
@@ -14372,51 +14420,36 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                 }
             }
             client_wl_pointer::Event::Leave { .. } => {
-                let files_drag_cancelled = std::mem::take(&mut state.files_scrollbar_dragging);
-                let files_hover_changed = state
-                    .files_navigator
-                    .as_mut()
-                    .is_some_and(aqua_shell::FilesNavigator::clear_pointer_hover);
-                if files_hover_changed {
-                    state.files_model = state
-                        .files_navigator
-                        .as_ref()
-                        .map(|navigator| navigator.window().clone());
-                }
-                if files_hover_changed || files_drag_cancelled {
-                    let repaint = files_hover_changed && !state.close_event_received;
-                    println!(
-                        "aqua_files_hover hovered=none reason=pointer-leave drag_cancelled={files_drag_cancelled} repaint={repaint}"
-                    );
-                    if repaint {
-                        state.redraw_files_buffer(qh);
+                for transition in state
+                    .clear_first_party_pointer_interaction()
+                    .into_iter()
+                    .flatten()
+                {
+                    let repaint = transition.repaint;
+                    let cancelled = transition.interaction_cancelled;
+                    match transition.surface {
+                        FirstPartyUiSurface::Files => println!(
+                            "aqua_files_hover hovered=none reason=pointer-leave drag_cancelled={cancelled} repaint={repaint}"
+                        ),
+                        FirstPartyUiSurface::Properties => println!(
+                            "aqua_properties_hover hovered=false reason=pointer-leave press_cancelled={cancelled} repaint={repaint}"
+                        ),
+                        FirstPartyUiSurface::Settings => {
+                            let selected_category = state
+                                .settings_model
+                                .as_ref()
+                                .map_or(0, |model| model.selected_category);
+                            println!(
+                                "aqua_settings_hover hovered=none reason=pointer-leave category={selected_category} repaint={repaint}"
+                            );
+                        }
                     }
-                }
-                let properties_leave = state.clear_properties_pointer_interaction();
-                if properties_leave.interaction_changed {
-                    println!(
-                        "aqua_properties_hover hovered=false reason=pointer-leave press_cancelled={} repaint={}",
-                        properties_leave.press_cancelled, properties_leave.repaint
-                    );
-                }
-                if properties_leave.repaint {
-                    state.redraw_properties_buffer(qh);
-                }
-                let settings_hover_changed = state
-                    .settings_model
-                    .as_mut()
-                    .is_some_and(aqua_shell::SettingsWindowModel::clear_hovered_category);
-                if settings_hover_changed {
-                    let selected_category = state
-                        .settings_model
-                        .as_ref()
-                        .map_or(0, |model| model.selected_category);
-                    let repaint = !state.close_event_received;
-                    println!(
-                        "aqua_settings_hover hovered=none reason=pointer-leave category={selected_category} repaint={repaint}"
-                    );
                     if repaint {
-                        state.redraw_settings_buffer(qh);
+                        match transition.surface {
+                            FirstPartyUiSurface::Files => state.redraw_files_buffer(qh),
+                            FirstPartyUiSurface::Properties => state.redraw_properties_buffer(qh),
+                            FirstPartyUiSurface::Settings => state.redraw_settings_buffer(qh),
+                        }
                     }
                 }
             }
@@ -16282,6 +16315,113 @@ mod tests {
             assert_eq!(state.clear_first_party_keyboard_focus(), [None; 3]);
         }
         fs::remove_dir(root).expect("remove isolated root");
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn shared_pointer_leave_preserves_domain_state_and_gates_visual_changes() {
+        let root = std::env::temp_dir().join(format!(
+            "aqua-shared-pointer-leave-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos(),
+        ));
+        fs::create_dir_all(root.join("Documents")).expect("isolated Files root");
+        for close_event_received in [false, true] {
+            for hovered in [false, true] {
+                for pressed in [false, true] {
+                    for dragging in [false, true] {
+                        let mut navigator =
+                            aqua_shell::FilesNavigator::open(&root).expect("Files navigator");
+                        navigator.handle_key_in_viewport(640, 420, aqua_shell::FilesKey::Left);
+                        if hovered {
+                            assert!(navigator.handle_hover(640, 40, 180));
+                        }
+                        let mut properties =
+                            aqua_shell::DesktopPropertiesModel::load("files", &root, &root)
+                                .expect("Properties model");
+                        properties.primary_action_focused = true;
+                        properties.primary_action_hovered = hovered;
+                        properties.primary_action_pressed = pressed;
+                        properties.refresh_generation = 7;
+                        let settings = aqua_shell::SettingsWindowModel {
+                            keyboard_focus: true,
+                            selected_category: 4,
+                            hovered_category: hovered.then_some(1),
+                            ..aqua_shell::SettingsWindowModel::default()
+                        };
+                        let mut state = XdgSmokeClientState {
+                            files_model: Some(navigator.window().clone()),
+                            files_navigator: Some(navigator),
+                            files_scrollbar_dragging: dragging,
+                            properties_model: Some(properties.clone()),
+                            settings_model: Some(settings.clone()),
+                            close_event_received,
+                            ..XdgSmokeClientState::default()
+                        };
+                        let mut expected_files = state.files_model.clone().expect("Files model");
+                        expected_files.hovered_sidebar = None;
+                        expected_files.hovered_entry = None;
+                        let mut expected_properties = properties;
+                        expected_properties.primary_action_hovered = false;
+                        expected_properties.primary_action_pressed = false;
+                        let mut expected_settings = settings;
+                        expected_settings.hovered_category = None;
+                        assert_eq!(
+                            state.clear_first_party_pointer_interaction(),
+                            [
+                                (hovered || dragging).then_some(PointerLeaveTransition {
+                                    surface: FirstPartyUiSurface::Files,
+                                    interaction_cancelled: dragging,
+                                    repaint: hovered && !close_event_received,
+                                }),
+                                (hovered || pressed).then_some(PointerLeaveTransition {
+                                    surface: FirstPartyUiSurface::Properties,
+                                    interaction_cancelled: pressed,
+                                    repaint: (hovered || pressed) && !close_event_received,
+                                }),
+                                hovered.then_some(PointerLeaveTransition {
+                                    surface: FirstPartyUiSurface::Settings,
+                                    interaction_cancelled: false,
+                                    repaint: !close_event_received,
+                                }),
+                            ]
+                        );
+                        assert!(!state.files_scrollbar_dragging);
+                        assert_eq!(state.files_model.as_ref(), Some(&expected_files));
+                        let navigator = state.files_navigator.as_ref().expect("navigator");
+                        assert_eq!(navigator.window(), &expected_files);
+                        assert_eq!(navigator.current(), root.canonicalize().expect("root"));
+                        assert_eq!(state.properties_model, Some(expected_properties));
+                        assert_eq!(state.settings_model, Some(expected_settings));
+                        assert_eq!(state.clear_first_party_pointer_interaction(), [None; 3]);
+                    }
+                }
+            }
+            let mut empty = XdgSmokeClientState {
+                close_event_received,
+                ..XdgSmokeClientState::default()
+            };
+            assert_eq!(empty.clear_first_party_pointer_interaction(), [None; 3]);
+            empty.files_scrollbar_dragging = true;
+            assert_eq!(
+                empty.clear_first_party_pointer_interaction(),
+                [
+                    Some(PointerLeaveTransition {
+                        surface: FirstPartyUiSurface::Files,
+                        interaction_cancelled: true,
+                        repaint: false,
+                    }),
+                    None,
+                    None,
+                ]
+            );
+            assert!(!empty.files_scrollbar_dragging);
+            assert_eq!(empty.clear_first_party_pointer_interaction(), [None; 3]);
+        }
+        fs::remove_dir_all(root).expect("remove isolated root");
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
