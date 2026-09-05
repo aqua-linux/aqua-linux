@@ -8320,6 +8320,7 @@ impl XdgSmokeClientState {
             qh,
             (),
         );
+        pool.destroy();
         if let Some(surface) = self.base_surface.as_ref() {
             surface.attach(Some(&buffer), 0, 0);
             surface.damage(0, 0, width as i32, height as i32);
@@ -9012,6 +9013,7 @@ impl XdgSmokeClientState {
             qh,
             (),
         );
+        pool.destroy();
         self.shm_buffer = Some(buffer);
         self.shm_buffer_created = true;
         self.attach_client_buffer(qh);
@@ -9100,6 +9102,7 @@ impl XdgSmokeClientState {
             qh,
             (),
         );
+        pool.destroy();
         surface.attach(Some(&buffer), 0, 0);
         surface.damage(0, 0, width as i32, height as i32);
         surface.frame(qh, ());
@@ -9142,6 +9145,7 @@ impl XdgSmokeClientState {
             qh,
             (),
         );
+        pool.destroy();
         if let Some(surface) = self.base_surface.as_ref() {
             surface.attach(Some(&buffer), 0, 0);
             surface.damage(0, 0, width as i32, height as i32);
@@ -16315,9 +16319,42 @@ mod tests {
                 assert!(state.configure_ack_sent);
                 assert!(state.client_buffer_attached);
                 assert_eq!(session.visible_client_surface_snapshots().len(), 1);
-                state.redraw_settings_buffer(&qh);
-                connection.flush().expect("live redraw flush");
-                session.dispatch_clients().expect("live redraw dispatch");
+                let assert_no_shm_pools = |session: &SmithayDrmSession| {
+                    let handle = session
+                        .session
+                        .wayland_state
+                        .display_handle
+                        .backend_handle();
+                    let mut clients = Vec::new();
+                    handle.with_all_clients(|client| clients.push(client));
+                    let mut objects = Vec::new();
+                    for client in clients {
+                        handle
+                            .with_all_objects_for(client, |object| objects.push(object))
+                            .expect("client objects");
+                    }
+                    assert_eq!(
+                        objects
+                            .iter()
+                            .filter(|object| object.interface().name == "wl_shm_pool")
+                            .count(),
+                        0,
+                        "one-shot shared memory pools must be destroyed after buffer creation"
+                    );
+                };
+                assert_no_shm_pools(&session);
+                for _ in 0..3 {
+                    let commits_before = session.session.wayland_state.surface_commit_count;
+                    state.redraw_settings_buffer(&qh);
+                    connection.flush().expect("live redraw flush");
+                    session.dispatch_clients().expect("live redraw dispatch");
+                    assert_no_shm_pools(&session);
+                    assert_eq!(
+                        session.session.wayland_state.surface_commit_count,
+                        commits_before + 1
+                    );
+                    assert!(session.visible_client_surface_snapshots()[0].is_ready());
+                }
                 // The server sends close before the still-pending frame completions.
                 assert!(session.close_active_toplevel());
                 state.state_cycle_started = true;

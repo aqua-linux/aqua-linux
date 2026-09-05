@@ -941,7 +941,11 @@ buffer replacement. Each window keeps its own renderer and domain behavior.
 The common submission boundary rejects closed clients and missing Wayland
 resources before allocation; the real-client closed-render regression also
 exercises this boundary directly. Initial attachment and Terminal frame pacing
-retain their existing lifecycle paths.
+retain their existing lifecycle paths. All client buffer creation paths destroy
+the one-shot shared-memory pool after creating its buffer. The buffer retains
+its backing storage independently. The real-client regression checks that no
+pool objects remain after initial attachment or three successive UI redraws,
+while surface commits and buffer import remain functional.
 
 Explicit client activation supplies Smithay with the window's global origin
 alongside the global pointer location. Smithay performs the single conversion
