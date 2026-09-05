@@ -5435,11 +5435,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                             .is_some_and(LiveGpuCompositor::motion_active);
                         #[cfg(not(all(target_os = "linux", feature = "smithay-gpu")))]
                         let motion_active = false;
-                        let maximum_dispatch_timeout = if motion_active {
-                            Duration::from_millis(16)
-                        } else {
-                            Duration::from_millis(100)
-                        };
+                        let maximum_dispatch_timeout = Duration::from_millis(16);
                         let dispatch_timeout = deadline
                             .map(|deadline| deadline - now)
                             .unwrap_or(maximum_dispatch_timeout)
