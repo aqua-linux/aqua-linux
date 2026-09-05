@@ -30,10 +30,10 @@ use aqua_renderer::{
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
 use aqua_renderer::{
     render_desktop_shell_rgba_with_brand_and_cached_icons, render_dock_rgba_with_cached_icons,
-    render_launcher_overlay_rgba_with_theme, render_notification_toast_rgba_with_cached_icons,
-    render_session_menu_overlay_rgba_with_theme, render_system_overview_rgba_with_theme,
-    render_top_bar_rgba_with_cached_icons, DesktopBrandRaster, ElevationLevel, ShadowMaskCache,
-    ShadowMaskKey,
+    render_launcher_overlay_rgba_with_cached_icons,
+    render_notification_toast_rgba_with_cached_icons, render_session_menu_overlay_rgba_with_theme,
+    render_system_overview_rgba_with_theme, render_top_bar_rgba_with_cached_icons,
+    DesktopBrandRaster, ElevationLevel, ShadowMaskCache, ShadowMaskKey,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_scene::Rect;
@@ -853,8 +853,13 @@ impl LiveGpuCompositor {
             self.launcher_state = Some(state.clone());
             return Ok(());
         }
-        let (rgba, probe) =
-            render_launcher_overlay_rgba_with_theme(self.scene.viewport, state, self.theme);
+        let (rgba, probe) = render_launcher_overlay_rgba_with_cached_icons(
+            self.scene.viewport,
+            state,
+            self.theme,
+            &mut self.icon_raster_cache,
+        )
+        .map_err(|error| format!("cannot render launcher icons: {error:?}"))?;
         if !probe.is_ready() {
             return Err("launcher overlay did not satisfy its render contract".to_string());
         }

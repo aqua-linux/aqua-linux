@@ -4587,7 +4587,7 @@ impl LauncherState {
                 app.name,
                 GridCellLayout::IconLeading,
             )
-            .with_spacing(40, 14, 6, 22)
+            .with_spacing(32, 14, 6, 22)
             .with_state(if index == self.selected_index {
                 ComponentState::Selected
             } else {
