@@ -17,10 +17,10 @@ and runtime artwork must be Aqua-owned or independently licensed.
 
 ### Desktop Workspace
 
-- A compact full-width top bar contains product identity, centered date/time, and right-aligned system status.
-- The bottom area is split into launcher/search controls, a centered running-app dock, and workspace thumbnails.
+- Three floating top panels contain product identity, centered calendar/date/time/notifications, and right-aligned network/audio/battery/settings status.
+- The bottom area contains separate launcher/search controls at left and a compact three-dot workspace switcher at right.
 - Windows use bright, restrained chrome, thin separators, moderate corner radii, and soft shadows.
-- The wallpaper is pale blue and low contrast so content stays dominant.
+- The owner-supplied white or near-black wave wallpaper follows the active Light or Dark theme and keeps content dominant.
 
 ### Applications
 
@@ -56,9 +56,9 @@ and runtime artwork must be Aqua-owned or independently licensed.
 
 ### Idle Desktop
 
-- The idle desktop preserves the same top bar and three-part bottom controls.
+- The idle desktop preserves the same three floating top panels and two bottom control groups.
 - No desktop icons are required by default; open space is intentional.
-- Workspace thumbnails remain visible and communicate the active workspace.
+- Workspace dots remain visible and communicate the active workspace.
 
 ### Settings
 
@@ -107,10 +107,9 @@ Detailed state and behavior rules are in [ui-contract.md](ui-contract.md). Share
 
 ## Existing Runtime Assets
 
-The existing ocean wallpapers remain temporary build inputs until replacement
-artwork matching this direction is supplied. They are not visual acceptance
-references. The approved Aqua brand exports are separate runtime assets; do
-not derive application icons by cropping private boards.
+The owner-supplied Light and Dark wave wallpapers are the permanent runtime
+desktop backgrounds. The approved Aqua brand exports are separate runtime
+assets; do not derive application icons by cropping private boards.
 
 Private reference boards are design-only and must not be committed or packaged
 into the root filesystem. The public contract in this document is sufficient

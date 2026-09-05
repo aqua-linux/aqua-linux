@@ -29,7 +29,7 @@ MODES = {
         "mouse_move 300 0",
     ),
     "bottom-applications-activate": (
-        "mouse_move -3000 -3000", "mouse_move 146 370",
+        "mouse_move -3000 -3000", "mouse_move 26 372",
         "mouse_button 1", "mouse_button 0",
         "mouse_button 1", "mouse_button 0",
     ),

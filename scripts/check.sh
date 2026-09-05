@@ -1289,9 +1289,9 @@ test -f docs/aqua-linux/v1-readiness.md
 test -f docs/aqua-linux/ui-contract.md
 grep -Fxq '/docs/aqua-linux/local-references/' .gitignore
 test -z "$(find docs/aqua-linux/assets -maxdepth 1 -name 'reference-*.png' -print)"
-grep -Fq 'The bottom area is split into launcher/search controls, a centered running-app dock, and workspace thumbnails.' docs/aqua-linux/visual-reference.md
+grep -Fq 'The bottom area contains separate launcher/search controls at left and a compact three-dot workspace switcher at right.' docs/aqua-linux/visual-reference.md
 grep -Fq 'Theme selection for Light or Dark.' docs/aqua-linux/visual-reference.md
-grep -Fq 'runningAppDock": "bottom-center"' docs/aqua-linux/design-tokens.json
+grep -Fq 'runningAppDock": "not-composed-on-desktop"' docs/aqua-linux/design-tokens.json
 grep -Fq 'Third-party icons shown in references are composition examples only.' docs/aqua-linux/interface-style.md
 grep -Fq '## Elevation And Shadows' docs/aqua-linux/interface-style.md
 grep -Fq '## Scalable Iconography' docs/aqua-linux/interface-style.md
@@ -1756,7 +1756,7 @@ grep -Fq 'pub fn typography_fixture_report' crates/aqua-text/src/lib.rs
 grep -Fq 'noto-sans-arabic-regular-2.009' docs/aqua-linux/typography-fixtures.txt
 grep -Fq 'pub fn typography_layout_acceptance_report' crates/aqua-renderer/src/lib.rs
 grep -Fq 'aqua-typography-layout-fixtures-2' docs/aqua-linux/typography-layout-fixtures.txt
-grep -Fq 'aqua-component-fixtures-20' docs/aqua-linux/component-fixtures.txt
+grep -Fq 'aqua-component-fixtures-21' docs/aqua-linux/component-fixtures.txt
 test -f docs/aqua-linux/component-catalog.md
 grep -Fq 'Window frame and title bar | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Top system bar | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
@@ -1915,14 +1915,14 @@ grep -Fq 'aqua_settings_audio_controls_enabled={}' crates/aqua-compositor/src/li
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=typography-acceptance' scripts/check-typography-wayland-qemu.exp
 grep -Fq 'typography_wayland_surface_ready=true' scripts/check-typography-wayland-qemu.sh
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=component-acceptance' scripts/check-component-wayland-qemu.exp
-grep -Fq 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-20' scripts/check-component-wayland-qemu.sh
+grep -Fq 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-21' scripts/check-component-wayland-qemu.sh
 grep -Fq 'component_wayland_shared_primitive_count=22' scripts/check-component-wayland-qemu.sh
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=elevation-acceptance' scripts/check-elevation-wayland-qemu.exp
 grep -Fq 'elevation_wayland_focused_surface_count=1' scripts/check-elevation-wayland-qemu.sh
 grep -Fq 'gpu_shadow_damage_rects=2' scripts/check-elevation-wayland-qemu.sh
 grep -Fq 'AQUA_DRM_WAYLAND_SCENARIO=icon-acceptance' scripts/check-icon-wayland-qemu.exp
 grep -Fq 'icon_wayland_raster_cache_ready=true' scripts/check-icon-wayland-qemu.sh
-grep -Fq 'desktop_icon_raster_cache_hits=3' scripts/check-icon-wayland-qemu.sh
+grep -Fq 'desktop_icon_raster_cache_hits=0' scripts/check-icon-wayland-qemu.sh
 grep -Fq 'icon-acceptance' crates/aqua-compositor/src/main.rs
 grep -Fq 'elevation-acceptance' crates/aqua-compositor/src/main.rs
 grep -Fq 'aqua-typography-acceptance' br2-external/aqua/board/aqua/x86_64/post-build.sh

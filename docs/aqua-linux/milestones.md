@@ -13,7 +13,7 @@ Aqua-owned desktop interface, and Chromium OS-like product simplicity.
 - Development target: QEMU x86_64 first.
 - Hardware validation target: MSI Sword 17 later.
 - Visual target: the public visual/UI contracts derived from private, Git-ignored desktop and installer boards.
-- Desktop composition: compact top bar; separate Applications/Search controls; centered pinned/running app dock; bottom-right workspace switcher.
+- Desktop composition: three floating top panels; separate Applications/Search controls; bottom-right three-dot workspace switcher.
 - Desktop scope: simple, polished, first-party surfaces before broad app/platform complexity.
 
 ## Active Implementation Priority

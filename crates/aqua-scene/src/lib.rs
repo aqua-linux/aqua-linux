@@ -331,11 +331,18 @@ pub const SYSTEM_SURFACE_SURFACES: [&str; 5] = [
 
 pub fn static_shell_scene(viewport: Viewport) -> ShellScene {
     let margin = 24;
-    let top_panel_height = 36;
-    let dock_width = 760_u32.min(viewport.width.saturating_sub(margin * 2));
-    let dock_height = 72;
+    let top_panel_y = 18;
+    let top_panel_height = 56;
+    let top_panel_bottom = top_panel_y + top_panel_height;
+    let dock_width = viewport.width.saturating_sub(margin * 2);
+    let dock_height = 64;
+    let dock_y = viewport.height.saturating_sub(dock_height + margin);
     let launcher_width = 560_u32.min(viewport.width.saturating_sub(margin * 2));
-    let launcher_height = 520_u32.min(viewport.height.saturating_sub(160));
+    let launcher_height = 520_u32.min(
+        dock_y
+            .saturating_sub(top_panel_bottom)
+            .saturating_sub(margin * 2),
+    );
     let system_width = 320_u32.min(viewport.width.saturating_sub(margin * 2));
     let toast_width = 360_u32.min(viewport.width.saturating_sub(margin * 2));
 
@@ -361,9 +368,9 @@ pub fn static_shell_scene(viewport: Viewport) -> ShellScene {
                 SurfaceKind::TopPanel,
                 MaterialKind::SystemSurface,
                 Rect {
-                    x: 0,
-                    y: 0,
-                    width: viewport.width,
+                    x: margin,
+                    y: top_panel_y,
+                    width: viewport.width.saturating_sub(margin * 2),
                     height: top_panel_height,
                 },
                 true,
@@ -374,13 +381,11 @@ pub fn static_shell_scene(viewport: Viewport) -> ShellScene {
                 MaterialKind::IconGrid,
                 Rect {
                     x: margin,
-                    y: top_panel_height + margin,
-                    width: 232,
-                    height: 312_u32.min(
-                        viewport
-                            .height
-                            .saturating_sub(top_panel_height + dock_height + margin * 3),
-                    ),
+                    y: top_panel_bottom + margin,
+                    width: viewport.width.saturating_sub(margin * 2),
+                    height: dock_y
+                        .saturating_sub(top_panel_bottom + margin)
+                        .saturating_sub(margin),
                 },
                 true,
             ),
@@ -390,7 +395,7 @@ pub fn static_shell_scene(viewport: Viewport) -> ShellScene {
                 MaterialKind::SystemSurface,
                 Rect {
                     x: (viewport.width - dock_width) / 2,
-                    y: viewport.height - dock_height - margin,
+                    y: dock_y,
                     width: dock_width,
                     height: dock_height,
                 },
@@ -402,7 +407,7 @@ pub fn static_shell_scene(viewport: Viewport) -> ShellScene {
                 MaterialKind::SystemSurface,
                 Rect {
                     x: margin,
-                    y: top_panel_height + margin,
+                    y: top_panel_bottom + margin,
                     width: launcher_width,
                     height: launcher_height,
                 },
@@ -414,7 +419,7 @@ pub fn static_shell_scene(viewport: Viewport) -> ShellScene {
                 MaterialKind::SystemSurface,
                 Rect {
                     x: viewport.width - system_width - margin,
-                    y: top_panel_height + margin,
+                    y: top_panel_bottom + margin,
                     width: system_width,
                     height: 220,
                 },
@@ -665,7 +670,7 @@ mod tests {
         assert_eq!(lines[2], "viewport=1536x1024");
         assert_eq!(lines[3], "surface_count=7");
         assert!(lines.contains(
-            &"surface id=launcher kind=launcher material=system-surface rect=24,60,560,520 mock_data=true"
+            &"surface id=launcher kind=launcher material=system-surface rect=24,98,560,520 mock_data=true"
                 .to_string()
         ));
         assert!(lines.contains(

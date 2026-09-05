@@ -135,12 +135,12 @@ expect {
     eof { puts stderr "QEMU exited after system overview verification"; exit 1 }
 }
 
-run_shell_check {ok=1; grep -Fq 'desktop_dock_texture_ready=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_dock_item_count=3' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_bottom_shell_group_count=3' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_workspace_active=0' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_dock_running_indicators=0' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the functional bottom shell GPU layer"
-send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-bottom-shell-qemu status=ok apps=3 groups=3 workspaces=3 gpu_texture=true'}
+run_shell_check {ok=1; grep -Fq 'desktop_dock_texture_ready=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_dock_item_count=0' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_bottom_shell_group_count=2' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_workspace_active=0' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_dock_running_indicators=0' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the functional bottom shell GPU layer"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-bottom-shell-qemu status=ok apps=0 groups=2 workspaces=3 gpu_texture=true'}
 send -- "\r"
 
 expect {
-    -exact {[AQUA-TEST] stage=desktop-bottom-shell-qemu status=ok apps=3 groups=3 workspaces=3 gpu_texture=true} {}
+    -exact {[AQUA-TEST] stage=desktop-bottom-shell-qemu status=ok apps=0 groups=2 workspaces=3 gpu_texture=true} {}
     timeout { puts stderr "Bottom shell content was not GPU composited"; exit 1 }
     eof { puts stderr "QEMU exited before dock verification"; exit 1 }
 }

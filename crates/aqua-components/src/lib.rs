@@ -251,32 +251,94 @@ pub struct TopSystemBar<'a> {
 }
 
 impl<'a> TopSystemBar<'a> {
-    const BRAND_WIDTH: u32 = 112;
-    const STATUS_ITEM_WIDTH: u32 = 20;
-    const STATUS_GAP: u32 = 19;
-    const SESSION_WIDTH: u32 = 28;
-    const SESSION_GAP: u32 = 10;
-    const CLOCK_MAX_WIDTH: u32 = 280;
+    const BRAND_WIDE_WIDTH: u32 = 188;
+    const BRAND_COMPACT_WIDTH: u32 = 150;
+    const CLOCK_MAX_WIDTH: u32 = 330;
+    const STATUS_WIDE_WIDTH: u32 = 274;
+    const STATUS_COMPACT_WIDTH: u32 = 250;
+    const PANEL_GAP: u32 = 12;
+    const PANEL_HEIGHT: u32 = 48;
+    const PANEL_HORIZONTAL_INSET: u32 = 18;
+    const STATUS_ITEM_WIDTH: u32 = 28;
+    const STATUS_GAP: u32 = 14;
+    const SESSION_WIDTH: u32 = 36;
 
     pub const fn new(rect: Rect, name: &'a str) -> Self {
         Self { rect, name }
     }
 
-    pub const fn brand_rect(self) -> Rect {
+    pub const fn brand_panel_rect(self) -> Rect {
+        let width = if self.rect.width >= 960 {
+            Self::BRAND_WIDE_WIDTH
+        } else {
+            Self::BRAND_COMPACT_WIDTH
+        };
         Rect {
-            x: self.rect.x.saturating_add(12),
+            x: self.rect.x,
             y: self.rect.y,
-            width: min_u32(Self::BRAND_WIDTH, self.rect.width.saturating_sub(12)),
-            height: self.rect.height,
+            width: min_u32(width, self.rect.width),
+            height: min_u32(Self::PANEL_HEIGHT, self.rect.height),
+        }
+    }
+
+    pub const fn brand_rect(self) -> Rect {
+        let panel = self.brand_panel_rect();
+        Rect {
+            x: panel.x.saturating_add(12),
+            y: panel.y,
+            width: panel.width.saturating_sub(24),
+            height: panel.height,
+        }
+    }
+
+    pub const fn status_panel_rect(self) -> Rect {
+        let width = if self.rect.width >= 960 {
+            Self::STATUS_WIDE_WIDTH
+        } else {
+            Self::STATUS_COMPACT_WIDTH
+        };
+        Rect {
+            x: self
+                .rect
+                .right()
+                .saturating_sub(min_u32(width, self.rect.width)),
+            y: self.rect.y,
+            width: min_u32(width, self.rect.width),
+            height: min_u32(Self::PANEL_HEIGHT, self.rect.height),
+        }
+    }
+
+    pub const fn clock_panel_rect(self) -> Rect {
+        let left = self
+            .brand_panel_rect()
+            .right()
+            .saturating_add(Self::PANEL_GAP);
+        let right = self.status_panel_rect().x.saturating_sub(Self::PANEL_GAP);
+        let available = right.saturating_sub(left);
+        let width = min_u32(Self::CLOCK_MAX_WIDTH, available);
+        let centered = self
+            .rect
+            .x
+            .saturating_add(self.rect.width.saturating_sub(width) / 2);
+        let max_x = right.saturating_sub(width);
+        Rect {
+            x: max_u32(left, min_u32(centered, max_x)),
+            y: self.rect.y,
+            width,
+            height: min_u32(Self::PANEL_HEIGHT, self.rect.height),
         }
     }
 
     pub const fn session_rect(self) -> Rect {
+        let panel = self.status_panel_rect();
         Rect {
-            x: self.rect.right().saturating_sub(Self::SESSION_WIDTH),
-            y: self.rect.y,
-            width: min_u32(Self::SESSION_WIDTH, self.rect.width),
-            height: self.rect.height,
+            x: panel
+                .right()
+                .saturating_sub(Self::PANEL_HORIZONTAL_INSET)
+                .saturating_sub(Self::SESSION_WIDTH),
+            y: panel.y,
+            width: Self::SESSION_WIDTH,
+            height: panel.height,
         }
     }
 
@@ -287,21 +349,19 @@ impl<'a> TopSystemBar<'a> {
                 Self::STATUS_GAP
                     .saturating_mul(TopSystemStatus::ALL.len().saturating_sub(1) as u32),
             );
+        let panel = self.status_panel_rect();
         Rect {
-            x: self
-                .session_rect()
-                .x
-                .saturating_sub(Self::SESSION_GAP.saturating_add(width)),
-            y: self.rect.y,
+            x: panel.x.saturating_add(Self::PANEL_HORIZONTAL_INSET),
+            y: panel.y,
             width,
-            height: self.rect.height,
+            height: panel.height,
         }
     }
 
     pub const fn status_rect(self, status: TopSystemStatus) -> Rect {
         let index = match status {
-            TopSystemStatus::Audio => 0,
-            TopSystemStatus::Network => 1,
+            TopSystemStatus::Network => 0,
+            TopSystemStatus::Audio => 1,
             TopSystemStatus::Battery => 2,
         };
         let group = self.status_group_rect();
@@ -316,29 +376,41 @@ impl<'a> TopSystemBar<'a> {
     }
 
     pub const fn clock_rect(self) -> Rect {
-        let left = self.brand_rect().right().saturating_add(8);
-        let right = self.status_group_rect().x.saturating_sub(8);
-        let available = right.saturating_sub(left);
-        let width = min_u32(Self::CLOCK_MAX_WIDTH, available);
-        let centered = self
-            .rect
-            .x
-            .saturating_add(self.rect.width.saturating_sub(width) / 2);
-        let max_x = right.saturating_sub(width);
+        let panel = self.clock_panel_rect();
         Rect {
-            x: max_u32(left, min_u32(centered, max_x)),
-            y: self.rect.y,
-            width,
-            height: self.rect.height,
+            x: panel.x.saturating_add(46),
+            y: panel.y,
+            width: panel.width.saturating_sub(92),
+            height: panel.height,
+        }
+    }
+
+    pub const fn calendar_rect(self) -> Rect {
+        let panel = self.clock_panel_rect();
+        Rect {
+            x: panel.x.saturating_add(14),
+            y: panel.y,
+            width: 28,
+            height: panel.height,
+        }
+    }
+
+    pub const fn notification_rect(self) -> Rect {
+        let panel = self.clock_panel_rect();
+        Rect {
+            x: panel.right().saturating_sub(42),
+            y: panel.y,
+            width: 28,
+            height: panel.height,
         }
     }
 
     pub const fn separator_rect(self) -> Rect {
         Rect {
             x: self.rect.x,
-            y: self.rect.bottom().saturating_sub(1),
-            width: self.rect.width,
-            height: 1,
+            y: self.rect.y,
+            width: 0,
+            height: 0,
         }
     }
 
@@ -363,12 +435,12 @@ impl<'a> TopSystemBar<'a> {
 
     pub const fn is_valid(self) -> bool {
         !self.name.is_empty()
-            && self.rect.width >= 480
-            && self.rect.height >= 28
-            && self.brand_rect().right() <= self.clock_rect().x
-            && self.clock_rect().right() <= self.status_group_rect().x
+            && self.rect.width >= 720
+            && self.rect.height >= Self::PANEL_HEIGHT
+            && self.brand_panel_rect().right() < self.clock_panel_rect().x
+            && self.clock_panel_rect().right() < self.status_panel_rect().x
             && self.status_group_rect().right() <= self.session_rect().x
-            && self.session_rect().right() == self.rect.right()
+            && self.session_rect().right() < self.status_panel_rect().right()
     }
 
     pub const fn accessibility(self) -> TopSystemBarAccessibility<'a> {
@@ -2909,12 +2981,12 @@ impl<'a> WorkspaceSwitcher<'a> {
             name,
             workspace_count,
             active_index,
-            item_width: 60,
-            thumbnail_horizontal_inset: 5,
-            thumbnail_vertical_inset: 10,
-            indicator_horizontal_inset: 5,
+            item_width: 36,
+            thumbnail_horizontal_inset: 12,
+            thumbnail_vertical_inset: 22,
+            indicator_horizontal_inset: 0,
             indicator_bottom_inset: 0,
-            indicator_height: 3,
+            indicator_height: 2,
         }
     }
 
@@ -3013,8 +3085,8 @@ impl<'a> WorkspaceSwitcher<'a> {
             || self.workspace_count == 0
             || self.workspace_count > 16
             || self.active_index >= self.workspace_count
-            || self.item_width < 44
-            || self.rect.height < 40
+            || self.item_width < 32
+            || self.rect.height < 48
             || self.thumbnail_horizontal_inset.saturating_mul(2) >= self.item_width
             || self.thumbnail_vertical_inset.saturating_mul(2) >= self.rect.height
             || self.indicator_height == 0
@@ -4177,9 +4249,9 @@ mod tests {
         let switcher = WorkspaceSwitcher::new(
             Rect {
                 x: 580,
-                y: 0,
-                width: 180,
-                height: 72,
+                y: 4,
+                width: 108,
+                height: 56,
             },
             "Workspaces",
             3,
@@ -4190,33 +4262,33 @@ mod tests {
             switcher.item_rect(0),
             Rect {
                 x: 580,
-                y: 0,
-                width: 60,
-                height: 72,
+                y: 4,
+                width: 36,
+                height: 56,
             }
         );
         assert_eq!(
             switcher.thumbnail_rect(1),
             Rect {
-                x: 645,
-                y: 10,
-                width: 50,
-                height: 52,
+                x: 628,
+                y: 26,
+                width: 12,
+                height: 12,
             }
         );
         assert_eq!(
             switcher.active_indicator_rect(),
             Rect {
-                x: 650,
-                y: 59,
-                width: 40,
-                height: 3,
+                x: 628,
+                y: 36,
+                width: 12,
+                height: 2,
             }
         );
-        assert_eq!(switcher.item_at(580, 0), Some(0));
-        assert_eq!(switcher.item_at(639, 71), Some(0));
-        assert_eq!(switcher.item_at(640, 20), Some(1));
-        assert_eq!(switcher.item_at(760, 20), None);
+        assert_eq!(switcher.item_at(580, 4), Some(0));
+        assert_eq!(switcher.item_at(615, 59), Some(0));
+        assert_eq!(switcher.item_at(616, 20), Some(1));
+        assert_eq!(switcher.item_at(688, 20), None);
         assert!(switcher.is_active(1));
         assert!(!switcher.is_active(2));
         assert_eq!(
@@ -4591,20 +4663,23 @@ mod tests {
                 x: 0,
                 y: 0,
                 width: 1536,
-                height: 36,
+                height: 56,
             },
             "Aqua system bar",
         );
         assert!(bar.is_valid());
-        assert_eq!(bar.status_rect(TopSystemStatus::Audio).x, 1400);
-        assert_eq!(bar.status_rect(TopSystemStatus::Network).x, 1439);
-        assert_eq!(bar.status_rect(TopSystemStatus::Battery).x, 1478);
-        assert_eq!(bar.session_rect().x, 1508);
-        assert_eq!(bar.separator_rect().y, 35);
-        assert_eq!(bar.status_at(1439, 18), Some(TopSystemStatus::Network));
-        assert_eq!(bar.status_at(1430, 18), None);
-        assert!(bar.session_hit(1535, 18));
-        assert!(!bar.session_hit(1507, 18));
+        assert_eq!(bar.brand_panel_rect().width, 188);
+        assert_eq!(bar.clock_panel_rect().x, 603);
+        assert_eq!(bar.status_panel_rect().x, 1262);
+        assert_eq!(bar.status_rect(TopSystemStatus::Network).x, 1280);
+        assert_eq!(bar.status_rect(TopSystemStatus::Audio).x, 1322);
+        assert_eq!(bar.status_rect(TopSystemStatus::Battery).x, 1364);
+        assert_eq!(bar.session_rect().x, 1482);
+        assert_eq!(bar.separator_rect().height, 0);
+        assert_eq!(bar.status_at(1280, 24), Some(TopSystemStatus::Network));
+        assert_eq!(bar.status_at(1310, 24), None);
+        assert!(bar.session_hit(1500, 24));
+        assert!(!bar.session_hit(1481, 24));
         assert_eq!(bar.accessibility().role, "banner");
         assert_eq!(bar.session_accessibility().role, "button");
         let battery = bar.status_accessibility(TopSystemStatus::Battery, true, Some(87));

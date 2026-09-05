@@ -166,7 +166,7 @@
     "screenSpecificDrawingCountsAsShared": false
   },
   "layout": {
-    "topBarHeight": 44,
+    "topBarHeight": 56,
     "bottomControlHeight": 64,
     "applicationPanelWidth": 580,
     "searchPanelWidth": 720,
@@ -176,9 +176,9 @@
   "canonicalComposition": {
     "applicationsControl": "bottom-left",
     "searchControl": "bottom-left",
-    "runningAppDock": "bottom-center",
+    "runningAppDock": "not-composed-on-desktop",
     "workspaceSwitcher": "bottom-right",
-    "statusBar": "compact-full-width",
+    "statusBar": "three-floating-panels",
     "defaultDesktopIcons": "none",
     "referenceContract": "visual-reference.md"
   },

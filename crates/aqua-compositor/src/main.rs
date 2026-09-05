@@ -766,9 +766,13 @@ impl LiveGpuCompositor {
         if self.top_bar_state.as_ref() == Some(state) {
             return Ok(());
         }
+        let panel = self
+            .scene
+            .surface_rect(aqua_scene::SurfaceKind::TopPanel)
+            .ok_or_else(|| "top panel surface is missing".to_string())?;
         let overlay = render_top_bar_rgba_with_cached_icons(
-            self.scene.viewport.width,
-            36,
+            panel.width,
+            panel.height,
             state,
             self.theme,
             &mut self.icon_raster_cache,
@@ -920,9 +924,13 @@ impl LiveGpuCompositor {
         if self.dock_state.as_ref() == Some(state) {
             return Ok(());
         }
+        let dock = self
+            .scene
+            .surface_rect(aqua_scene::SurfaceKind::Dock)
+            .ok_or_else(|| "bottom shell surface is missing".to_string())?;
         let overlay = render_dock_rgba_with_cached_icons(
-            760,
-            72,
+            dock.width,
+            dock.height,
             state,
             self.theme,
             &mut self.icon_raster_cache,
@@ -941,14 +949,14 @@ impl LiveGpuCompositor {
         self.dock_state = Some(state.clone());
         self.dock_texture_size = (overlay.width, overlay.height);
         println!("desktop_dock_texture_ready=true");
-        println!("desktop_dock_item_count={}", aqua_shell::DOCK_ITEM_COUNT);
+        println!("desktop_dock_item_count=0");
         println!("desktop_bottom_shell_group_count={}", overlay.group_count);
         println!("desktop_workspace_active={}", overlay.active_workspace);
         println!(
             "desktop_dock_running_indicators={}",
             overlay.running_item_count
         );
-        self.log_icon_raster_surface("dock", 3);
+        self.log_icon_raster_surface("dock", 0);
         Ok(())
     }
 
@@ -4991,14 +4999,14 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                             let stats = compositor.icon_raster_cache.stats();
                             println!(
                                 "icon_wayland_raster_cache_ready={}",
-                                compositor.icon_raster_cache.len() == 10
-                                    && stats.hits == 3
-                                    && stats.misses == 10
+                                compositor.icon_raster_cache.len() == 7
+                                    && stats.hits == 0
+                                    && stats.misses == 7
                                     && stats.parsed_sources == 7
                                     && stats.evictions == 0
                             );
                             println!("icon_wayland_raster_roles=7");
-                            println!("icon_wayland_raster_surfaces=4");
+                            println!("icon_wayland_raster_surfaces=3");
                             println!("icon_wayland_theme={}", compositor.theme.id());
                         }
                     }

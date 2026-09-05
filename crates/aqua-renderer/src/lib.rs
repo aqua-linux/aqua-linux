@@ -8,12 +8,12 @@ use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
     desktop_context_menu_with_selection, desktop_grid_cell, files_empty_state_layout,
     files_preview_layout, files_sidebar_navigation_in_viewport, files_status_layout,
-    files_toolbar_layout, files_visible_rows_in_viewport, running_app_dock,
-    settings_sidebar_navigation_in_viewport, top_system_bar, workspace_switcher, AquaTheme,
-    AudioControlStatus, DesktopIconState, DesktopPropertiesModel, DockItem, DockState,
-    FilesEntryKind, FilesWindowModel, LauncherCategory, LauncherMode, LauncherState,
-    NotificationCenter, SessionAction, SessionMenuState, SettingsWindowModel, SystemOverviewModel,
-    TerminalView, TopBarState, DESKTOP_ICONS, SETTINGS_ABOUT_METADATA,
+    files_toolbar_layout, files_visible_rows_in_viewport, settings_sidebar_navigation_in_viewport,
+    top_system_bar, workspace_switcher, AquaTheme, AudioControlStatus, DesktopIconState,
+    DesktopPropertiesModel, DockState, FilesEntryKind, FilesWindowModel, LauncherCategory,
+    LauncherMode, LauncherState, NotificationCenter, SessionAction, SessionMenuState,
+    SettingsWindowModel, SystemOverviewModel, TerminalView, TopBarState, DESKTOP_ICONS,
+    SETTINGS_ABOUT_METADATA,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -918,16 +918,33 @@ fn render_top_bar_rgba_base(
         };
     }
 
-    fill_transparent_rect(&mut rgba, width, height, bar.rect, [0xf8, 0xfb, 0xff, 0xf2]);
-    fill_transparent_rect(
-        &mut rgba,
-        width,
-        height,
-        bar.separator_rect(),
-        [0xb7, 0xc8, 0xdc, 0xc0],
-    );
+    for panel in [
+        bar.brand_panel_rect(),
+        bar.clock_panel_rect(),
+        bar.status_panel_rect(),
+    ] {
+        fill_transparent_rounded_rect(
+            &mut rgba,
+            width,
+            height,
+            Rect {
+                y: panel.y.saturating_add(3),
+                ..panel
+            },
+            24,
+            [0x16, 0x22, 0x32, 0x24],
+        );
+        fill_transparent_rounded_rect(
+            &mut rgba,
+            width,
+            height,
+            panel,
+            24,
+            [0xf8, 0xfb, 0xff, 0xf2],
+        );
+    }
 
-    let mut primitive_count = 2;
+    let mut primitive_count = 6;
     primitive_count += draw_top_bar_brand_mark(&mut rgba, width, height, bar);
     let brand = bar.brand_rect();
     draw_fitted_bitmap_text(
@@ -943,6 +960,8 @@ fn render_top_bar_rgba_base(
         FittedTextOptions::new(TextRole::Control, OutputScale::One, false),
     );
     primitive_count += 1;
+    primitive_count += draw_top_bar_calendar_icon(&mut rgba, width, height, bar);
+    primitive_count += draw_top_bar_notification_icon(&mut rgba, width, height, bar);
 
     draw_fitted_bitmap_text(
         &mut rgba,
@@ -956,7 +975,7 @@ fn render_top_bar_rgba_base(
     primitive_count += if draw_placeholder_icons {
         draw_top_bar_status_icons(&mut rgba, width, height, state, bar)
     } else {
-        draw_top_bar_power_icon(&mut rgba, width, height, bar)
+        draw_top_bar_settings_icon(&mut rgba, width, height, bar)
     };
 
     TopBarOverlay {
@@ -967,13 +986,94 @@ fn render_top_bar_rgba_base(
     }
 }
 
+fn draw_top_bar_calendar_icon(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    bar: TopSystemBar<'_>,
+) -> usize {
+    let slot = bar.calendar_rect();
+    let ink = [0x16, 0x22, 0x32, 0xff];
+    let surface = [0xf8, 0xfb, 0xff, 0xff];
+    let calendar = Rect {
+        x: slot.x.saturating_add(5),
+        y: slot.y.saturating_add(13),
+        width: 18,
+        height: 20,
+    };
+    fill_transparent_rounded_rect(rgba, width, height, calendar, 3, ink);
+    fill_transparent_rect(
+        rgba,
+        width,
+        height,
+        Rect {
+            x: calendar.x + 2,
+            y: calendar.y + 6,
+            width: 14,
+            height: 12,
+        },
+        surface,
+    );
+    for x in [calendar.x + 5, calendar.x + 12] {
+        fill_transparent_rect(
+            rgba,
+            width,
+            height,
+            Rect {
+                x,
+                y: calendar.y.saturating_sub(2),
+                width: 2,
+                height: 6,
+            },
+            ink,
+        );
+    }
+    4
+}
+
+fn draw_top_bar_notification_icon(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    bar: TopSystemBar<'_>,
+) -> usize {
+    let slot = bar.notification_rect();
+    let ink = [0x16, 0x22, 0x32, 0xff];
+    let center_x = slot.x + slot.width / 2;
+    let center_y = slot.y + slot.height / 2;
+    fill_transparent_circle(rgba, width, height, center_x, center_y, 8, ink);
+    fill_transparent_circle(
+        rgba,
+        width,
+        height,
+        center_x,
+        center_y + 3,
+        6,
+        [0xf8, 0xfb, 0xff, 0xff],
+    );
+    fill_transparent_rect(
+        rgba,
+        width,
+        height,
+        Rect {
+            x: center_x.saturating_sub(9),
+            y: center_y + 6,
+            width: 18,
+            height: 2,
+        },
+        ink,
+    );
+    fill_transparent_circle(rgba, width, height, center_x, center_y + 10, 2, ink);
+    4
+}
+
 fn draw_top_bar_brand_mark(
     rgba: &mut [u8],
     width: u32,
     height: u32,
     bar: TopSystemBar<'_>,
 ) -> usize {
-    let color = [0x08, 0x69, 0xc8, 0xff];
+    let color = [0x16, 0x22, 0x32, 0xff];
     let brand = bar.brand_rect();
     let center_y = brand.y + brand.height / 2;
     let left = brand.x + 6;
@@ -1199,11 +1299,11 @@ fn draw_top_bar_status_icons(
         color,
     );
 
-    draw_top_bar_power_icon(rgba, width, height, bar);
+    draw_top_bar_settings_icon(rgba, width, height, bar);
     21
 }
 
-fn draw_top_bar_power_icon(
+fn draw_top_bar_settings_icon(
     rgba: &mut [u8],
     width: u32,
     height: u32,
@@ -1211,28 +1311,25 @@ fn draw_top_bar_power_icon(
 ) -> usize {
     let color = [0x16, 0x22, 0x32, 0xff];
     let session = bar.session_rect();
+    let center_x = session.x + session.width / 2;
     let center_y = session.y + session.height / 2;
-    let power_x = session.right().saturating_sub(12);
-    fill_transparent_circle(rgba, width, height, power_x, center_y, 8, color);
+    fill_transparent_circle(rgba, width, height, center_x, center_y, 9, color);
     fill_transparent_circle(
         rgba,
         width,
         height,
-        power_x,
+        center_x,
         center_y,
-        5,
+        6,
         [0xf8, 0xfb, 0xff, 0xff],
     );
-    draw_transparent_line(
-        rgba,
-        width,
-        height,
-        (power_x, center_y.saturating_sub(9)),
-        (power_x, center_y),
-        2,
-        color,
-    );
-    3
+    fill_transparent_circle(rgba, width, height, center_x, center_y, 3, color);
+    for (dx, dy) in [(0_i32, -11_i32), (0, 11), (-11, 0), (11, 0)] {
+        let x = (center_x as i32 + dx).max(0) as u32;
+        let y = (center_y as i32 + dy).max(0) as u32;
+        fill_transparent_circle(rgba, width, height, x, y, 2, color);
+    }
+    7
 }
 
 pub fn render_dock_rgba(width: u32, height: u32, state: &DockState) -> DockOverlay {
@@ -1255,38 +1352,10 @@ pub fn render_dock_rgba_with_cached_icons(
     height: u32,
     state: &DockState,
     theme: AquaTheme,
-    cache: &mut icons::IconRasterCache,
+    _cache: &mut icons::IconRasterCache,
 ) -> Result<DockOverlay, icons::IconError> {
-    let mut overlay = render_dock_rgba_base(width, height, state, false);
+    let mut overlay = render_dock_rgba_base(width, height, state, true);
     apply_shell_palette(&mut overlay.rgba, theme);
-    let running_dock = running_app_dock(width, height);
-    if width >= 640 && height >= 48 && running_dock.is_valid() {
-        for (index, item) in DockItem::ALL.iter().copied().enumerate() {
-            let role = match item {
-                DockItem::Files => icons::IconRole::Files,
-                DockItem::Settings => icons::IconRole::Settings,
-                DockItem::Trash => icons::IconRole::Trash,
-            };
-            let key = icons::IconRasterKey::new(
-                role,
-                theme,
-                icons::IconState::Normal,
-                48,
-                aqua_text::OutputScale::One,
-            )?;
-            let icon = cache.get_or_render(key)?;
-            let icon_rect = running_dock.raster_icon_rect(index);
-            icons::composite_icon(
-                &mut overlay.rgba,
-                width,
-                height,
-                icon_rect.x,
-                icon_rect.y,
-                &icon,
-            );
-            overlay.primitive_count += 1;
-        }
-    }
     Ok(overlay)
 }
 
@@ -1294,10 +1363,10 @@ fn render_dock_rgba_base(
     width: u32,
     height: u32,
     state: &DockState,
-    draw_placeholder_icons: bool,
+    _draw_placeholder_icons: bool,
 ) -> DockOverlay {
     let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
-    if width < 640 || height < 48 {
+    if width < 360 || height < 56 {
         return DockOverlay {
             width,
             height,
@@ -1311,32 +1380,27 @@ fn render_dock_rgba_base(
     let surface = [0xf7, 0xfa, 0xfe, 0xe8];
     let selected = [0xd8, 0xea, 0xff, 0xff];
     let ink = [0x15, 0x26, 0x39, 0xff];
-    let left_width = 132;
-    let running_dock = running_app_dock(width, height);
     let workspaces = workspace_switcher(
         width,
         height,
         state.active_workspace.min(aqua_shell::WORKSPACE_COUNT - 1),
     );
+    let applications = Rect {
+        x: 0,
+        y: 4,
+        width: 56,
+        height: height.saturating_sub(8),
+    };
+    let search = Rect {
+        x: 68,
+        y: 4,
+        width: 56,
+        height: height.saturating_sub(8),
+    };
     let mut primitives = 3;
-    let mut running_item_count = 0;
 
-    for rect in [
-        Rect {
-            x: 0,
-            y: 0,
-            width: left_width,
-            height,
-        },
-        Rect {
-            x: running_dock.rect.x,
-            y: running_dock.rect.y,
-            width: running_dock.rect.width,
-            height: running_dock.rect.height,
-        },
-        workspaces.rect,
-    ] {
-        fill_transparent_rounded_rect(&mut rgba, width, height, rect, 12, surface);
+    for rect in [applications, search, workspaces.rect] {
+        fill_transparent_rounded_rect(&mut rgba, width, height, rect, 18, surface);
     }
 
     if state.applications_open {
@@ -1345,10 +1409,10 @@ fn render_dock_rgba_base(
             width,
             height,
             Rect {
-                x: 6,
-                y: 6,
-                width: 52,
-                height: height - 12,
+                x: applications.x + 4,
+                y: applications.y + 4,
+                width: applications.width - 8,
+                height: applications.height - 8,
             },
             9,
             selected,
@@ -1361,8 +1425,8 @@ fn render_dock_rgba_base(
                 &mut rgba,
                 width,
                 height,
-                18 + column * 12,
-                22 + row * 12,
+                applications.x + 18 + column * 10,
+                applications.y + 18 + row * 10,
                 3,
                 ink,
             );
@@ -1376,84 +1440,72 @@ fn render_dock_rgba_base(
             width,
             height,
             Rect {
-                x: 72,
-                y: 6,
-                width: 54,
-                height: height - 12,
+                x: search.x + 4,
+                y: search.y + 4,
+                width: search.width - 8,
+                height: search.height - 8,
             },
             9,
             selected,
         );
         primitives += 1;
     }
-    fill_transparent_circle(&mut rgba, width, height, 96, 32, 12, ink);
-    fill_transparent_circle(&mut rgba, width, height, 96, 32, 8, surface);
-    draw_transparent_line(&mut rgba, width, height, (104, 41), (115, 52), 3, ink);
+    let search_center_x = search.x + search.width / 2 - 3;
+    let search_center_y = search.y + search.height / 2 - 3;
+    fill_transparent_circle(
+        &mut rgba,
+        width,
+        height,
+        search_center_x,
+        search_center_y,
+        11,
+        ink,
+    );
+    fill_transparent_circle(
+        &mut rgba,
+        width,
+        height,
+        search_center_x,
+        search_center_y,
+        7,
+        surface,
+    );
+    draw_transparent_line(
+        &mut rgba,
+        width,
+        height,
+        (search_center_x + 7, search_center_y + 7),
+        (search_center_x + 15, search_center_y + 15),
+        3,
+        ink,
+    );
     primitives += 3;
 
-    for (index, item) in DockItem::ALL.iter().copied().enumerate() {
-        let icon_rect = running_dock.icon_rect(index);
-        if draw_placeholder_icons {
-            primitives += draw_desktop_icon(
-                &mut rgba,
-                width,
-                height,
-                icon_rect.x,
-                icon_rect.y,
-                item.id(),
-            );
-        }
-        if state.item_running(item) {
-            running_item_count += 1;
-            let indicator = running_dock.indicator_rect(index);
-            fill_transparent_circle(
-                &mut rgba,
-                width,
-                height,
-                indicator.x + indicator.width / 2,
-                indicator.y + indicator.height / 2,
-                indicator.width / 2,
-                [0x0b, 0x76, 0xe5, 0xff],
-            );
-            primitives += 1;
-        }
-    }
-
     for index in 0..workspaces.workspace_count {
-        let thumbnail = workspaces.thumbnail_rect(index);
+        let item = workspaces.item_rect(index);
         let active = workspaces.is_active(index);
-        fill_transparent_rounded_rect(
+        fill_transparent_circle(
             &mut rgba,
             width,
             height,
-            thumbnail,
-            8,
+            item.x + item.width / 2,
+            item.y + item.height / 2,
+            if active { 6 } else { 5 },
             if active {
-                selected
+                ink
             } else {
-                [0xff, 0xff, 0xff, 0xb8]
+                [0x7f, 0x8c, 0x9d, 0x90]
             },
         );
-        if active {
-            let indicator = workspaces.active_indicator_rect();
-            fill_transparent_rect(
-                &mut rgba,
-                width,
-                height,
-                indicator,
-                [0x0b, 0x76, 0xe5, 0xff],
-            );
-            primitives += 1;
-        }
         primitives += 1;
     }
     DockOverlay {
         width,
         height,
         rgba,
-        running_item_count,
+        running_item_count: 0,
         active_workspace: workspaces.active_index,
-        group_count: 3,
+        group_count: 2,
         primitive_count: primitives,
     }
 }
@@ -1532,7 +1584,7 @@ fn render_desktop_icons_rgba_base(
     draw_placeholder_icons: bool,
 ) -> DesktopIconsOverlay {
     let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
-    let mut primitives = 0;
+    let mut primitives = draw_desktop_identity(&mut rgba, width, height);
     for (index, icon) in DESKTOP_ICONS.iter().enumerate() {
         let cell = desktop_grid_cell(index, icon.label, state.selected() == Some(index), 0, 0);
         let slots = cell.slots();
@@ -1671,6 +1723,103 @@ fn render_desktop_icons_rgba_base(
         context_menu_selected_row: state.context_menu_selected_row(),
         primitive_count: primitives,
     }
+}
+
+fn draw_desktop_identity(rgba: &mut [u8], width: u32, height: u32) -> usize {
+    if width < 640 || height < 320 {
+        return 0;
+    }
+    let ink = [0x16, 0x22, 0x32, 0xe8];
+    let secondary = [0x42, 0x56, 0x6d, 0xd8];
+    let center_x = width / 2;
+    let center_y = height.saturating_mul(42) / 100;
+    let left = center_x.saturating_sub(34);
+    let peak = center_x;
+    let right = center_x.saturating_add(34);
+    for offset in 0..4 {
+        draw_transparent_line(
+            rgba,
+            width,
+            height,
+            (left + offset, center_y + 26),
+            (peak, center_y.saturating_sub(30) + offset),
+            3,
+            ink,
+        );
+        draw_transparent_line(
+            rgba,
+            width,
+            height,
+            (peak, center_y.saturating_sub(30) + offset),
+            (right.saturating_sub(offset), center_y + 26),
+            3,
+            ink,
+        );
+    }
+    draw_transparent_line(
+        rgba,
+        width,
+        height,
+        (left, center_y + 26),
+        (center_x, center_y + 8),
+        3,
+        ink,
+    );
+    draw_transparent_line(
+        rgba,
+        width,
+        height,
+        (center_x, center_y + 8),
+        (right, center_y + 26),
+        3,
+        ink,
+    );
+
+    let name = "A Q U A   L I N U X";
+    let tagline = "SIMPLER  -  FASTER  -  FREER";
+    let name_x = center_x.saturating_sub(name.len() as u32 * 6);
+    let tagline_x = center_x.saturating_sub(tagline.len() as u32 * 3);
+    draw_bitmap_text(
+        rgba,
+        (width, height),
+        (name_x, center_y + 48),
+        name,
+        secondary,
+        2,
+    );
+    draw_bitmap_text(
+        rgba,
+        (width, height),
+        (tagline_x, center_y + 78),
+        tagline,
+        secondary,
+        1,
+    );
+    draw_bitmap_text(
+        rgba,
+        (width, height),
+        (12, height.saturating_sub(104)),
+        "BUILT",
+        secondary,
+        1,
+    );
+    draw_bitmap_text(
+        rgba,
+        (width, height),
+        (12, height.saturating_sub(88)),
+        "FOR A CLEARER",
+        secondary,
+        1,
+    );
+    draw_bitmap_text(
+        rgba,
+        (width, height),
+        (12, height.saturating_sub(72)),
+        "TOMORROW",
+        secondary,
+        1,
+    );
+    13
 }
 
 pub fn export_desktop_icons_png(width: u32, height: u32, state: &DesktopIconState) -> Vec<u8> {
@@ -5647,13 +5796,13 @@ impl SoftwareRasterProbe {
             && self.filled_rect_count == self.expected_rect_count
             && self.expected_rect_count == 7
             && self.wallpaper_sample == [0x04, 0x3b, 0x5c, 0xff]
-            && self.surface_sample == [0x51, 0xac, 0xd2, 0xff]
+            && self.surface_sample == [0x84, 0xe0, 0xff, 0xff]
             && self.dock_sample == [0x51, 0xac, 0xd2, 0xff]
             && self.surface_border_sample == [0x3d, 0x72, 0x8c, 0xff]
-            && self.surface_highlight_sample == [0xa3, 0xd3, 0xe7, 0xff]
+            && self.surface_highlight_sample == [0xbe, 0xef, 0xff, 0xff]
             && self.surface_corner_sample == [0x2a, 0x6c, 0x8c, 0xff]
-            && self.surface_shadow_sample == [0x33, 0x86, 0xaa, 0xff]
-            && self.raster_checksum == 0x7015_58d1_5395_21df
+            && self.surface_shadow_sample == [0x52, 0xa6, 0xc6, 0xff]
+            && self.raster_checksum == 0x717b_7e2c_50c3_29f1
             && self.surface_primitive_count == 15
             && self.buffer_bytes == u64::from(self.width) * u64::from(self.height) * 4
             && !self.renderer_started
@@ -5683,7 +5832,7 @@ impl RasterPpmExport {
             && self.header == "P6\n1536 1024\n255\n"
             && self.byte_count == 4_718_609
             && self.bytes.len() == self.byte_count
-            && self.checksum == 0xefdc_ba78_578c_2cd5
+            && self.checksum == 0x553f_5b26_26c1_5af1
             && !self.renderer_started
     }
 }
@@ -5709,7 +5858,7 @@ impl RasterPngExport {
             && self.format == "png-rgba8888"
             && self.byte_count == self.bytes.len()
             && self.byte_count == 6_293_028
-            && self.checksum == 0x2cdb_1d86_a1ba_9300
+            && self.checksum == 0x1554_b44a_4319_fe02
             && !self.renderer_started
     }
 }
@@ -5974,6 +6123,14 @@ pub fn probe_software_raster_for_static_scene(
     viewport: aqua_scene::Viewport,
 ) -> SoftwareRasterProbe {
     let image = rasterize_static_scene(viewport);
+    let launcher = aqua_scene::static_shell_scene(viewport)
+        .surface_rect(SurfaceKind::Launcher)
+        .unwrap_or(Rect {
+            x: 0,
+            y: 0,
+            width: 1,
+            height: 1,
+        });
     SoftwareRasterProbe {
         status: "software-rasterized",
         backend: RENDER_BACKEND,
@@ -5982,13 +6139,28 @@ pub fn probe_software_raster_for_static_scene(
         pixel_format: "rgba8888",
         filled_rect_count: image.filled_rect_count,
         expected_rect_count: image.expected_rect_count,
-        wallpaper_sample: sample_pixel(&image.rgba, viewport.width, 1400, 500),
+        wallpaper_sample: sample_pixel(&image.rgba, viewport.width, 10, 500),
         surface_sample: sample_pixel(&image.rgba, viewport.width, 300, 300),
         dock_sample: sample_pixel(&image.rgba, viewport.width, 768, 960),
-        surface_border_sample: sample_pixel(&image.rgba, viewport.width, 24, 60),
-        surface_highlight_sample: sample_pixel(&image.rgba, viewport.width, 300, 61),
-        surface_corner_sample: sample_pixel(&image.rgba, viewport.width, 25, 61),
-        surface_shadow_sample: sample_pixel(&image.rgba, viewport.width, 300, 578),
+        surface_border_sample: sample_pixel(&image.rgba, viewport.width, launcher.x, launcher.y),
+        surface_highlight_sample: sample_pixel(
+            &image.rgba,
+            viewport.width,
+            launcher.x + launcher.width / 2,
+            launcher.y + 1,
+        ),
+        surface_corner_sample: sample_pixel(
+            &image.rgba,
+            viewport.width,
+            launcher.x + 1,
+            launcher.y + 1,
+        ),
+        surface_shadow_sample: sample_pixel(
+            &image.rgba,
+            viewport.width,
+            launcher.x + launcher.width / 2,
+            launcher.bottom().saturating_sub(2),
+        ),
         raster_checksum: checksum_bytes(&image.rgba),
         surface_primitive_count: image.surface_primitive_count,
         buffer_bytes: image.rgba.len() as u64,
@@ -8606,7 +8778,7 @@ mod tests {
     fn dock_overlay_renders_items_and_running_indicators() {
         let overlay = render_dock_rgba(
             760,
-            72,
+            64,
             &DockState {
                 applications_open: true,
                 search_open: false,
@@ -8615,11 +8787,11 @@ mod tests {
                 active_workspace: 1,
             },
         );
-        assert_eq!(overlay.rgba.len(), 760 * 72 * 4);
-        assert_eq!(overlay.running_item_count, 2);
+        assert_eq!(overlay.rgba.len(), 760 * 64 * 4);
+        assert_eq!(overlay.running_item_count, 0);
         assert_eq!(overlay.active_workspace, 1);
-        assert_eq!(overlay.group_count, 3);
-        assert!(overlay.primitive_count > 40);
+        assert_eq!(overlay.group_count, 2);
+        assert!(overlay.primitive_count >= 19);
         assert!(overlay.rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
     }
 
@@ -8627,16 +8799,16 @@ mod tests {
     fn top_bar_overlay_renders_real_state_labels() {
         let overlay = render_top_bar_rgba(
             1536,
-            36,
+            56,
             &TopBarState {
                 product_label: "Aqua Linux".to_string(),
-                clock_label: "Thu, 27 Aug 2026  10:30 UTC".to_string(),
+                clock_label: "Thu, Aug 27   10:30".to_string(),
                 network_connected: true,
                 battery_percent: Some(87),
                 audio_available: true,
             },
         );
-        assert_eq!(overlay.rgba.len(), 1536 * 36 * 4);
+        assert_eq!(overlay.rgba.len(), 1536 * 56 * 4);
         assert!(overlay.primitive_count >= 30);
         assert!(overlay.rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
     }
@@ -8645,7 +8817,7 @@ mod tests {
     fn cached_aqua_core_icons_replace_shell_placeholders_and_reuse_rasters() {
         let top_bar = TopBarState {
             product_label: "Aqua Linux".to_string(),
-            clock_label: "Sat, 29 Aug 2026  10:30 UTC".to_string(),
+            clock_label: "Sat, Aug 29   10:30".to_string(),
             network_connected: true,
             battery_percent: Some(87),
             audio_available: true,
@@ -8663,7 +8835,7 @@ mod tests {
         let mut cache = icons::IconRasterCache::default();
 
         let cached_top =
-            render_top_bar_rgba_with_cached_icons(1536, 36, &top_bar, AquaTheme::Dark, &mut cache)
+            render_top_bar_rgba_with_cached_icons(1536, 56, &top_bar, AquaTheme::Dark, &mut cache)
                 .unwrap();
         let cached_desktop = render_desktop_icons_rgba_with_cached_icons(
             aqua_shell::DESKTOP_ICON_LAYER_WIDTH,
@@ -8674,7 +8846,7 @@ mod tests {
         )
         .unwrap();
         let cached_dock =
-            render_dock_rgba_with_cached_icons(760, 72, &dock, AquaTheme::Dark, &mut cache)
+            render_dock_rgba_with_cached_icons(760, 64, &dock, AquaTheme::Dark, &mut cache)
                 .unwrap();
         let cached_notification = render_notification_toast_rgba_with_cached_icons(
             420,
@@ -8687,7 +8859,7 @@ mod tests {
 
         assert_ne!(
             cached_top.rgba,
-            render_top_bar_rgba_with_theme(1536, 36, &top_bar, AquaTheme::Dark).rgba
+            render_top_bar_rgba_with_theme(1536, 56, &top_bar, AquaTheme::Dark).rgba
         );
         assert_ne!(
             cached_desktop.rgba,
@@ -8699,32 +8871,33 @@ mod tests {
             )
             .rgba
         );
-        assert_ne!(
+        assert_eq!(
             cached_dock.rgba,
-            render_dock_rgba_with_theme(760, 72, &dock, AquaTheme::Dark).rgba
+            render_dock_rgba_with_theme(760, 64, &dock, AquaTheme::Dark).rgba
         );
         assert_ne!(
             cached_notification.rgba,
             render_notification_toast_rgba_with_theme(420, 112, &notifications, AquaTheme::Dark,)
                 .rgba
         );
-        assert_eq!(cache.len(), 10);
+        assert_eq!(cache.len(), 7);
         assert_eq!(cache.stats().hits, 0);
-        assert_eq!(cache.stats().misses, 10);
+        assert_eq!(cache.stats().misses, 7);
         assert_eq!(cache.stats().parsed_sources, 7);
         assert_eq!(cache.stats().evictions, 0);
 
-        render_dock_rgba_with_cached_icons(760, 72, &dock, AquaTheme::Dark, &mut cache).unwrap();
-        assert_eq!(cache.len(), 10);
+        render_top_bar_rgba_with_cached_icons(1536, 56, &top_bar, AquaTheme::Dark, &mut cache)
+            .unwrap();
+        assert_eq!(cache.len(), 7);
         assert_eq!(cache.stats().hits, 3);
-        assert_eq!(cache.stats().misses, 10);
+        assert_eq!(cache.stats().misses, 7);
     }
 
     #[test]
     fn shell_overlays_render_distinct_runtime_theme_palettes() {
         let top_bar = TopBarState {
             product_label: "Aqua Linux".to_string(),
-            clock_label: "Thu, 27 Aug 2026  10:30 UTC".to_string(),
+            clock_label: "Thu, Aug 27   10:30".to_string(),
             network_connected: true,
             battery_percent: Some(87),
             audio_available: true,
@@ -8742,8 +8915,8 @@ mod tests {
         let mut checksums = Vec::new();
 
         for theme in AquaTheme::ALL {
-            let top_bar = render_top_bar_rgba_with_theme(1536, 36, &top_bar, theme);
-            let dock = render_dock_rgba_with_theme(760, 72, &dock, theme);
+            let top_bar = render_top_bar_rgba_with_theme(1536, 56, &top_bar, theme);
+            let dock = render_dock_rgba_with_theme(760, 64, &dock, theme);
             let (launcher, probe) =
                 render_launcher_overlay_rgba_with_theme(viewport, &launcher, theme);
             assert!(probe.is_ready());
@@ -8883,8 +9056,8 @@ mod tests {
     #[test]
     fn desktop_icons_overlay_tracks_selection_and_context_menu() {
         let mut state = DesktopIconState::default();
-        state.pointer_press(48, 90, aqua_shell::DesktopPointerButton::Primary, 100);
-        state.pointer_press(48, 194, aqua_shell::DesktopPointerButton::Secondary, 200);
+        state.pointer_press(48, 128, aqua_shell::DesktopPointerButton::Primary, 100);
+        state.pointer_press(48, 232, aqua_shell::DesktopPointerButton::Secondary, 200);
         let overlay = render_desktop_icons_rgba(
             aqua_shell::DESKTOP_ICON_LAYER_WIDTH,
             aqua_shell::DESKTOP_ICON_LAYER_HEIGHT,
@@ -9091,9 +9264,9 @@ mod tests {
             &client_plan,
         )
         .expect("runtime wallpaper composition");
-        let offset = ((700 * viewport.width + 768) * 4) as usize;
+        let offset = ((500 * viewport.width + 10) * 4) as usize;
 
-        assert_eq!(&frame.bytes[offset..offset + 4], &[255, 255, 0, 255]);
+        assert_eq!(&frame.bytes[offset..offset + 4], &[255, 0, 0, 255]);
         assert_eq!(
             frame.byte_count,
             (viewport.width * viewport.height * 4) as usize
@@ -9126,6 +9299,29 @@ mod tests {
     }
 
     #[test]
+    fn desktop_identity_is_centered_and_theme_aware() {
+        let state = DesktopIconState::default();
+        let light = render_desktop_icons_rgba_with_theme(1232, 590, &state, AquaTheme::Light);
+        let dark = render_desktop_icons_rgba_with_theme(1232, 590, &state, AquaTheme::Dark);
+        let identity_region = |overlay: &DesktopIconsOverlay| {
+            overlay
+                .rgba
+                .chunks_exact(4)
+                .enumerate()
+                .filter(|(index, pixel)| {
+                    let x = *index as u32 % overlay.width;
+                    let y = *index as u32 / overlay.width;
+                    (540..692).contains(&x) && (180..380).contains(&y) && pixel[3] != 0
+                })
+                .count()
+        };
+
+        assert!(identity_region(&light) > 200);
+        assert!(identity_region(&dark) > 200);
+        assert_ne!(light.rgba, dark.rgba);
+    }
+
+    #[test]
     fn render_plan_contains_static_scene_commands() {
         let plan = render_plan_for_static_scene(Viewport::new(1536, 1024));
 
@@ -9155,7 +9351,7 @@ mod tests {
         assert_eq!(lines[0], "renderer_status=plan-only");
         assert_eq!(lines[1], "renderer_backend=headless-command-plan");
         assert!(lines.contains(
-            &"draw surface=launcher kind=system-surface-panel rect=24,60,560,520 asset_count=1 material_token_count=7 simulated=true"
+            &"draw surface=launcher kind=system-surface-panel rect=24,98,560,520 asset_count=1 material_token_count=7 simulated=true"
                 .to_string()
         ));
     }
@@ -9469,7 +9665,7 @@ mod tests {
             "png-rgba8888-composited-client-preview"
         );
         assert_eq!(composited_export.byte_count, static_export.byte_count);
-        assert_eq!(composited_export.checksum, 0x3a53_6b4f_39fb_7751);
+        assert_eq!(composited_export.checksum, 0x0509_1058_7cfd_c456);
         assert_ne!(composited_export.checksum, static_export.checksum);
         assert!(!composited_export.renderer_started);
     }
@@ -9561,7 +9757,7 @@ mod tests {
         assert_eq!(lines[0], "paint_status=plan-only");
         assert_eq!(lines[1], "paint_backend=headless-command-plan");
         assert!(lines.contains(
-            &"paint order=4 surface=launcher kind=system-surface-panel rect=24,60,560,520 opacity=184 blend=source-over effect=layered-system-surface"
+            &"paint order=4 surface=launcher kind=system-surface-panel rect=24,98,560,520 opacity=184 blend=source-over effect=layered-system-surface"
                 .to_string()
         ));
     }
@@ -9618,13 +9814,13 @@ mod tests {
         assert!(probe.is_ready());
         assert_eq!(probe.filled_rect_count, 7);
         assert_eq!(probe.wallpaper_sample, [0x04, 0x3b, 0x5c, 0xff]);
-        assert_eq!(probe.surface_sample, [0x51, 0xac, 0xd2, 0xff]);
+        assert_eq!(probe.surface_sample, [0x84, 0xe0, 0xff, 0xff]);
         assert_eq!(probe.dock_sample, [0x51, 0xac, 0xd2, 0xff]);
         assert_eq!(probe.surface_border_sample, [0x3d, 0x72, 0x8c, 0xff]);
-        assert_eq!(probe.surface_highlight_sample, [0xa3, 0xd3, 0xe7, 0xff]);
+        assert_eq!(probe.surface_highlight_sample, [0xbe, 0xef, 0xff, 0xff]);
         assert_eq!(probe.surface_corner_sample, [0x2a, 0x6c, 0x8c, 0xff]);
-        assert_eq!(probe.surface_shadow_sample, [0x33, 0x86, 0xaa, 0xff]);
-        assert_eq!(probe.raster_checksum, 0x7015_58d1_5395_21df);
+        assert_eq!(probe.surface_shadow_sample, [0x52, 0xa6, 0xc6, 0xff]);
+        assert_eq!(probe.raster_checksum, 0x717b_7e2c_50c3_29f1);
         assert_eq!(probe.surface_primitive_count, 15);
         assert!(!probe.renderer_started);
     }
@@ -9637,12 +9833,12 @@ mod tests {
         assert_eq!(lines[0], "raster_status=software-rasterized");
         assert!(lines.contains(&"filled_rect_count=7".to_string()));
         assert!(lines.contains(&"wallpaper_sample=04,3b,5c,ff".to_string()));
-        assert!(lines.contains(&"surface_sample=51,ac,d2,ff".to_string()));
+        assert!(lines.contains(&"surface_sample=84,e0,ff,ff".to_string()));
         assert!(lines.contains(&"surface_border_sample=3d,72,8c,ff".to_string()));
-        assert!(lines.contains(&"surface_highlight_sample=a3,d3,e7,ff".to_string()));
+        assert!(lines.contains(&"surface_highlight_sample=be,ef,ff,ff".to_string()));
         assert!(lines.contains(&"surface_corner_sample=2a,6c,8c,ff".to_string()));
-        assert!(lines.contains(&"surface_shadow_sample=33,86,aa,ff".to_string()));
-        assert!(lines.contains(&"raster_checksum=701558d1539521df".to_string()));
+        assert!(lines.contains(&"surface_shadow_sample=52,a6,c6,ff".to_string()));
+        assert!(lines.contains(&"raster_checksum=717b7e2c50c329f1".to_string()));
     }
 
     #[test]
@@ -9653,7 +9849,7 @@ mod tests {
         assert_eq!(export.format, "ppm-p6-rgb888");
         assert_eq!(export.header, "P6\n1536 1024\n255\n");
         assert_eq!(export.byte_count, 4_718_609);
-        assert_eq!(export.checksum, 0xefdc_ba78_578c_2cd5);
+        assert_eq!(export.checksum, 0x553f_5b26_26c1_5af1);
         assert!(!export.renderer_started);
     }
 
@@ -9665,7 +9861,7 @@ mod tests {
         assert_eq!(lines[0], "export_status=ppm-ready");
         assert!(lines.contains(&"export_format=ppm-p6-rgb888".to_string()));
         assert!(lines.contains(&"export_bytes=4718609".to_string()));
-        assert!(lines.contains(&"export_checksum=efdcba78578c2cd5".to_string()));
+        assert!(lines.contains(&"export_checksum=553f5b2626c15af1".to_string()));
     }
 
     #[test]
@@ -9675,7 +9871,7 @@ mod tests {
         assert!(export.is_ready());
         assert_eq!(export.format, "png-rgba8888");
         assert_eq!(export.byte_count, 6_293_028);
-        assert_eq!(export.checksum, 0x2cdb_1d86_a1ba_9300);
+        assert_eq!(export.checksum, 0x1554_b44a_4319_fe02);
         assert_eq!(&export.bytes[0..8], &[137, 80, 78, 71, 13, 10, 26, 10]);
         assert!(!export.renderer_started);
     }
@@ -9688,7 +9884,7 @@ mod tests {
         assert_eq!(lines[0], "export_status=png-ready");
         assert!(lines.contains(&"export_format=png-rgba8888".to_string()));
         assert!(lines.contains(&"export_bytes=6293028".to_string()));
-        assert!(lines.contains(&"export_checksum=2cdb1d86a1ba9300".to_string()));
+        assert!(lines.contains(&"export_checksum=1554b44a4319fe02".to_string()));
     }
 
     #[test]
@@ -9699,7 +9895,7 @@ mod tests {
         assert_eq!(export.format, "raw-rgba8888");
         assert_eq!(export.byte_count, 6_291_456);
         assert_eq!(export.bytes.len(), 6_291_456);
-        assert_eq!(export.checksum, 0x7015_58d1_5395_21df);
+        assert_eq!(export.checksum, 0x717b_7e2c_50c3_29f1);
         assert!(!export.renderer_started);
     }
 
@@ -9711,6 +9907,6 @@ mod tests {
         assert_eq!(lines[0], "export_status=rgba-ready");
         assert!(lines.contains(&"export_format=raw-rgba8888".to_string()));
         assert!(lines.contains(&"export_bytes=6291456".to_string()));
-        assert!(lines.contains(&"export_checksum=701558d1539521df".to_string()));
+        assert!(lines.contains(&"export_checksum=717b7e2c50c329f1".to_string()));
     }
 }

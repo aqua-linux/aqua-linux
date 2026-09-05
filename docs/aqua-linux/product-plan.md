@@ -30,7 +30,7 @@ Visual principles:
 
 - Pale blue-white desktop, near-white application surfaces, dark text, and a focused system-blue accent.
 - Compact desktop information density with clear sidebars, toolbars, rows, grids, and interaction states.
-- A full-width top system bar plus separate bottom groups for applications/search, running apps, and workspaces.
+- Three floating top system panels plus Applications/Search controls at bottom-left and workspaces at bottom-right.
 - Subtle translucency may support depth, but readability never depends on blur, refraction, glow, or decorative glass effects.
 - The result must be an original Aqua Linux interface and must not reproduce a proprietary desktop or import another desktop environment.
 
@@ -51,10 +51,9 @@ As of 2026-08-27, the bright Aqua interface is the permanent v1 direction, not a
 
 Product consequences:
 
-- The idle desktop uses a full-width compact system bar, a pale low-contrast wallpaper, and three bottom control groups.
+- The idle desktop uses three compact floating system panels, the selected Light or Dark wave wallpaper, and two bottom control groups.
 - The bottom-left group contains separate Applications and Search controls.
-- The centered bottom group is a real pinned/running application dock.
-- The bottom-right group displays workspaces and their active state.
+- The bottom-right group displays three workspace dots and their active state.
 - Applications and global search open as separate centered panels.
 - First-party applications share bright window chrome, sidebars, toolbars, controls, and semantic states.
 - Dates, users, application names, and system values shown in the boards are illustrative. Runtime values must be real and localized.
@@ -383,7 +382,7 @@ Pick packaging base:
 
 - Window move/resize/focus.
 - Bottom-left Applications and Search controls plus centered panels for each surface.
-- Centered pinned/running application dock and bottom-right workspace switcher.
+- Bottom-right three-dot workspace switcher; applications launch through Applications or Search.
 - File manager MVP.
 - Settings MVP.
 - Notification center.

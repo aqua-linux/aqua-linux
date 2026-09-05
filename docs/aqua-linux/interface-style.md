@@ -56,12 +56,12 @@ Blur is optional and must never be required for text contrast. Large panels shou
 
 ## Geometry
 
-- Top bar: compact and full width.
+- Top system area: three compact floating panels for identity, time, and status.
 - Windows: moderate radius, stable title-bar height, soft shadow.
 - Panels: moderate radius and constrained width.
 - Buttons and fields: smaller radius than windows, fixed control height.
 - Icon buttons: square hit areas with familiar symbols and tooltips where needed.
-- Bottom controls: three stable groups for applications/search, running apps, and workspaces.
+- Bottom controls: separate Applications/Search buttons at left and a compact workspace-dot panel at right.
 
 Exact dimensions remain responsive renderer tokens. UI content must fit at 800x600, 1280x800, and 1536x1024 without overlap.
 

@@ -450,7 +450,7 @@ pub const NOTIFICATION_DEFAULT_TIMEOUT_MS: u64 = 30_000;
 pub const NOTIFICATION_QUEUE_LIMIT: usize = 8;
 pub const SYSTEM_OVERVIEW_REFRESH_MS: u64 = 60_000;
 pub const DESKTOP_ICON_X: u32 = 24;
-pub const DESKTOP_ICON_Y: u32 = 60;
+pub const DESKTOP_ICON_Y: u32 = 98;
 pub const DESKTOP_ICON_WIDTH: u32 = 104;
 pub const DESKTOP_ICON_ROW_HEIGHT: u32 = 104;
 pub const DESKTOP_ICON_LAYER_WIDTH: u32 = 232;
@@ -1269,14 +1269,14 @@ pub const fn workspace_switcher(
     height: u32,
     active_workspace: usize,
 ) -> WorkspaceSwitcher<'static> {
-    let item_width = 60_u32;
+    let item_width = 36_u32;
     let group_width = item_width.saturating_mul(WORKSPACE_COUNT as u32);
     WorkspaceSwitcher::new(
         Rect {
             x: width.saturating_sub(group_width),
-            y: 0,
+            y: 4,
             width: group_width,
-            height,
+            height: height.saturating_sub(8),
         },
         "Workspaces",
         WORKSPACE_COUNT,
@@ -1288,7 +1288,7 @@ pub const fn workspace_keyboard_target(
     active_workspace: usize,
     key: WorkspaceNavigationKey,
 ) -> Option<usize> {
-    workspace_switcher(WORKSPACE_COUNT as u32 * 60, 72, active_workspace).keyboard_target(key)
+    workspace_switcher(WORKSPACE_COUNT as u32 * 36, 64, active_workspace).keyboard_target(key)
 }
 
 pub fn dock_pointer_target(
@@ -1297,23 +1297,15 @@ pub fn dock_pointer_target(
     width: u32,
     height: u32,
 ) -> Option<BottomShellTarget> {
-    if local_x >= width || local_y >= height || width < 640 || height < 48 {
+    if local_x >= width || local_y >= height || width < 360 || height < 56 {
         return None;
     }
 
-    if local_x < 64 {
+    if local_x < 56 && (4..height.saturating_sub(4)).contains(&local_y) {
         return Some(BottomShellTarget::Applications);
     }
-    if (68..132).contains(&local_x) {
+    if (68..124).contains(&local_x) && (4..height.saturating_sub(4)).contains(&local_y) {
         return Some(BottomShellTarget::Search);
-    }
-
-    let running_dock = running_app_dock(width, height);
-    if let Some(index) = running_dock.item_at(local_x, local_y) {
-        return DockItem::ALL
-            .get(index)
-            .copied()
-            .map(BottomShellTarget::Application);
     }
 
     workspace_switcher(width, height, 0)
@@ -3078,10 +3070,10 @@ fn format_top_bar_clock(epoch_seconds: u64) -> String {
 
     let days = (epoch_seconds / 86_400) as i64;
     let seconds_today = epoch_seconds % 86_400;
-    let (year, month, day) = civil_date_from_unix_days(days);
+    let (_, month, day) = civil_date_from_unix_days(days);
     let weekday = WEEKDAYS[(days + 4).rem_euclid(7) as usize];
     format!(
-        "{weekday}, {day:02} {} {year}  {:02}:{:02} UTC",
+        "{weekday}, {} {day:02}   {:02}:{:02}",
         MONTHS[(month - 1) as usize],
         seconds_today / 3_600,
         seconds_today % 3_600 / 60
@@ -5583,17 +5575,17 @@ mod tests {
 
         let state = TopBarState::read(&root, 0);
         assert_eq!(state.product_label, "Aqua Linux");
-        assert_eq!(state.clock_label, "Thu, 01 Jan 1970  00:00 UTC");
+        assert_eq!(state.clock_label, "Thu, Jan 01   00:00");
         assert!(state.network_connected);
         assert_eq!(state.battery_percent, Some(87));
         assert!(state.audio_available);
-        let bar = top_system_bar(1536, 36);
+        let bar = top_system_bar(1536, 56);
         assert!(bar.is_valid());
         assert_eq!(
             bar.status_rect(aqua_components::TopSystemStatus::Audio).x,
-            1400
+            1322
         );
-        assert!(bar.session_hit(1535, 18));
+        assert!(bar.session_hit(1500, 24));
 
         fs::remove_dir_all(root).expect("remove top bar fixture");
     }
@@ -5607,18 +5599,18 @@ mod tests {
         assert!(desktop_context_menu(DESKTOP_ICONS.len()).is_none());
 
         let mut state = DesktopIconState::default();
-        let first = state.pointer_press(48, 90, DesktopPointerButton::Primary, 1_000);
+        let first = state.pointer_press(48, 128, DesktopPointerButton::Primary, 1_000);
         assert!(first.redraw_requested);
         assert_eq!(state.selected(), Some(0));
         assert!(first.launch_request.is_none());
 
-        let second = state.pointer_press(48, 90, DesktopPointerButton::Primary, 1_300);
+        let second = state.pointer_press(48, 128, DesktopPointerButton::Primary, 1_300);
         assert_eq!(
             second.launch_request.map(|request| request.app_id),
             Some("files")
         );
 
-        let context = state.pointer_press(48, 194, DesktopPointerButton::Secondary, 2_000);
+        let context = state.pointer_press(48, 232, DesktopPointerButton::Secondary, 2_000);
         assert_eq!(state.selected(), Some(1));
         assert_eq!(state.context_menu(), Some(1));
         assert_eq!(
@@ -5626,15 +5618,15 @@ mod tests {
             Some(DesktopContextAction::MenuOpened)
         );
 
-        let properties = state.pointer_press(150, 245, DesktopPointerButton::Primary, 2_100);
+        let properties = state.pointer_press(150, 283, DesktopPointerButton::Primary, 2_100);
         assert_eq!(
             properties.context_action,
             Some(DesktopContextAction::Properties("settings"))
         );
         assert_eq!(state.context_menu(), None);
 
-        state.pointer_press(48, 298, DesktopPointerButton::Secondary, 2_200);
-        let request = state.pointer_press(150, 345, DesktopPointerButton::Primary, 2_300);
+        state.pointer_press(48, 336, DesktopPointerButton::Secondary, 2_200);
+        let request = state.pointer_press(150, 383, DesktopPointerButton::Primary, 2_300);
         assert_eq!(
             request.context_action,
             Some(DesktopContextAction::TrashEmptyConfirmationRequested)
@@ -5650,7 +5642,7 @@ mod tests {
             trash_dialog.requirement,
             ConfirmationRequirement::RepeatActivation
         );
-        let confirmed = state.pointer_press(150, 345, DesktopPointerButton::Primary, 2_400);
+        let confirmed = state.pointer_press(150, 383, DesktopPointerButton::Primary, 2_400);
         assert_eq!(
             confirmed.context_action,
             Some(DesktopContextAction::TrashEmptyConfirmed)
@@ -5669,7 +5661,7 @@ mod tests {
         let closed = state.handle_context_menu_key(DesktopContextMenuKey::Activate);
         assert!(!closed.redraw_requested);
 
-        state.pointer_press(48, 194, DesktopPointerButton::Secondary, 1_000);
+        state.pointer_press(48, 232, DesktopPointerButton::Secondary, 1_000);
         assert_eq!(state.context_menu_selected_row(), Some(0));
         let next =
             state.handle_context_menu_key(DesktopContextMenuKey::Navigate(MenuNavigationKey::Next));
@@ -5682,7 +5674,7 @@ mod tests {
         );
         assert_eq!(state.context_menu(), None);
 
-        state.pointer_press(48, 298, DesktopPointerButton::Secondary, 2_000);
+        state.pointer_press(48, 336, DesktopPointerButton::Secondary, 2_000);
         state.handle_context_menu_key(DesktopContextMenuKey::Navigate(MenuNavigationKey::End));
         let armed = state.handle_context_menu_key(DesktopContextMenuKey::Activate);
         assert_eq!(
@@ -5706,7 +5698,7 @@ mod tests {
         );
         assert_eq!(state.context_menu(), None);
 
-        state.pointer_press(48, 90, DesktopPointerButton::Secondary, 3_000);
+        state.pointer_press(48, 128, DesktopPointerButton::Secondary, 3_000);
         let dismissed = state.handle_context_menu_key(DesktopContextMenuKey::Dismiss);
         assert!(dismissed.redraw_requested);
         assert_eq!(state.context_menu(), None);
@@ -7085,38 +7077,29 @@ mod tests {
         assert_eq!(running_dock.item_rect(0).x, 272);
         assert_eq!(running_dock.icon_rect(1).x, 348);
         assert_eq!(running_dock.indicator_rect(2).x, 449);
-        let workspaces = workspace_switcher(760, 72, 1);
+        let workspaces = workspace_switcher(760, 64, 1);
         assert!(workspaces.is_valid());
-        assert_eq!(workspaces.rect.x, 580);
-        assert_eq!(workspaces.thumbnail_rect(1).x, 645);
-        assert_eq!(workspaces.active_indicator_rect().x, 650);
+        assert_eq!(workspaces.rect.x, 652);
+        assert_eq!(workspaces.thumbnail_rect(1).x, 700);
+        assert_eq!(workspaces.active_indicator_rect().x, 700);
         assert_eq!(
-            dock_pointer_target(24, 36, 760, 72),
+            dock_pointer_target(24, 32, 760, 64),
             Some(BottomShellTarget::Applications)
         );
         assert_eq!(
-            dock_pointer_target(92, 36, 760, 72),
+            dock_pointer_target(92, 32, 760, 64),
             Some(BottomShellTarget::Search)
         );
+        assert_eq!(dock_pointer_target(280, 32, 760, 64), None);
+        assert_eq!(dock_pointer_target(352, 32, 760, 64), None);
+        assert_eq!(dock_pointer_target(424, 32, 760, 64), None);
         assert_eq!(
-            dock_pointer_target(280, 36, 760, 72),
-            Some(BottomShellTarget::Application(DockItem::Files))
-        );
-        assert_eq!(
-            dock_pointer_target(352, 36, 760, 72),
-            Some(BottomShellTarget::Application(DockItem::Settings))
-        );
-        assert_eq!(
-            dock_pointer_target(424, 36, 760, 72),
-            Some(BottomShellTarget::Application(DockItem::Trash))
-        );
-        assert_eq!(
-            dock_pointer_target(650, 36, 760, 72),
+            dock_pointer_target(700, 32, 760, 64),
             Some(BottomShellTarget::Workspace(1))
         );
-        assert_eq!(dock_pointer_target(200, 36, 760, 72), None);
-        assert_eq!(dock_pointer_target(488, 36, 760, 72), None);
-        assert_eq!(dock_pointer_target(760, 36, 760, 72), None);
+        assert_eq!(dock_pointer_target(200, 32, 760, 64), None);
+        assert_eq!(dock_pointer_target(488, 32, 760, 64), None);
+        assert_eq!(dock_pointer_target(760, 32, 760, 64), None);
         assert_eq!(
             DockItem::Settings.launch_request().unwrap().app_id,
             "settings"

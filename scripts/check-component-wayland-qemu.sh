@@ -50,7 +50,7 @@ need_marker() {
 }
 
 need_marker '[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh'
-need_marker 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-20'
+need_marker 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-21'
 need_marker 'aqua_component_acceptance_catalog=22'
 need_marker 'aqua_component_acceptance_shared=22'
 need_marker 'aqua_component_acceptance_ready=true'
