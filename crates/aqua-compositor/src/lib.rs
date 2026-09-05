@@ -7874,10 +7874,23 @@ fn files_axis_scroll_rows(value: f64) -> Option<isize> {
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+const WINDOW_HOVER_MARGIN_PX: f64 = 30.0;
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 fn pointer_location_in_surface_space(
     surface: Rect,
     location: (f64, f64),
     viewport: Viewport,
+) -> Option<(f64, f64)> {
+    pointer_location_in_surface_hover_space(surface, location, viewport, 0.0)
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn pointer_location_in_surface_hover_space(
+    surface: Rect,
+    location: (f64, f64),
+    viewport: Viewport,
+    margin: f64,
 ) -> Option<(f64, f64)> {
     if viewport.width == 0 || viewport.height == 0 || surface.width == 0 || surface.height == 0 {
         return None;
@@ -7888,10 +7901,11 @@ fn pointer_location_in_surface_space(
         width: (surface.width * viewport.width / 1536).max(1),
         height: (surface.height * viewport.height / 1024).max(1),
     };
-    if location.0 < f64::from(output.x)
-        || location.0 >= f64::from(output.right())
-        || location.1 < f64::from(output.y)
-        || location.1 >= f64::from(output.bottom())
+    let margin = margin.max(0.0);
+    if location.0 < f64::from(output.x) - margin
+        || location.0 >= f64::from(output.right()) + margin
+        || location.1 < f64::from(output.y) - margin
+        || location.1 >= f64::from(output.bottom()) + margin
     {
         return None;
     }
@@ -10162,7 +10176,8 @@ impl SmithayDrmSession {
             self.session.wayland_state.pointer_motion_count += 1;
             return true;
         }
-        let surface_hit = self
+        let previous_focus = self.session.wayland_state.pointer_focus_surface.clone();
+        let exact_surface_hit = self
             .session
             .wayland_state
             .mapped_surfaces
@@ -10186,6 +10201,41 @@ impl SmithayDrmSession {
                     },
                 )
             });
+        // Keep the current window hovered across its visible active-window shadow. This avoids a
+        // leave/enter flicker while the pointer travels to controls near the frame edge. An exact
+        // hit on another window above still wins before this retained-focus path is considered.
+        let surface_hit = exact_surface_hit.or_else(|| {
+            let previous_focus = previous_focus.as_ref()?;
+            self.session
+                .wayland_state
+                .mapped_surfaces
+                .iter()
+                .find(|record| {
+                    record.workspace == self.session.wayland_state.active_workspace
+                        && &record.surface == previous_focus
+                })
+                .and_then(|record| {
+                    let surface = Rect {
+                        x: record.x,
+                        y: record.y,
+                        width: record.display_width,
+                        height: record.display_height,
+                    };
+                    pointer_location_in_surface_hover_space(
+                        surface,
+                        pointer_location,
+                        viewport,
+                        WINDOW_HOVER_MARGIN_PX,
+                    )
+                    .map(|surface_pointer_location| {
+                        (
+                            record.surface.clone(),
+                            (f64::from(record.x), f64::from(record.y)).into(),
+                            surface_pointer_location,
+                        )
+                    })
+                })
+        });
         self.session.wayland_state.pointer_hit_test_count += 1;
         if surface_hit.is_some() {
             self.session.wayland_state.pointer_surface_hit_count += 1;
@@ -15346,6 +15396,54 @@ mod tests {
         assert!(bottom_right.1 < 722.0);
         assert!(pointer_location_in_surface_space(surface, (906.0, 562.0), viewport).is_none());
         assert!(pointer_location_in_surface_space(surface, (905.0, 563.0), viewport).is_none());
+
+        let close_button = pointer_location_in_surface_space(surface, (874.5, 253.75), viewport)
+            .expect("the rendered titlebar controls should remain inside the window hover region");
+        let frame = WindowFrame::new(
+            Rect {
+                x: 0,
+                y: 0,
+                width: surface.width,
+                height: surface.height,
+            },
+            "Window",
+            48,
+        );
+        assert_eq!(
+            frame.control_at(
+                (close_button.0 - f64::from(surface.x)) as u32,
+                (close_button.1 - f64::from(surface.y)) as u32,
+            ),
+            Some(WindowControl::Close)
+        );
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn active_window_hover_remains_stable_across_its_visible_shadow() {
+        let viewport = Viewport::new(1280, 800);
+        let surface = Rect {
+            x: 448,
+            y: 302,
+            width: 640,
+            height: 420,
+        };
+        let near_controls = pointer_location_in_surface_hover_space(
+            surface,
+            (920.0, 250.0),
+            viewport,
+            WINDOW_HOVER_MARGIN_PX,
+        )
+        .expect("the active window shadow should bridge travel to its frame controls");
+        assert!(near_controls.0 > f64::from(surface.right()));
+        assert!(near_controls.1 >= f64::from(surface.y));
+        assert!(pointer_location_in_surface_hover_space(
+            surface,
+            (936.0, 250.0),
+            viewport,
+            WINDOW_HOVER_MARGIN_PX,
+        )
+        .is_none());
     }
 
     #[test]
