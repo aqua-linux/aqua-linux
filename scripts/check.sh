@@ -1212,7 +1212,7 @@ grep -Fq 'notification_center = "bounded FIFO notification state' docs/aqua-linu
 grep -Fq 'desktop-notification-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'system_overview = "persistent shell model reads bounded Aqua Linux identity' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'desktop-system-overview-qemu status=ok' scripts/check-graphical-boot-qemu.sh
-grep -Fq 'desktop_icons = "persistent Files, Settings, and Trash icon state' docs/aqua-linux/compositor-foundation.toml
+grep -Fq 'desktop_icons = "the redesigned desktop defaults to an open icon-free canvas' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'desktop-icons-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'desktop_properties = "packaged Aqua Properties is a supervised 480x300 xdg-toplevel' docs/aqua-linux/compositor-foundation.toml
 grep -Fq 'desktop-properties-qemu status=ok' scripts/check-graphical-boot-qemu.sh
@@ -1766,7 +1766,7 @@ grep -Fq 'Metadata row | Shared packaged-QEMU-proven primitive' docs/aqua-linux/
 grep -Fq 'Grid cell | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Application overview | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Global search | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
-grep -Fq 'Running-app dock | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
+grep -Fq 'Running-app dock | Retained shared primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Workspace switcher | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Notification | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
 grep -Fq 'Confirmation dialog | Shared packaged-QEMU-proven primitive' docs/aqua-linux/component-catalog.md
