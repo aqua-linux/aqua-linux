@@ -164,6 +164,9 @@ the matching shared pointer-leave transition now clears hover and retires armed
 press or scrollbar-drag state across all three clients. Its common close gate
 prevents redraw after close, repeated leave is inert, and keyboard/domain state
 is preserved. Files drag-only cancellation carries no visual repaint;
+window-frame and xdg close also share an input shutdown transition that clears
+transient state before accepting no further keyboard or pointer actions. Late
+leave remains safe and inert; queued-input regressions preserve domain state;
 the broader consolidation remains in progress.
 
 ## Context
