@@ -168,6 +168,10 @@ To open the interactive Aqua desktop in the QEMU window, run:
 AQUA_KERNEL_APPEND=aqua.boot_graphics=1 scripts/run-qemu.sh
 ```
 
+The interactive runner uses KVM automatically when `/dev/kvm` is accessible and
+falls back to TCG otherwise. Set `QEMU_ACCELERATOR=tcg QEMU_CPU_MODEL=max` to
+force software emulation.
+
 Run its opt-in acceptance path with:
 
 ```sh

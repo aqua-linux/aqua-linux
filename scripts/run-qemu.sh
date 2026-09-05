@@ -9,6 +9,8 @@ ROOTFS="${ROOTFS:-${IMAGE_DIR}/rootfs.ext2}"
 SERIAL_LOG="${SERIAL_LOG:-${ROOT_DIR}/build/qemu-serial.log}"
 MEMORY="${MEMORY:-1024M}"
 CPUS="${CPUS:-2}"
+QEMU_ACCELERATOR="${QEMU_ACCELERATOR:-}"
+QEMU_CPU_MODEL="${QEMU_CPU_MODEL:-}"
 KERNEL_APPEND="${AQUA_KERNEL_APPEND:-}"
 KERNEL_COMMAND_LINE="root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.desktop_icons=1"
 if [ -n "${KERNEL_APPEND}" ]; then
@@ -27,12 +29,30 @@ if [ ! -f "${ROOTFS}" ]; then
     exit 1
 fi
 
+if [ -z "${QEMU_ACCELERATOR}" ]; then
+    if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+        QEMU_ACCELERATOR="kvm"
+    else
+        QEMU_ACCELERATOR="tcg"
+    fi
+fi
+
+if [ -z "${QEMU_CPU_MODEL}" ]; then
+    if [ "${QEMU_ACCELERATOR}" = "kvm" ]; then
+        QEMU_CPU_MODEL="host"
+    else
+        QEMU_CPU_MODEL="max"
+    fi
+fi
+
 mkdir -p "$(dirname "${SERIAL_LOG}")"
 rm -f "${SERIAL_LOG}"
 
+echo "Starting Aqua Linux with QEMU accelerator=${QEMU_ACCELERATOR} cpu=${QEMU_CPU_MODEL}"
+
 exec qemu-system-x86_64 \
-    -machine accel=tcg \
-    -cpu max \
+    -machine "accel=${QEMU_ACCELERATOR}" \
+    -cpu "${QEMU_CPU_MODEL}" \
     -smp "${CPUS}" \
     -m "${MEMORY}" \
     -kernel "${KERNEL}" \
