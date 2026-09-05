@@ -1315,6 +1315,7 @@ pub struct WindowFrame<'a> {
     pub titlebar_height: u32,
     pub resize_grip_size: u32,
     pub focused: bool,
+    pub controls_visible: bool,
 }
 
 impl<'a> WindowFrame<'a> {
@@ -1325,11 +1326,17 @@ impl<'a> WindowFrame<'a> {
             titlebar_height,
             resize_grip_size: 24,
             focused: true,
+            controls_visible: true,
         }
     }
 
     pub const fn with_focus(mut self, focused: bool) -> Self {
         self.focused = focused;
+        self
+    }
+
+    pub const fn with_controls_visible(mut self, controls_visible: bool) -> Self {
+        self.controls_visible = controls_visible;
         self
     }
 
@@ -1344,33 +1351,48 @@ impl<'a> WindowFrame<'a> {
 
     pub const fn title_rect(self) -> Rect {
         let titlebar = self.titlebar_rect();
+        let reserved_controls = if self.controls_visible { 132 } else { 36 };
         Rect {
-            x: titlebar.x.saturating_add(92),
+            x: titlebar.x.saturating_add(18),
             y: titlebar.y,
-            width: titlebar.width.saturating_sub(112),
+            width: titlebar.width.saturating_sub(reserved_controls),
             height: titlebar.height,
+        }
+    }
+
+    pub const fn control_group_rect(self) -> Rect {
+        let titlebar = self.titlebar_rect();
+        let width = min_u32(100, titlebar.width.saturating_sub(32));
+        let height = min_u32(32, titlebar.height.saturating_sub(8));
+        Rect {
+            x: titlebar.right().saturating_sub(width.saturating_add(16)),
+            y: titlebar
+                .y
+                .saturating_add(titlebar.height.saturating_sub(height) / 2),
+            width,
+            height,
         }
     }
 
     pub const fn control_rect(self, control: WindowControl) -> Rect {
         let index = match control {
-            WindowControl::Close => 0,
-            WindowControl::Minimize => 1,
-            WindowControl::Maximize => 2,
+            WindowControl::Minimize => 0,
+            WindowControl::Maximize => 1,
+            WindowControl::Close => 2,
         };
-        let titlebar = self.titlebar_rect();
+        let group = self.control_group_rect();
         Rect {
-            x: titlebar.x.saturating_add(18_u32.saturating_add(index * 22)),
-            y: titlebar
-                .y
-                .saturating_add(titlebar.height.saturating_sub(14) / 2),
-            width: 14,
-            height: 14,
+            x: group.x.saturating_add(8_u32.saturating_add(index * 28)),
+            y: group.y.saturating_add(2),
+            width: 28,
+            height: 28,
         }
     }
 
     pub const fn control_at(self, x: u32, y: u32) -> Option<WindowControl> {
-        if rect_contains(self.control_rect(WindowControl::Close), x, y) {
+        if !self.controls_visible {
+            None
+        } else if rect_contains(self.control_rect(WindowControl::Close), x, y) {
             Some(WindowControl::Close)
         } else if rect_contains(self.control_rect(WindowControl::Minimize), x, y) {
             Some(WindowControl::Minimize)
@@ -4561,13 +4583,18 @@ mod tests {
         );
         assert!(frame.is_valid());
         assert_eq!(frame.titlebar_rect().height, 48);
-        assert_eq!(frame.control_at(20, 20), Some(WindowControl::Close));
-        assert!(!frame.move_hit(20, 20));
+        assert_eq!(frame.control_at(578, 24), Some(WindowControl::Minimize));
+        assert_eq!(frame.control_at(606, 24), Some(WindowControl::Maximize));
+        assert_eq!(frame.control_at(634, 24), Some(WindowControl::Close));
+        assert!(!frame.move_hit(634, 24));
         assert!(frame.move_hit(120, 47));
         assert!(!frame.move_hit(120, 48));
         assert!(frame.resize_hit(679, 429));
         assert!(!frame.resize_hit(655, 405));
-        assert_eq!(frame.title_rect().x, 92);
+        assert_eq!(frame.title_rect().x, 18);
+        let hidden = frame.with_controls_visible(false);
+        assert_eq!(hidden.control_at(634, 24), None);
+        assert!(hidden.move_hit(634, 24));
         assert_eq!(frame.accessibility().role, "window");
         assert_eq!(frame.accessibility().name, "Terminal");
     }
