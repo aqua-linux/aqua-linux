@@ -8185,6 +8185,19 @@ impl LibinputAquaSeatSource {
                         );
                         session.dispatch_pointer_motion(event.dx(), event.dy(), self.serial);
                     }
+                    input::Event::Pointer(PointerEvent::MotionAbsolute(event)) => {
+                        first_input_event_time_us = Some(
+                            first_input_event_time_us.map_or(event.time_usec(), |current: u64| {
+                                current.min(event.time_usec())
+                            }),
+                        );
+                        let input = session.input_snapshot();
+                        session.dispatch_pointer_position(
+                            event.absolute_x_transformed(input.output_width),
+                            event.absolute_y_transformed(input.output_height),
+                            self.serial,
+                        );
+                    }
                     input::Event::Pointer(PointerEvent::Button(event)) => {
                         first_input_event_time_us = Some(
                             first_input_event_time_us.map_or(event.time_usec(), |current: u64| {
@@ -9757,6 +9770,16 @@ fn configured_desktop_icons() -> bool {
         if matches!(value.as_str(), "0" | "false" | "no") {
             return false;
         }
+    }
+    if fs::read_to_string("/proc/cmdline")
+        .ok()
+        .is_some_and(|cmdline| {
+            cmdline
+                .split_ascii_whitespace()
+                .any(|value| value == "aqua.desktop_icons=1")
+        })
+    {
+        return true;
     }
     let config_path = env::var_os("AQUA_SETTINGS_CONFIG")
         .map(PathBuf::from)

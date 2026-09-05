@@ -10,7 +10,7 @@ SERIAL_LOG="${SERIAL_LOG:-${ROOT_DIR}/build/qemu-serial.log}"
 MEMORY="${MEMORY:-1024M}"
 CPUS="${CPUS:-2}"
 KERNEL_APPEND="${AQUA_KERNEL_APPEND:-}"
-KERNEL_COMMAND_LINE="root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1"
+KERNEL_COMMAND_LINE="root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.desktop_icons=1"
 if [ -n "${KERNEL_APPEND}" ]; then
     KERNEL_COMMAND_LINE="${KERNEL_COMMAND_LINE} ${KERNEL_APPEND}"
 fi
@@ -39,11 +39,11 @@ exec qemu-system-x86_64 \
     -drive file="${ROOTFS}",if=virtio,format=raw \
     -append "${KERNEL_COMMAND_LINE}" \
     -serial "file:${SERIAL_LOG}" \
-    -display default \
+    -display sdl,gl=off,show-cursor=off,window-close=on \
     -vga none \
-    -device virtio-vga \
+    -device virtio-vga,xres=1280,yres=800 \
     -device virtio-keyboard-pci \
-    -device virtio-mouse-pci \
+    -device virtio-tablet-pci \
     -netdev user,id=net0 \
     -device virtio-net-pci,netdev=net0 \
     -device virtio-rng-pci \

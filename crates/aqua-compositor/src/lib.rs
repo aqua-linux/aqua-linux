@@ -9437,6 +9437,8 @@ pub struct SmithayDrmSession {
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SmithayBackendInputSnapshot {
+    pub output_width: u32,
+    pub output_height: u32,
     pub keyboard_event_count: usize,
     pub pointer_motion_count: usize,
     pub pointer_button_count: usize,
@@ -10166,6 +10168,11 @@ impl SmithayDrmSession {
         true
     }
 
+    pub fn dispatch_pointer_position(&mut self, x: f64, y: f64, time: u32) -> bool {
+        let current = self.session.wayland_state.pointer_location;
+        self.dispatch_pointer_motion(x - current.0, y - current.1, time)
+    }
+
     pub fn dispatch_pointer_button(&mut self, button: u32, pressed: bool, time: u32) -> bool {
         let Some(pointer) = self.session.wayland_state.seat.get_pointer() else {
             return false;
@@ -10386,6 +10393,8 @@ impl SmithayDrmSession {
 
     pub fn input_snapshot(&self) -> SmithayBackendInputSnapshot {
         SmithayBackendInputSnapshot {
+            output_width: self.session.wayland_state.output_width,
+            output_height: self.session.wayland_state.output_height,
             keyboard_event_count: self.session.wayland_state.keyboard_event_count,
             pointer_motion_count: self.session.wayland_state.pointer_motion_count,
             pointer_button_count: self.session.wayland_state.pointer_button_count,
@@ -16182,8 +16191,13 @@ mod tests {
 
         assert!(session.dispatch_pointer_motion(1000.0, 1000.0, 3));
         let bounded = session.input_snapshot();
+        assert_eq!((bounded.output_width, bounded.output_height), (1024, 768));
         assert_eq!(bounded.pointer_x, 1023);
         assert_eq!(bounded.pointer_y, 767);
+
+        assert!(session.dispatch_pointer_position(100.0, 200.0, 4));
+        let absolute = session.input_snapshot();
+        assert_eq!((absolute.pointer_x, absolute.pointer_y), (100, 200));
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
