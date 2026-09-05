@@ -110,8 +110,13 @@ cleanup() {
 }
 trap cleanup HUP INT TERM
 if [ "${count}" -eq 1 ]; then
-    sleep 1
-    "${hook}" deconfig
+    waited=0
+    while ! grep -Fq 'state=running' "${AQUA_NETWORK_CONTROL_DIR}/network-service-supervisor.state"; do
+        [ "${waited}" -lt 10 ] || exit 24
+        sleep 1
+        waited=$((waited + 1))
+    done
+    # Model a client crash without racing a separate lease/DNS loss event.
     exit 23
 fi
 while :; do sleep 1; done

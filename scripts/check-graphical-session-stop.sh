@@ -8,7 +8,12 @@ trap 'if [ -f "${TMP_DIR}/run/graphical-session-supervisor.pid" ]; then kill "$(
 mkdir -p "${TMP_DIR}/run"
 
 (
-    while [ ! -f "${TMP_DIR}/run/graphical-session.stop" ]; do sleep 0.05; done
+    waited=0
+    while [ ! -f "${TMP_DIR}/run/graphical-session.stop" ]; do
+        [ "${waited}" -lt 100 ] || exit 1
+        sleep 0.05
+        waited=$((waited + 1))
+    done
     cat > "${TMP_DIR}/run/graphical-session-supervisor.state" <<'EOF'
 state=stopped
 EOF
@@ -23,7 +28,13 @@ EOF
 fake_pid="$!"
 echo "${fake_pid}" > "${TMP_DIR}/run/graphical-session-supervisor.pid"
 
-output="$(AQUA_RUNTIME_DIR="${TMP_DIR}/run" AQUA_GRAPHICS_STOP_TIMEOUT_SECONDS=5 "${STOP_TOOL}")"
+AQUA_RUNTIME_DIR="${TMP_DIR}/run" AQUA_GRAPHICS_STOP_TIMEOUT_SECONDS=5 \
+    "${STOP_TOOL}" > "${TMP_DIR}/stop.log" &
+stop_pid="$!"
+# Reap the fixture while the stop tool checks that its process has exited.
+wait "${fake_pid}"
+wait "${stop_pid}"
+output="$(cat "${TMP_DIR}/stop.log")"
 printf '%s\n' "${output}" | grep -Fq 'status=requested'
 printf '%s\n' "${output}" | grep -Fq 'status=ok supervisor_stopped=true pid_cleaned=true kms_restored=true clients_stopped=true recovery_return=ok'
 test ! -e "${TMP_DIR}/run/graphical-session-supervisor.pid"

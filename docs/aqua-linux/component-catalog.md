@@ -854,6 +854,11 @@ generation change, or lost repaint before separately proving release-inside
 activation. A valid pointer press also transfers visible keyboard and
 accessibility focus to the button; packaged QEMU then activates it with Space
 and no intermediate Tab.
+The same pointer-leave transition clears hover and cancels an armed press as
+one idempotent client operation. Packaged QEMU proves the active-surface leave
+and repaint with both first-party surfaces retained. Deterministic coverage
+checks that a closing client still clears interaction state without requesting a
+post-close repaint, including independent hover and press states.
 A background click clears that focus, repaints, and makes a following Space
 inert without advancing refresh generation. Tab can independently reapply the
 same focus. A Wayland keyboard leave clears visible and accessibility focus,

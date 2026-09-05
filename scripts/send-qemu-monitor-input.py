@@ -44,14 +44,14 @@ MODES = {
     "trash-empty": (
         "mouse_move -3000 -3000", "mouse_move 26 163",
         "mouse_button 2", "mouse_button 0",
-        "mouse_move -3000 -3000", "mouse_move 82 189",
-        "mouse_button 1", "mouse_button 0",
-        "mouse_button 1", "mouse_button 0", "sendkey meta_l 100",
+        "sendkey down 100", "sendkey ret 100", "sendkey ret 100",
+    ),
+    "settings": (
+        "sendkey meta_l 100",
         "sendkey s 100", "sendkey e 100", "sendkey t 100", "sendkey t 100",
         "sendkey i 100", "sendkey n 100", "sendkey g 100", "sendkey s 100",
         "sendkey ret 100",
     ),
-    "settings": (),
     "files-launch-fast": (
         "sendkey meta_l 100", "sendkey f 100", "sendkey i 100",
         "sendkey l 100", "sendkey e 100", "sendkey s 100",
@@ -116,6 +116,10 @@ MODES = {
     "properties-pointer-blur-space": (
         "mouse_move 0 -80", "mouse_button 1", "mouse_button 0",
         "sendkey spc 100",
+    ),
+    "properties-pointer-leave": (
+        "mouse_move -3000 -3000", "mouse_move 480 315",
+        "mouse_move -3000 -3000", "mouse_move 220 200",
     ),
     "properties-keyboard-blur": (
         "sendkey tab 100", "mouse_move -3000 -3000", "mouse_move 220 200",

@@ -461,6 +461,29 @@ expect {
     eof { puts stderr "QEMU exited after Properties pointer-blur verification"; exit 1 }
 }
 
+run_shell_check {properties_pointer_leave_before="$(grep -Fc 'aqua_properties_hover hovered=false reason=pointer-leave' /run/aqua/graphical-session-supervisor.log)"; properties_pointer_leave_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Properties pointer-leave baselines"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) properties-pointer-leave} input_error]} {
+    puts stderr "QEMU Properties pointer-leave input injection failed: $input_error"
+    exit 1
+}
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -Fc 'aqua_properties_hover hovered=false reason=pointer-leave' /run/aqua/graphical-session-supervisor.log)" -le "$properties_pointer_leave_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Properties pointer interaction to clear on surface leave"
+run_shell_check {i=0; while [ "$i" -lt 60 ] && [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -le "$properties_pointer_leave_repaint_before" ]; do sleep 1; i=$((i + 1)); done} "waiting for the Properties pointer-leave repaint"
+run_shell_check {ok=1; [ "$(grep -Fc 'aqua_properties_hover hovered=false reason=pointer-leave' /run/aqua/graphical-session-supervisor.log)" -gt "$properties_pointer_leave_before" ] || ok=0; grep -F 'aqua_properties_hover hovered=false reason=pointer-leave' /run/aqua/graphical-session-supervisor.log | tail -n 1 | grep -Fq 'press_cancelled=false repaint=true' || ok=0; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$properties_pointer_leave_repaint_before" ] || ok=0; [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=2' ] || ok=0} "checking the active Properties pointer-leave lifecycle"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-properties-pointer-leave-qemu status=ok hover=cleared press_cancelled=false repaint=true clients=2'}
+send -- "\r"
+
+expect {
+    -exact {[AQUA-TEST] stage=desktop-properties-pointer-leave-qemu status=ok hover=cleared press_cancelled=false repaint=true clients=2} {}
+    timeout { puts stderr "Properties pointer-leave lifecycle was not proven"; exit 1 }
+    eof { puts stderr "QEMU exited before Properties pointer-leave verification"; exit 1 }
+}
+
+expect {
+    -exact {# } {}
+    timeout { puts stderr "Properties pointer-leave verification did not return to recovery shell"; exit 1 }
+    eof { puts stderr "QEMU exited after Properties pointer-leave verification"; exit 1 }
+}
+
 run_shell_check {properties_keyboard_blur_repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; properties_keyboard_blur_space_before="$(grep -Fc 'aqua_properties_keyboard key=57' /run/aqua/graphical-session-supervisor.log)"; properties_keyboard_leave_before="$(grep -Fc 'aqua_properties_keyboard focus=none reason=keyboard-leave' /run/aqua/graphical-session-supervisor.log)"} "recording the Properties keyboard-blur baselines"
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) properties-keyboard-blur} input_error]} {
     puts stderr "QEMU Properties keyboard-blur input injection failed: $input_error"
@@ -567,7 +590,7 @@ if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) settings} input
 
 run_shell_check {i=0; while [ "$i" -lt 60 ] && ! grep -Fq 'desktop_launch_surface_app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for the runtime Settings surface"
 run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_client_surface_count=2' ]; do sleep 1; i=$((i + 1)); done} "waiting for the runtime Settings composition"
-run_shell_check {printf '%s\n' '[AQUA-DIAG] settings-launch'; grep -E 'aqua_launcher_pointer|desktop_launch_|desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 16} "reporting the Settings launch state"
+run_shell_check {printf '%s\n' '[AQUA-DIAG] settings-launch'; grep -E 'aqua_launcher_pointer|desktop_launcher_keyboard|desktop_launch_|desktop_event_launcher_visible=|desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 40} "reporting the Settings launch state"
 run_shell_check {ok=1; grep -Fq 'desktop_launch_request_app=settings' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_surface_app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log || ok=0} "checking runtime Settings surface"
 run_shell_check {[ "$(grep -F 'desktop_event_client_surface_count=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_client_surface_count=2' ] || ok=0; grep -Fq 'desktop_event_launcher_visible=false' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_surface_focused=true' /run/aqua/graphical-session-supervisor.log || ok=0} "checking runtime Settings composition and focus"
 send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-runtime-settings-qemu status=ok app=settings surface=aqua.settings clients=2 launcher_closed=true'}

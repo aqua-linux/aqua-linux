@@ -23,6 +23,7 @@ check_output_contains() {
 cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --workspace
+cargo test -p aqua-compositor --features smithay-smoke properties_pointer_leave
 scripts/check-typography-fixtures.sh
 scripts/check-typography-layout-fixtures.sh
 scripts/check-elevation-fixtures.sh
@@ -1841,6 +1842,9 @@ grep -Fq 'desktop-properties-pointer-focus-qemu status=ok' scripts/check-graphic
 grep -Fq 'properties-pointer-blur-space' scripts/send-qemu-monitor-input.py
 grep -Fq 'desktop-properties-pointer-blur-qemu status=ok' scripts/check-graphical-boot-qemu.sh
 grep -Fq 'desktop-properties-pointer-blur-qemu status=ok' scripts/check-graphical-boot-qemu.exp
+grep -Fq 'properties-pointer-leave' scripts/send-qemu-monitor-input.py
+grep -Fq 'desktop-properties-pointer-leave-qemu status=ok' scripts/check-graphical-boot-qemu.sh
+grep -Fq 'desktop-properties-pointer-leave-qemu status=ok' scripts/check-graphical-boot-qemu.exp
 grep -Fq 'properties-keyboard-blur' scripts/send-qemu-monitor-input.py
 grep -Fq 'properties-blurred-space' scripts/send-qemu-monitor-input.py
 grep -Fq 'desktop-properties-keyboard-blur-qemu status=ok' scripts/check-graphical-boot-qemu.sh
