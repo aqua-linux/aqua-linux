@@ -29,7 +29,7 @@ use aqua_renderer::{
 };
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
 use aqua_renderer::{
-    render_desktop_icons_rgba_with_cached_icons, render_dock_rgba_with_cached_icons,
+    render_desktop_shell_rgba_with_cached_icons, render_dock_rgba_with_cached_icons,
     render_launcher_overlay_rgba_with_theme, render_notification_toast_rgba_with_cached_icons,
     render_session_menu_overlay_rgba_with_theme, render_system_overview_rgba_with_theme,
     render_top_bar_rgba_with_cached_icons, ElevationLevel, ShadowMaskCache, ShadowMaskKey,
@@ -633,6 +633,7 @@ struct LiveGpuCompositor {
     desktop_icons_texture: Option<GlesTexture>,
     desktop_icons_state: Option<aqua_shell::DesktopIconState>,
     desktop_icons_texture_size: (u32, u32),
+    desktop_icons_visible: bool,
     dock_texture: Option<GlesTexture>,
     dock_state: Option<aqua_shell::DockState>,
     dock_texture_size: (u32, u32),
@@ -816,15 +817,13 @@ impl LiveGpuCompositor {
         }
     }
 
-    fn set_client_window_presence(&mut self, present: bool) {
+    fn set_client_window_presence(&mut self, _present: bool) {
         let session_menu_open = self
             .session_menu_state
             .as_ref()
             .is_some_and(aqua_shell::SessionMenuState::is_open);
-        self.scene.set_surface_visible(
-            aqua_scene::SurfaceKind::SystemOverview,
-            !present || session_menu_open,
-        );
+        self.scene
+            .set_surface_visible(aqua_scene::SurfaceKind::SystemOverview, session_menu_open);
     }
 
     fn set_launcher_state(
@@ -883,12 +882,17 @@ impl LiveGpuCompositor {
         if self.desktop_icons_state.as_ref() == Some(state) {
             return Ok(());
         }
-        let overlay = render_desktop_icons_rgba_with_cached_icons(
-            aqua_shell::DESKTOP_ICON_LAYER_WIDTH,
-            aqua_shell::DESKTOP_ICON_LAYER_HEIGHT,
+        let desktop = self
+            .scene
+            .surface_rect(aqua_scene::SurfaceKind::DesktopIconColumn)
+            .ok_or_else(|| "desktop surface is missing".to_string())?;
+        let overlay = render_desktop_shell_rgba_with_cached_icons(
+            desktop.width,
+            desktop.height,
             state,
             self.theme,
             &mut self.icon_raster_cache,
+            self.desktop_icons_visible,
         )
         .map_err(|error| format!("cannot rasterize desktop icons: {error}"))?;
         self.desktop_icons_texture = Some(
@@ -918,6 +922,14 @@ impl LiveGpuCompositor {
         );
         self.log_icon_raster_surface("desktop", 3);
         Ok(())
+    }
+
+    fn set_desktop_icons_visible(&mut self, visible: bool) {
+        if self.desktop_icons_visible != visible {
+            self.desktop_icons_visible = visible;
+            self.desktop_icons_state = None;
+            println!("desktop_runtime_icons_visible={visible}");
+        }
     }
 
     fn set_dock_state(&mut self, state: &aqua_shell::DockState) -> Result<(), String> {
@@ -968,9 +980,9 @@ impl LiveGpuCompositor {
         if self.session_menu_state.as_ref() == Some(state) {
             return Ok(());
         }
-        self.scene
-            .set_surface_visible(aqua_scene::SurfaceKind::SystemOverview, true);
         let visible = state.is_open();
+        self.scene
+            .set_surface_visible(aqua_scene::SurfaceKind::SystemOverview, visible);
         if self.session_menu_state.is_none() {
             self.motion
                 .settle_visible(aqua_shell::ShellMotionSurface::SessionMenu, visible);
@@ -1219,7 +1231,7 @@ impl LiveGpuCompositor {
         .map_err(|error| format!("cannot create offscreen texture: {error}"))?;
         let mut scene = static_shell_scene(viewport);
         scene.set_surface_visible(aqua_scene::SurfaceKind::Launcher, false);
-        scene.set_surface_visible(aqua_scene::SurfaceKind::SystemOverview, true);
+        scene.set_surface_visible(aqua_scene::SurfaceKind::SystemOverview, false);
         scene.set_surface_visible(aqua_scene::SurfaceKind::DesktopIconColumn, true);
         scene.set_surface_visible(aqua_scene::SurfaceKind::NotificationToast, false);
         let mut motion = aqua_shell::ShellMotionController::default();
@@ -1253,6 +1265,7 @@ impl LiveGpuCompositor {
             desktop_icons_texture: None,
             desktop_icons_state: None,
             desktop_icons_texture_size: (0, 0),
+            desktop_icons_visible: configured_desktop_icons(),
             dock_texture: None,
             dock_state: None,
             dock_texture_size: (0, 0),
@@ -4624,6 +4637,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
         std::process::exit(1);
     }));
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    smithay_session
+        .borrow_mut()
+        .set_desktop_icons_visible(configured_desktop_icons() || icon_scenario);
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     for server_stream in server_streams.drain(..) {
         smithay_session
             .borrow_mut()
@@ -4887,6 +4904,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let runtime_reduced_motion = Cell::new(configured_reduced_motion());
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let runtime_desktop_icons_visible = Cell::new(configured_desktop_icons() || icon_scenario);
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let motion_scenario_phase = Cell::new(0_u8);
     let r2_presentation_enabled =
         env::var("AQUA_R2_PRESENTATION_TELEMETRY").as_deref() == Ok("true");
@@ -4983,6 +5002,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                             println!("component_wayland_shell_chrome_visible=false");
                         }
                     } else {
+                        compositor.set_desktop_icons_visible(runtime_desktop_icons_visible.get());
                         compositor.set_launcher_state(&runtime_launcher_state.borrow(), 0)?;
                         compositor.set_top_bar_state(&runtime_top_bar.borrow())?;
                         compositor.set_desktop_icons_state(&runtime_desktop_icon_state.borrow())?;
@@ -5018,10 +5038,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         None,
                         cpu_scanout_compat,
                     )?;
-                    println!(
-                        "desktop_system_overview_visible={}",
-                        !(installer_scenario || typography_scenario || component_scenario)
-                    );
+                    println!("desktop_system_overview_visible=false");
                     let scanout_frame = if cpu_scanout_compat {
                         pack_rgba_frame(&gpu_frame.frame_rgba, width, height, width, height, 32)?
                     } else {
@@ -5374,6 +5391,22 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                     "desktop_runtime_reduced_motion={configured_reduced_motion}"
                                 );
                             }
+                            let configured_desktop_icons =
+                                configured_desktop_icons() || icon_scenario;
+                            let desktop_icons_visibility_changed =
+                                runtime_desktop_icons_visible.get() != configured_desktop_icons;
+                            if desktop_icons_visibility_changed {
+                                runtime_desktop_icons_visible.set(configured_desktop_icons);
+                                smithay_session
+                                    .borrow_mut()
+                                    .set_desktop_icons_visible(configured_desktop_icons);
+                                #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+                                if let Some(compositor) =
+                                    live_gpu_wayland_compositor.borrow_mut().as_mut()
+                                {
+                                    compositor.set_desktop_icons_visible(configured_desktop_icons);
+                                }
+                            }
 
                             if installer_scenario {
                                 let mut snapshots =
@@ -5683,6 +5716,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 || shell_status_changed
                                 || theme_changed
                                 || reduced_motion_changed
+                                || desktop_icons_visibility_changed
                                 || launched
                                 || surface_changed
                                 || process_exited
@@ -5697,6 +5731,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                     || shell_status_changed
                                     || theme_changed
                                     || reduced_motion_changed
+                                    || desktop_icons_visibility_changed
                                     || motion_active
                                     || launched
                                     || surface_changed
@@ -5841,7 +5876,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                     "desktop_notification_queued={}",
                                     notification_state.queued_count()
                                 );
-                                println!("desktop_system_overview_visible=true");
+                                println!(
+                                    "desktop_system_overview_visible={}",
+                                    session_menu_state.is_open()
+                                );
                                 println!(
                                     "desktop_system_overview_memory_percent={}",
                                     system_overview_state.memory_used_percent()
@@ -7012,7 +7050,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                             }
                             thread::sleep(Duration::from_millis(10));
                         };
-                        println!("drm_wayland_settings_desktop_icons=false");
+                        println!("drm_wayland_settings_desktop_icons=true");
                         println!(
                             "drm_wayland_settings_desktop_toggle_checksum={desktop_toggle_checksum:016x}"
                         );
@@ -7247,7 +7285,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 "Aqua Settings Reduced Motion value was not persisted".into()
                             );
                         }
-                        if persisted_settings.desktop_icons {
+                        if !persisted_settings.desktop_icons {
                             return Err(
                                 "Aqua Settings Desktop Icons value was not persisted".into()
                             );
@@ -7264,7 +7302,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                             aqua_shell::SETTINGS_CONFIG_VERSION
                         );
                         println!("drm_wayland_settings_persisted_reduced_motion=true");
-                        println!("drm_wayland_settings_persisted_desktop_icons=false");
+                        println!("drm_wayland_settings_persisted_desktop_icons=true");
                         println!("drm_wayland_settings_persisted_key_repeat=false");
                         println!("drm_wayland_settings_reload_verified=true");
                         println!(
@@ -9536,6 +9574,24 @@ fn configured_reduced_motion() -> bool {
         .unwrap_or_else(|| PathBuf::from("/home/aqua/.config/aqua/settings.conf"));
     aqua_shell::SettingsWindowModel::load_or_default(&config_path)
         .map(|model| model.reduced_motion)
+        .unwrap_or(false)
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn configured_desktop_icons() -> bool {
+    if let Ok(value) = env::var("AQUA_DESKTOP_ICONS") {
+        if matches!(value.as_str(), "1" | "true" | "yes") {
+            return true;
+        }
+        if matches!(value.as_str(), "0" | "false" | "no") {
+            return false;
+        }
+    }
+    let config_path = env::var_os("AQUA_SETTINGS_CONFIG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/home/aqua/.config/aqua/settings.conf"));
+    aqua_shell::SettingsWindowModel::load_or_default(&config_path)
+        .map(|model| model.desktop_icons)
         .unwrap_or(false)
 }
 

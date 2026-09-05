@@ -6604,6 +6604,7 @@ struct WaylandSmokeState {
     seat: Seat<Self>,
     launcher_state: LauncherState,
     desktop_icon_state: DesktopIconState,
+    desktop_icons_visible: bool,
     trash_model: TrashModel,
     notification_center: NotificationCenter,
     notification_now_ms: u64,
@@ -6953,6 +6954,7 @@ impl WaylandSmokeState {
             seat,
             launcher_state: LauncherState::default(),
             desktop_icon_state: DesktopIconState::default(),
+            desktop_icons_visible: true,
             trash_model,
             notification_center: NotificationCenter::default(),
             notification_now_ms: 0,
@@ -9519,6 +9521,13 @@ impl SmithayDrmSession {
         self.session.wayland_state.desktop_icon_state.clone()
     }
 
+    pub fn set_desktop_icons_visible(&mut self, visible: bool) {
+        self.session.wayland_state.desktop_icons_visible = visible;
+        if !visible {
+            self.session.wayland_state.desktop_icon_state = DesktopIconState::default();
+        }
+    }
+
     pub fn notification_center_snapshot(&self) -> NotificationCenter {
         self.session.wayland_state.notification_center.clone()
     }
@@ -10249,6 +10258,7 @@ impl SmithayDrmSession {
         }
         if pressed
             && self.session.wayland_state.pointer_focus_surface.is_none()
+            && self.session.wayland_state.desktop_icons_visible
             && matches!(button, 0x110 | 0x111)
         {
             let desktop_button = if button == 0x111 {

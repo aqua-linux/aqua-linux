@@ -1529,7 +1529,7 @@ pub fn render_desktop_icons_rgba_with_theme(
     state: &DesktopIconState,
     theme: AquaTheme,
 ) -> DesktopIconsOverlay {
-    let mut overlay = render_desktop_icons_rgba_base(width, height, state, true);
+    let mut overlay = render_desktop_icons_rgba_base(width, height, state, true, true);
     apply_shell_palette(&mut overlay.rgba, theme);
     overlay
 }
@@ -1541,8 +1541,22 @@ pub fn render_desktop_icons_rgba_with_cached_icons(
     theme: AquaTheme,
     cache: &mut icons::IconRasterCache,
 ) -> Result<DesktopIconsOverlay, icons::IconError> {
-    let mut overlay = render_desktop_icons_rgba_base(width, height, state, false);
+    render_desktop_shell_rgba_with_cached_icons(width, height, state, theme, cache, true)
+}
+
+pub fn render_desktop_shell_rgba_with_cached_icons(
+    width: u32,
+    height: u32,
+    state: &DesktopIconState,
+    theme: AquaTheme,
+    cache: &mut icons::IconRasterCache,
+    icons_visible: bool,
+) -> Result<DesktopIconsOverlay, icons::IconError> {
+    let mut overlay = render_desktop_icons_rgba_base(width, height, state, false, icons_visible);
     apply_shell_palette(&mut overlay.rgba, theme);
+    if !icons_visible {
+        return Ok(overlay);
+    }
     for (index, icon) in DESKTOP_ICONS.iter().enumerate() {
         let cell = desktop_grid_cell(index, icon.label, state.selected() == Some(index), 0, 0);
         let slots = cell.slots();
@@ -1582,9 +1596,21 @@ fn render_desktop_icons_rgba_base(
     height: u32,
     state: &DesktopIconState,
     draw_placeholder_icons: bool,
+    icons_visible: bool,
 ) -> DesktopIconsOverlay {
     let mut rgba = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     let mut primitives = draw_desktop_identity(&mut rgba, width, height);
+    if !icons_visible {
+        return DesktopIconsOverlay {
+            width,
+            height,
+            rgba,
+            selected: None,
+            context_menu: None,
+            context_menu_selected_row: None,
+            primitive_count: primitives,
+        };
+    }
     for (index, icon) in DESKTOP_ICONS.iter().enumerate() {
         let cell = desktop_grid_cell(index, icon.label, state.selected() == Some(index), 0, 0);
         let slots = cell.slots();
@@ -1732,7 +1758,7 @@ fn draw_desktop_identity(rgba: &mut [u8], width: u32, height: u32) -> usize {
     let ink = [0x16, 0x22, 0x32, 0xe8];
     let secondary = [0x42, 0x56, 0x6d, 0xd8];
     let center_x = width / 2;
-    let center_y = height.saturating_mul(42) / 100;
+    let center_y = height.saturating_mul(45) / 100;
     let left = center_x.saturating_sub(34);
     let peak = center_x;
     let right = center_x.saturating_add(34);
@@ -1776,13 +1802,13 @@ fn draw_desktop_identity(rgba: &mut [u8], width: u32, height: u32) -> usize {
     );
 
     let name = "A Q U A   L I N U X";
-    let tagline = "SIMPLER  -  FASTER  -  FREER";
+    let tagline = "SIMPLER   .   FASTER   .   FREER";
     let name_x = center_x.saturating_sub(name.len() as u32 * 6);
     let tagline_x = center_x.saturating_sub(tagline.len() as u32 * 3);
     draw_bitmap_text(
         rgba,
         (width, height),
-        (name_x, center_y + 48),
+        (name_x, center_y + 54),
         name,
         secondary,
         2,
@@ -1790,7 +1816,7 @@ fn draw_desktop_identity(rgba: &mut [u8], width: u32, height: u32) -> usize {
     draw_bitmap_text(
         rgba,
         (width, height),
-        (tagline_x, center_y + 78),
+        (tagline_x, center_y + 88),
         tagline,
         secondary,
         1,
@@ -1799,7 +1825,7 @@ fn draw_desktop_identity(rgba: &mut [u8], width: u32, height: u32) -> usize {
         rgba,
         (width, height),
         (12, height.saturating_sub(104)),
-        "BUILT",
+        "B U I L T",
         secondary,
         1,
     );
@@ -1807,7 +1833,7 @@ fn draw_desktop_identity(rgba: &mut [u8], width: u32, height: u32) -> usize {
         rgba,
         (width, height),
         (12, height.saturating_sub(88)),
-        "FOR A CLEARER",
+        "F O R  A  C L E A R E R",
         secondary,
         1,
     );
@@ -1815,7 +1841,7 @@ fn draw_desktop_identity(rgba: &mut [u8], width: u32, height: u32) -> usize {
         rgba,
         (width, height),
         (12, height.saturating_sub(72)),
-        "TOMORROW",
+        "T O M O R R O W",
         secondary,
         1,
     );
@@ -9319,6 +9345,26 @@ mod tests {
         assert!(identity_region(&light) > 200);
         assert!(identity_region(&dark) > 200);
         assert_ne!(light.rgba, dark.rgba);
+    }
+
+    #[test]
+    fn icon_free_desktop_keeps_identity_without_rasterizing_icons() {
+        let state = DesktopIconState::default();
+        let mut cache = icons::IconRasterCache::default();
+        let overlay = render_desktop_shell_rgba_with_cached_icons(
+            1232,
+            590,
+            &state,
+            AquaTheme::Light,
+            &mut cache,
+            false,
+        )
+        .expect("icon-free desktop");
+
+        assert!(overlay.primitive_count > 0);
+        assert_eq!(overlay.selected, None);
+        assert_eq!(cache.len(), 0);
+        assert!(overlay.rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
     }
 
     #[test]

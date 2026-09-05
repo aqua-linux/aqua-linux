@@ -527,7 +527,7 @@ graphics_session_cycle_qemu_drm=$(contract_file_contains "${GRAPHICAL_BOOT_QEMU_
 graphics_drm_wayland_settings=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_settings_process_reaped=true")
 graphics_drm_wayland_settings_interaction=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_settings_keyboard_category=Desktop")
 graphics_drm_wayland_settings_persistence=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_settings_reload_verified=true")
-graphics_drm_wayland_settings_desktop=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_settings_persisted_desktop_icons=false")
+graphics_drm_wayland_settings_desktop=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_settings_persisted_desktop_icons=true")
 graphics_drm_wayland_settings_input=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_settings_persisted_key_repeat=false")
 graphics_drm_wayland_settings_network=$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_settings_network_management=false")
 graphics_drm_wayland_real_font=$(contract_file_contains "${FBDEV_QEMU_LOG}" "aqua_settings_font_ready=true")
@@ -1775,7 +1775,7 @@ cat > "${MANIFEST_JSON}" <<EOF
     "graphics_drm_wayland_settings": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_settings_process_reaped=true")",
     "graphics_drm_wayland_settings_interaction": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_settings_keyboard_category=Desktop")",
     "graphics_drm_wayland_settings_persistence": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_settings_reload_verified=true")",
-    "graphics_drm_wayland_settings_desktop": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_settings_persisted_desktop_icons=false")",
+    "graphics_drm_wayland_settings_desktop": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_settings_persisted_desktop_icons=true")",
     "graphics_drm_wayland_settings_input": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_settings_persisted_key_repeat=false")",
     "graphics_drm_wayland_settings_network": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "drm_wayland_settings_network_management=false")",
     "graphics_drm_wayland_real_font": "$(contract_file_contains "${FBDEV_QEMU_LOG}" "aqua_settings_font_ready=true")",

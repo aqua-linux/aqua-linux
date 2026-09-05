@@ -119,13 +119,13 @@ expect {
     eof { puts stderr "QEMU exited after opt-in graphical boot verification"; exit 1 }
 }
 
-run_shell_check {ok=1; grep -Fq 'desktop_system_overview_texture_ready=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_system_overview_clock=' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_system_overview_kernel=' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_system_overview_memory_percent=' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_system_overview_visible=true' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the real system overview GPU panel"
-send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-system-overview-qemu status=ok data=clock,kernel,uptime,load,memory gpu_texture=true visible=true'}
+run_shell_check {ok=1; grep -Fq 'desktop_system_overview_texture_ready=true' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_system_overview_clock=' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_system_overview_kernel=' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_system_overview_memory_percent=' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_system_overview_visible=false' /run/aqua/graphical-session-supervisor.log || ok=0} "checking the hidden system overview telemetry"
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-system-overview-qemu status=ok data=clock,kernel,uptime,load,memory gpu_texture=true visible=false'}
 send -- "\r"
 
 expect {
-    -exact {[AQUA-TEST] stage=desktop-system-overview-qemu status=ok data=clock,kernel,uptime,load,memory gpu_texture=true visible=true} {}
-    timeout { puts stderr "Real system overview was not GPU composited"; exit 1 }
+    -exact {[AQUA-TEST] stage=desktop-system-overview-qemu status=ok data=clock,kernel,uptime,load,memory gpu_texture=true visible=false} {}
+    timeout { puts stderr "Hidden system overview telemetry was not ready"; exit 1 }
     eof { puts stderr "QEMU exited before system overview verification"; exit 1 }
 }
 
@@ -156,6 +156,9 @@ if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(CLEAN_DE
     puts stderr "QEMU clean desktop screendump failed: $capture_error"
     exit 1
 }
+
+run_shell_check {config=/home/aqua/.config/aqua/settings.conf; temporary="${config}.icons-test"; sed 's/^desktop_icons=.*/desktop_icons=true/' "$config" > "$temporary" && chmod 600 "$temporary" && chown aqua:aqua "$temporary" && mv "$temporary" "$config"} "enabling desktop icons for interaction coverage"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_runtime_icons_visible=true' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done} "waiting for desktop icons to become interactive"
 
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) bottom-applications-activate} input_error]} {
     puts stderr "QEMU bottom Applications input injection failed: $input_error"
