@@ -177,6 +177,10 @@ fractional local positions;
 per-surface pointer-focus snapshots now follow the actual Smithay pointer owner,
 including implicit grabs, instead of copying a session-wide focus flag onto every
 window. Two-client regression coverage separates pointer and keyboard ownership;
+keyboard-focus snapshots also follow the actual seat owner, distinguishing
+stacking-only raises from focus changes and reporting no owner after explicit
+focus clearing. The shared two-client matrix covers workspace and destruction
+transitions as well;
 the broader consolidation remains in progress.
 
 ## Context

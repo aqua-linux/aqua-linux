@@ -29,7 +29,7 @@ cargo test -p aqua-compositor --features smithay-smoke closed_client_input
 AQUA_TRASH_ROOT="${CHECK_TEMP_ROOT}/closed-render-trash" cargo test -p aqua-compositor --features smithay-smoke closed_client_render
 AQUA_TRASH_ROOT="${CHECK_TEMP_ROOT}/keyboard-leave-trash" cargo test -p aqua-compositor --features smithay-smoke shared_keyboard_leave
 AQUA_TRASH_ROOT="${CHECK_TEMP_ROOT}/activation-pointer-trash" cargo test -p aqua-compositor --features smithay-smoke activation_pointer_coordinates
-AQUA_TRASH_ROOT="${CHECK_TEMP_ROOT}/surface-focus-trash" cargo test -p aqua-compositor --features smithay-smoke surface_pointer_focus_snapshot
+AQUA_TRASH_ROOT="${CHECK_TEMP_ROOT}/surface-focus-trash" cargo test -p aqua-compositor --features smithay-smoke surface_focus_snapshots
 cargo test -p aqua-compositor --features smithay-smoke files_axis_scroll_rows
 scripts/check-typography-fixtures.sh
 scripts/check-typography-layout-fixtures.sh
