@@ -920,6 +920,21 @@ behavior navigated into Documents after close; the regression now requires an
 unchanged model. This late-event ordering has deterministic source coverage;
 packaged QEMU continues to verify live interaction and normal close delivery.
 
+The closed-client boundary also covers rendering: first-party redraw entry
+points and initial buffer attachment reject work after close, runtime theme
+refresh leaves the theme/model unchanged, and late xdg configure events do not
+acknowledge, resize, or start window-state requests. Frame completion may retire
+callback bookkeeping but cannot issue the probe's partial-damage commit after
+close. UI and Terminal polling turns stop immediately after dispatch observes
+close, before theme refresh or PTY polling. The real Wayland
+`closed_client_render` regression exercises Settings both before initial
+configure and after mapping. Its live control commits a redraw; the server then
+queues close before resize/configure and pending frame completions. The closed
+client retains its buffer and theme, sends no additional surface commits or
+frame requests, and rejects a separate attempted initial attachment. Packaged
+QEMU verifies normal live theme updates, window interaction, Terminal resize,
+and close; the deliberately late-event ordering remains source-test evidence.
+
 A background buffer commit now updates that surface without replacing the
 active window. Desktop repaint completion drains frame callbacks independently
 of the explicit activation/focus path. This prevents a focus-loss redraw from
