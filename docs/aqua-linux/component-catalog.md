@@ -981,6 +981,18 @@ reports to agree across these transitions, and destroys Files while it owns
 both keyboard and pointer focus. This diagnostic reporting change has real
 Wayland source-test coverage.
 
+The external-client paint plan now derives z-order solely from the compositor's
+bottom-to-top snapshot order. Keyboard focus remains a separate visual attribute;
+it no longer assigns an artificial z-index of sixteen that could draw an older
+focused window above a newly raised window. Deterministic paint-plan tests cross
+all three focus positions plus no focus with the original and reversed stacking
+orders, checking both layer order and retained focus ownership. Empty plans stay
+valid and incomplete buffers remain rejected. The u8 z-index range starting at
+three admits 253 layer positions; larger inputs return an explicit error before
+conversion rather than wrapping or overflowing. This numeric capacity test is
+not an application interoperability claim. Packaged QEMU covers normal window
+activation, focus transfers, theme updates, and close through the paint path.
+
 A background buffer commit now updates that surface without replacing the
 active window. Desktop repaint completion drains frame callbacks independently
 of the explicit activation/focus path. This prevents a focus-loss redraw from

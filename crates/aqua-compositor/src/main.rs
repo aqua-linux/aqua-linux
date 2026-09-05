@@ -9371,6 +9371,10 @@ fn external_client_paint_plan(
     if !snapshots.iter().all(SmithayClientSurfaceSnapshot::is_ready) {
         return Err("external Wayland surface snapshots are not renderer-ready".to_string());
     }
+    // The renderer stores z-index in u8 and the client range starts at three.
+    if snapshots.len() > 253 {
+        return Err("external Wayland layer count exceeds 253-layer z-index capacity".to_string());
+    }
     let viewport = Viewport::new(1536, 1024);
     let sources = snapshots
         .iter()
@@ -9394,11 +9398,8 @@ fn external_client_paint_plan(
                 } else {
                     "aqua-external-test-client-2"
                 },
-                z_index: if snapshot.keyboard_focus_assigned {
-                    16
-                } else {
-                    3 + index as u8
-                },
+                // Snapshots arrive in stacking order, from bottom to top.
+                z_index: 3 + index as u8,
                 focused: snapshot.keyboard_focus_assigned,
                 rect: Rect {
                     x: snapshot.x.min(viewport.width.saturating_sub(surface_width)),
@@ -11860,6 +11861,116 @@ mod fbdev_tests {
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    fn ready_stacking_snapshot() -> super::SmithayClientSurfaceSnapshot {
+        let session = super::SmithayDrmSession::new().expect("session");
+        let mut snapshot = session.client_surface_snapshot();
+        snapshot.commit_count = 2;
+        snapshot.buffer_attach_count = 1;
+        snapshot.shm_import_count = 1;
+        snapshot.toplevel_count = 1;
+        snapshot.configure_ack_count = 1;
+        snapshot.width = 2;
+        snapshot.height = 2;
+        snapshot.stride = 8;
+        snapshot.display_width = 2;
+        snapshot.display_height = 2;
+        snapshot.sample_checksum = 1;
+        snapshot.buffer_rgba = vec![255; 16];
+        assert!(snapshot.is_ready());
+        snapshot
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn external_client_stacking_preserves_order_independently_of_focus() {
+        let template = ready_stacking_snapshot();
+        for focused in [None, Some(0), Some(1), Some(2)] {
+            let mut snapshots: Vec<_> = (0..3)
+                .map(|index| {
+                    let mut snapshot = template.clone();
+                    snapshot.sample_checksum = index as u64 + 1;
+                    snapshot.keyboard_focus_assigned = focused == Some(index);
+                    snapshot
+                })
+                .collect();
+            let plan = super::external_client_paint_plan(&snapshots).expect("paint plan");
+            assert_eq!(
+                plan.steps
+                    .iter()
+                    .map(|s| s.sample_checksum)
+                    .collect::<Vec<_>>(),
+                vec![3, 2, 1]
+            );
+            assert_eq!(
+                plan.steps
+                    .iter()
+                    .filter(|s| s.focused)
+                    .map(|s| s.sample_checksum)
+                    .collect::<Vec<_>>(),
+                focused
+                    .map(|i| i as u64 + 1)
+                    .into_iter()
+                    .collect::<Vec<_>>()
+            );
+            snapshots.swap(0, 2);
+            let raised = super::external_client_paint_plan(&snapshots).expect("raised plan");
+            assert_eq!(
+                raised
+                    .steps
+                    .iter()
+                    .map(|s| s.sample_checksum)
+                    .collect::<Vec<_>>(),
+                vec![1, 2, 3]
+            );
+            assert_eq!(
+                raised
+                    .steps
+                    .iter()
+                    .filter(|s| s.focused)
+                    .map(|s| s.sample_checksum)
+                    .collect::<Vec<_>>(),
+                focused
+                    .map(|i| i as u64 + 1)
+                    .into_iter()
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn external_client_stacking_checks_layer_capacity_and_readiness() {
+        assert!(super::external_client_paint_plan(&[])
+            .expect("empty plan")
+            .steps
+            .is_empty());
+        let mut snapshots = vec![ready_stacking_snapshot(); 253];
+        for (index, snapshot) in snapshots.iter_mut().enumerate() {
+            snapshot.sample_checksum = index as u64 + 1;
+        }
+        let plan =
+            super::external_client_paint_plan(&snapshots).expect("maximum representable order");
+        assert_eq!(
+            plan.steps
+                .iter()
+                .map(|s| s.sample_checksum)
+                .collect::<Vec<_>>(),
+            (1..=253).rev().collect::<Vec<u64>>()
+        );
+        snapshots.push(snapshots[0].clone());
+        assert_eq!(
+            super::external_client_paint_plan(&snapshots).unwrap_err(),
+            "external Wayland layer count exceeds 253-layer z-index capacity"
+        );
+        let mut invalid = ready_stacking_snapshot();
+        invalid.buffer_rgba.clear();
+        assert_eq!(
+            super::external_client_paint_plan(&[invalid]).unwrap_err(),
+            "external Wayland surface snapshots are not renderer-ready"
+        );
+    }
 
     #[test]
     fn live_drm_events_feed_the_bounded_presentation_collector_in_order() {
