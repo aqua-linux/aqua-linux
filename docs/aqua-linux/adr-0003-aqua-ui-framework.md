@@ -174,6 +174,9 @@ regression covers pre-configure shutdown and close-before-frame-completion;
 explicit activation also uses the same global surface-origin contract as normal
 pointer motion, with real-client regression coverage for relocated windows and
 fractional local positions;
+per-surface pointer-focus snapshots now follow the actual Smithay pointer owner,
+including implicit grabs, instead of copying a session-wide focus flag onto every
+window. Two-client regression coverage separates pointer and keyboard ownership;
 the broader consolidation remains in progress.
 
 ## Context

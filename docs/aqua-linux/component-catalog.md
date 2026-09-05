@@ -947,6 +947,17 @@ It requires exact local coordinates, retained global position during activation,
 and keyboard focus on the active surface. Packaged graphical-boot QEMU exercises
 Properties and Settings reactivation, hover, keyboard actions, and close.
 
+Per-surface snapshots now report pointer focus only for Smithay's actual pointer
+owner. A session-wide boolean previously marked every mapped surface as focused.
+Reading the pointer handle also preserves implicit-grab semantics: the surface
+under the cursor may differ from the pointer owner while a button is held, and
+release retains that owner until the next ordinary motion. The two-client
+`surface_pointer_focus_snapshot` regression covers no owner, explicit activation,
+independent keyboard and pointer owners, cross-window motion during a grab,
+release and subsequent motion, leaving all windows, and workspace filtering.
+The snapshot checks use real Files and Settings Wayland connections and require
+at most one marked surface. This reporting contract has source-test evidence.
+
 A background buffer commit now updates that surface without replacing the
 active window. Desktop repaint completion drains frame callbacks independently
 of the explicit activation/focus path. This prevents a focus-loss redraw from
