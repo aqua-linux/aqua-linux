@@ -2968,6 +2968,16 @@ pub fn render_terminal_window_rgba_with_theme(
     view: &TerminalView,
     theme: AquaTheme,
 ) -> (Vec<u8>, TerminalWindowProbe) {
+    render_terminal_window_rgba_with_theme_and_controls(width, height, view, theme, true)
+}
+
+pub fn render_terminal_window_rgba_with_theme_and_controls(
+    width: u32,
+    height: u32,
+    view: &TerminalView,
+    theme: AquaTheme,
+    controls_visible: bool,
+) -> (Vec<u8>, TerminalWindowProbe) {
     let mut buffer = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     if width == 0 || height == 0 {
         return (
@@ -2994,7 +3004,7 @@ pub fn render_terminal_window_rgba_with_theme(
         &mut buffer,
         width,
         height,
-        WindowFrame::new(canvas, "Terminal", 48),
+        WindowFrame::new(canvas, "Terminal", 48).with_controls_visible(controls_visible),
         palette,
     );
 
@@ -3073,6 +3083,16 @@ pub fn render_properties_window_rgba_with_theme(
     model: &DesktopPropertiesModel,
     theme: AquaTheme,
 ) -> (Vec<u8>, PropertiesWindowProbe) {
+    render_properties_window_rgba_with_theme_and_controls(width, height, model, theme, true)
+}
+
+pub fn render_properties_window_rgba_with_theme_and_controls(
+    width: u32,
+    height: u32,
+    model: &DesktopPropertiesModel,
+    theme: AquaTheme,
+    controls_visible: bool,
+) -> (Vec<u8>, PropertiesWindowProbe) {
     let mut buffer = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     if width == 0 || height == 0 {
         return (
@@ -3099,7 +3119,7 @@ pub fn render_properties_window_rgba_with_theme(
         &mut buffer,
         width,
         height,
-        WindowFrame::new(canvas, &model.title, 52),
+        WindowFrame::new(canvas, &model.title, 52).with_controls_visible(controls_visible),
         palette,
     );
 
@@ -4586,6 +4606,15 @@ pub fn render_settings_window_rgba(
     height: u32,
     model: &SettingsWindowModel,
 ) -> (Vec<u8>, SettingsWindowProbe) {
+    render_settings_window_rgba_with_controls(width, height, model, true)
+}
+
+pub fn render_settings_window_rgba_with_controls(
+    width: u32,
+    height: u32,
+    model: &SettingsWindowModel,
+    controls_visible: bool,
+) -> (Vec<u8>, SettingsWindowProbe) {
     let mut buffer = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     if width == 0 || height == 0 {
         return (
@@ -4638,7 +4667,7 @@ pub fn render_settings_window_rgba(
         &mut buffer,
         width,
         height,
-        WindowFrame::new(canvas, model.title, 58),
+        WindowFrame::new(canvas, model.title, 58).with_controls_visible(controls_visible),
         palette,
     );
 
@@ -5063,6 +5092,16 @@ pub fn render_files_window_rgba_with_theme(
     model: &FilesWindowModel,
     theme: AquaTheme,
 ) -> (Vec<u8>, FilesWindowProbe) {
+    render_files_window_rgba_with_theme_and_controls(width, height, model, theme, true)
+}
+
+pub fn render_files_window_rgba_with_theme_and_controls(
+    width: u32,
+    height: u32,
+    model: &FilesWindowModel,
+    theme: AquaTheme,
+    controls_visible: bool,
+) -> (Vec<u8>, FilesWindowProbe) {
     let mut buffer = vec![0_u8; width.saturating_mul(height).saturating_mul(4) as usize];
     if width == 0 || height == 0 {
         return (
@@ -5093,7 +5132,7 @@ pub fn render_files_window_rgba_with_theme(
         &mut buffer,
         width,
         height,
-        WindowFrame::new(canvas, model.title, 48),
+        WindowFrame::new(canvas, model.title, 48).with_controls_visible(controls_visible),
         palette,
     );
 
@@ -7113,6 +7152,95 @@ fn draw_window_control(buffer: &mut [u8], width: u32, height: u32, rect: Rect, c
     );
 }
 
+fn draw_hover_window_controls(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    frame: WindowFrame<'_>,
+    palette: WindowChromePalette,
+) -> usize {
+    if !frame.controls_visible {
+        return 0;
+    }
+    let group = frame.control_group_rect();
+    fill_rounded_rect(
+        buffer,
+        width,
+        height,
+        group,
+        group.height / 2,
+        palette.border,
+        150,
+    );
+    let inset = Rect {
+        x: group.x.saturating_add(1),
+        y: group.y.saturating_add(1),
+        width: group.width.saturating_sub(2),
+        height: group.height.saturating_sub(2),
+    };
+    fill_rounded_rect(
+        buffer,
+        width,
+        height,
+        inset,
+        inset.height / 2,
+        palette.field,
+        238,
+    );
+
+    let ink = palette.text;
+    let minimize = frame.control_rect(WindowControl::Minimize);
+    let mx = minimize.x + minimize.width / 2;
+    let my = minimize.y + minimize.height / 2;
+    draw_transparent_line(
+        buffer,
+        width,
+        height,
+        (mx - 4, my - 2),
+        (mx, my + 2),
+        2,
+        ink,
+    );
+    draw_transparent_line(
+        buffer,
+        width,
+        height,
+        (mx, my + 2),
+        (mx + 4, my - 2),
+        2,
+        ink,
+    );
+
+    let maximize = frame.control_rect(WindowControl::Maximize);
+    let cx = maximize.x + maximize.width / 2;
+    let cy = maximize.y + maximize.height / 2;
+    fill_transparent_circle(buffer, width, height, cx, cy, 5, ink);
+    fill_transparent_circle(buffer, width, height, cx, cy, 3, palette.field);
+
+    let close = frame.control_rect(WindowControl::Close);
+    let cx = close.x + close.width / 2;
+    let cy = close.y + close.height / 2;
+    draw_transparent_line(
+        buffer,
+        width,
+        height,
+        (cx - 4, cy - 4),
+        (cx + 4, cy + 4),
+        2,
+        ink,
+    );
+    draw_transparent_line(
+        buffer,
+        width,
+        height,
+        (cx + 4, cy - 4),
+        (cx - 4, cy + 4),
+        2,
+        ink,
+    );
+    9
+}
+
 pub(crate) fn draw_window_frame(
     buffer: &mut [u8],
     width: u32,
@@ -7137,13 +7265,7 @@ pub(crate) fn draw_window_frame(
         palette.border,
         255,
     );
-    for (control, color) in [
-        (WindowControl::Close, [0xff, 0x6f, 0x67, 0xff]),
-        (WindowControl::Minimize, [0xff, 0xd0, 0x59, 0xff]),
-        (WindowControl::Maximize, [0x65, 0xd4, 0x73, 0xff]),
-    ] {
-        draw_window_control(buffer, width, height, frame.control_rect(control), color);
-    }
+    let control_primitives = draw_hover_window_controls(buffer, width, height, frame, palette);
     draw_fitted_bitmap_text(
         buffer,
         (width, height),
@@ -7153,7 +7275,7 @@ pub(crate) fn draw_window_frame(
         FittedTextOptions::new(TextRole::Body, OutputScale::One, false),
     );
     draw_rect_outline(buffer, width, height, frame.rect, palette.border, 255);
-    8
+    5 + control_primitives
 }
 
 fn draw_bright_window_titlebar(
@@ -8925,13 +9047,44 @@ mod tests {
                 (&settings, 640),
                 (&properties, 480),
             ] {
-                assert_eq!(sample_pixel(pixels, width, 400, 40), palette.titlebar);
+                assert_eq!(sample_pixel(pixels, width, 200, 40), palette.titlebar);
             }
             files_checksums.push(files_probe.checksum);
         }
         files_checksums.sort_unstable();
         files_checksums.dedup();
         assert_eq!(files_checksums.len(), AquaTheme::ALL.len());
+    }
+
+    #[test]
+    fn first_party_window_controls_only_paint_for_window_hover() {
+        let view = TerminalView::empty(18, 72);
+        for theme in AquaTheme::ALL {
+            let (idle, _) =
+                render_terminal_window_rgba_with_theme_and_controls(680, 430, &view, theme, false);
+            let (hovered, _) =
+                render_terminal_window_rgba_with_theme_and_controls(680, 430, &view, theme, true);
+            let group = WindowFrame::new(
+                Rect {
+                    x: 0,
+                    y: 0,
+                    width: 680,
+                    height: 430,
+                },
+                "Terminal",
+                48,
+            )
+            .control_group_rect();
+            assert_eq!(
+                sample_pixel(&idle, 680, group.x + 10, group.y + group.height / 2),
+                window_chrome_palette(theme).titlebar
+            );
+            assert_ne!(
+                sample_pixel(&hovered, 680, group.x + 10, group.y + group.height / 2),
+                window_chrome_palette(theme).titlebar
+            );
+            assert_ne!(idle, hovered);
+        }
     }
 
     #[test]

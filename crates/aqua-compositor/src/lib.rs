@@ -39,9 +39,10 @@ use aqua_installer::{
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_renderer::{
-    embedded_ui_font_ready, render_component_acceptance_rgba, render_files_window_rgba_with_theme,
-    render_installer_window_rgba_with_theme, render_properties_window_rgba_with_theme,
-    render_settings_window_rgba, render_terminal_window_rgba_with_theme,
+    embedded_ui_font_ready, render_component_acceptance_rgba,
+    render_files_window_rgba_with_theme_and_controls, render_installer_window_rgba_with_theme,
+    render_properties_window_rgba_with_theme_and_controls,
+    render_settings_window_rgba_with_controls, render_terminal_window_rgba_with_theme_and_controls,
     render_typography_layout_acceptance_rgba, InstallerImageSource, InstallerRenderOptions,
     COMPONENT_FIXTURE_REVISION, UI_FONT_FAMILY, UI_FONT_SOURCE,
 };
@@ -7827,6 +7828,7 @@ struct XdgSmokeClientState {
     keyboard_ctrl: bool,
     pointer_surface_x: f64,
     pointer_surface_y: f64,
+    window_hovered: bool,
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -7926,6 +7928,7 @@ impl XdgSmokeClientState {
         // Retire transient interaction state without scheduling another frame.
         let _ = self.clear_first_party_keyboard_focus();
         let _ = self.clear_first_party_pointer_interaction();
+        self.window_hovered = false;
         self.keyboard_shift = false;
         self.keyboard_ctrl = false;
     }
@@ -8037,7 +8040,8 @@ impl XdgSmokeClientState {
             },
             &self.title,
             titlebar_height,
-        );
+        )
+        .with_controls_visible(self.window_hovered);
         let pointer_x = self.pointer_surface_x.max(0.0) as u32;
         let pointer_y = self.pointer_surface_y.max(0.0) as u32;
         let action = first_party_window_action(frame, pointer_x, pointer_y);
@@ -9056,13 +9060,34 @@ impl XdgSmokeClientState {
             self.render_installer_buffer()
                 .expect("Aqua Installer initial raster should render")
         } else if let Some(model) = self.files_model.as_ref() {
-            render_files_window_rgba_with_theme(width, height, model, self.theme).0
+            render_files_window_rgba_with_theme_and_controls(
+                width,
+                height,
+                model,
+                self.theme,
+                self.window_hovered,
+            )
+            .0
         } else if let Some(model) = self.settings_model.as_ref() {
-            render_settings_window_rgba(width, height, model).0
+            render_settings_window_rgba_with_controls(width, height, model, self.window_hovered).0
         } else if let Some(model) = self.properties_model.as_ref() {
-            render_properties_window_rgba_with_theme(width, height, model, self.theme).0
+            render_properties_window_rgba_with_theme_and_controls(
+                width,
+                height,
+                model,
+                self.theme,
+                self.window_hovered,
+            )
+            .0
         } else if let Some(terminal) = self.terminal_session.as_ref() {
-            render_terminal_window_rgba_with_theme(width, height, &terminal.view(), self.theme).0
+            render_terminal_window_rgba_with_theme_and_controls(
+                width,
+                height,
+                &terminal.view(),
+                self.theme,
+                self.window_hovered,
+            )
+            .0
         } else {
             let variant = std::env::var("AQUA_WAYLAND_TEST_CLIENT_VARIANT")
                 .ok()
@@ -9114,7 +9139,14 @@ impl XdgSmokeClientState {
         };
         let width = self.buffer_width.max(1);
         let height = self.buffer_height.max(1);
-        let pixels = render_files_window_rgba_with_theme(width, height, model, self.theme).0;
+        let pixels = render_files_window_rgba_with_theme_and_controls(
+            width,
+            height,
+            model,
+            self.theme,
+            self.window_hovered,
+        )
+        .0;
 
         self.submit_ui_redraw_buffer(qh, width, height, &pixels);
     }
@@ -9128,7 +9160,8 @@ impl XdgSmokeClientState {
         };
         let width = self.buffer_width.max(1);
         let height = self.buffer_height.max(1);
-        let (pixels, probe) = render_settings_window_rgba(width, height, model);
+        let (pixels, probe) =
+            render_settings_window_rgba_with_controls(width, height, model, self.window_hovered);
         if model.selected_category == 5 {
             println!(
                 "aqua_settings_about_metadata_rows={} content_rendered={} read_only=true status=prototype",
@@ -9149,9 +9182,28 @@ impl XdgSmokeClientState {
         };
         let width = self.buffer_width.max(1);
         let height = self.buffer_height.max(1);
-        let pixels = render_properties_window_rgba_with_theme(width, height, model, self.theme).0;
+        let pixels = render_properties_window_rgba_with_theme_and_controls(
+            width,
+            height,
+            model,
+            self.theme,
+            self.window_hovered,
+        )
+        .0;
 
         self.submit_ui_redraw_buffer(qh, width, height, &pixels);
+    }
+
+    fn redraw_first_party_window(&mut self, qh: &QueueHandle<Self>) {
+        if self.files_model.is_some() {
+            self.redraw_files_buffer(qh);
+        } else if self.settings_model.is_some() {
+            self.redraw_settings_buffer(qh);
+        } else if self.properties_model.is_some() {
+            self.redraw_properties_buffer(qh);
+        } else if self.terminal_session.is_some() {
+            self.redraw_terminal_buffer(qh);
+        }
     }
 
     fn replace_shm_buffer(&mut self, buffer: client_wl_buffer::WlBuffer) {
@@ -9218,7 +9270,14 @@ impl XdgSmokeClientState {
         let height = self.buffer_height.max(1);
         let stride = width * 4;
         let size = stride * height;
-        let pixels = render_terminal_window_rgba_with_theme(width, height, &view, self.theme).0;
+        let pixels = render_terminal_window_rgba_with_theme_and_controls(
+            width,
+            height,
+            &view,
+            self.theme,
+            self.window_hovered,
+        )
+        .0;
 
         use std::io::Write;
         use std::os::unix::io::AsFd;
@@ -14470,6 +14529,14 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
         ) {
             state.pointer_event_received = true;
         }
+        if matches!(
+            event,
+            client_wl_pointer::Event::Enter { .. } | client_wl_pointer::Event::Motion { .. }
+        ) && !state.window_hovered
+        {
+            state.window_hovered = true;
+            state.redraw_first_party_window(qh);
+        }
         match event {
             client_wl_pointer::Event::Enter {
                 surface_x,
@@ -14550,12 +14617,15 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                 }
             }
             client_wl_pointer::Event::Leave { .. } => {
+                let window_hover_changed = std::mem::take(&mut state.window_hovered);
+                let mut content_repaint = false;
                 for transition in state
                     .clear_first_party_pointer_interaction()
                     .into_iter()
                     .flatten()
                 {
                     let repaint = transition.repaint;
+                    content_repaint |= repaint;
                     let cancelled = transition.interaction_cancelled;
                     match transition.surface {
                         FirstPartyUiSurface::Files => println!(
@@ -14574,13 +14644,9 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                             );
                         }
                     }
-                    if repaint {
-                        match transition.surface {
-                            FirstPartyUiSurface::Files => state.redraw_files_buffer(qh),
-                            FirstPartyUiSurface::Properties => state.redraw_properties_buffer(qh),
-                            FirstPartyUiSurface::Settings => state.redraw_settings_buffer(qh),
-                        }
-                    }
+                }
+                if window_hover_changed || content_repaint {
+                    state.redraw_first_party_window(qh);
                 }
             }
             _ => {}
@@ -15094,16 +15160,16 @@ mod tests {
         );
 
         assert_eq!(
-            first_party_window_action(frame, 25, 24),
-            FirstPartyWindowAction::Close
-        );
-        assert_eq!(
-            first_party_window_action(frame, 47, 24),
+            first_party_window_action(frame, 706, 24),
             FirstPartyWindowAction::Minimize
         );
         assert_eq!(
-            first_party_window_action(frame, 69, 24),
+            first_party_window_action(frame, 734, 24),
             FirstPartyWindowAction::Maximize
+        );
+        assert_eq!(
+            first_party_window_action(frame, 762, 24),
+            FirstPartyWindowAction::Close
         );
         assert_eq!(
             first_party_window_action(frame, 200, 47),
@@ -17138,8 +17204,9 @@ mod tests {
                 app_id: "aqua.files".to_string(),
                 buffer_width: 640,
                 buffer_height: 420,
-                pointer_surface_x: 25.0,
+                pointer_surface_x: 602.0,
                 pointer_surface_y: 24.0,
+                window_hovered: true,
                 files_model: Some(navigator.window().clone()),
                 files_navigator: Some(navigator),
                 properties_model: Some(properties.clone()),
