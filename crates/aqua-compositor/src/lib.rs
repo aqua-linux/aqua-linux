@@ -10314,7 +10314,7 @@ impl SmithayDrmSession {
                     Some(LauncherPointerTarget::SearchField) => {
                         self.session
                             .wayland_state
-                            .apply_launcher_event(LauncherEvent::OpenSearch);
+                            .apply_launcher_event(LauncherEvent::FocusSearch);
                     }
                     Some(LauncherPointerTarget::Panel) | None => {}
                 }
@@ -16189,13 +16189,29 @@ mod tests {
         assert_eq!(launcher_hit.pointer_y, 140);
         assert_eq!(launcher_hit.launcher_pointer_hit_count, 1);
 
-        assert!(session.dispatch_pointer_motion(1000.0, 1000.0, 3));
+        session
+            .session
+            .wayland_state
+            .apply_launcher_event(LauncherEvent::ReplaceQuery("settings".to_string()));
+        let search_field = session
+            .launcher_state_snapshot()
+            .search_field(1024, 768)
+            .rect;
+        assert!(session.dispatch_pointer_position(
+            (search_field.x + search_field.width / 2) as f64,
+            (search_field.y + search_field.height / 2) as f64,
+            3,
+        ));
+        assert!(session.dispatch_pointer_button(0x110, true, 4));
+        assert_eq!(session.launcher_state_snapshot().query(), "settings");
+
+        assert!(session.dispatch_pointer_motion(1000.0, 1000.0, 5));
         let bounded = session.input_snapshot();
         assert_eq!((bounded.output_width, bounded.output_height), (1024, 768));
         assert_eq!(bounded.pointer_x, 1023);
         assert_eq!(bounded.pointer_y, 767);
 
-        assert!(session.dispatch_pointer_position(100.0, 200.0, 4));
+        assert!(session.dispatch_pointer_position(100.0, 200.0, 6));
         let absolute = session.input_snapshot();
         assert_eq!((absolute.pointer_x, absolute.pointer_y), (100, 200));
     }
