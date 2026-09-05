@@ -1456,6 +1456,7 @@ impl LiveGpuCompositor {
             self.motion_frame,
             self.target_size,
             None,
+            None,
             true,
         )?
         .ok_or_else(|| "GPU verification readback was not produced".to_string())?;
@@ -1487,6 +1488,7 @@ impl LiveGpuCompositor {
             self.notification_texture_size,
             self.motion_frame,
             self.target_size,
+            None,
             None,
             true,
         )?
@@ -1522,6 +1524,7 @@ impl LiveGpuCompositor {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_direct_at(
         &mut self,
         client_plan: &ClientLayerPaintPlan,
@@ -1529,6 +1532,7 @@ impl LiveGpuCompositor {
         height: u32,
         revisions: Option<&[u64]>,
         opaque_sources: Option<&[bool]>,
+        pointer_position: Option<(u32, u32)>,
         readback: bool,
     ) -> Result<GpuOffscreenFrameResult, String> {
         self.ensure_target_size(width, height)?;
@@ -1579,6 +1583,7 @@ impl LiveGpuCompositor {
             self.motion_frame,
             self.target_size,
             opaque_sources,
+            pointer_position,
             readback,
         )?;
         self.render_submission_revision = self
@@ -1763,6 +1768,7 @@ fn render_live_gpu_wayland_frame(
     snapshots: &[SmithayClientSurfaceSnapshot],
     output_width: u32,
     output_height: u32,
+    pointer_position: (u32, u32),
     readback: bool,
 ) -> Result<(Vec<u8>, GpuOffscreenFrameResult), String> {
     let frame_started = std::time::Instant::now();
@@ -1797,7 +1803,13 @@ fn render_live_gpu_wayland_frame(
             .all(|surface| !surface.visible || surface.material == MaterialKind::Image);
     if readback && direct_bridge_candidate {
         let direct_started = std::time::Instant::now();
-        let frame_rgba = paint_plan.steps[0].client_buffer_rgba.clone();
+        let mut frame_rgba = paint_plan.steps[0].client_buffer_rgba.clone();
+        paint_desktop_pointer_rgba(
+            &mut frame_rgba,
+            output_width,
+            output_height,
+            pointer_position,
+        );
         let checksum = checksum_frame_bytes(&frame_rgba);
         let render_ms = direct_started.elapsed().as_millis();
         let pack_started = std::time::Instant::now();
@@ -1840,6 +1852,7 @@ fn render_live_gpu_wayland_frame(
         output_height,
         Some(&revisions),
         Some(&opaque_sources),
+        Some(pointer_position),
         readback,
     )?;
     let render_ms = render_started.elapsed().as_millis();
@@ -2220,6 +2233,69 @@ fn render_gpu_blur_pass(
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+const DESKTOP_POINTER_OUTLINE: [(i32, i32, i32, i32); 7] = [
+    (0, 0, 3, 22),
+    (3, 3, 3, 18),
+    (6, 6, 3, 16),
+    (9, 9, 3, 13),
+    (12, 12, 3, 8),
+    (6, 18, 5, 4),
+    (9, 21, 5, 3),
+];
+
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+const DESKTOP_POINTER_FILL: [(i32, i32, i32, i32); 5] = [
+    (2, 3, 1, 15),
+    (3, 5, 2, 13),
+    (5, 7, 2, 11),
+    (7, 9, 2, 9),
+    (9, 11, 2, 6),
+];
+
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+fn bounded_desktop_pointer_origin(
+    pointer_position: (u32, u32),
+    width: u32,
+    height: u32,
+) -> (u32, u32) {
+    (
+        pointer_position.0.min(width.saturating_sub(18)),
+        pointer_position.1.min(height.saturating_sub(24)),
+    )
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+fn paint_desktop_pointer_rgba(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    pointer_position: (u32, u32),
+) {
+    if rgba.len() != width as usize * height as usize * 4 {
+        return;
+    }
+    let (origin_x, origin_y) = bounded_desktop_pointer_origin(pointer_position, width, height);
+    for (rects, color) in [
+        (&DESKTOP_POINTER_OUTLINE[..], [0x08, 0x0d, 0x14, 0xff]),
+        (&DESKTOP_POINTER_FILL[..], [0xf5, 0xfa, 0xff, 0xff]),
+    ] {
+        for &(x, y, rect_width, rect_height) in rects {
+            for row in 0..rect_height {
+                for column in 0..rect_width {
+                    let pixel_x = origin_x + (x + column) as u32;
+                    let pixel_y = origin_y + (y + row) as u32;
+                    if pixel_x >= width || pixel_y >= height {
+                        continue;
+                    }
+                    let offset = ((pixel_y * width + pixel_x) * 4) as usize;
+                    rgba[offset..offset + 4].copy_from_slice(&color);
+                }
+            }
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
 #[allow(clippy::too_many_arguments)]
 fn render_gpu_scene(
     renderer: &mut GlesRenderer,
@@ -2250,6 +2326,7 @@ fn render_gpu_scene(
     motion: aqua_shell::ShellMotionFrame,
     render_size: (u32, u32),
     opaque_sources: Option<&[bool]>,
+    pointer_position: Option<(u32, u32)>,
     readback: bool,
 ) -> Result<Option<(Vec<u8>, u64)>, String> {
     let (render_width, render_height) = render_size;
@@ -2738,6 +2815,36 @@ fn render_gpu_scene(
                 &[],
             )
             .map_err(|error| format!("cannot composite notification content: {error}"))?;
+    }
+    if let Some((pointer_x, pointer_y)) = pointer_position {
+        let (cursor_x, cursor_y) =
+            bounded_desktop_pointer_origin((pointer_x, pointer_y), render_width, render_height);
+        for (x, y, width, height) in DESKTOP_POINTER_OUTLINE {
+            let rect = Rectangle::new(
+                (cursor_x as i32 + x, cursor_y as i32 + y).into(),
+                (width, height).into(),
+            );
+            frame
+                .draw_solid(
+                    rect,
+                    &[Rectangle::from_size(rect.size)],
+                    Color32F::new(0.03, 0.05, 0.08, 1.0),
+                )
+                .map_err(|error| format!("cannot draw pointer outline: {error}"))?;
+        }
+        for (x, y, width, height) in DESKTOP_POINTER_FILL {
+            let rect = Rectangle::new(
+                (cursor_x as i32 + x, cursor_y as i32 + y).into(),
+                (width, height).into(),
+            );
+            frame
+                .draw_solid(
+                    rect,
+                    &[Rectangle::from_size(rect.size)],
+                    Color32F::new(0.96, 0.98, 1.0, 1.0),
+                )
+                .map_err(|error| format!("cannot draw pointer fill: {error}"))?;
+        }
     }
     let submit_started = std::time::Instant::now();
     frame
@@ -5047,6 +5154,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         height,
                         None,
                         None,
+                        Some({
+                            let input = smithay_session.borrow().input_snapshot();
+                            (input.pointer_x, input.pointer_y)
+                        }),
                         cpu_scanout_compat,
                     )?;
                     println!("desktop_system_overview_visible=false");
@@ -5452,6 +5563,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                             &snapshots,
                                             output_width,
                                             output_height,
+                                            (
+                                                smithay_session.borrow().input_snapshot().pointer_x,
+                                                smithay_session.borrow().input_snapshot().pointer_y,
+                                            ),
                                             cpu_scanout_compat,
                                         )?;
                                         *live_gpu_wayland_frame.borrow_mut() = Some(gpu_frame);
@@ -5808,6 +5923,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                         &snapshots,
                                         output_width,
                                         output_height,
+                                        (
+                                            smithay_session.borrow().input_snapshot().pointer_x,
+                                            smithay_session.borrow().input_snapshot().pointer_y,
+                                        ),
                                         cpu_scanout_compat,
                                     )?;
                                     *live_gpu_wayland_frame.borrow_mut() = Some(gpu_frame);
@@ -6089,6 +6208,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         &reordered_snapshots,
                         active_width,
                         active_height,
+                        (
+                            smithay_session.borrow().input_snapshot().pointer_x,
+                            smithay_session.borrow().input_snapshot().pointer_y,
+                        ),
                         cpu_scanout_compat,
                     )?;
                     println!("drm_wayland_gpu_repaint_updates=true");
@@ -6783,6 +6906,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 &files_snapshots,
                                 active_width,
                                 active_height,
+                                (
+                                    smithay_session.borrow().input_snapshot().pointer_x,
+                                    smithay_session.borrow().input_snapshot().pointer_y,
+                                ),
                                 cpu_scanout_compat,
                             )?;
                             println!("drm_wayland_files_gpu_repaint=true");
@@ -7222,6 +7349,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 &settings_snapshots,
                                 active_width,
                                 active_height,
+                                (
+                                    smithay_session.borrow().input_snapshot().pointer_x,
+                                    smithay_session.borrow().input_snapshot().pointer_y,
+                                ),
                                 cpu_scanout_compat,
                             )?;
                             println!("drm_wayland_settings_gpu_repaint=true");
@@ -7412,6 +7543,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         &surviving_snapshots,
                         active_width,
                         active_height,
+                        (
+                            smithay_session.borrow().input_snapshot().pointer_x,
+                            smithay_session.borrow().input_snapshot().pointer_y,
+                        ),
                         cpu_scanout_compat,
                     )?;
                     println!("drm_wayland_client_cleanup_gpu_repaint=true");
@@ -7505,6 +7640,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         &[],
                         active_width,
                         active_height,
+                        (
+                            smithay_session.borrow().input_snapshot().pointer_x,
+                            smithay_session.borrow().input_snapshot().pointer_y,
+                        ),
                         cpu_scanout_compat,
                     )?;
                     println!("drm_wayland_close_gpu_repaint=true");
@@ -11973,7 +12112,9 @@ fn smoke_loop() {
 #[cfg(test)]
 mod fbdev_tests {
     #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
-    use super::themed_desktop_brand_path;
+    use super::{
+        bounded_desktop_pointer_origin, paint_desktop_pointer_rgba, themed_desktop_brand_path,
+    };
     use super::{
         bytes_per_pixel, checksum_frame_bytes, client_shadow_damage_rects, decode_png_rgba,
         drm_kms_confirmation_source, drm_wayland_hold_seconds, fbdev_confirmation_source,
@@ -11987,6 +12128,19 @@ mod fbdev_tests {
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+    #[test]
+    fn desktop_pointer_is_visible_and_bounded_in_composited_rgba() {
+        let mut rgba = vec![0x80; 64 * 48 * 4];
+        paint_desktop_pointer_rgba(&mut rgba, 64, 48, (63, 47));
+        assert_eq!(bounded_desktop_pointer_origin((63, 47), 64, 48), (46, 24));
+        let outline = ((24 * 64 + 46) * 4) as usize;
+        let fill = ((27 * 64 + 48) * 4) as usize;
+        assert_eq!(&rgba[outline..outline + 4], &[0x08, 0x0d, 0x14, 0xff]);
+        assert_eq!(&rgba[fill..fill + 4], &[0xf5, 0xfa, 0xff, 0xff]);
+        assert_eq!(rgba.len(), 64 * 48 * 4);
+    }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     fn ready_stacking_snapshot() -> super::SmithayClientSurfaceSnapshot {

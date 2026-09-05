@@ -162,6 +162,12 @@ reaches:
 ```
 
 The graphical session is intentionally disabled in the default boot profile.
+To open the interactive Aqua desktop in the QEMU window, run:
+
+```sh
+AQUA_KERNEL_APPEND=aqua.boot_graphics=1 scripts/run-qemu.sh
+```
+
 Run its opt-in acceptance path with:
 
 ```sh
