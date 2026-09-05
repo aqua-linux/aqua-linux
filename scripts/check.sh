@@ -24,6 +24,7 @@ cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --workspace
 cargo test -p aqua-compositor --features smithay-smoke properties_pointer_leave
+AQUA_TRASH_ROOT="${CHECK_TEMP_ROOT}/keyboard-leave-trash" cargo test -p aqua-compositor --features smithay-smoke shared_keyboard_leave
 cargo test -p aqua-compositor --features smithay-smoke files_axis_scroll_rows
 scripts/check-typography-fixtures.sh
 scripts/check-typography-layout-fixtures.sh

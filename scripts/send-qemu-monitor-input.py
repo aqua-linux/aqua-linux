@@ -72,7 +72,10 @@ MODES = {
         "sendkey down 100", "sendkey down 100", "sendkey down 100",
         "sendkey down 100",
     ),
-    "settings-nonprimary-pointer": ("mouse_button 2", "mouse_button 0"),
+    "settings-nonprimary-pointer": (
+        "mouse_move -3000 -3000", "mouse_move 420 240",
+        "mouse_button 2", "mouse_button 0",
+    ),
     "settings-pointer-blur": (
         "mouse_move -3000 -3000", "mouse_move 520 235",
         "mouse_button 1", "mouse_button 0",
@@ -83,8 +86,9 @@ MODES = {
         "mouse_button 1", "mouse_button 0",
     ),
     "settings-refocus": (
-        "mouse_move -3000 -3000", "mouse_move 520 235",
-        "mouse_button 1", "mouse_button 0",
+        "sendkey meta_l 100", "sendkey s 100", "sendkey e 100",
+        "sendkey t 100", "sendkey t 100", "sendkey i 100",
+        "sendkey n 100", "sendkey g 100", "sendkey s 100", "sendkey ret 100",
     ),
     "settings-about": (
         "mouse_move -3000 -3000", "mouse_move 520 235",
@@ -126,11 +130,12 @@ MODES = {
         "mouse_button 1", "mouse_button 0",
     ),
     "properties-blurred-space": ("sendkey spc 100",),
-    "properties-keyboard-action": (
-        "mouse_move -3000 -3000", "mouse_move 520 235",
-        "mouse_button 1", "mouse_button 0",
-        "sendkey tab 100", "sendkey ret 100",
+    "properties-context-open": (
+        "mouse_move -3000 -3000", "mouse_move 26 49",
+        "mouse_button 2", "mouse_button 0",
     ),
+    "properties-refocus": ("sendkey down 100", "sendkey ret 100"),
+    "properties-keyboard-action": ("sendkey tab 100", "sendkey ret 100"),
     "close-properties": ("sendkey alt-f4 250",),
     "terminal-launch": (
         "sendkey meta_l 100", "sendkey t 100", "sendkey e 100",
