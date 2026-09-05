@@ -10292,8 +10292,16 @@ impl SmithayDrmSession {
             damage_rect_count: state.damage_rect_count,
             pending_frame_callback_count: state.pending_frame_callbacks.len(),
             frame_callbacks_sent: state.frame_callbacks_sent,
-            keyboard_focus_assigned: state.keyboard_focus_assigned,
-            pointer_focus_assigned: state.pointer_focus_assigned,
+            keyboard_focus_assigned: state
+                .seat
+                .get_keyboard()
+                .and_then(|keyboard| keyboard.current_focus())
+                .is_some_and(|surface| surface.is_alive()),
+            pointer_focus_assigned: state
+                .seat
+                .get_pointer()
+                .and_then(|pointer| pointer.current_focus())
+                .is_some_and(|surface| surface.is_alive()),
             mapped_surface_count: state.mapped_surfaces.len(),
             surface_focus_change_count: state.surface_focus_change_count,
             stacking_change_count: state.stacking_change_count,
@@ -17153,6 +17161,11 @@ mod tests {
             record.y = 100;
         }
         let assert_owner = |session: &SmithayDrmSession, owner: Option<&str>| {
+            assert_eq!(
+                session.client_surface_snapshot().pointer_focus_assigned,
+                owner.is_some(),
+                "aggregate pointer focus"
+            );
             for app_id in ["aqua.files", "aqua.settings"] {
                 let snapshot = session
                     .client_surface_snapshot_for_app_id(app_id)
@@ -17173,6 +17186,11 @@ mod tests {
             );
         };
         let assert_keyboard_owner = |session: &SmithayDrmSession, owner: Option<&str>| {
+            assert_eq!(
+                session.client_surface_snapshot().keyboard_focus_assigned,
+                owner.is_some(),
+                "aggregate keyboard focus"
+            );
             for app_id in ["aqua.files", "aqua.settings"] {
                 let snapshot = session
                     .client_surface_snapshot_for_app_id(app_id)
@@ -17236,7 +17254,12 @@ mod tests {
             session.session.wayland_state.pointer_focus_surface
         );
         assert_owner(&session, Some("aqua.settings"));
-        assert!(session.dispatch_pointer_button(0x110, false, 154));
+        // The grab still owns pointer events when no window is under the cursor.
+        assert!(session.dispatch_pointer_motion(1300.0, 0.0, 154));
+        assert!(!session.session.wayland_state.pointer_focus_assigned);
+        assert_owner(&session, Some("aqua.settings"));
+        assert!(session.dispatch_pointer_motion(-1300.0, 0.0, 155));
+        assert!(session.dispatch_pointer_button(0x110, false, 156));
         // Smithay retains the old focus until the next ordinary motion after release.
         assert_owner(&session, Some("aqua.settings"));
         assert!(session.dispatch_pointer_motion(0.0, 0.0, 155));
@@ -17258,6 +17281,8 @@ mod tests {
         assert!(session.visible_client_surface_snapshots().is_empty());
         assert!(session.activate_workspace(0, 162));
         assert_keyboard_owner(&session, Some("aqua.files"));
+        assert!(session.present_client_surface(163));
+        assert_owner(&session, Some("aqua.files"));
         files.xdg_toplevel.as_ref().expect("toplevel").destroy();
         files.xdg_surface.as_ref().expect("xdg surface").destroy();
         files.base_surface.as_ref().expect("surface").destroy();
@@ -17272,6 +17297,9 @@ mod tests {
             .client_surface_snapshots()
             .iter()
             .all(|s| !s.keyboard_focus_assigned));
+        let aggregate = session.client_surface_snapshot();
+        assert!(!aggregate.keyboard_focus_assigned);
+        assert!(!aggregate.pointer_focus_assigned);
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]

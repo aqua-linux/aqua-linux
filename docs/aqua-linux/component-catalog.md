@@ -970,6 +970,17 @@ keyboard ownership. Packaged QEMU covers live application activation, keyboard
 interaction, window close, and session cleanup; the intermediate raise-only and
 explicit-clear cases are source-test evidence.
 
+The aggregate session snapshot now derives both focus-presence flags from the
+seat's current live owners as well. Historical assignment flags no longer report
+keyboard focus after an explicit clear or loss of the final visible owner.
+Pointer presence remains true during an implicit grab outside every window,
+where a hit-test flag alone would incorrectly report no owner. Destroyed surface
+resources are excluded even if a seat handle still retains their identity. The
+shared `surface_focus_snapshots` regression requires aggregate and per-surface
+reports to agree across these transitions, and destroys Files while it owns
+both keyboard and pointer focus. This diagnostic reporting change has real
+Wayland source-test coverage.
+
 A background buffer commit now updates that surface without replacing the
 active window. Desktop repaint completion drains frame callbacks independently
 of the explicit activation/focus path. This prevents a focus-loss redraw from

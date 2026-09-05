@@ -181,6 +181,8 @@ keyboard-focus snapshots also follow the actual seat owner, distinguishing
 stacking-only raises from focus changes and reporting no owner after explicit
 focus clearing. The shared two-client matrix covers workspace and destruction
 transitions as well;
+aggregate session snapshots likewise use live seat owners for both focus flags,
+including grabs outside window bounds and exclusion of destroyed resources;
 the broader consolidation remains in progress.
 
 ## Context
