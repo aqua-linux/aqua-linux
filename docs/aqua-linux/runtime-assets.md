@@ -24,6 +24,8 @@ Expected first exports:
 
 | Source | Runtime destination | Notes |
 | --- | --- | --- |
+| `docs/aqua-linux/assets/wallpaper-light.png` | `/usr/share/aqua/wallpapers/wallpaper-light.png` | Current Light-mode wallpaper, 1672x941 |
+| `docs/aqua-linux/assets/wallpaper-dark.png` | `/usr/share/aqua/wallpapers/wallpaper-dark.png` | Current Dark-mode wallpaper, 1672x941 |
 | `docs/aqua-linux/assets/default-wallpaper.png` | `/usr/share/aqua/wallpapers/default-wallpaper.png` | Keep original source; compositor may request scaled copies later |
 | `docs/aqua-linux/assets/wallpaper-pale-waves.png` | `/usr/share/aqua/wallpapers/wallpaper-pale-waves.png` | Reproducible pale-wave source master and current default |
 | `docs/aqua-linux/assets/wallpaper-surf.png` | `/usr/share/aqua/wallpapers/wallpaper-surf.png` | Official alternate wallpaper |

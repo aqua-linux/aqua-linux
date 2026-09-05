@@ -39,6 +39,9 @@ navigation contract without changing preview-key ownership;
 Settings Appearance Left and Right now resolve the persisted theme through the
 shared `SegmentedControl` Previous and Next targets while category navigation
 and Wi-Fi or Audio key ownership remain unchanged;
+the public theme model now exposes only Light and Dark, maps legacy persisted
+theme names into those modes, packages one owner-supplied wallpaper per mode,
+and atomically reloads the matching GPU wallpaper during a live theme change;
 Settings Enter activation now resolves Reduced Motion, Desktop Icons, Key
 Repeat, Wi-Fi, and Audio Mute through the same shared `SwitchControl` gate used
 by pointer input, retaining credential-entry and authoritative disabled gates;

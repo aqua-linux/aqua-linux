@@ -1,17 +1,9 @@
-revision=aqua-elevation-fixtures-1
-theme=LightWhite scale=4/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=113102 max_alpha=88 checksum=598d1c202f0afb36 ready=true
-theme=LightWhite scale=5/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=148838 max_alpha=88 checksum=cc527e0fea397a46 ready=true
-theme=LightWhite scale=6/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=176952 max_alpha=88 checksum=77b1cacc6e76d370 ready=true
-theme=LightWhite scale=8/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=240050 max_alpha=88 checksum=9fd3c55a1b792127 ready=true
-theme=Softtouch scale=4/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=113044 max_alpha=83 checksum=47dcf2ff2573d19c ready=true
-theme=Softtouch scale=5/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=148286 max_alpha=83 checksum=49b9fd4936dfa756 ready=true
-theme=Softtouch scale=6/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=176820 max_alpha=83 checksum=2d80fb3ee02b0d12 ready=true
-theme=Softtouch scale=8/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=239642 max_alpha=83 checksum=66864bc78a035673 ready=true
-theme=Deepside scale=4/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=112098 max_alpha=73 checksum=66eca6e01e098d16 ready=true
-theme=Deepside scale=5/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=147648 max_alpha=73 checksum=afbe1a42e010a257 ready=true
-theme=Deepside scale=6/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=175212 max_alpha=73 checksum=a8ca378163cf7b07 ready=true
-theme=Deepside scale=8/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=237752 max_alpha=73 checksum=77e3791186e57aad ready=true
-theme=Nightmare scale=4/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=112040 max_alpha=67 checksum=2d1357282d4c5dee ready=true
-theme=Nightmare scale=5/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=147576 max_alpha=67 checksum=899454990fb9ec12 ready=true
-theme=Nightmare scale=6/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=175100 max_alpha=67 checksum=91786487a0bbfd17 ready=true
-theme=Nightmare scale=8/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=237140 max_alpha=67 checksum=20ac28af3eec0c08 ready=true
+revision=aqua-elevation-fixtures-2
+theme=Light scale=4/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=113102 max_alpha=88 checksum=598d1c202f0afb36 ready=true
+theme=Light scale=5/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=148838 max_alpha=88 checksum=cc527e0fea397a46 ready=true
+theme=Light scale=6/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=176952 max_alpha=88 checksum=77b1cacc6e76d370 ready=true
+theme=Light scale=8/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=240050 max_alpha=88 checksum=9fd3c55a1b792127 ready=true
+theme=Dark scale=4/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=112040 max_alpha=67 checksum=2d1357282d4c5dee ready=true
+theme=Dark scale=5/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=147576 max_alpha=67 checksum=899454990fb9ec12 ready=true
+theme=Dark scale=6/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=175100 max_alpha=67 checksum=91786487a0bbfd17 ready=true
+theme=Dark scale=8/4 elevations=4 entries=5 hits=5 misses=5 overlap=true edge_clipped=true bounded_damage=true shadow_pixels=237140 max_alpha=67 checksum=20ac28af3eec0c08 ready=true

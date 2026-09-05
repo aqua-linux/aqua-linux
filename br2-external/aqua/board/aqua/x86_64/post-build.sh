@@ -36,7 +36,7 @@ version=1
 reduced_motion=false
 desktop_icons=true
 key_repeat=true
-theme=LightWhite
+theme=Light
 EOF
 chmod 600 "${TARGET_DIR}/home/aqua/.config/aqua/settings.conf"
 if grep -q '^aqua:[^:]*:1000:1000:' "${TARGET_DIR}/etc/passwd" 2>/dev/null; then
@@ -220,7 +220,7 @@ aqua-component-acceptance packaged=true
 path=/usr/libexec/aqua-tests/aqua-component-acceptance
 app_id=aqua.component-acceptance
 surface=wl_shm-xdg-toplevel
-fixture_revision=aqua-component-fixtures-19
+fixture_revision=aqua-component-fixtures-20
 catalog=22
 shared=22
 autostart=false
@@ -231,7 +231,7 @@ aqua-component-acceptance packaged=false
 path=/usr/libexec/aqua-tests/aqua-component-acceptance
 app_id=aqua.component-acceptance
 surface=wl_shm-xdg-toplevel
-fixture_revision=aqua-component-fixtures-19
+fixture_revision=aqua-component-fixtures-20
 catalog=22
 shared=22
 autostart=false
@@ -573,6 +573,8 @@ if [ -d "${ASSET_SOURCE_DIR}" ] && [ -f "${TOKEN_SOURCE}" ]; then
         "${TARGET_DIR}/usr/share/doc/aqua"
 
     cp "${ASSET_SOURCE_DIR}/default-wallpaper.png" "${TARGET_DIR}/usr/share/aqua/wallpapers/default-wallpaper.png"
+    cp "${ASSET_SOURCE_DIR}/wallpaper-light.png" "${TARGET_DIR}/usr/share/aqua/wallpapers/wallpaper-light.png"
+    cp "${ASSET_SOURCE_DIR}/wallpaper-dark.png" "${TARGET_DIR}/usr/share/aqua/wallpapers/wallpaper-dark.png"
     cp "${ASSET_SOURCE_DIR}/wallpaper-pale-waves.png" "${TARGET_DIR}/usr/share/aqua/wallpapers/wallpaper-pale-waves.png"
     cp "${ASSET_SOURCE_DIR}/wallpaper-surf.png" "${TARGET_DIR}/usr/share/aqua/wallpapers/wallpaper-surf.png"
     cp "${ASSET_SOURCE_DIR}/wallpaper-reef.png" "${TARGET_DIR}/usr/share/aqua/wallpapers/wallpaper-reef.png"

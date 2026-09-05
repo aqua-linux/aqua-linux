@@ -7,7 +7,7 @@ local-only and excluded from Git.
 ## Invariants
 
 - Aqua Linux remains a Buildroot distribution with its own Smithay Wayland compositor.
-- LightWhite is the default theme; Softtouch, Deepside, and Nightmare are equal supported theme targets.
+- Light is the default theme; Light and Dark are equally supported theme targets.
 - Theme changes never alter geometry, workflow, keyboard order, or content hierarchy.
 - A compact top bar is always available during the desktop session.
 - Bottom controls are split into applications/search, centered running applications, and workspace switching.
@@ -34,7 +34,7 @@ model.
 ## Top Bar
 
 - Left: Aqua mark and `Aqua Linux` session identity.
-- LightWhite and Softtouch use the primary dark mark; Deepside and Nightmare use the inverse mark.
+- Light uses the primary dark mark; Dark uses the inverse mark.
 - Center: localized date and time.
 - Right: volume, network, power/battery, and session controls.
 - Status items are keyboard reachable and expose menus only when activated.
@@ -123,30 +123,30 @@ definition, or single idle-state screenshot is not completion evidence.
 The deterministic typography layout report in
 [`typography-layout-fixtures.txt`](typography-layout-fixtures.txt) verifies long
 localized-label containment, untruncated critical actions, fallback coverage,
-region separation, and RGBA checksums for the required viewports and all four
+region separation, and RGBA checksums for the required viewports and both
 themes. The matching acceptance-only packaged Wayland client is captured in
-QEMU at 1280x800 for all four themes, proving that the accepted Turkish and
+QEMU at 1280x800 for both themes, proving that the accepted Turkish and
 Arabic layout reaches the real Smithay/DRM display path. The wider and
 fractional-scale cases remain deterministic host-rendered evidence.
 
 The deterministic [`elevation-fixtures.txt`](elevation-fixtures.txt) matrix
 locks the control, panel, dialog, and active-window shadow levels across all
-four themes and the 1.0, 1.25, 1.5, and 2.0 scales. Shadow geometry is
+two themes and the 1.0, 1.25, 1.5, and 2.0 scales. Shadow geometry is
 theme-invariant, opacity remains theme-specific, reusable masks are keyed by
 physical surface geometry, scale, theme, and elevation, and expanded damage is
 clipped to the output viewport. The matching packaged QEMU acceptance scenario
 maps one focused and one inactive client window through the real Smithay GLES
-and DRM path, captures all four themes at 1280x800, and proves bounded cleanup
+and DRM path, captures both themes at 1280x800, and proves bounded cleanup
 and recovery return after every capture.
 
 The deterministic [`icon-fixtures.txt`](icon-fixtures.txt) report covers all 13
-reviewed Aqua Core Icons across the seven required logical sizes, four themes,
+reviewed Aqua Core Icons across the seven required logical sizes, two themes,
 and four supported output scales. Sources pass the bounded static-SVG subset,
 each physical dimension is rasterized directly from vector geometry, symbolic
 roles receive theme/state colors, and a 256-entry LRU proves complete cache
 keys, reuse, and bounded eviction. The live compositor consumes those rasters
 in its top bar, desktop, dock, and notification textures. Packaged QEMU captures
-cover all four themes and verify cache reuse, bounded retention, and recovery
+cover both themes and verify cache reuse, bounded retention, and recovery
 return after every session.
 
 ## Accessibility And Localization

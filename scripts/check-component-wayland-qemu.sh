@@ -12,14 +12,10 @@ MEMORY="${MEMORY:-1024M}"
 CPUS="${CPUS:-2}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-240}"
 
-SCREENSHOT_lightwhite="${SCREENSHOT_lightwhite:-${ROOT_DIR}/build/qemu-component-lightwhite.ppm}"
-SCREENSHOT_lightwhite_PNG="${SCREENSHOT_lightwhite_PNG:-${ROOT_DIR}/build/qemu-component-lightwhite.png}"
-SCREENSHOT_softtouch="${SCREENSHOT_softtouch:-${ROOT_DIR}/build/qemu-component-softtouch.ppm}"
-SCREENSHOT_softtouch_PNG="${SCREENSHOT_softtouch_PNG:-${ROOT_DIR}/build/qemu-component-softtouch.png}"
-SCREENSHOT_deepside="${SCREENSHOT_deepside:-${ROOT_DIR}/build/qemu-component-deepside.ppm}"
-SCREENSHOT_deepside_PNG="${SCREENSHOT_deepside_PNG:-${ROOT_DIR}/build/qemu-component-deepside.png}"
-SCREENSHOT_nightmare="${SCREENSHOT_nightmare:-${ROOT_DIR}/build/qemu-component-nightmare.ppm}"
-SCREENSHOT_nightmare_PNG="${SCREENSHOT_nightmare_PNG:-${ROOT_DIR}/build/qemu-component-nightmare.png}"
+SCREENSHOT_light="${SCREENSHOT_light:-${ROOT_DIR}/build/qemu-component-light.ppm}"
+SCREENSHOT_light_PNG="${SCREENSHOT_light_PNG:-${ROOT_DIR}/build/qemu-component-light.png}"
+SCREENSHOT_dark="${SCREENSHOT_dark:-${ROOT_DIR}/build/qemu-component-dark.ppm}"
+SCREENSHOT_dark_PNG="${SCREENSHOT_dark_PNG:-${ROOT_DIR}/build/qemu-component-dark.png}"
 
 for tool in expect file python3 qemu-system-x86_64; do
     command -v "${tool}" >/dev/null 2>&1 || {
@@ -36,16 +32,13 @@ done
 
 mkdir -p "$(dirname "${SERIAL_LOG}")"
 rm -f "${SERIAL_LOG}" "${MONITOR_SOCKET}" \
-    "${SCREENSHOT_lightwhite}" "${SCREENSHOT_lightwhite_PNG}" \
-    "${SCREENSHOT_softtouch}" "${SCREENSHOT_softtouch_PNG}" \
-    "${SCREENSHOT_deepside}" "${SCREENSHOT_deepside_PNG}" \
-    "${SCREENSHOT_nightmare}" "${SCREENSHOT_nightmare_PNG}"
+    "${SCREENSHOT_light}" "${SCREENSHOT_light_PNG}" \
+    "${SCREENSHOT_dark}" "${SCREENSHOT_dark_PNG}"
+
 
 export KERNEL ROOTFS SERIAL_LOG MONITOR_SOCKET CAPTURE_HELPER MEMORY CPUS TIMEOUT_SECONDS
-export SCREENSHOT_lightwhite SCREENSHOT_lightwhite_PNG
-export SCREENSHOT_softtouch SCREENSHOT_softtouch_PNG
-export SCREENSHOT_deepside SCREENSHOT_deepside_PNG
-export SCREENSHOT_nightmare SCREENSHOT_nightmare_PNG
+export SCREENSHOT_light SCREENSHOT_light_PNG
+export SCREENSHOT_dark SCREENSHOT_dark_PNG
 "${ROOT_DIR}/scripts/check-component-wayland-qemu.exp" >/dev/null
 
 need_marker() {
@@ -57,7 +50,7 @@ need_marker() {
 }
 
 need_marker '[AQUA-BOOT] stage=recovery-ready status=ok shell=/bin/sh'
-need_marker 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-19'
+need_marker 'aqua_component_acceptance_fixture_revision=aqua-component-fixtures-20'
 need_marker 'aqua_component_acceptance_catalog=22'
 need_marker 'aqua_component_acceptance_shared=22'
 need_marker 'aqua_component_acceptance_ready=true'
@@ -71,7 +64,7 @@ need_marker 'component_wayland_client_started=true'
 need_marker 'component_wayland_client_process_stopped=true'
 need_marker '[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok'
 
-for theme in LightWhite Softtouch Deepside Nightmare; do
+for theme in Light Dark; do
     need_marker "aqua_component_acceptance_theme=${theme}"
 done
 
@@ -86,18 +79,16 @@ for marker in (
     "component_wayland_surface_ready=true",
     "[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok",
 ):
-    if text.count(marker) != 4:
-        raise SystemExit(f"expected four occurrences of {marker!r}, got {text.count(marker)}")
+    if text.count(marker) != 2:
+        raise SystemExit(f"expected two occurrences of {marker!r}, got {text.count(marker)}")
 PY
 
-for png in "${SCREENSHOT_lightwhite_PNG}" "${SCREENSHOT_softtouch_PNG}" \
-    "${SCREENSHOT_deepside_PNG}" "${SCREENSHOT_nightmare_PNG}"; do
+for png in "${SCREENSHOT_light_PNG}" "${SCREENSHOT_dark_PNG}"; do
     file "${png}" | grep -Fq 'PNG image data, 1280 x 800'
 done
 
 python3 - \
-    "${SCREENSHOT_lightwhite}" "${SCREENSHOT_softtouch}" \
-    "${SCREENSHOT_deepside}" "${SCREENSHOT_nightmare}" <<'PY'
+    "${SCREENSHOT_light}" "${SCREENSHOT_dark}" <<'PY'
 import hashlib
 import pathlib
 import sys
@@ -114,9 +105,9 @@ for raw in sys.argv[1:]:
     if len(set(sample)) < 8:
         raise SystemExit(f"component screenshot appears blank: {path}")
     digests.add(hashlib.sha256(pixels).digest())
-if len(digests) != 4:
+if len(digests) != 2:
     raise SystemExit("component theme captures are not visually distinct")
 PY
 
 echo "Aqua packaged component Wayland QEMU check passed."
-echo "Screenshots: ${SCREENSHOT_lightwhite_PNG} ${SCREENSHOT_softtouch_PNG} ${SCREENSHOT_deepside_PNG} ${SCREENSHOT_nightmare_PNG}"
+echo "Screenshots: ${SCREENSHOT_light_PNG} ${SCREENSHOT_dark_PNG}"

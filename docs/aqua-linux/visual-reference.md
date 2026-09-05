@@ -68,14 +68,14 @@ and runtime artwork must be Aqua-owned or independently licensed.
 
 ## Installer Screen Set
 
-The installer follows one stable workflow across all four themes:
+The installer follows one stable workflow across both themes:
 
 1. Welcome and language selection.
 2. Keyboard layout selection and test input.
 3. Region, time zone, date, and automatic-time preference.
 4. Easy, custom, or live/trial installation mode.
 5. User, host name, account name, and password setup.
-6. Theme selection for LightWhite, Softtouch, Deepside, or Nightmare.
+6. Theme selection for Light or Dark.
 7. Review of every selected value before the destructive install gate.
 8. Progress, success, and restart state.
 
@@ -83,13 +83,12 @@ The installer follows one stable workflow across all four themes:
   competing with the active form.
 - Step progress remains visible and stable; Back and Next/Install actions keep
   fixed positions.
-- The four themes share geometry, controls, content order, and validation.
+- The two themes share geometry, controls, content order, and validation.
   Only theme tokens and appropriate mark variants change.
-- Deepside uses deep-sea navy surfaces and blue focus/action emphasis.
-- Nightmare uses neutral near-black surfaces and avoids blue-washed panels.
-- LightWhite uses ice-white surfaces and quiet cool-gray separators.
-- Softtouch uses warm light gray and lower contrast while preserving WCAG
-  readability targets.
+- Dark uses neutral near-black surfaces, avoids blue-washed panels, and keeps
+  blue for focus and action emphasis.
+- Light uses ice-white surfaces and quiet cool-gray separators while preserving
+  WCAG readability targets.
 - Completion explicitly confirms success and offers restart only after the
   installer transaction reports a durable completed state.
 

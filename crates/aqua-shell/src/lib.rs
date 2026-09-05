@@ -363,31 +363,26 @@ impl WifiSettingsControl {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AquaTheme {
     #[default]
-    LightWhite,
-    Softtouch,
-    Deepside,
-    Nightmare,
+    Light,
+    Dark,
 }
 
 impl AquaTheme {
-    pub const ALL: [Self; 4] = [
-        Self::LightWhite,
-        Self::Softtouch,
-        Self::Deepside,
-        Self::Nightmare,
-    ];
+    pub const ALL: [Self; 2] = [Self::Light, Self::Dark];
 
     pub const fn id(self) -> &'static str {
         match self {
-            Self::LightWhite => "LightWhite",
-            Self::Softtouch => "Softtouch",
-            Self::Deepside => "Deepside",
-            Self::Nightmare => "Nightmare",
+            Self::Light => "Light",
+            Self::Dark => "Dark",
         }
     }
 
     pub fn parse(value: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|theme| theme.id() == value)
+        match value {
+            "Light" | "LightWhite" | "Softtouch" => Some(Self::Light),
+            "Dark" | "Deepside" | "Nightmare" => Some(Self::Dark),
+            _ => None,
+        }
     }
 }
 
@@ -2847,6 +2842,9 @@ impl SettingsWindowModel {
                 .hit_test(x, y)
                 .and_then(|index| AquaTheme::ALL.get(index).copied())
             {
+                if self.theme == theme {
+                    return SettingsUpdate::None;
+                }
                 self.theme = theme;
                 return SettingsUpdate::ThemeChanged(theme);
             }
@@ -6078,14 +6076,14 @@ mod tests {
         assert!(model.keyboard_focus);
         assert_eq!(
             model.handle_key(SettingsKey::Decrease),
-            SettingsUpdate::ThemeChanged(AquaTheme::Nightmare)
+            SettingsUpdate::ThemeChanged(AquaTheme::Dark)
         );
-        assert_eq!(model.theme, AquaTheme::Nightmare);
+        assert_eq!(model.theme, AquaTheme::Dark);
         assert_eq!(
             model.handle_key(SettingsKey::Increase),
-            SettingsUpdate::ThemeChanged(AquaTheme::LightWhite)
+            SettingsUpdate::ThemeChanged(AquaTheme::Light)
         );
-        assert_eq!(model.theme, AquaTheme::LightWhite);
+        assert_eq!(model.theme, AquaTheme::Light);
         assert_eq!(
             model.handle_key(SettingsKey::Down),
             SettingsUpdate::CategorySelected(1)
@@ -6529,13 +6527,13 @@ mod tests {
         model.persist(&path).expect("settings should persist");
         assert_eq!(
             fs::read_to_string(&path).expect("persisted config"),
-            "version=1\nreduced_motion=true\ndesktop_icons=true\nkey_repeat=true\ntheme=LightWhite\naudio_volume=70\naudio_muted=false\n"
+            "version=1\nreduced_motion=true\ndesktop_icons=true\nkey_repeat=true\ntheme=Light\naudio_volume=70\naudio_muted=false\n"
         );
         let reloaded = SettingsWindowModel::load_or_default(&path).expect("settings should reload");
         assert!(reloaded.reduced_motion);
         assert!(reloaded.desktop_icons);
         assert!(reloaded.key_repeat);
-        assert_eq!(reloaded.theme, AquaTheme::LightWhite);
+        assert_eq!(reloaded.theme, AquaTheme::Light);
         assert_eq!(reloaded.audio.volume_percent(), 70);
         assert!(!reloaded.audio.muted());
         #[cfg(unix)]
@@ -6560,7 +6558,7 @@ mod tests {
             .expect("version 1 config without later optional key should remain compatible");
         assert!(legacy.desktop_icons);
         assert!(legacy.key_repeat);
-        assert_eq!(legacy.theme, AquaTheme::LightWhite);
+        assert_eq!(legacy.theme, AquaTheme::Light);
         assert_eq!(legacy.audio.volume_percent(), 70);
         assert!(!legacy.audio.muted());
         fs::remove_dir_all(root).expect("remove settings fixture");
@@ -6572,20 +6570,26 @@ mod tests {
         assert_eq!(model.handle_pointer(301, 230), SettingsUpdate::None);
         assert_eq!(
             model.handle_pointer(410, 230),
-            SettingsUpdate::ThemeChanged(AquaTheme::Deepside)
+            SettingsUpdate::ThemeChanged(AquaTheme::Dark)
         );
-        assert_eq!(model.theme, AquaTheme::Deepside);
-        assert!(model.to_config().contains("theme=Deepside\n"));
+        assert_eq!(model.theme, AquaTheme::Dark);
+        assert!(model.to_config().contains("theme=Dark\n"));
         assert_eq!(
             SettingsWindowModel::from_config(&model.to_config())
                 .expect("theme config")
                 .theme,
-            AquaTheme::Deepside
+            AquaTheme::Dark
         );
         assert!(matches!(
             SettingsWindowModel::from_config("version=1\nreduced_motion=false\ntheme=Unknown\n"),
             Err(SettingsConfigError::InvalidFormat)
         ));
+        for legacy in ["LightWhite", "Softtouch"] {
+            assert_eq!(AquaTheme::parse(legacy), Some(AquaTheme::Light));
+        }
+        for legacy in ["Deepside", "Nightmare"] {
+            assert_eq!(AquaTheme::parse(legacy), Some(AquaTheme::Dark));
+        }
     }
 
     #[test]

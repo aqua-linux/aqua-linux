@@ -608,6 +608,7 @@ fn render_gpu_offscreen_frame(
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
 struct LiveGpuCompositor {
     renderer: GlesRenderer,
+    asset_root: PathBuf,
     wallpaper_texture: GlesTexture,
     wallpaper_width: u32,
     wallpaper_height: u32,
@@ -673,11 +674,70 @@ struct ClientShadowTextureCacheEntry {
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+fn upload_gpu_wallpaper(
+    renderer: &mut GlesRenderer,
+    asset_root: &Path,
+    theme: aqua_shell::AquaTheme,
+) -> Result<(GlesTexture, u32, u32, GlesTexture), String> {
+    let wallpaper = decode_png_rgba(&themed_wallpaper_path(asset_root, theme))?;
+    let wallpaper_texture = renderer
+        .import_memory(
+            &wallpaper.rgba,
+            Fourcc::Abgr8888,
+            (wallpaper.width as i32, wallpaper.height as i32).into(),
+            false,
+        )
+        .map_err(|error| format!("cannot upload runtime wallpaper texture: {error}"))?;
+    let blur_program = renderer
+        .compile_custom_texture_shader(
+            AQUA_BLUR_FRAGMENT_SHADER,
+            &[UniformName::new("texel_step", UniformType::_2f)],
+        )
+        .map_err(|error| format!("cannot compile Aqua separable blur shader: {error}"))?;
+    let mut horizontal_blur =
+        Offscreen::<GlesTexture>::create_buffer(renderer, Fourcc::Abgr8888, (320, 240).into())
+            .map_err(|error| format!("cannot create horizontal blur texture: {error}"))?;
+    let mut blurred_wallpaper =
+        Offscreen::<GlesTexture>::create_buffer(renderer, Fourcc::Abgr8888, (320, 240).into())
+            .map_err(|error| format!("cannot create vertical blur texture: {error}"))?;
+    render_gpu_blur_pass(
+        renderer,
+        &mut horizontal_blur,
+        &wallpaper_texture,
+        (wallpaper.width, wallpaper.height),
+        &blur_program,
+        (1.0 / 320.0, 0.0),
+        "horizontal",
+    )?;
+    render_gpu_blur_pass(
+        renderer,
+        &mut blurred_wallpaper,
+        &horizontal_blur,
+        (320, 240),
+        &blur_program,
+        (0.0, 1.0 / 240.0),
+        "vertical",
+    )?;
+    Ok((
+        wallpaper_texture,
+        wallpaper.width,
+        wallpaper.height,
+        blurred_wallpaper,
+    ))
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
 impl LiveGpuCompositor {
-    fn set_theme(&mut self, theme: aqua_shell::AquaTheme) -> bool {
+    fn set_theme(&mut self, theme: aqua_shell::AquaTheme) -> Result<bool, String> {
         if self.theme == theme {
-            return false;
+            return Ok(false);
         }
+        let (wallpaper_texture, wallpaper_width, wallpaper_height, blurred_wallpaper) =
+            upload_gpu_wallpaper(&mut self.renderer, &self.asset_root, theme)?;
+        self.wallpaper_texture = wallpaper_texture;
+        self.wallpaper_width = wallpaper_width;
+        self.wallpaper_height = wallpaper_height;
+        self.blurred_wallpaper = blurred_wallpaper;
         self.theme = theme;
         self.launcher_state = None;
         self.top_bar_state = None;
@@ -698,7 +758,8 @@ impl LiveGpuCompositor {
         self.client_shadow_texture_cache.clear();
         self.opaque_direct_bridge_ready = false;
         println!("desktop_shell_theme_changed={}", theme.id());
-        true
+        println!("desktop_wallpaper_theme_changed={}", theme.id());
+        Ok(true)
     }
 
     fn set_top_bar_state(&mut self, state: &aqua_shell::TopBarState) -> Result<(), String> {
@@ -1124,15 +1185,9 @@ impl LiveGpuCompositor {
         let asset_root = env::var_os("AQUA_ASSET_ROOT")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("/usr/share/aqua"));
-        let wallpaper = decode_png_rgba(&asset_root.join("wallpapers/default-wallpaper.png"))?;
-        let wallpaper_texture = renderer
-            .import_memory(
-                &wallpaper.rgba,
-                Fourcc::Abgr8888,
-                (wallpaper.width as i32, wallpaper.height as i32).into(),
-                false,
-            )
-            .map_err(|error| format!("cannot upload runtime wallpaper texture: {error}"))?;
+        let theme = configured_runtime_theme();
+        let (wallpaper_texture, wallpaper_width, wallpaper_height, blurred_wallpaper) =
+            upload_gpu_wallpaper(&mut renderer, &asset_root, theme)?;
         let surface_uniform_names = [
             UniformName::new("refraction_strength", UniformType::_1f),
             UniformName::new("tint_strength", UniformType::_1f),
@@ -1148,42 +1203,6 @@ impl LiveGpuCompositor {
         let surface_program = renderer
             .compile_custom_texture_shader(AQUA_SURFACE_FRAGMENT_SHADER, &surface_uniform_names)
             .map_err(|error| format!("cannot compile Aqua system-surface shader: {error}"))?;
-        let blur_program = renderer
-            .compile_custom_texture_shader(
-                AQUA_BLUR_FRAGMENT_SHADER,
-                &[UniformName::new("texel_step", UniformType::_2f)],
-            )
-            .map_err(|error| format!("cannot compile Aqua separable blur shader: {error}"))?;
-        let mut horizontal_blur = Offscreen::<GlesTexture>::create_buffer(
-            &mut renderer,
-            Fourcc::Abgr8888,
-            (320, 240).into(),
-        )
-        .map_err(|error| format!("cannot create horizontal blur texture: {error}"))?;
-        let mut blurred_wallpaper = Offscreen::<GlesTexture>::create_buffer(
-            &mut renderer,
-            Fourcc::Abgr8888,
-            (320, 240).into(),
-        )
-        .map_err(|error| format!("cannot create vertical blur texture: {error}"))?;
-        render_gpu_blur_pass(
-            &mut renderer,
-            &mut horizontal_blur,
-            &wallpaper_texture,
-            (wallpaper.width, wallpaper.height),
-            &blur_program,
-            (1.0 / 320.0, 0.0),
-            "horizontal",
-        )?;
-        render_gpu_blur_pass(
-            &mut renderer,
-            &mut blurred_wallpaper,
-            &horizontal_blur,
-            (320, 240),
-            &blur_program,
-            (0.0, 1.0 / 240.0),
-            "vertical",
-        )?;
         let target = Offscreen::<GlesTexture>::create_buffer(
             &mut renderer,
             Fourcc::Abgr8888,
@@ -1195,16 +1214,16 @@ impl LiveGpuCompositor {
         scene.set_surface_visible(aqua_scene::SurfaceKind::SystemOverview, true);
         scene.set_surface_visible(aqua_scene::SurfaceKind::DesktopIconColumn, true);
         scene.set_surface_visible(aqua_scene::SurfaceKind::NotificationToast, false);
-        let theme = configured_runtime_theme();
         let mut motion = aqua_shell::ShellMotionController::default();
         motion.set_reduced_motion(0, configured_reduced_motion());
         let motion_frame = motion.sample(0);
         println!("desktop_shell_theme={}", theme.id());
         Ok(Self {
             renderer,
+            asset_root,
             wallpaper_texture,
-            wallpaper_width: wallpaper.width,
-            wallpaper_height: wallpaper.height,
+            wallpaper_width,
+            wallpaper_height,
             blurred_wallpaper,
             surface_program,
             target,
@@ -5319,7 +5338,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 if let Some(compositor) =
                                     live_gpu_wayland_compositor.borrow_mut().as_mut()
                                 {
-                                    compositor.set_theme(configured_theme);
+                                    compositor.set_theme(configured_theme)?;
                                 }
                                 println!(
                                     "desktop_runtime_theme_broadcast={}",
@@ -9327,13 +9346,14 @@ fn render_fbdev_frame(
     let viewport = Viewport::new(1536, 1024);
     let pipeline = probe_client_layer_pipeline(viewport)
         .map_err(|error| format!("client layer pipeline failed: {error}"))?;
+    let theme = configured_runtime_theme();
     let wallpaper_path = env::var("AQUA_WALLPAPER_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
-            PathBuf::from(
+            let asset_root = PathBuf::from(
                 env::var("AQUA_ASSET_ROOT").unwrap_or_else(|_| "/usr/share/aqua".to_string()),
-            )
-            .join("wallpapers/default-wallpaper.png")
+            );
+            themed_wallpaper_path(&asset_root, theme)
         });
     let wallpaper = if wallpaper_path.is_file() {
         Some(decode_png_rgba(&wallpaper_path)?)
@@ -9435,13 +9455,14 @@ fn render_fbdev_frame_with_external_clients(
 ) -> Result<(Vec<u8>, u64, bool), String> {
     let viewport = Viewport::new(1536, 1024);
     let paint_plan = external_client_paint_plan(snapshots)?;
+    let theme = configured_runtime_theme();
     let wallpaper_path = env::var("AQUA_WALLPAPER_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
-            PathBuf::from(
+            let asset_root = PathBuf::from(
                 env::var("AQUA_ASSET_ROOT").unwrap_or_else(|_| "/usr/share/aqua".to_string()),
-            )
-            .join("wallpapers/default-wallpaper.png")
+            );
+            themed_wallpaper_path(&asset_root, theme)
         });
     let wallpaper = if wallpaper_path.is_file() {
         Some(decode_png_rgba(&wallpaper_path)?)
@@ -9456,7 +9477,7 @@ fn render_fbdev_frame_with_external_clients(
             &wallpaper.rgba,
             &paint_plan,
             launcher,
-            configured_runtime_theme(),
+            theme,
         )
         .map_err(|error| format!("external client composition failed: {error}"))?;
         if launcher.is_open() && !launcher_probe.is_ready() {
@@ -9470,7 +9491,14 @@ fn render_fbdev_frame_with_external_clients(
     Ok((target, frame.checksum, wallpaper.is_some()))
 }
 
-#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn themed_wallpaper_path(asset_root: &Path, theme: aqua_shell::AquaTheme) -> PathBuf {
+    let filename = match theme {
+        aqua_shell::AquaTheme::Light => "wallpaper-light.png",
+        aqua_shell::AquaTheme::Dark => "wallpaper-dark.png",
+    };
+    asset_root.join("wallpapers").join(filename)
+}
+
 fn configured_runtime_theme() -> aqua_shell::AquaTheme {
     if let Ok(value) = env::var("AQUA_THEME") {
         if let Some(theme) = aqua_shell::AquaTheme::parse(&value) {
@@ -11854,12 +11882,12 @@ mod fbdev_tests {
         input_to_present_latency_us, opaque_layer_covers_reference_output, pack_rgba_frame,
         parse_proc_status_rss_kib, parse_virtual_size, probe_drm_device, r2_presentation_workload,
         record_drm_presentation_event, record_live_idle_observation,
-        record_wayland_presentation_counters, render_fbdev_frame, with_stride,
-        DrmPresentationEvent, WaylandPresentationCounters,
+        record_wayland_presentation_counters, render_fbdev_frame, themed_wallpaper_path,
+        with_stride, DrmPresentationEvent, WaylandPresentationCounters,
     };
     use aqua_compositor::{PresentationEvidenceTarget, PresentationPath, PresentationWorkload};
     use std::fs;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -12170,14 +12198,36 @@ mod fbdev_tests {
     }
 
     #[test]
-    fn packaged_wallpaper_decodes_to_rgba8888() {
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../docs/aqua-linux/assets/default-wallpaper.png");
-        let wallpaper = decode_png_rgba(&path).expect("packaged wallpaper decode");
-
-        assert_eq!((wallpaper.width, wallpaper.height), (1536, 1024));
-        assert_eq!(wallpaper.rgba.len(), 1536 * 1024 * 4);
-        assert!(wallpaper.rgba.chunks_exact(4).all(|pixel| pixel[3] == 0xff));
+    fn themed_wallpapers_decode_to_distinct_rgba8888() {
+        let asset_root =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/aqua-linux/assets");
+        let mut checksums = Vec::new();
+        for theme in aqua_shell::AquaTheme::ALL {
+            let filename = match theme {
+                aqua_shell::AquaTheme::Light => "wallpaper-light.png",
+                aqua_shell::AquaTheme::Dark => "wallpaper-dark.png",
+            };
+            let wallpaper =
+                decode_png_rgba(&asset_root.join(filename)).expect("themed wallpaper decode");
+            assert_eq!((wallpaper.width, wallpaper.height), (1672, 941));
+            assert_eq!(wallpaper.rgba.len(), 1672 * 941 * 4);
+            assert!(wallpaper.rgba.chunks_exact(4).all(|pixel| pixel[3] == 0xff));
+            checksums.push(
+                wallpaper
+                    .rgba
+                    .iter()
+                    .fold(0_u64, |sum, byte| sum.wrapping_add(u64::from(*byte))),
+            );
+        }
+        assert_ne!(checksums[0], checksums[1]);
+        assert_eq!(
+            themed_wallpaper_path(Path::new("/usr/share/aqua"), aqua_shell::AquaTheme::Light),
+            PathBuf::from("/usr/share/aqua/wallpapers/wallpaper-light.png")
+        );
+        assert_eq!(
+            themed_wallpaper_path(Path::new("/usr/share/aqua"), aqua_shell::AquaTheme::Dark),
+            PathBuf::from("/usr/share/aqua/wallpapers/wallpaper-dark.png")
+        );
     }
 
     #[test]

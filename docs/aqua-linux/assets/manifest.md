@@ -35,21 +35,22 @@ real PNG alpha.
 All five runtime exports use RGBA PNG. Their transparent pixels must remain
 transparent when resized, packaged, rendered, or captured.
 
-Theme mapping is fixed: LightWhite and Softtouch use the primary symbol;
-Deepside and Nightmare use the inverse symbol. All four themes use the accent
-symbol for active/focused brand states only.
+Theme mapping is fixed: Light uses the primary symbol and Dark uses the inverse
+symbol. Both themes use the accent symbol for active or focused brand states.
 
 ## Current Runtime Assets
 
 The approved brand exports and wallpaper collection are installed in the
-working image. The reproducible pale-wave master is the current default. The
-ocean wallpapers predate the current desktop direction and remain optional
-legacy material.
+working image. The owner-supplied Light and Dark wallpapers define the current
+two-mode desktop direction. The older wallpapers remain optional legacy
+material.
 
 | Asset | Path | Status | Runtime role |
 | --- | --- | --- | --- |
-| Default wallpaper alias | `assets/default-wallpaper.png` | current-runtime | Alias to the pale-wave master |
-| Pale Waves wallpaper | `assets/wallpaper-pale-waves.png` | current-runtime | Current default source; SHA-256 `bd749fee349ce50ceeba89457d0b24a2b3578a4a06d8366e1fef4683d9bfe455` |
+| Light wallpaper | `assets/wallpaper-light.png` | current-runtime | Light mode; owner-supplied 1672x941 PNG; SHA-256 `2254725043229e1801bd4524c651ca9cdf6b6c156aaaa8d2e36b1603cf19e672` |
+| Dark wallpaper | `assets/wallpaper-dark.png` | current-runtime | Dark mode; owner-supplied 1672x941 PNG; SHA-256 `7a54206a067c7d3a50b9fc263b68566fcab80d32765b0b3fe86d34f049b698d0` |
+| Default wallpaper alias | `assets/default-wallpaper.png` | compatibility-runtime | Legacy fallback alias |
+| Pale Waves wallpaper | `assets/wallpaper-pale-waves.png` | legacy-runtime | Previous reproducible default; SHA-256 `bd749fee349ce50ceeba89457d0b24a2b3578a4a06d8366e1fef4683d9bfe455` |
 | Surf wallpaper | `assets/wallpaper-surf.png` | legacy-runtime | Optional wallpaper |
 | Reef wallpaper | `assets/wallpaper-reef.png` | legacy-runtime | Optional wallpaper |
 | Sunlit Water wallpaper | `assets/wallpaper-sunlit-water.png` | legacy-runtime | Optional wallpaper |

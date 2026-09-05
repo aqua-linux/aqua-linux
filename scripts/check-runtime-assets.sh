@@ -23,6 +23,8 @@ need_entry() {
 need_tar
 
 need_entry "./usr/share/aqua/wallpapers/default-wallpaper.png"
+need_entry "./usr/share/aqua/wallpapers/wallpaper-light.png"
+need_entry "./usr/share/aqua/wallpapers/wallpaper-dark.png"
 need_entry "./usr/share/aqua/wallpapers/wallpaper-pale-waves.png"
 need_entry "./usr/share/aqua/wallpapers/wallpaper-surf.png"
 need_entry "./usr/share/aqua/wallpapers/wallpaper-reef.png"
@@ -89,10 +91,9 @@ tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '
 tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '"shadow"'
 tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '"optionalBlurRadius"'
 tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '"blurRequired"'
-tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '"defaultTheme": "LightWhite"'
-tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '"Softtouch"'
-tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '"Deepside"'
-tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '"Nightmare"'
+tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '"defaultTheme": "Light"'
+tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '"Light"'
+tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/tokens/design-tokens.json | grep -Fq '"Dark"'
 tar -xOf "${ROOTFS_TAR}" ./usr/share/aqua/fonts/OFL.txt | grep -Fq 'SIL OPEN FONT LICENSE Version 1.1'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/compositor-session.conf | grep -Fq 'wayland_socket=aqua-wayland-0'
 tar -xOf "${ROOTFS_TAR}" ./etc/aqua/compositor-session.conf | grep -Fq 'runtime_dir=/run/user/1000'

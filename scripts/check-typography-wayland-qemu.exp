@@ -36,10 +36,8 @@ expect {
 }
 
 foreach {theme slug} {
-    LightWhite lightwhite
-    Softtouch softtouch
-    Deepside deepside
-    Nightmare nightmare
+    Light light
+    Dark dark
 } {
     send -- "AQUA_THEME=$theme AQUA_DRM_WAYLAND_SESSION_HOLD_SECONDS=2 AQUA_DRM_WAYLAND_SESSION_HEADLESS_TEST_CONFIRMED=true AQUA_DRM_WAYLAND_SESSION_TEST_MODE=headless-qemu AQUA_DRM_WAYLAND_SCENARIO=typography-acceptance /usr/bin/aqua-compositor run-drm-wayland-session /dev/dri/card0\r"
     expect {

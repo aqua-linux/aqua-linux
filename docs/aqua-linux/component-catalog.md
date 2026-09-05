@@ -8,6 +8,11 @@ bounds, tokens, pointer and keyboard behavior, accessibility semantics,
 applicable state matrix, deterministic host fixtures, and packaged-QEMU use are
 accepted. A screen-specific drawing helper is not a shared primitive.
 
+The catalog has two visual modes: Light and Dark. Each mode uses its matching
+owner-supplied wave wallpaper, packaged as `wallpaper-light.png` and
+`wallpaper-dark.png`. A live Settings theme change reloads the matching GPU
+wallpaper and redraws Shell and first-party surfaces without restarting them.
+
 ## Inventory
 
 | Component | Status | Current consumer or next boundary |
@@ -63,8 +68,8 @@ has not yet passed the shared-component completion contract.
   all consume the same shared rectangles.
 
 The deterministic matrix covers compact bounds, slot separation, live-status
-semantics, session hit rejection, and four themes at 800x600, 1280x800, and
-fractional-scale 1536x1024. Packaged-QEMU component acceptance is covered by the aggregate four-theme run below.
+semantics, session hit rejection, and two themes at 800x600, 1280x800, and
+fractional-scale 1536x1024. Packaged-QEMU component acceptance is covered by the aggregate two-theme run below.
 
 ## Standard Button Contract
 
@@ -106,7 +111,7 @@ fractional-scale 1536x1024. Packaged-QEMU component acceptance is covered by the
 
 The generic empty state is not applicable because an empty accessible name is
 invalid for a standard button. The fixture matrix covers the ten applicable
-states in LightWhite, Softtouch, Deepside, and Nightmare at 800x600, 1280x800,
+states in Light and Dark at 800x600, 1280x800,
 and 1536x1024, including a 1.25 output-scale case. Its canonical report is
 `component-fixtures.txt`.
 
@@ -200,7 +205,7 @@ compositions.
 
 Applications and Global Search now render and hit-test the same shared search
 field. Files back and forward actions now render and hit-test the same shared
-icon-button rectangles, including disabled navigation gates. Their four-theme,
+icon-button rectangles, including disabled navigation gates. Their two-theme,
 three-viewport deterministic matrix is recorded in `component-fixtures.txt`.
 
 ## Switch, Segmented Control, And Slider Contract
@@ -242,7 +247,7 @@ input both consume the shared switch state, so unavailable Wi-Fi and Audio
 controls reject activation while Wi-Fi credential entry retains Enter. The
 compact Network row bounds its switch to the rendered 32-pixel row instead of
 producing an invalid oversized target. Its
-four-theme selector uses one segmented-control geometry for
+two-theme selector uses one segmented-control geometry for
 renderer, pointer routing, and compositor-owned Left/Right selection;
 inter-segment gaps reject pointer input, and Previous/Next keyboard targets
 wrap through the four persisted themes. Up, Down, Home, and End retain Settings
@@ -262,7 +267,7 @@ change. This does not claim physical-hardware support. The typed transport has
 an opt-in bounded native WirePlumber binding for graph snapshots, mixer
 requests, and configured default output. It remains disabled in the default
 image; physical media behavior remains a separate R4 gate. The
-four-theme, three-viewport deterministic matrix is recorded in
+two-theme, three-viewport deterministic matrix is recorded in
 `component-fixtures.txt`.
 
 ## Checkbox Contract
@@ -292,7 +297,7 @@ four-theme, three-viewport deterministic matrix is recorded in
 - Dry-run presentation does not require the destructive acknowledgement.
 
 The deterministic matrix covers stable slots, exact boundary rejection,
-keyboard toggling, accessibility values, all nine states, four themes, and the
+keyboard toggling, accessibility values, all nine states, two themes, and the
 three required viewports including fractional scale. The packaged installer
 QEMU flow additionally proves the real Summary consumer before exact-text
 confirmation, while the aggregate component run covers all themed states.
@@ -320,8 +325,8 @@ confirmation, while the aggregate component run covers all themed states.
 - Location display remains a read-only Files child control and does not turn
   toolbar padding into an input target.
 
-The deterministic matrix covers the toolbar in four themes at 800x600,
-1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance is covered by the aggregate four-theme run below.
+The deterministic matrix covers the toolbar in two themes at 800x600,
+1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance is covered by the aggregate two-theme run below.
 
 ## Window Frame And Title Bar Contract
 
@@ -351,9 +356,9 @@ The deterministic matrix covers the toolbar in four themes at 800x600,
   claimed as a consumer until that distinct presentation path is migrated.
 
 The deterministic matrix covers focused window geometry and input boundaries
-in four themes at 800x600, 1280x800, and fractional-scale 1536x1024. A pure
+in two themes at 800x600, 1280x800, and fractional-scale 1536x1024. A pure
 compositor routing test proves controls, move, content, and resize targets do
-not overlap. Packaged-QEMU component acceptance is covered by the aggregate four-theme run below.
+not overlap. Packaged-QEMU component acceptance is covered by the aggregate two-theme run below.
 
 ## Menu Contract
 
@@ -392,8 +397,8 @@ not overlap. Packaged-QEMU component acceptance is covered by the aggregate four
   keyboard targets; moving to another action clears an armed confirmation.
 
 The deterministic matrix covers menu drawing, gap rejection, keyboard
-navigation, and accessibility semantics in four themes at 800x600, 1280x800,
-and fractional-scale 1536x1024. The aggregate four-theme packaged-QEMU run
+navigation, and accessibility semantics in two themes at 800x600, 1280x800,
+and fractional-scale 1536x1024. The aggregate two-theme packaged-QEMU run
 covers this shared primitive.
 
 ## Grid Cell Contract
@@ -423,7 +428,7 @@ covers this shared primitive.
   grid consumer will be added only with a real runtime grid mode.
 
 The deterministic matrix covers both layouts, the ten applicable states, gap
-rejection, keyboard activation, accessibility semantics, four themes, and the
+rejection, keyboard activation, accessibility semantics, two themes, and the
 three required viewports including fractional scale. Packaged-QEMU component
 acceptance remains open.
 
@@ -450,8 +455,8 @@ acceptance remains open.
   Kernel, Uptime, Load, and Memory while retaining its live bounded metrics.
 
 The deterministic matrix covers column bounds, fitted text, read-only input
-behavior, emphasis, and accessibility semantics in four themes at 800x600,
-1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance is covered by the aggregate four-theme run below.
+behavior, emphasis, and accessibility semantics in two themes at 800x600,
+1280x800, and fractional-scale 1536x1024. Packaged-QEMU component acceptance is covered by the aggregate two-theme run below.
 
 ## Section Group Contract
 
@@ -479,7 +484,7 @@ behavior, emphasis, and accessibility semantics in four themes at 800x600,
   footer and trailing action from the same primitive.
 
 The deterministic matrix covers section bounds, gap rejection, trailing
-placement, focus indication, and accessibility semantics in four themes at
+placement, focus indication, and accessibility semantics in two themes at
 800x600, 1280x800, and fractional-scale 1536x1024. Packaged-QEMU component
 acceptance remains open.
 
@@ -517,7 +522,7 @@ acceptance remains open.
   Search remains separate because its split results/actions layout is different.
 
 The deterministic matrix covers compact bounds, search and grid containment,
-three-column remainder handling, gap rejection, semantics, four themes, and the
+three-column remainder handling, gap rejection, semantics, two themes, and the
 three required viewports including fractional scale. Packaged-QEMU component
 acceptance remains open.
 
@@ -560,8 +565,8 @@ acceptance remains open.
   instead of falling back to the canonical 800-by-600 viewport.
 
 The deterministic matrix covers compact split geometry, result/action limits,
-gap rejection, accessibility semantics, four themes, and the three required
-viewports including fractional scale. The aggregate four-theme packaged-QEMU
+gap rejection, accessibility semantics, two themes, and the three required
+viewports including fractional scale. The aggregate two-theme packaged-QEMU
 run covers this shared primitive.
 
 ## Running-App Dock Contract
@@ -593,8 +598,8 @@ run covers this shared primitive.
   longer scales the 800-by-600 reference dock into a different hit surface.
 
 The deterministic matrix covers item boundaries, visual/raster centering,
-running status, accessibility semantics, four themes, and the three required
-viewports including fractional scale. Packaged-QEMU acceptance is covered by the aggregate four-theme run below.
+running status, accessibility semantics, two themes, and the three required
+viewports including fractional scale. Packaged-QEMU acceptance is covered by the aggregate two-theme run below.
 
 ## Workspace Switcher Contract
 
@@ -626,8 +631,8 @@ viewports including fractional scale. Packaged-QEMU acceptance is covered by the
   unchanged.
 
 The deterministic matrix covers target boundaries, active/inactive thumbnails,
-indicator containment, accessibility semantics, four themes, and the three
-required viewports including fractional scale. The aggregate four-theme
+indicator containment, accessibility semantics, two themes, and the three
+required viewports including fractional scale. The aggregate two-theme
 packaged-QEMU run covers this shared primitive.
 
 ## Notification Contract
@@ -659,8 +664,8 @@ packaged-QEMU run covers this shared primitive.
   compositor motion, and surface visibility behavior remain unchanged.
 
 The deterministic matrix covers content containment, exact dismiss boundaries,
-keyboard dismissal, live-region semantics, four themes, and the three required
-viewports including fractional scale. Packaged-QEMU acceptance is covered by the aggregate four-theme run below.
+keyboard dismissal, live-region semantics, two themes, and the three required
+viewports including fractional scale. Packaged-QEMU acceptance is covered by the aggregate two-theme run below.
 
 ## Confirmation Dialog Contract
 
@@ -699,17 +704,17 @@ viewports including fractional scale. Packaged-QEMU acceptance is covered by the
 
 The deterministic matrix covers compact and detailed geometry, half-open
 containment, cancel/confirm intent separation, exact-text external validation,
-accessibility semantics, four themes, and the three required viewports including
+accessibility semantics, two themes, and the three required viewports including
 fractional scale.
 
 ## Packaged QEMU Acceptance
 
 `scripts/check-component-wayland-qemu.sh` boots the generated Buildroot image
 once and launches the packaged `aqua.component-acceptance` `wl_shm`
-`xdg-toplevel` through the real Smithay, GLES, and DRM path for LightWhite,
-Softtouch, Deepside, and Nightmare. The acceptance client renders the complete
+`xdg-toplevel` through the real Smithay, GLES, and DRM path for Light,
+Light and Dark. The acceptance client renders the complete
 22-primitive shared matrix at 1280x800 from fixture revision
-`aqua-component-fixtures-19`; serial gates verify the 22-entry catalog and
+`aqua-component-fixtures-20`; serial gates verify the 22-entry catalog and
 22 shared primitives, while HMP screendumps must be nonblank, theme-distinct,
 and exactly 1280x800.
 

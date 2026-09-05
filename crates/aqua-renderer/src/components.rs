@@ -7,7 +7,7 @@ use aqua_scene::{Rect, Viewport};
 use aqua_shell::AquaTheme;
 use aqua_text::{OutputScale, TextRole};
 
-pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-19";
+pub const COMPONENT_FIXTURE_REVISION: &str = "aqua-component-fixtures-20";
 
 fn draw_component_glyph(
     buffer: &mut [u8],
@@ -2290,8 +2290,8 @@ mod tests {
             first
                 .matches("components=top-system-bar,window-frame,menu,metadata-row,section-group,standard-button,icon-button,search-field,checkbox,switch,slider,segmented-control,list-row,grid-cell,application-overview,global-search,running-app-dock,workspace-switcher,notification,confirmation-dialog,sidebar-navigation,toolbar")
                 .count(),
-            12
+            6
         );
-        assert_eq!(first.matches(" ready=true checksum=").count(), 12);
+        assert_eq!(first.matches(" ready=true checksum=").count(), 6);
     }
 }
