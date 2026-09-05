@@ -194,6 +194,8 @@ replaced client buffers retire after server release, with batched-redraw checks
 requiring one live buffer after release dispatch;
 committed buffer ownership lives in the surface registry, with release delayed
 until the final surface user replaces the buffer or is destroyed;
+NULL-buffer commits unmap surfaces with shared buffer/focus cleanup while
+preserving protocol resources, with detach and remap regression coverage;
 the broader consolidation remains in progress.
 
 ## Context

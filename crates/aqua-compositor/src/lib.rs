@@ -6798,6 +6798,68 @@ const TURKISH_DEAD_KEY_XKB_KEYCODE: u32 = 39 + XKB_KEYCODE_OFFSET;
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl WaylandSmokeState {
+    fn unmap_surface(&mut self, surface: &WlSurface) -> bool {
+        let previous_count = self.mapped_surfaces.len();
+        let retired_buffer = self
+            .mapped_surfaces
+            .iter()
+            .find(|record| record.surface == *surface)
+            .map(|record| record.buffer.clone());
+        self.mapped_surfaces
+            .retain(|record| record.surface != *surface);
+        if let Some(buffer) = retired_buffer {
+            self.release_unused_buffer(&buffer);
+        }
+        if self.mapped_surfaces.len() == previous_count {
+            return false;
+        }
+
+        let removed_surface_was_active = self.mapped_surface.as_ref() == Some(surface);
+        if removed_surface_was_active {
+            self.mapped_surface = self
+                .mapped_surfaces
+                .iter()
+                .rev()
+                .find(|record| record.workspace == self.active_workspace)
+                .map(|record| record.surface.clone());
+        }
+        if let Some(keyboard) = self.seat.get_keyboard() {
+            if keyboard.current_focus().as_ref() == Some(surface) {
+                keyboard.set_focus(
+                    self,
+                    self.mapped_surface.clone(),
+                    Serial::from((self.surface_commit_count as u32).saturating_add(100)),
+                );
+                if self.mapped_surface.is_some() {
+                    self.keyboard_focus_assigned = true;
+                    self.cleanup_keyboard_focus_reassigned = true;
+                }
+            }
+        }
+        if let Some(pointer) = self.seat.get_pointer() {
+            if pointer.current_focus().as_ref() == Some(surface) {
+                let time = (self.surface_commit_count as u32).saturating_add(100);
+                let serial = Serial::from(time);
+                pointer.unset_grab(self, serial, time);
+                pointer.motion(
+                    self,
+                    None,
+                    &MotionEvent {
+                        location: self.pointer_location.into(),
+                        serial,
+                        time,
+                    },
+                );
+                pointer.frame(self);
+            }
+        }
+        if self.pointer_focus_surface.as_ref() == Some(surface) {
+            self.pointer_focus_surface = None;
+            self.pointer_focus_assigned = false;
+        }
+        true
+    }
+
     fn release_unused_buffer(&self, buffer: &wl_buffer::WlBuffer) {
         if buffer.is_alive()
             && !self
@@ -11620,6 +11682,7 @@ impl CompositorHandler for WaylandSmokeState {
                         == Some("aqua.installer")
                 })
         });
+        let mut buffer_removed = false;
         with_states(surface, |states| {
             let mut guard = states
                 .cached_state
@@ -11637,7 +11700,11 @@ impl CompositorHandler for WaylandSmokeState {
             // surface users have released them, rather than the cached attributes.
             let new_buffer = match attributes.buffer.take() {
                 Some(BufferAssignment::NewBuffer(buffer)) => Some(buffer),
-                _ => None,
+                Some(BufferAssignment::Removed) => {
+                    buffer_removed = true;
+                    return;
+                }
+                None => None,
             };
             let buffer = new_buffer.clone().or_else(|| {
                 self.mapped_surfaces
@@ -11837,53 +11904,19 @@ impl CompositorHandler for WaylandSmokeState {
                 }
             }
         });
+        if buffer_removed {
+            self.unmap_surface(surface);
+        }
     }
 
     fn destroyed(&mut self, surface: &WlSurface) {
         self.committed_surfaces
             .retain(|committed| committed != surface);
-        let previous_count = self.mapped_surfaces.len();
-        let retired_buffer = self
-            .mapped_surfaces
-            .iter()
-            .find(|record| record.surface == *surface)
-            .map(|record| record.buffer.clone());
-        self.mapped_surfaces
-            .retain(|record| record.surface != *surface);
-        if let Some(buffer) = retired_buffer {
-            self.release_unused_buffer(&buffer);
-        }
         self.toplevel_surfaces
             .retain(|toplevel| toplevel.wl_surface() != surface);
-        if self.mapped_surfaces.len() == previous_count {
-            return;
-        }
-
-        self.destroyed_surface_count += 1;
-        self.client_cleanup_count += 1;
-        let destroyed_surface_was_active = self.mapped_surface.as_ref() == Some(surface);
-        if destroyed_surface_was_active {
-            self.mapped_surface = self
-                .mapped_surfaces
-                .iter()
-                .rev()
-                .find(|record| record.workspace == self.active_workspace)
-                .map(|record| record.surface.clone());
-            if let Some(keyboard) = self.seat.get_keyboard() {
-                keyboard.set_focus(
-                    self,
-                    self.mapped_surface.clone(),
-                    Serial::from((self.surface_commit_count as u32).saturating_add(100)),
-                );
-                if self.mapped_surface.is_some() {
-                    self.keyboard_focus_assigned = true;
-                    self.cleanup_keyboard_focus_reassigned = true;
-                }
-            }
-        }
-        if self.pointer_focus_surface.as_ref() == Some(surface) {
-            self.pointer_focus_surface = None;
-            self.pointer_focus_assigned = false;
+        if self.unmap_surface(surface) {
+            self.destroyed_surface_count += 1;
+            self.client_cleanup_count += 1;
         }
     }
 }
@@ -16461,6 +16494,98 @@ mod tests {
             current.is_alive(),
             "current released buffer is retained for reuse"
         );
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn shared_buffer_release_null_attachment_unmaps_without_destroying() {
+        let mut session = SmithayDrmSession::new().expect("Smithay session");
+        let (server, client) = std::os::unix::net::UnixStream::pair().expect("stream pair");
+        session.insert_client(server).expect("insert client");
+        let connection = ClientConnection::from_socket(client).expect("connection");
+        let mut queue = connection.new_event_queue::<XdgSmokeClientState>();
+        let qh = queue.handle();
+        connection.display().get_registry(&qh, ());
+        connection.flush().expect("registry flush");
+        session.dispatch_clients().expect("registry dispatch");
+        session.flush_clients().expect("globals flush");
+        let mut state = XdgSmokeClientState::settings_app().expect("Settings");
+        queue
+            .blocking_dispatch(&mut state)
+            .expect("globals dispatch");
+        connection.flush().expect("surface flush");
+        session.dispatch_clients().expect("surface dispatch");
+        session.flush_clients().expect("configure flush");
+        queue
+            .blocking_dispatch(&mut state)
+            .expect("configure dispatch");
+        let secondary = state
+            .test_compositor
+            .as_ref()
+            .expect("compositor")
+            .create_surface(&qh, ());
+        let shared = state.shm_buffer.clone().expect("initial buffer");
+        secondary.attach(Some(&shared), 0, 0);
+        secondary.commit();
+        connection.flush().expect("shared attachment flush");
+        session
+            .dispatch_clients()
+            .expect("shared attachment dispatch");
+        assert_eq!(session.session.wayland_state.mapped_surfaces.len(), 2);
+
+        let pump = |session: &mut SmithayDrmSession,
+                    queue: &mut wayland_client::EventQueue<XdgSmokeClientState>,
+                    state: &mut XdgSmokeClientState| {
+            connection.flush().expect("request flush");
+            session.dispatch_clients().expect("request dispatch");
+            session.flush_clients().expect("release flush");
+            if let Some(guard) = queue.prepare_read() {
+                read_client_events(guard).expect("release read");
+            }
+            queue.dispatch_pending(state).expect("release dispatch");
+            connection.flush().expect("cleanup flush");
+            session.dispatch_clients().expect("cleanup dispatch");
+        };
+        session.session.wayland_state.mapped_surfaces[1].workspace = 1;
+        secondary.attach(Some(&shared), 0, 0);
+        secondary.commit();
+        pump(&mut session, &mut queue, &mut state);
+        assert!(
+            !state.shm_buffer_released,
+            "same-buffer commit must retain ownership"
+        );
+        secondary.attach(None, 0, 0);
+        secondary.commit();
+        pump(&mut session, &mut queue, &mut state);
+        assert_eq!(session.session.wayland_state.mapped_surfaces.len(), 1);
+        assert!(
+            !state.shm_buffer_released,
+            "primary still uses the shared buffer"
+        );
+        let primary = state.base_surface.clone().expect("primary");
+        state.settings_model = None;
+        assert!(session.present_client_surface(1));
+        primary.attach(None, 0, 0);
+        primary.commit();
+        pump(&mut session, &mut queue, &mut state);
+        assert!(session.visible_client_surface_snapshots().is_empty());
+        assert!(state.shm_buffer_released);
+        assert!(primary.is_alive());
+        assert_eq!(session.session.wayland_state.toplevel_surfaces.len(), 1);
+        assert_eq!(session.session.wayland_state.destroyed_surface_count, 0);
+        assert!(session.session.wayland_state.mapped_surface.is_none());
+        assert!(!session.client_surface_snapshot().keyboard_focus_assigned);
+        assert!(!session.client_surface_snapshot().pointer_focus_assigned);
+        // No new attachment must leave the surface unmapped.
+        primary.commit();
+        pump(&mut session, &mut queue, &mut state);
+        assert!(session.visible_client_surface_snapshots().is_empty());
+        // A role-free surface can map again with the retained shared buffer.
+        secondary.attach(Some(&shared), 0, 0);
+        secondary.commit();
+        pump(&mut session, &mut queue, &mut state);
+        assert_eq!(session.visible_client_surface_snapshots().len(), 1);
+        assert!(shared.is_alive());
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]

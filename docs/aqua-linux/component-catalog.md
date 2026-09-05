@@ -959,7 +959,14 @@ registry. Replacement and surface destruction release a buffer only when no
 registered surface still uses it, including surfaces on hidden workspaces.
 The real-client `shared_buffer_release` regression attaches one buffer to two
 surfaces, recommits the same buffer, replaces each user in turn, and destroys
-both surfaces. It checks retention until the final user is removed.
+both surfaces. It checks retention until the final user is removed. A committed
+NULL buffer unmaps its surface rather than reusing the previous attachment.
+Unmapping shares buffer and focus cleanup with destruction but preserves the
+surface and toplevel resources. The null-attachment regression checks shared
+buffer retention, last-user release, cleared keyboard/pointer focus, no implicit
+remap on an attachment-free commit, and later remapping of a role-free surface.
+These deliberate protocol sequences are source-test evidence; packaged QEMU
+covers the ordinary desktop lifecycle.
 
 Explicit client activation supplies Smithay with the window's global origin
 alongside the global pointer location. Smithay performs the single conversion
