@@ -828,7 +828,9 @@ requires a repaint before keyboard navigation explicitly restores focus.
 Before that blur, packaged QEMU sends a non-primary press and release and
 requires Settings to retain category four and its keyboard focus without
 activation or model pointer dispatch; the separately measured repaint comes
-only from the QEMU pointer-device handoff, not the ignored button events.
+only from explicit pointer positioning inside Settings, not the ignored button
+events. The non-primary fixture positions the pointer before pressing so it does
+not depend on a location retained from an earlier input mode.
 Settings also owns an idempotent sidebar-hover clear transition. The real
 Wayland pointer-leave handler consumes it and redraws only when an unselected
 category was visibly hovered on an active surface. After xdg close it clears
@@ -874,6 +876,32 @@ the same geometry, input, accessibility, deterministic-fixture, and
 packaged-QEMU evidence path. The actual audio service/backend remains a
 separate R4 decision and acceptance item; the Settings preference must not be
 treated as playback or hardware evidence.
+
+Files, Settings, and Properties share a client-runtime keyboard-leave transition.
+Each changed model produces a typed surface action with one common repaint gate:
+clear keyboard and accessibility focus even after xdg close, but redraw only an
+open surface. Files synchronizes its navigator and render model after clearing
+both content and sidebar focus. No model change produces no action, so repeated
+leave is idempotent. Category, location, selection, settings values, refresh
+generation, hover, and armed pointer state remain unchanged. The feature-enabled
+`shared_keyboard_leave` regression matrix covers each application with and
+without focus on open and closed surfaces, plus clients without these models.
+Packaged graphical-boot QEMU acceptance verifies the live Files, Settings, and
+Properties focus handoffs and redraws; the after-close branch has deterministic
+source-test coverage rather than a new QEMU close-ordering claim. Properties
+reactivation waits for its desktop context menu before sending navigation keys,
+then checks that the existing process was raised before testing Tab/Enter.
+Settings reactivation uses its launcher entry. These explicit activation paths
+avoid relying on clicks through overlapping windows or background redraws.
+
+A background buffer commit now updates that surface without replacing the
+active window. Desktop repaint completion drains frame callbacks independently
+of the explicit activation/focus path. This prevents a focus-loss redraw from
+stealing focus back, producing synthetic pointer motion, or redirecting Alt+F4.
+The two-client `shared_keyboard_leave_background_repaint` regression reproduces
+the former active-window switch, then requires retained Files activation and
+keyboard/pointer focus while Settings redraws in the background, exactly one
+frame callback with idempotent completion, and close delivery to Files alone.
 
 Files ignores zero-valued vertical pointer-axis events before navigation or
 repaint, so stopping a scroll cannot move the list or preview upward. Finite

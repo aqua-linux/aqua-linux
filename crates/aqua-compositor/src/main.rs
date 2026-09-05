@@ -5758,7 +5758,9 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                     .0
                                 };
                                 let checksum = _repaint(repaint_frame)?;
-                                let _ = smithay_session.borrow_mut().present_client_surface(20_000);
+                                smithay_session
+                                    .borrow_mut()
+                                    .complete_client_frame_callbacks(20_000);
                                 let presented_revisions = desktop_surface_revisions(
                                     &smithay_session.borrow().visible_client_surface_snapshots(),
                                 );

@@ -6161,6 +6161,8 @@ fn run_wayland_display_smoke_impl() -> Result<WaylandDisplaySmokeResult, Box<dyn
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 fn run_wayland_socket_smoke_impl() -> Result<WaylandSocketSmokeResult, Box<dyn std::error::Error>> {
+    use std::os::unix::fs::FileTypeExt;
+
     let socket_name = "aqua-wayland-0".to_string();
     let runtime_dir = std::env::temp_dir().join(format!(
         "aqua-wayland-smoke-{}-{}",
@@ -6202,7 +6204,7 @@ fn run_wayland_socket_smoke_impl() -> Result<WaylandSocketSmokeResult, Box<dyn s
         (
             true,
             true,
-            socket_path.is_file(),
+            fs::metadata(&socket_path)?.file_type().is_socket(),
             accept_nonblocking,
             true,
             client_accepted,
@@ -7753,6 +7755,21 @@ struct PropertiesPointerLeaveTransition {
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FirstPartyUiSurface {
+    Properties,
+    Files,
+    Settings,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct KeyboardLeaveTransition {
+    surface: FirstPartyUiSurface,
+    repaint: bool,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 fn files_axis_scroll_rows(value: f64) -> Option<isize> {
     if !value.is_finite() || value == 0.0 {
         None
@@ -7813,6 +7830,38 @@ impl ClientDispatch<client_wl_shm::WlShm, ()> for V1BufferRegistryClientState {
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl XdgSmokeClientState {
+    fn clear_first_party_keyboard_focus(&mut self) -> [Option<KeyboardLeaveTransition>; 3] {
+        let properties_changed = self
+            .properties_model
+            .as_mut()
+            .is_some_and(aqua_shell::DesktopPropertiesModel::clear_primary_action_focus);
+        let files_changed = self
+            .files_navigator
+            .as_mut()
+            .is_some_and(aqua_shell::FilesNavigator::clear_keyboard_focus);
+        if files_changed {
+            self.files_model = self
+                .files_navigator
+                .as_ref()
+                .map(|navigator| navigator.window().clone());
+        }
+        let settings_changed = self
+            .settings_model
+            .as_mut()
+            .is_some_and(aqua_shell::SettingsWindowModel::clear_keyboard_focus);
+        [
+            (FirstPartyUiSurface::Properties, properties_changed),
+            (FirstPartyUiSurface::Files, files_changed),
+            (FirstPartyUiSurface::Settings, settings_changed),
+        ]
+        .map(|(surface, changed)| {
+            changed.then_some(KeyboardLeaveTransition {
+                surface,
+                repaint: !self.close_event_received,
+            })
+        })
+    }
+
     fn clear_properties_pointer_interaction(&mut self) -> PropertiesPointerLeaveTransition {
         let (hover_changed, press_cancelled) = self
             .properties_model
@@ -10287,12 +10336,18 @@ impl SmithayDrmSession {
         self.session.wayland_state.keyboard_focus_assigned = true;
         self.session.wayland_state.pointer_focus_assigned = true;
         self.session.wayland_state.pointer_focus_surface = Some(surface);
+        self.complete_client_frame_callbacks(time);
+        true
+    }
+
+    pub fn complete_client_frame_callbacks(&mut self, time: u32) -> usize {
         let callbacks = std::mem::take(&mut self.session.wayland_state.pending_frame_callbacks);
-        self.session.wayland_state.frame_callbacks_sent += callbacks.len();
+        let count = callbacks.len();
+        self.session.wayland_state.frame_callbacks_sent += count;
         for callback in callbacks {
             callback.done(time);
         }
-        true
+        count
     }
 
     pub fn close_active_toplevel(&mut self) -> bool {
@@ -11597,6 +11652,10 @@ impl CompositorHandler for WaylandSmokeState {
                             display_height: buffer_height,
                             restore_geometry: None,
                         };
+                        let newly_mapped = !self
+                            .mapped_surfaces
+                            .iter()
+                            .any(|record| record.surface == *surface);
                         if let Some(existing) = self
                             .mapped_surfaces
                             .iter_mut()
@@ -11660,9 +11719,12 @@ impl CompositorHandler for WaylandSmokeState {
                                 }
                             }
                         }
-                        if self.mapped_surfaces.iter().any(|record| {
-                            record.surface == *surface && record.workspace == self.active_workspace
-                        }) {
+                        if newly_mapped
+                            && self.mapped_surfaces.iter().any(|record| {
+                                record.surface == *surface
+                                    && record.workspace == self.active_workspace
+                            })
+                        {
                             self.mapped_surface = Some(surface.clone());
                         }
                     }
@@ -13987,41 +14049,34 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
         qh: &QueueHandle<Self>,
     ) {
         if matches!(event, client_wl_keyboard::Event::Leave { .. }) {
-            let properties_focus_changed = state
-                .properties_model
-                .as_mut()
-                .is_some_and(aqua_shell::DesktopPropertiesModel::clear_primary_action_focus);
-            if properties_focus_changed {
-                println!("aqua_properties_keyboard focus=none reason=keyboard-leave");
-                state.redraw_properties_buffer(qh);
-            }
-            let files_focus_changed = state
-                .files_navigator
-                .as_mut()
-                .is_some_and(aqua_shell::FilesNavigator::clear_keyboard_focus);
-            if files_focus_changed {
-                state.files_model = state
-                    .files_navigator
-                    .as_ref()
-                    .map(|navigator| navigator.window().clone());
-                state.redraw_files_buffer(qh);
-                println!(
-                    "aqua_files_keyboard focus=none focused_sidebar=none reason=keyboard-leave repaint=true"
-                );
-            }
-            let settings_focus_changed = state
-                .settings_model
-                .as_mut()
-                .is_some_and(aqua_shell::SettingsWindowModel::clear_keyboard_focus);
-            if settings_focus_changed {
-                let selected_category = state
-                    .settings_model
-                    .as_ref()
-                    .map_or(0, |model| model.selected_category);
-                state.redraw_settings_buffer(qh);
-                println!(
-                    "aqua_settings_keyboard focus=none reason=keyboard-leave category={selected_category} repaint=true"
-                );
+            for transition in state
+                .clear_first_party_keyboard_focus()
+                .into_iter()
+                .flatten()
+            {
+                let repaint = transition.repaint;
+                if repaint {
+                    match transition.surface {
+                        FirstPartyUiSurface::Properties => state.redraw_properties_buffer(qh),
+                        FirstPartyUiSurface::Files => state.redraw_files_buffer(qh),
+                        FirstPartyUiSurface::Settings => state.redraw_settings_buffer(qh),
+                    }
+                }
+                match transition.surface {
+                    FirstPartyUiSurface::Properties => println!(
+                        "aqua_properties_keyboard focus=none reason=keyboard-leave repaint={repaint}"
+                    ),
+                    FirstPartyUiSurface::Files => println!(
+                        "aqua_files_keyboard focus=none focused_sidebar=none reason=keyboard-leave repaint={repaint}"
+                    ),
+                    FirstPartyUiSurface::Settings => {
+                        let selected_category = state.settings_model.as_ref()
+                            .map_or(0, |model| model.selected_category);
+                        println!(
+                            "aqua_settings_keyboard focus=none reason=keyboard-leave category={selected_category} repaint={repaint}"
+                        );
+                    }
+                }
             }
             return;
         }
@@ -15231,7 +15286,17 @@ mod tests {
         assert_ne!(probe.frame_checksum, 0);
         assert!(probe.export.is_ready());
         assert!(probe.client_layer_composited);
-        assert_eq!(probe.client_layer_buffer_snapshot_bytes, 674_816);
+        // The native probe retains its last imported 320x220 buffer; the
+        // host fixture additionally supplies the first 384x256 buffer.
+        let expected_snapshot_bytes = if cfg!(all(target_os = "linux", feature = "smithay-smoke")) {
+            320 * 220 * 4
+        } else {
+            (384 * 256 + 320 * 220) * 4
+        };
+        assert_eq!(
+            probe.client_layer_buffer_snapshot_bytes,
+            expected_snapshot_bytes
+        );
         assert_eq!(probe.client_layer_snapshot_mode, "full-buffer-snapshot");
         assert!(probe.output_surface_prepared);
         assert!(probe.recovery_safe);
@@ -16114,6 +16179,113 @@ mod tests {
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     #[test]
+    fn shared_keyboard_leave_clears_focus_and_gates_repaint_for_every_surface() {
+        let root = std::env::temp_dir().join(format!(
+            "aqua-shared-keyboard-leave-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos(),
+        ));
+        fs::create_dir(&root).expect("isolated Files root");
+        for close_event_received in [false, true] {
+            for focused in [false, true] {
+                for surface in [
+                    FirstPartyUiSurface::Properties,
+                    FirstPartyUiSurface::Files,
+                    FirstPartyUiSurface::Settings,
+                ] {
+                    let mut state = XdgSmokeClientState {
+                        close_event_received,
+                        ..XdgSmokeClientState::default()
+                    };
+                    match surface {
+                        FirstPartyUiSurface::Properties => {
+                            let mut model =
+                                aqua_shell::DesktopPropertiesModel::load("files", &root, &root)
+                                    .expect("Properties model");
+                            model.primary_action_focused = focused;
+                            model.primary_action_hovered = true;
+                            model.primary_action_pressed = true;
+                            model.refresh_generation = 7;
+                            state.properties_model = Some(model);
+                        }
+                        FirstPartyUiSurface::Files => {
+                            let mut navigator =
+                                aqua_shell::FilesNavigator::open(&root).expect("Files navigator");
+                            if focused {
+                                assert_eq!(
+                                    navigator.handle_key_in_viewport(
+                                        640,
+                                        420,
+                                        aqua_shell::FilesKey::Left
+                                    ),
+                                    aqua_shell::FilesNavigation::FocusedSidebar(0)
+                                );
+                            }
+                            state.files_model = Some(navigator.window().clone());
+                            state.files_navigator = Some(navigator);
+                        }
+                        FirstPartyUiSurface::Settings => {
+                            state.settings_model = Some(aqua_shell::SettingsWindowModel {
+                                keyboard_focus: focused,
+                                selected_category: 4,
+                                hovered_category: Some(1),
+                                ..aqua_shell::SettingsWindowModel::default()
+                            });
+                        }
+                    }
+                    let mut expected_properties = state.properties_model.clone();
+                    if let Some(model) = expected_properties.as_mut() {
+                        model.primary_action_focused = false;
+                    }
+                    let mut expected_files = state.files_model.clone();
+                    if let Some(model) = expected_files.as_mut() {
+                        model.keyboard_focus = false;
+                        model.focused_sidebar = None;
+                    }
+                    let mut expected_settings = state.settings_model.clone();
+                    if let Some(model) = expected_settings.as_mut() {
+                        model.keyboard_focus = false;
+                    }
+                    let changes: Vec<_> = state
+                        .clear_first_party_keyboard_focus()
+                        .into_iter()
+                        .flatten()
+                        .collect();
+                    let expected: Vec<_> = focused
+                        .then_some(KeyboardLeaveTransition {
+                            surface,
+                            repaint: !close_event_received,
+                        })
+                        .into_iter()
+                        .collect();
+                    assert_eq!(changes, expected);
+                    assert_eq!(state.properties_model, expected_properties);
+                    assert_eq!(state.files_model, expected_files);
+                    assert_eq!(state.settings_model, expected_settings);
+                    if let Some(navigator) = state.files_navigator.as_ref() {
+                        assert_eq!(Some(navigator.window()), state.files_model.as_ref());
+                        assert_eq!(
+                            navigator.current(),
+                            root.canonicalize().expect("canonical root")
+                        );
+                    }
+                    assert_eq!(state.clear_first_party_keyboard_focus(), [None; 3]);
+                }
+            }
+            let mut state = XdgSmokeClientState {
+                close_event_received,
+                ..XdgSmokeClientState::default()
+            };
+            assert_eq!(state.clear_first_party_keyboard_focus(), [None; 3]);
+        }
+        fs::remove_dir(root).expect("remove isolated root");
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
     fn files_axis_scroll_rows_ignores_stop_and_preserves_direction() {
         for value in [0.0, -0.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             assert_eq!(files_axis_scroll_rows(value), None, "value={value}");
@@ -16369,6 +16541,141 @@ mod tests {
                 height: 88,
             })
         );
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn shared_keyboard_leave_background_repaint_preserves_active_surface() {
+        let mut session = SmithayDrmSession::new().expect("Smithay session should start");
+        let (files_server, files_client) =
+            std::os::unix::net::UnixStream::pair().expect("Files Wayland stream pair should open");
+        let (settings_server, settings_client) = std::os::unix::net::UnixStream::pair()
+            .expect("Settings Wayland stream pair should open");
+        session
+            .insert_client(files_server)
+            .expect("Files client should insert");
+        session
+            .insert_client(settings_server)
+            .expect("Settings client should insert");
+
+        let files_connection =
+            ClientConnection::from_socket(files_client).expect("Files connection should open");
+        let settings_connection = ClientConnection::from_socket(settings_client)
+            .expect("Settings connection should open");
+        let mut files_queue = files_connection.new_event_queue();
+        let mut settings_queue = settings_connection.new_event_queue();
+        let files_qh = files_queue.handle();
+        let settings_qh = settings_queue.handle();
+        files_connection.display().get_registry(&files_qh, ());
+        settings_connection.display().get_registry(&settings_qh, ());
+        files_connection.flush().expect("Files registry flush");
+        settings_connection
+            .flush()
+            .expect("Settings registry flush");
+        session.dispatch_clients().expect("registry dispatch");
+        session.flush_clients().expect("registry response flush");
+
+        let mut files = XdgSmokeClientState::files_app();
+        let mut settings = XdgSmokeClientState::settings_app().expect("Settings state");
+        files_queue
+            .blocking_dispatch(&mut files)
+            .expect("Files globals dispatch");
+        settings_queue
+            .blocking_dispatch(&mut settings)
+            .expect("Settings globals dispatch");
+        files_connection.flush().expect("Files surface flush");
+        settings_connection.flush().expect("Settings surface flush");
+        session.dispatch_clients().expect("surface dispatch");
+        session.flush_clients().expect("configure flush");
+        files_queue
+            .blocking_dispatch(&mut files)
+            .expect("Files configure dispatch");
+        settings_queue
+            .blocking_dispatch(&mut settings)
+            .expect("Settings configure dispatch");
+        files_connection.flush().expect("Files buffer flush");
+        settings_connection.flush().expect("Settings buffer flush");
+        session.dispatch_clients().expect("buffer dispatch");
+        session.flush_clients().expect("buffer response flush");
+
+        assert!(session.raise_surface_with_app_id("aqua.files"));
+        assert!(session.present_client_surface(150));
+        session.flush_clients().expect("initial callback flush");
+        settings_queue
+            .blocking_dispatch(&mut settings)
+            .expect("initial Settings callback");
+        settings.frame_callback_received = false;
+        let before_input = session.input_snapshot();
+        let keyboard = session
+            .session
+            .wayland_state
+            .seat
+            .get_keyboard()
+            .expect("keyboard");
+        let pointer = session
+            .session
+            .wayland_state
+            .seat
+            .get_pointer()
+            .expect("pointer");
+        let keyboard_focus = keyboard.current_focus();
+        let pointer_focus = pointer.current_focus();
+        settings
+            .settings_model
+            .as_mut()
+            .expect("Settings model")
+            .keyboard_focus = true;
+        assert_eq!(
+            settings.clear_first_party_keyboard_focus(),
+            [
+                None,
+                None,
+                Some(KeyboardLeaveTransition {
+                    surface: FirstPartyUiSurface::Settings,
+                    repaint: true
+                })
+            ]
+        );
+        settings.redraw_settings_buffer(&settings_qh);
+        settings_connection
+            .flush()
+            .expect("background buffer flush");
+        session
+            .dispatch_clients()
+            .expect("background commit dispatch");
+        assert_eq!(
+            session.active_toplevel_app_id().as_deref(),
+            Some("aqua.files")
+        );
+        assert_eq!(keyboard.current_focus(), keyboard_focus);
+        assert_eq!(pointer.current_focus(), pointer_focus);
+        assert_eq!(session.input_snapshot(), before_input);
+        let callbacks_before = session.session.wayland_state.frame_callbacks_sent;
+        assert_eq!(session.complete_client_frame_callbacks(151), 1);
+        assert_eq!(session.complete_client_frame_callbacks(152), 0);
+        assert_eq!(
+            session.session.wayland_state.frame_callbacks_sent,
+            callbacks_before + 1
+        );
+        assert_eq!(
+            session.active_toplevel_app_id().as_deref(),
+            Some("aqua.files")
+        );
+        assert_eq!(keyboard.current_focus(), keyboard_focus);
+        assert_eq!(pointer.current_focus(), pointer_focus);
+        assert_eq!(session.input_snapshot(), before_input);
+        session.flush_clients().expect("frame callback flush");
+        settings_queue
+            .blocking_dispatch(&mut settings)
+            .expect("Settings frame callback");
+        assert!(settings.frame_callback_received);
+        assert!(session.close_active_toplevel());
+        session.flush_clients().expect("active close flush");
+        files_queue
+            .blocking_dispatch(&mut files)
+            .expect("Files close delivery");
+        assert!(files.close_event_received);
+        assert!(!settings.close_event_received);
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]

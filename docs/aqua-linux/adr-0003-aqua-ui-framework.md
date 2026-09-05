@@ -148,6 +148,18 @@ press-drag-release cancellation, pointer-to-Space focus handoff, and
 background-click blur. Its pointer-leave transition is idempotent, repaints
 while the surface remains active, and still clears hover or an armed press
 without committing after xdg close;
+Files, Settings, and Properties now consume one client-runtime keyboard-leave
+transition that clears model focus, synchronizes the Files render model, and
+permits repaint only while the surface remains open. Repeated leave is inert;
+closed surfaces still clear focus without committing. Selection, location,
+settings values, hover, and armed pointer state remain domain-owned and are
+preserved. Deterministic tests cover every consumer with and without focus,
+before and after close; packaged QEMU covers live focus handoff for all three;
+background buffer commits also retain the active surface, and desktop repaint
+completion delivers frame callbacks without reassigning keyboard or pointer
+focus. Explicit launch, raise, pointer, and workspace actions retain focus
+ownership, so focus-loss redraws cannot reactivate the background application
+or redirect a subsequent close request;
 the broader consolidation remains in progress.
 
 ## Context
