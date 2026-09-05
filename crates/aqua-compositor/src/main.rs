@@ -1773,7 +1773,7 @@ fn render_live_gpu_wayland_frame(
     snapshots: &[SmithayClientSurfaceSnapshot],
     output_width: u32,
     output_height: u32,
-    pointer_position: (u32, u32),
+    pointer_position: Option<(u32, u32)>,
     readback: bool,
 ) -> Result<(Vec<u8>, GpuOffscreenFrameResult), String> {
     let frame_started = std::time::Instant::now();
@@ -1809,12 +1809,14 @@ fn render_live_gpu_wayland_frame(
     if readback && direct_bridge_candidate {
         let direct_started = std::time::Instant::now();
         let mut frame_rgba = paint_plan.steps[0].client_buffer_rgba.clone();
-        paint_desktop_pointer_rgba(
-            &mut frame_rgba,
-            output_width,
-            output_height,
-            pointer_position,
-        );
+        if let Some(pointer_position) = pointer_position {
+            paint_desktop_pointer_rgba(
+                &mut frame_rgba,
+                output_width,
+                output_height,
+                pointer_position,
+            );
+        }
         let checksum = checksum_frame_bytes(&frame_rgba);
         let render_ms = direct_started.elapsed().as_millis();
         let pack_started = std::time::Instant::now();
@@ -1857,7 +1859,7 @@ fn render_live_gpu_wayland_frame(
         output_height,
         Some(&revisions),
         Some(&opaque_sources),
-        Some(pointer_position),
+        pointer_position,
         readback,
     )?;
     let render_ms = render_started.elapsed().as_millis();
@@ -4570,6 +4572,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let input_required = env::var("AQUA_DRM_WAYLAND_INPUT_REQUIRED").as_deref() == Ok("true");
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    let host_cursor = configured_host_cursor();
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     let diagnostic_scenario =
         env::var("AQUA_DRM_WAYLAND_SCENARIO").as_deref() == Ok("qemu-integration");
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -5159,7 +5163,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         height,
                         None,
                         None,
-                        Some({
+                        (!host_cursor).then(|| {
                             let input = smithay_session.borrow().input_snapshot();
                             (input.pointer_x, input.pointer_y)
                         }),
@@ -5372,6 +5376,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
             println!("autostart={autostart}");
             println!("persistent_graphical_session_started={boot_graphics}");
             #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+            println!("desktop_host_cursor={host_cursor}");
+            #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
             println!(
                 "session_scenario={}",
                 if diagnostic_scenario {
@@ -5564,10 +5570,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                             &snapshots,
                                             output_width,
                                             output_height,
-                                            (
+                                            Some((
                                                 smithay_session.borrow().input_snapshot().pointer_x,
                                                 smithay_session.borrow().input_snapshot().pointer_y,
-                                            ),
+                                            )),
                                             cpu_scanout_compat,
                                         )?;
                                         *live_gpu_wayland_frame.borrow_mut() = Some(gpu_frame);
@@ -5849,7 +5855,7 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 || process_exited
                                 || session_action.is_some();
                             let repaint_requested = session_action.is_none()
-                                && (input_event_time_us.is_some()
+                                && ((input_event_time_us.is_some() && !host_cursor)
                                     || launcher_changed
                                     || dock_changed
                                     || desktop_icons_changed
@@ -5925,10 +5931,12 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                         &snapshots,
                                         output_width,
                                         output_height,
-                                        (
-                                            smithay_session.borrow().input_snapshot().pointer_x,
-                                            smithay_session.borrow().input_snapshot().pointer_y,
-                                        ),
+                                        (!host_cursor).then(|| {
+                                            (
+                                                smithay_session.borrow().input_snapshot().pointer_x,
+                                                smithay_session.borrow().input_snapshot().pointer_y,
+                                            )
+                                        }),
                                         cpu_scanout_compat,
                                     )?;
                                     *live_gpu_wayland_frame.borrow_mut() = Some(gpu_frame);
@@ -6210,10 +6218,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         &reordered_snapshots,
                         active_width,
                         active_height,
-                        (
+                        Some((
                             smithay_session.borrow().input_snapshot().pointer_x,
                             smithay_session.borrow().input_snapshot().pointer_y,
-                        ),
+                        )),
                         cpu_scanout_compat,
                     )?;
                     println!("drm_wayland_gpu_repaint_updates=true");
@@ -6908,10 +6916,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 &files_snapshots,
                                 active_width,
                                 active_height,
-                                (
+                                Some((
                                     smithay_session.borrow().input_snapshot().pointer_x,
                                     smithay_session.borrow().input_snapshot().pointer_y,
-                                ),
+                                )),
                                 cpu_scanout_compat,
                             )?;
                             println!("drm_wayland_files_gpu_repaint=true");
@@ -7351,10 +7359,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                 &settings_snapshots,
                                 active_width,
                                 active_height,
-                                (
+                                Some((
                                     smithay_session.borrow().input_snapshot().pointer_x,
                                     smithay_session.borrow().input_snapshot().pointer_y,
-                                ),
+                                )),
                                 cpu_scanout_compat,
                             )?;
                             println!("drm_wayland_settings_gpu_repaint=true");
@@ -7545,10 +7553,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         &surviving_snapshots,
                         active_width,
                         active_height,
-                        (
+                        Some((
                             smithay_session.borrow().input_snapshot().pointer_x,
                             smithay_session.borrow().input_snapshot().pointer_y,
-                        ),
+                        )),
                         cpu_scanout_compat,
                     )?;
                     println!("drm_wayland_client_cleanup_gpu_repaint=true");
@@ -7642,10 +7650,10 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                         &[],
                         active_width,
                         active_height,
-                        (
+                        Some((
                             smithay_session.borrow().input_snapshot().pointer_x,
                             smithay_session.borrow().input_snapshot().pointer_y,
-                        ),
+                        )),
                         cpu_scanout_compat,
                     )?;
                     println!("drm_wayland_close_gpu_repaint=true");
@@ -9789,6 +9797,26 @@ fn configured_desktop_icons() -> bool {
     aqua_shell::SettingsWindowModel::load_or_default(&config_path)
         .map(|model| model.desktop_icons)
         .unwrap_or(false)
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn host_cursor_requested(environment: Option<&str>, command_line: Option<&str>) -> bool {
+    match environment {
+        Some("1" | "true" | "yes") => true,
+        Some("0" | "false" | "no") => false,
+        _ => command_line.is_some_and(|command_line| {
+            command_line
+                .split_ascii_whitespace()
+                .any(|value| value == "aqua.host_cursor=1")
+        }),
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn configured_host_cursor() -> bool {
+    let environment = env::var("AQUA_HOST_CURSOR").ok();
+    let command_line = fs::read_to_string("/proc/cmdline").ok();
+    host_cursor_requested(environment.as_deref(), command_line.as_deref())
 }
 
 fn pack_rgba_frame(
@@ -12136,6 +12164,8 @@ fn smoke_loop() {
 
 #[cfg(test)]
 mod fbdev_tests {
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    use super::host_cursor_requested;
     #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
     use super::{
         bounded_desktop_pointer_origin, paint_desktop_pointer_rgba, themed_desktop_brand_path,
@@ -12153,6 +12183,21 @@ mod fbdev_tests {
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn host_cursor_mode_requires_an_explicit_runtime_signal() {
+        assert!(host_cursor_requested(
+            None,
+            Some("root=/dev/vda aqua.host_cursor=1 quiet")
+        ));
+        assert!(host_cursor_requested(Some("true"), None));
+        assert!(!host_cursor_requested(
+            Some("false"),
+            Some("aqua.host_cursor=1")
+        ));
+        assert!(!host_cursor_requested(None, Some("aqua.host_cursor=0")));
+    }
 
     #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
     #[test]
