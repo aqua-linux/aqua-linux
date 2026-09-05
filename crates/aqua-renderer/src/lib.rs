@@ -806,6 +806,13 @@ pub struct DesktopIconsOverlay {
     pub primitive_count: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DesktopBrandRaster<'a> {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: &'a [u8],
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DockOverlay {
     pub width: u32,
@@ -1552,8 +1559,32 @@ pub fn render_desktop_shell_rgba_with_cached_icons(
     cache: &mut icons::IconRasterCache,
     icons_visible: bool,
 ) -> Result<DesktopIconsOverlay, icons::IconError> {
+    render_desktop_shell_rgba_with_brand_and_cached_icons(
+        width,
+        height,
+        state,
+        theme,
+        cache,
+        icons_visible,
+        None,
+    )
+}
+
+pub fn render_desktop_shell_rgba_with_brand_and_cached_icons(
+    width: u32,
+    height: u32,
+    state: &DesktopIconState,
+    theme: AquaTheme,
+    cache: &mut icons::IconRasterCache,
+    icons_visible: bool,
+    brand: Option<DesktopBrandRaster<'_>>,
+) -> Result<DesktopIconsOverlay, icons::IconError> {
     let mut overlay = render_desktop_icons_rgba_base(width, height, state, false, icons_visible);
     apply_shell_palette(&mut overlay.rgba, theme);
+    if let Some(brand) = brand {
+        replace_desktop_identity_symbol(&mut overlay.rgba, width, height, brand);
+        overlay.primitive_count += 1;
+    }
     if !icons_visible {
         return Ok(overlay);
     }
@@ -1589,6 +1620,139 @@ pub fn render_desktop_shell_rgba_with_cached_icons(
         overlay.primitive_count += 1;
     }
     Ok(overlay)
+}
+
+fn replace_desktop_identity_symbol(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    brand: DesktopBrandRaster<'_>,
+) {
+    let expected = brand.width.saturating_mul(brand.height).saturating_mul(4) as usize;
+    if brand.width == 0 || brand.height == 0 || brand.rgba.len() != expected {
+        return;
+    }
+    let center_x = width / 2;
+    let center_y = height.saturating_mul(45) / 100;
+    clear_transparent_rect(
+        rgba,
+        width,
+        height,
+        Rect {
+            x: center_x.saturating_sub(48),
+            y: center_y.saturating_sub(42),
+            width: 96,
+            height: 74,
+        },
+    );
+
+    let Some((source_x, source_y, source_width, source_height)) = visible_alpha_bounds(brand, 64)
+    else {
+        return;
+    };
+    let target_size = 80_u32.min(width).min(height);
+    let scale_height =
+        (u64::from(target_size) * u64::from(source_height) / u64::from(source_width)).max(1) as u32;
+    let target_height = scale_height.min(target_size);
+    let target_width = (u64::from(target_height) * u64::from(source_width)
+        / u64::from(source_height))
+    .max(1) as u32;
+    let target_x = center_x.saturating_sub(target_width / 2);
+    let target_y = center_y.saturating_sub(target_height / 2 + 4);
+
+    composite_scaled_rgba_crop(
+        rgba,
+        width,
+        height,
+        brand,
+        (source_x, source_y, source_width, source_height),
+        Rect {
+            x: target_x,
+            y: target_y,
+            width: target_width,
+            height: target_height,
+        },
+    );
+}
+
+fn visible_alpha_bounds(
+    brand: DesktopBrandRaster<'_>,
+    threshold: u8,
+) -> Option<(u32, u32, u32, u32)> {
+    let mut min_x = brand.width;
+    let mut min_y = brand.height;
+    let mut max_x = 0;
+    let mut max_y = 0;
+    let mut found = false;
+    for y in 0..brand.height {
+        for x in 0..brand.width {
+            let alpha = brand.rgba[((y * brand.width + x) * 4 + 3) as usize];
+            if alpha < threshold {
+                continue;
+            }
+            found = true;
+            min_x = min_x.min(x);
+            min_y = min_y.min(y);
+            max_x = max_x.max(x);
+            max_y = max_y.max(y);
+        }
+    }
+    found.then_some((min_x, min_y, max_x - min_x + 1, max_y - min_y + 1))
+}
+
+fn clear_transparent_rect(buffer: &mut [u8], width: u32, height: u32, rect: Rect) {
+    for y in rect.y..rect.bottom().min(height) {
+        for x in rect.x..rect.right().min(width) {
+            let offset = ((y * width + x) * 4) as usize;
+            buffer[offset..offset + 4].fill(0);
+        }
+    }
+}
+
+fn composite_scaled_rgba_crop(
+    destination: &mut [u8],
+    destination_width: u32,
+    destination_height: u32,
+    source: DesktopBrandRaster<'_>,
+    crop: (u32, u32, u32, u32),
+    target: Rect,
+) {
+    let (crop_x, crop_y, crop_width, crop_height) = crop;
+    if target.width == 0 || target.height == 0 {
+        return;
+    }
+    for target_row in 0..target.height {
+        let y = target.y + target_row;
+        if y >= destination_height {
+            continue;
+        }
+        let source_y = crop_y + target_row * crop_height / target.height;
+        for target_column in 0..target.width {
+            let x = target.x + target_column;
+            if x >= destination_width {
+                continue;
+            }
+            let source_x = crop_x + target_column * crop_width / target.width;
+            let source_offset = ((source_y * source.width + source_x) * 4) as usize;
+            let destination_offset = ((y * destination_width + x) * 4) as usize;
+            let alpha = source.rgba[source_offset + 3];
+            if alpha == 0 {
+                continue;
+            }
+            let inverse_alpha = 255_u16 - u16::from(alpha);
+            let destination_alpha = destination[destination_offset + 3];
+            for channel in 0..3 {
+                destination[destination_offset + channel] =
+                    ((u16::from(source.rgba[source_offset + channel]) * u16::from(alpha)
+                        + u16::from(destination[destination_offset + channel]) * inverse_alpha
+                        + 127)
+                        / 255) as u8;
+            }
+            destination[destination_offset + 3] = (u16::from(alpha)
+                + (u16::from(destination_alpha) * inverse_alpha + 127) / 255)
+                .min(255) as u8;
+        }
+    }
 }
 
 fn render_desktop_icons_rgba_base(
@@ -9365,6 +9529,42 @@ mod tests {
         assert_eq!(overlay.selected, None);
         assert_eq!(cache.len(), 0);
         assert!(overlay.rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
+    }
+
+    #[test]
+    fn desktop_brand_replaces_the_procedural_symbol_and_ignores_faint_artifacts() {
+        let state = DesktopIconState::default();
+        let mut cache = icons::IconRasterCache::default();
+        let mut brand_rgba = vec![0_u8; 10 * 10 * 4];
+        brand_rgba[3] = 32;
+        for y in 3..7 {
+            for x in 3..7 {
+                let offset = ((y * 10 + x) * 4) as usize;
+                brand_rgba[offset..offset + 4].copy_from_slice(&[0x24, 0x82, 0xc9, 0xff]);
+            }
+        }
+        let overlay = render_desktop_shell_rgba_with_brand_and_cached_icons(
+            800,
+            600,
+            &state,
+            AquaTheme::Light,
+            &mut cache,
+            false,
+            Some(DesktopBrandRaster {
+                width: 10,
+                height: 10,
+                rgba: &brand_rgba,
+            }),
+        )
+        .expect("branded desktop");
+        let center_y = 600 * 45 / 100 - 4;
+        let center_offset = ((center_y * 800 + 400) * 4) as usize;
+
+        assert_eq!(
+            &overlay.rgba[center_offset..center_offset + 4],
+            &[0x24, 0x82, 0xc9, 0xff]
+        );
+        assert_eq!(cache.len(), 0);
     }
 
     #[test]

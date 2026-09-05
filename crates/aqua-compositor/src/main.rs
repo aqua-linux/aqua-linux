@@ -29,10 +29,11 @@ use aqua_renderer::{
 };
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
 use aqua_renderer::{
-    render_desktop_shell_rgba_with_cached_icons, render_dock_rgba_with_cached_icons,
+    render_desktop_shell_rgba_with_brand_and_cached_icons, render_dock_rgba_with_cached_icons,
     render_launcher_overlay_rgba_with_theme, render_notification_toast_rgba_with_cached_icons,
     render_session_menu_overlay_rgba_with_theme, render_system_overview_rgba_with_theme,
-    render_top_bar_rgba_with_cached_icons, ElevationLevel, ShadowMaskCache, ShadowMaskKey,
+    render_top_bar_rgba_with_cached_icons, DesktopBrandRaster, ElevationLevel, ShadowMaskCache,
+    ShadowMaskKey,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_scene::Rect;
@@ -634,6 +635,7 @@ struct LiveGpuCompositor {
     desktop_icons_state: Option<aqua_shell::DesktopIconState>,
     desktop_icons_texture_size: (u32, u32),
     desktop_icons_visible: bool,
+    desktop_brand: Option<DecodedWallpaper>,
     dock_texture: Option<GlesTexture>,
     dock_state: Option<aqua_shell::DockState>,
     dock_texture_size: (u32, u32),
@@ -739,6 +741,7 @@ impl LiveGpuCompositor {
         self.wallpaper_width = wallpaper_width;
         self.wallpaper_height = wallpaper_height;
         self.blurred_wallpaper = blurred_wallpaper;
+        self.desktop_brand = load_desktop_brand(&self.asset_root, theme);
         self.theme = theme;
         self.launcher_state = None;
         self.top_bar_state = None;
@@ -886,13 +889,19 @@ impl LiveGpuCompositor {
             .scene
             .surface_rect(aqua_scene::SurfaceKind::DesktopIconColumn)
             .ok_or_else(|| "desktop surface is missing".to_string())?;
-        let overlay = render_desktop_shell_rgba_with_cached_icons(
+        let brand = self.desktop_brand.as_ref().map(|brand| DesktopBrandRaster {
+            width: brand.width,
+            height: brand.height,
+            rgba: &brand.rgba,
+        });
+        let overlay = render_desktop_shell_rgba_with_brand_and_cached_icons(
             desktop.width,
             desktop.height,
             state,
             self.theme,
             &mut self.icon_raster_cache,
             self.desktop_icons_visible,
+            brand,
         )
         .map_err(|error| format!("cannot rasterize desktop icons: {error}"))?;
         self.desktop_icons_texture = Some(
@@ -1206,6 +1215,7 @@ impl LiveGpuCompositor {
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("/usr/share/aqua"));
         let theme = configured_runtime_theme();
+        let desktop_brand = load_desktop_brand(&asset_root, theme);
         let (wallpaper_texture, wallpaper_width, wallpaper_height, blurred_wallpaper) =
             upload_gpu_wallpaper(&mut renderer, &asset_root, theme)?;
         let surface_uniform_names = [
@@ -1266,6 +1276,7 @@ impl LiveGpuCompositor {
             desktop_icons_state: None,
             desktop_icons_texture_size: (0, 0),
             desktop_icons_visible: configured_desktop_icons(),
+            desktop_brand,
             dock_texture: None,
             dock_state: None,
             dock_texture_size: (0, 0),
@@ -9545,6 +9556,27 @@ fn themed_wallpaper_path(asset_root: &Path, theme: aqua_shell::AquaTheme) -> Pat
     asset_root.join("wallpapers").join(filename)
 }
 
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+fn themed_desktop_brand_path(asset_root: &Path, theme: aqua_shell::AquaTheme) -> PathBuf {
+    let filename = match theme {
+        aqua_shell::AquaTheme::Light => "aqua-symbol-primary.png",
+        aqua_shell::AquaTheme::Dark => "aqua-symbol-inverse.png",
+    };
+    asset_root.join("brand").join(filename)
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+fn load_desktop_brand(asset_root: &Path, theme: aqua_shell::AquaTheme) -> Option<DecodedWallpaper> {
+    let path = themed_desktop_brand_path(asset_root, theme);
+    match decode_png_rgba(&path) {
+        Ok(brand) => Some(brand),
+        Err(error) => {
+            eprintln!("desktop brand asset unavailable; using procedural fallback: {error}");
+            None
+        }
+    }
+}
+
 fn configured_runtime_theme() -> aqua_shell::AquaTheme {
     if let Ok(value) = env::var("AQUA_THEME") {
         if let Some(theme) = aqua_shell::AquaTheme::parse(&value) {
@@ -11940,6 +11972,8 @@ fn smoke_loop() {
 
 #[cfg(test)]
 mod fbdev_tests {
+    #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+    use super::themed_desktop_brand_path;
     use super::{
         bytes_per_pixel, checksum_frame_bytes, client_shadow_damage_rects, decode_png_rgba,
         drm_kms_confirmation_source, drm_wayland_hold_seconds, fbdev_confirmation_source,
@@ -12292,6 +12326,30 @@ mod fbdev_tests {
             themed_wallpaper_path(Path::new("/usr/share/aqua"), aqua_shell::AquaTheme::Dark),
             PathBuf::from("/usr/share/aqua/wallpapers/wallpaper-dark.png")
         );
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+    #[test]
+    fn desktop_brand_assets_follow_the_runtime_theme() {
+        let installed_root = Path::new("/usr/share/aqua");
+        assert_eq!(
+            themed_desktop_brand_path(installed_root, aqua_shell::AquaTheme::Light),
+            PathBuf::from("/usr/share/aqua/brand/aqua-symbol-primary.png")
+        );
+        assert_eq!(
+            themed_desktop_brand_path(installed_root, aqua_shell::AquaTheme::Dark),
+            PathBuf::from("/usr/share/aqua/brand/aqua-symbol-inverse.png")
+        );
+
+        let asset_root =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/aqua-linux/assets");
+        let primary = decode_png_rgba(&asset_root.join("aqua-symbol-primary.png"))
+            .expect("primary symbol decode");
+        let inverse = decode_png_rgba(&asset_root.join("aqua-symbol-inverse.png"))
+            .expect("inverse symbol decode");
+        assert_eq!((primary.width, primary.height), (1024, 1024));
+        assert_eq!((inverse.width, inverse.height), (1024, 1024));
+        assert_ne!(primary.rgba, inverse.rgba);
     }
 
     #[test]
