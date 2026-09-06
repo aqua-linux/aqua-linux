@@ -187,7 +187,7 @@ MODES = {
     ),
     "installer-language-keyboard": (
         "sendkey tab 100", "sendkey tab 100", "sendkey tab 100",
-        "sendkey tab 100", "sendkey ret 100", "sendkey ret 100",
+        "sendkey tab 100", "sendkey ret 100", "sendkey spc 100",
     ),
     "installer-keyboard-partitions": (
         "sendkey tab 100", "sendkey tab 100", "sendkey tab 100",

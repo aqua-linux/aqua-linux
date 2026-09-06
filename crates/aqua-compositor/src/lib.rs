@@ -8936,7 +8936,7 @@ impl XdgSmokeClientState {
             1 => InstallerUiKey::Escape,
             15 if self.keyboard_shift => InstallerUiKey::BackTab,
             15 => InstallerUiKey::Tab,
-            28 => InstallerUiKey::Activate,
+            28 | 57 => InstallerUiKey::Activate,
             102 => InstallerUiKey::Home,
             105 => InstallerUiKey::Left,
             106 => InstallerUiKey::Right,

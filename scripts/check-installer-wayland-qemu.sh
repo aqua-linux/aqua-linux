@@ -105,6 +105,8 @@ need_regex 'aqua_installer_pointer phase=release x=[0-9]+ y=[0-9]+ pressed=false
 need_marker 'aqua_installer_pointer_form_update=ValueApplied { step: Language, index: 0, value: "tr_TR.UTF-8" }'
 need_marker 'aqua_installer_locale=tr_TR.UTF-8'
 need_marker 'aqua_installer_step=keyboard'
+need_marker 'aqua_installer_keyboard key=57 press_count=7 action=ActivateStepContent(Keyboard)'
+need_marker 'aqua_installer_form_update=ValueApplied { step: Keyboard, index: 0, value: "trq" }'
 need_marker 'aqua_installer_keyboard_layout=trq'
 need_marker 'aqua_installer_form_navigation key=108 press_count=8 update=SelectionChanged { step: Keyboard, index: 1, value: "trf" }'
 need_marker 'aqua_installer_form_navigation key=103 press_count=9 update=SelectionChanged { step: Keyboard, index: 0, value: "trq" }'
