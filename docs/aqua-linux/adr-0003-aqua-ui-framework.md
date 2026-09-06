@@ -225,7 +225,8 @@ valid content press or explicit keyboard navigation restores it;
 Installer Language, Keyboard, Time Zone, and Partitions now route Up, Down,
 Home, and End to their bounded form navigation only while visible `StepContent`
 focus is active. Choice movement remains model-validated, disk movement skips
-blocked targets, and Tab retains the explicit path into footer focus;
+blocked targets, Enter and Space share activation outside text-entry controls,
+and Tab retains the explicit path into footer focus;
 Installer footer actions now arm only on a primary-button press, render the
 shared pressed state, and activate only when that same visible target receives
 the release. Dragging away or leaving the surface cancels the press, while
@@ -350,7 +351,7 @@ A behavior graduates into the stable Aqua UI surface only when:
   must not become alternative component systems.
 - Bounded Installer choice controls keep keyboard selection state separate from
   the domain model: directional and boundary keys move the selected row, while
-  Activate alone commits the validated value. A completed pointer activation
+  Enter or Space commits the validated value. A completed pointer activation
   may select and commit the same row atomically and reports the commit as an
   applied-value update.
 - M12 remains responsible for the current component evidence; later framework

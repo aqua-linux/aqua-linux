@@ -1733,6 +1733,7 @@ grep -Fq 'aqua_installer_form_navigation key=107' scripts/check-installer-waylan
 grep -Fq 'aqua_installer_form_navigation key=102' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_form_navigation_applied step=keyboard value=trq' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_pointer_form_update=ValueApplied' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'aqua_installer_keyboard key=57 press_count=7 action=ActivateStepContent(Keyboard)' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_redraw_count=70' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_keyboard_layout=trq' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_target_device=/dev/vdb' scripts/check-installer-wayland-qemu.sh
