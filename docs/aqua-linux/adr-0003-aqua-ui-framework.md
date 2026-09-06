@@ -351,7 +351,8 @@ A behavior graduates into the stable Aqua UI surface only when:
 - Bounded Installer choice controls keep keyboard selection state separate from
   the domain model: directional and boundary keys move the selected row, while
   Activate alone commits the validated value. A completed pointer activation
-  may select and commit the same row atomically.
+  may select and commit the same row atomically and reports the commit as an
+  applied-value update.
 - M12 remains responsible for the current component evidence; later framework
   consolidation is tracked after functional closure and does not retroactively
   claim release readiness.

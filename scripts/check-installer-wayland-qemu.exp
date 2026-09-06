@@ -148,9 +148,9 @@ expect {
 }
 
 expect {
-    -exact {aqua_installer_pointer_form_update=SelectionChanged { step: Language, index: 0, value: "tr_TR.UTF-8" }} {}
-    timeout { puts stderr "Timed out waiting for installer form pointer selection"; exit 1 }
-    eof { puts stderr "QEMU exited before installer form pointer selection"; exit 1 }
+    -exact {aqua_installer_pointer_form_update=ValueApplied { step: Language, index: 0, value: "tr_TR.UTF-8" }} {}
+    timeout { puts stderr "Timed out waiting for installer form pointer activation"; exit 1 }
+    eof { puts stderr "QEMU exited before installer form pointer activation"; exit 1 }
 }
 
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-language-keyboard} input_error]} {

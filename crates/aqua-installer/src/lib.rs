@@ -1603,7 +1603,7 @@ impl InstallerFormState {
             InstallerStep::TimeZone => model.set_timezone(selected.value)?,
             _ => unreachable!("form step checked above"),
         }
-        Ok(InstallerFormUpdate::SelectionChanged {
+        Ok(InstallerFormUpdate::ValueApplied {
             step: model.step(),
             index: selected_index,
             value: selected.value,
@@ -5753,9 +5753,16 @@ mod tests {
             (true, Some(target))
         );
         assert_eq!(model.locale(), None);
-        forms
-            .handle_choice_pointer(&mut model, &layout, language_one.0, language_one.1)
-            .unwrap();
+        assert_eq!(
+            forms
+                .handle_choice_pointer(&mut model, &layout, language_one.0, language_one.1)
+                .unwrap(),
+            InstallerFormUpdate::ValueApplied {
+                step: InstallerStep::Language,
+                index: 1,
+                value: "en_US.UTF-8",
+            }
+        );
         assert_eq!(model.locale(), Some("en_US.UTF-8"));
 
         assert!(forms.begin_pointer_press(&model, &layout, language_one.0, language_one.1));
@@ -5908,7 +5915,7 @@ mod tests {
             forms
                 .handle_choice_pointer(&mut model, &layout, x, y)
                 .unwrap(),
-            InstallerFormUpdate::SelectionChanged {
+            InstallerFormUpdate::ValueApplied {
                 step: InstallerStep::Language,
                 index: 1,
                 value: "en_US.UTF-8",

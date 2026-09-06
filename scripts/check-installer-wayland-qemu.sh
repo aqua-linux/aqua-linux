@@ -102,7 +102,7 @@ need_regex 'aqua_installer_content_hover x=[0-9]+ y=[0-9]+ hovered=Some\(Choice 
 need_regex 'aqua_installer_pointer phase=press x=[0-9]+ y=[0-9]+ pressed=true target=Choice \{ step: Language, index: 0 \} action=FocusChanged\(StepContent\) content=true repaint=true'
 need_regex 'aqua_installer_pointer phase=release x=[0-9]+ y=[0-9]+ pressed=false target=None content=true'
 need_regex 'aqua_installer_pointer phase=release x=[0-9]+ y=[0-9]+ pressed=false target=Some\(Choice \{ step: Language, index: 0 \}\) content=true'
-need_marker 'aqua_installer_pointer_form_update=SelectionChanged { step: Language, index: 0, value: "tr_TR.UTF-8" }'
+need_marker 'aqua_installer_pointer_form_update=ValueApplied { step: Language, index: 0, value: "tr_TR.UTF-8" }'
 need_marker 'aqua_installer_locale=tr_TR.UTF-8'
 need_marker 'aqua_installer_step=keyboard'
 need_marker 'aqua_installer_keyboard_layout=trq'
