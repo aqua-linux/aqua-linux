@@ -6,7 +6,27 @@ BUILDROOT_VERSION="${BUILDROOT_VERSION:-2025.02.17}"
 BUILDROOT_SHA256="${BUILDROOT_SHA256:-13618704563ad0b928a4564aaa73e2db97e12e8df0ed5ae874744a83964a023a}"
 BUILDROOT_ARCHIVE="buildroot-${BUILDROOT_VERSION}.tar.xz"
 BUILDROOT_URL="https://buildroot.org/downloads/${BUILDROOT_ARCHIVE}"
-BUILD_DIR="${ROOT_DIR}/build"
+PROJECT_BUILD_DIR="${ROOT_DIR}/build"
+ARTIFACT_OUTPUT_DIR="${PROJECT_BUILD_DIR}/buildroot-output"
+
+path_is_buildroot_safe() {
+    LC_ALL=C printf '%s\n' "$1" | grep -Eq '^[A-Za-z0-9_./+-]+$'
+}
+
+if path_is_buildroot_safe "${PROJECT_BUILD_DIR}"; then
+    DEFAULT_BUILD_DIR="${PROJECT_BUILD_DIR}"
+else
+    DEFAULT_BUILD_DIR="/var/tmp/aqua-linux-buildroot-${BUILDROOT_VERSION}-$(id -u)"
+fi
+
+BUILD_DIR="${AQUA_BUILD_DIR:-${DEFAULT_BUILD_DIR}}"
+if ! path_is_buildroot_safe "${BUILD_DIR}"; then
+    echo "Buildroot work directory must contain only ASCII letters, digits, and _./+- characters:" >&2
+    echo "  ${BUILD_DIR}" >&2
+    echo "Set AQUA_BUILD_DIR to a safe absolute path." >&2
+    exit 1
+fi
+
 DOWNLOAD_DIR="${BUILD_DIR}/downloads"
 BUILDROOT_DIR="${BUILD_DIR}/buildroot-${BUILDROOT_VERSION}"
 OUTPUT_DIR="${BUILD_DIR}/buildroot-output"
@@ -73,6 +93,19 @@ find_gnu_tool() {
     return 1
 }
 
+find_gnu_install() {
+    for tool in gnuinstall install; do
+        if command -v "${tool}" >/dev/null 2>&1 &&
+            "${tool}" --version 2>&1 | grep -q 'GNU coreutils'
+        then
+            command -v "${tool}"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 if [ -z "${HOSTCC:-}" ]; then
     HOSTCC="$(find_gnu_tool gcc gcc-15 gcc-14 gcc-13 gcc-12 gcc-11 || true)"
 fi
@@ -88,7 +121,22 @@ if [ -z "${HOSTCC}" ] || [ -z "${HOSTCXX}" ]; then
     exit 1
 fi
 
-mkdir -p "${DOWNLOAD_DIR}"
+GNU_INSTALL="$(find_gnu_install || true)"
+if [ -z "${GNU_INSTALL}" ]; then
+    echo "Buildroot needs GNU install from GNU coreutils." >&2
+    exit 1
+fi
+
+HOST_TOOLS_DIR="${BUILD_DIR}/host-tools"
+mkdir -p "${DOWNLOAD_DIR}" "${HOST_TOOLS_DIR}"
+ln -sf "${GNU_INSTALL}" "${HOST_TOOLS_DIR}/install"
+PATH="${HOST_TOOLS_DIR}:${PATH}"
+export PATH
+
+if [ "${OUTPUT_DIR}" != "${ARTIFACT_OUTPUT_DIR}" ]; then
+    echo "Repository path contains characters that pkgconf cannot safely emit."
+    echo "Using ASCII Buildroot work directory: ${BUILD_DIR}"
+fi
 
 if [ -f "${DOWNLOAD_DIR}/${BUILDROOT_ARCHIVE}" ] &&
     ! buildroot_archive_is_valid "${DOWNLOAD_DIR}/${BUILDROOT_ARCHIVE}"
@@ -137,11 +185,22 @@ if [ -f "${OUTPUT_DIR}/images/rootfs.ext2" ]; then
     cp "${OUTPUT_DIR}/images/rootfs.ext2" "${OUTPUT_DIR}/images/disk.img"
 fi
 
+if [ "${OUTPUT_DIR}" != "${ARTIFACT_OUTPUT_DIR}" ]; then
+    if [ -d "${OUTPUT_DIR}/images" ]; then
+        mkdir -p "${ARTIFACT_OUTPUT_DIR}/images"
+        cp -a "${OUTPUT_DIR}/images/." "${ARTIFACT_OUTPUT_DIR}/images/"
+    fi
+    if [ -f "${OUTPUT_DIR}/.config" ]; then
+        mkdir -p "${ARTIFACT_OUTPUT_DIR}"
+        cp "${OUTPUT_DIR}/.config" "${ARTIFACT_OUTPUT_DIR}/.config"
+    fi
+fi
+
 echo "Aqua Linux image artifact paths:"
 for artifact in \
-    "${OUTPUT_DIR}/images/bzImage" \
-    "${OUTPUT_DIR}/images/rootfs.ext2" \
-    "${OUTPUT_DIR}/images/disk.img"
+    "${ARTIFACT_OUTPUT_DIR}/images/bzImage" \
+    "${ARTIFACT_OUTPUT_DIR}/images/rootfs.ext2" \
+    "${ARTIFACT_OUTPUT_DIR}/images/disk.img"
 do
     if [ -f "${artifact}" ]; then
         echo "  ready: ${artifact}"
