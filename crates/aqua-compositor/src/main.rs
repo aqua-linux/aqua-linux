@@ -610,6 +610,7 @@ fn render_gpu_offscreen_frame(
 struct LiveGpuCompositor {
     renderer: GlesRenderer,
     asset_root: PathBuf,
+    cursor_texture: GlesTexture,
     wallpaper_texture: GlesTexture,
     wallpaper_width: u32,
     wallpaper_height: u32,
@@ -1216,6 +1217,15 @@ impl LiveGpuCompositor {
             .map_err(|error| format!("cannot create EGL context: {error}"))?;
         let mut renderer = unsafe { GlesRenderer::new(context) }
             .map_err(|error| format!("cannot create GLES renderer: {error}"))?;
+        let cursor = decode_embedded_cursor()?;
+        let cursor_texture = renderer
+            .import_memory(
+                &cursor.rgba,
+                Fourcc::Abgr8888,
+                (cursor.width as i32, cursor.height as i32).into(),
+                false,
+            )
+            .map_err(|error| format!("cannot upload Aqua cursor texture: {error}"))?;
         let asset_root = env::var_os("AQUA_ASSET_ROOT")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("/usr/share/aqua"));
@@ -1256,6 +1266,7 @@ impl LiveGpuCompositor {
         Ok(Self {
             renderer,
             asset_root,
+            cursor_texture,
             wallpaper_texture,
             wallpaper_width,
             wallpaper_height,
@@ -1440,6 +1451,7 @@ impl LiveGpuCompositor {
             self.wallpaper_height,
             &self.blurred_wallpaper,
             &self.surface_program,
+            &self.cursor_texture,
             &self.scene,
             client_plan,
             &client_textures,
@@ -1473,6 +1485,7 @@ impl LiveGpuCompositor {
             self.wallpaper_height,
             &self.blurred_wallpaper,
             &self.surface_program,
+            &self.cursor_texture,
             &self.scene,
             client_plan,
             &client_textures,
@@ -1567,6 +1580,7 @@ impl LiveGpuCompositor {
             self.wallpaper_height,
             &self.blurred_wallpaper,
             &self.surface_program,
+            &self.cursor_texture,
             &self.scene,
             client_plan,
             &client_textures,
@@ -2240,24 +2254,13 @@ fn render_gpu_blur_pass(
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
-const DESKTOP_POINTER_OUTLINE: [(i32, i32, i32, i32); 7] = [
-    (0, 0, 3, 22),
-    (3, 3, 3, 18),
-    (6, 6, 3, 16),
-    (9, 9, 3, 13),
-    (12, 12, 3, 8),
-    (6, 18, 5, 4),
-    (9, 21, 5, 3),
-];
+const AQUA_CURSOR_WIDTH: u32 = 28;
 
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
-const DESKTOP_POINTER_FILL: [(i32, i32, i32, i32); 5] = [
-    (2, 3, 1, 15),
-    (3, 5, 2, 13),
-    (5, 7, 2, 11),
-    (7, 9, 2, 9),
-    (9, 11, 2, 6),
-];
+const AQUA_CURSOR_HEIGHT: u32 = 42;
+
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+const AQUA_CURSOR_PNG: &[u8] = include_bytes!("../../../docs/aqua-linux/assets/aqua-cursor.png");
 
 #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
 fn bounded_desktop_pointer_origin(
@@ -2266,8 +2269,12 @@ fn bounded_desktop_pointer_origin(
     height: u32,
 ) -> (u32, u32) {
     (
-        pointer_position.0.min(width.saturating_sub(18)),
-        pointer_position.1.min(height.saturating_sub(24)),
+        pointer_position
+            .0
+            .min(width.saturating_sub(AQUA_CURSOR_WIDTH)),
+        pointer_position
+            .1
+            .min(height.saturating_sub(AQUA_CURSOR_HEIGHT)),
     )
 }
 
@@ -2281,23 +2288,30 @@ fn paint_desktop_pointer_rgba(
     if rgba.len() != width as usize * height as usize * 4 {
         return;
     }
+    let cursor = desktop_pointer_raster();
     let (origin_x, origin_y) = bounded_desktop_pointer_origin(pointer_position, width, height);
-    for (rects, color) in [
-        (&DESKTOP_POINTER_OUTLINE[..], [0x08, 0x0d, 0x14, 0xff]),
-        (&DESKTOP_POINTER_FILL[..], [0xf5, 0xfa, 0xff, 0xff]),
-    ] {
-        for &(x, y, rect_width, rect_height) in rects {
-            for row in 0..rect_height {
-                for column in 0..rect_width {
-                    let pixel_x = origin_x + (x + column) as u32;
-                    let pixel_y = origin_y + (y + row) as u32;
-                    if pixel_x >= width || pixel_y >= height {
-                        continue;
-                    }
-                    let offset = ((pixel_y * width + pixel_x) * 4) as usize;
-                    rgba[offset..offset + 4].copy_from_slice(&color);
-                }
+    for row in 0..cursor.height {
+        for column in 0..cursor.width {
+            let pixel_x = origin_x + column;
+            let pixel_y = origin_y + row;
+            if pixel_x >= width || pixel_y >= height {
+                continue;
             }
+            let source = ((row * cursor.width + column) * 4) as usize;
+            let alpha = cursor.rgba[source + 3] as u16;
+            if alpha == 0 {
+                continue;
+            }
+            let target = ((pixel_y * width + pixel_x) * 4) as usize;
+            let inverse_alpha = 255 - alpha;
+            for channel in 0..3 {
+                rgba[target + channel] = ((cursor.rgba[source + channel] as u16 * alpha
+                    + rgba[target + channel] as u16 * inverse_alpha
+                    + 127)
+                    / 255) as u8;
+            }
+            rgba[target + 3] =
+                (alpha + (rgba[target + 3] as u16 * inverse_alpha + 127) / 255).min(255) as u8;
         }
     }
 }
@@ -2312,6 +2326,7 @@ fn render_gpu_scene(
     wallpaper_height: u32,
     blurred_wallpaper: &GlesTexture,
     surface_program: &GlesTexProgram,
+    cursor_texture: &GlesTexture,
     scene: &aqua_scene::ShellScene,
     client_plan: &aqua_renderer::ClientLayerPaintPlan,
     client_textures: &[GlesTexture],
@@ -2826,32 +2841,26 @@ fn render_gpu_scene(
     if let Some((pointer_x, pointer_y)) = pointer_position {
         let (cursor_x, cursor_y) =
             bounded_desktop_pointer_origin((pointer_x, pointer_y), render_width, render_height);
-        for (x, y, width, height) in DESKTOP_POINTER_OUTLINE {
-            let rect = Rectangle::new(
-                (cursor_x as i32 + x, cursor_y as i32 + y).into(),
-                (width, height).into(),
-            );
-            frame
-                .draw_solid(
-                    rect,
-                    &[Rectangle::from_size(rect.size)],
-                    Color32F::new(0.03, 0.05, 0.08, 1.0),
-                )
-                .map_err(|error| format!("cannot draw pointer outline: {error}"))?;
-        }
-        for (x, y, width, height) in DESKTOP_POINTER_FILL {
-            let rect = Rectangle::new(
-                (cursor_x as i32 + x, cursor_y as i32 + y).into(),
-                (width, height).into(),
-            );
-            frame
-                .draw_solid(
-                    rect,
-                    &[Rectangle::from_size(rect.size)],
-                    Color32F::new(0.96, 0.98, 1.0, 1.0),
-                )
-                .map_err(|error| format!("cannot draw pointer fill: {error}"))?;
-        }
+        let rect = Rectangle::new(
+            (cursor_x as i32, cursor_y as i32).into(),
+            (AQUA_CURSOR_WIDTH as i32, AQUA_CURSOR_HEIGHT as i32).into(),
+        );
+        frame
+            .render_texture_from_to(
+                cursor_texture,
+                Rectangle::new(
+                    (0.0, 0.0).into(),
+                    (AQUA_CURSOR_WIDTH as f64, AQUA_CURSOR_HEIGHT as f64).into(),
+                ),
+                rect,
+                &[Rectangle::from_size(rect.size)],
+                &[],
+                Transform::Normal,
+                1.0,
+                None,
+                &[],
+            )
+            .map_err(|error| format!("cannot composite Aqua cursor texture: {error}"))?;
     }
     let submit_started = std::time::Instant::now();
     frame
@@ -9920,19 +9929,49 @@ struct DecodedWallpaper {
 fn decode_png_rgba(path: &Path) -> Result<DecodedWallpaper, String> {
     let file = File::open(path)
         .map_err(|error| format!("cannot open runtime wallpaper {}: {error}", path.display()))?;
-    let decoder = png::Decoder::new(BufReader::new(file));
+    decode_png_source(BufReader::new(file), "runtime wallpaper")
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+fn decode_embedded_cursor() -> Result<DecodedWallpaper, String> {
+    let cursor = decode_png_source(
+        std::io::Cursor::new(AQUA_CURSOR_PNG),
+        "embedded Aqua cursor",
+    )?;
+    if (cursor.width, cursor.height) != (AQUA_CURSOR_WIDTH, AQUA_CURSOR_HEIGHT) {
+        return Err(format!(
+            "embedded Aqua cursor must be {AQUA_CURSOR_WIDTH}x{AQUA_CURSOR_HEIGHT}, got {}x{}",
+            cursor.width, cursor.height
+        ));
+    }
+    Ok(cursor)
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
+fn desktop_pointer_raster() -> &'static DecodedWallpaper {
+    static CURSOR: std::sync::OnceLock<DecodedWallpaper> = std::sync::OnceLock::new();
+    CURSOR.get_or_init(|| {
+        decode_embedded_cursor().expect("the compiled Aqua cursor asset must be a valid RGBA PNG")
+    })
+}
+
+fn decode_png_source<R: std::io::BufRead + Seek>(
+    source: R,
+    label: &str,
+) -> Result<DecodedWallpaper, String> {
+    let decoder = png::Decoder::new(source);
     let mut reader = decoder
         .read_info()
-        .map_err(|error| format!("cannot read runtime wallpaper PNG: {error}"))?;
+        .map_err(|error| format!("cannot read {label} PNG: {error}"))?;
     let output_size = reader
         .output_buffer_size()
-        .ok_or_else(|| "runtime wallpaper output buffer is too large".to_string())?;
+        .ok_or_else(|| format!("{label} output buffer is too large"))?;
     let mut decoded = vec![0; output_size];
     let info = reader
         .next_frame(&mut decoded)
-        .map_err(|error| format!("cannot decode runtime wallpaper PNG: {error}"))?;
+        .map_err(|error| format!("cannot decode {label} PNG: {error}"))?;
     if info.bit_depth != png::BitDepth::Eight {
-        return Err("runtime wallpaper must use 8-bit channels".to_string());
+        return Err(format!("{label} must use 8-bit channels"));
     }
     let bytes = &decoded[..info.buffer_size()];
     let rgba = match info.color_type {
@@ -9941,11 +9980,7 @@ fn decode_png_rgba(path: &Path) -> Result<DecodedWallpaper, String> {
             .flat_map(|pixel| [pixel[0], pixel[1], pixel[2], 0xff])
             .collect(),
         png::ColorType::Rgba => bytes.to_vec(),
-        other => {
-            return Err(format!(
-                "unsupported runtime wallpaper color type: {other:?}"
-            ))
-        }
+        other => return Err(format!("unsupported {label} color type: {other:?}")),
     };
     Ok(DecodedWallpaper {
         width: info.width,
@@ -12214,6 +12249,7 @@ mod fbdev_tests {
     #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
     use super::{
         bounded_desktop_pointer_origin, paint_desktop_pointer_rgba, themed_desktop_brand_path,
+        AQUA_CURSOR_HEIGHT, AQUA_CURSOR_WIDTH,
     };
     use super::{
         bytes_per_pixel, checksum_frame_bytes, client_shadow_damage_rects, decode_png_rgba,
@@ -12275,11 +12311,17 @@ mod fbdev_tests {
     fn desktop_pointer_is_visible_and_bounded_in_composited_rgba() {
         let mut rgba = vec![0x80; 64 * 48 * 4];
         paint_desktop_pointer_rgba(&mut rgba, 64, 48, (63, 47));
-        assert_eq!(bounded_desktop_pointer_origin((63, 47), 64, 48), (46, 24));
-        let outline = ((24 * 64 + 46) * 4) as usize;
-        let fill = ((27 * 64 + 48) * 4) as usize;
-        assert_eq!(&rgba[outline..outline + 4], &[0x08, 0x0d, 0x14, 0xff]);
-        assert_eq!(&rgba[fill..fill + 4], &[0xf5, 0xfa, 0xff, 0xff]);
+        assert_eq!(
+            bounded_desktop_pointer_origin((63, 47), 64, 48),
+            (64 - AQUA_CURSOR_WIDTH, 48 - AQUA_CURSOR_HEIGHT)
+        );
+        let white_outline = (((6 + 3) * 64 + (36 + 3)) * 4) as usize;
+        let black_fill = (((6 + 15) * 64 + (36 + 10)) * 4) as usize;
+        assert_eq!(
+            &rgba[white_outline..white_outline + 4],
+            &[0xff, 0xff, 0xff, 0xff]
+        );
+        assert_eq!(&rgba[black_fill..black_fill + 4], &[0x00, 0x00, 0x00, 0xff]);
         assert_eq!(rgba.len(), 64 * 48 * 4);
     }
 

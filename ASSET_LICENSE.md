@@ -10,6 +10,7 @@ Unless a file has a separate license notice, no license is granted for:
 
 - Aqua Linux names, logos, wordmarks, and brand marks.
 - Wallpapers under `docs/aqua-linux/assets/`.
+- The Aqua cursor under `docs/aqua-linux/assets/`.
 - Screenshots, videos, and other promotional artwork.
 
 Runtime screenshots under `docs/aqua-linux/assets/runtime/` are project
@@ -37,5 +38,5 @@ Additional notices are recorded in
 
 Before a public source push or binary release, a maintainer must confirm that
 the project has publication and distribution rights for every project-specific
-logo, wallpaper, and reference image included in that publication. Assets with
+logo, wallpaper, cursor, and reference image included in that publication. Assets with
 unconfirmed provenance must be removed or replaced.
