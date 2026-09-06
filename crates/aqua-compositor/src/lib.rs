@@ -8038,13 +8038,19 @@ impl XdgSmokeClientState {
             .installer_forms
             .as_mut()
             .is_some_and(InstallerFormState::clear_pointer_hover);
-        let (installer_footer_hover_changed, installer_press_cancelled) = self
+        let installer_content_press_cancelled = self
+            .installer_forms
+            .as_mut()
+            .is_some_and(InstallerFormState::cancel_pointer_press);
+        let (installer_footer_hover_changed, installer_footer_press_cancelled) = self
             .installer_ui
             .as_mut()
             .map(|ui| (ui.clear_pointer_hover(), ui.cancel_pointer_press()))
             .unwrap_or((false, false));
         let installer_hover_changed =
             installer_content_hover_changed || installer_footer_hover_changed;
+        let installer_press_cancelled =
+            installer_content_press_cancelled || installer_footer_press_cancelled;
         [
             (
                 FirstPartyUiSurface::Files,
@@ -8478,53 +8484,13 @@ impl XdgSmokeClientState {
         ) else {
             return false;
         };
-        let content_changed = match model.step() {
-            InstallerStep::Language | InstallerStep::Keyboard | InstallerStep::TimeZone => {
-                match forms.handle_choice_pointer(model, &layout, x, y) {
-                    Ok(update) => {
-                        if update.changed() {
-                            println!("aqua_installer_pointer_form_update={update:?}");
-                        }
-                        update.changed()
-                    }
-                    Err(error) => {
-                        eprintln!("aqua_installer_pointer_form_error={error}");
-                        false
-                    }
-                }
-            }
-            InstallerStep::Partitions => {
-                let update = forms.handle_disk_pointer(model, &layout, x, y);
-                if update.changed() {
-                    println!("aqua_installer_pointer_disk_update={update:?}");
-                }
-                update.changed()
-            }
-            InstallerStep::UserInformation => {
-                let update = forms.user_mut().handle_pointer(model, &layout, x, y);
-                if update.changed() {
-                    println!("aqua_installer_pointer_user_update={update:?}");
-                }
-                update.changed()
-            }
-            InstallerStep::Summary => {
-                let update = forms.summary_mut().handle_pointer(model, &layout, x, y);
-                if update.changed() {
-                    println!("aqua_installer_pointer_summary_update={update:?}");
-                }
-                if let aqua_installer::InstallerSummaryUpdate::AcknowledgementChanged(checked) =
-                    update
-                {
-                    println!("aqua_installer_summary_destructive_acknowledgement={checked}");
-                    println!("aqua_installer_execution_allowed=false");
-                }
-                update.changed()
-            }
-            _ => false,
-        };
-        if content_changed {
+        let content_pressed = forms.begin_pointer_press(model, &layout, x, y);
+        if content_pressed {
+            let target = forms.pressed_target().expect("content press target");
             let focus_action = ui.focus_step_content();
-            println!("aqua_installer_pointer x={x} y={y} action={focus_action:?} content=true");
+            println!(
+                "aqua_installer_pointer phase=press x={x} y={y} pressed=true target={target:?} action={focus_action:?} content=true repaint=true"
+            );
             self.redraw_installer_buffer(qh);
             return true;
         }
@@ -8546,6 +8512,63 @@ impl XdgSmokeClientState {
         interaction_changed
     }
 
+    fn apply_installer_content_pointer_target(
+        &mut self,
+        target: aqua_installer::InstallerContentTarget,
+        layout: &InstallerWindowLayout,
+        x: u32,
+        y: u32,
+    ) -> bool {
+        let (Some(model), Some(forms)) =
+            (self.installer_model.as_mut(), self.installer_forms.as_mut())
+        else {
+            return false;
+        };
+        match target {
+            aqua_installer::InstallerContentTarget::Choice { .. } => {
+                match forms.handle_choice_pointer(model, layout, x, y) {
+                    Ok(update) => {
+                        if update.changed() {
+                            println!("aqua_installer_pointer_form_update={update:?}");
+                        }
+                        update.changed()
+                    }
+                    Err(error) => {
+                        eprintln!("aqua_installer_pointer_form_error={error}");
+                        false
+                    }
+                }
+            }
+            aqua_installer::InstallerContentTarget::Disk { .. } => {
+                let update = forms.handle_disk_pointer(model, layout, x, y);
+                if update.changed() {
+                    println!("aqua_installer_pointer_disk_update={update:?}");
+                }
+                update.changed()
+            }
+            aqua_installer::InstallerContentTarget::UserField { .. } => {
+                let update = forms.user_mut().handle_pointer(model, layout, x, y);
+                if update.changed() {
+                    println!("aqua_installer_pointer_user_update={update:?}");
+                }
+                update.changed()
+            }
+            aqua_installer::InstallerContentTarget::SummaryAcknowledgement => {
+                let update = forms.summary_mut().handle_pointer(model, layout, x, y);
+                if update.changed() {
+                    println!("aqua_installer_pointer_summary_update={update:?}");
+                }
+                if let aqua_installer::InstallerSummaryUpdate::AcknowledgementChanged(checked) =
+                    update
+                {
+                    println!("aqua_installer_summary_destructive_acknowledgement={checked}");
+                    println!("aqua_installer_execution_allowed=false");
+                }
+                update.changed()
+            }
+        }
+    }
+
     fn finish_installer_pointer_press(&mut self, x: u32, y: u32, qh: &QueueHandle<Self>) -> bool {
         let Ok(layout) = InstallerWindowLayout::for_viewport(Viewport::new(
             self.buffer_width,
@@ -8553,6 +8576,21 @@ impl XdgSmokeClientState {
         )) else {
             return false;
         };
+        let (content_press_changed, content_target) =
+            match (self.installer_model.as_ref(), self.installer_forms.as_mut()) {
+                (Some(model), Some(forms)) => forms.finish_pointer_press(model, &layout, x, y),
+                _ => (false, None),
+            };
+        if content_press_changed {
+            println!(
+                "aqua_installer_pointer phase=release x={x} y={y} pressed=false target={content_target:?} content=true"
+            );
+            if let Some(target) = content_target {
+                self.apply_installer_content_pointer_target(target, &layout, x, y);
+            }
+            self.redraw_installer_buffer(qh);
+            return true;
+        }
         let (press_changed, action) = self
             .installer_ui
             .as_mut()
@@ -17583,6 +17621,12 @@ mod tests {
             row.x + row.width - 1,
             row.y + row.height / 2,
         ));
+        assert!(installer_forms.begin_pointer_press(
+            &installer_model,
+            &layout,
+            row.x + row.width - 1,
+            row.y + row.height / 2,
+        ));
         let mut state = XdgSmokeClientState {
             installer_model: Some(installer_model),
             installer_forms: Some(installer_forms),
@@ -17594,7 +17638,7 @@ mod tests {
             state.clear_first_party_pointer_interaction()[3],
             Some(PointerLeaveTransition {
                 surface: FirstPartyUiSurface::Installer,
-                interaction_cancelled: false,
+                interaction_cancelled: true,
                 repaint: true,
             })
         );
@@ -17604,6 +17648,14 @@ mod tests {
                 .as_ref()
                 .expect("Installer forms")
                 .hovered_target(),
+            None
+        );
+        assert_eq!(
+            state
+                .installer_forms
+                .as_ref()
+                .expect("Installer forms")
+                .pressed_target(),
             None
         );
         assert_eq!(state.clear_first_party_pointer_interaction(), [None; 4]);

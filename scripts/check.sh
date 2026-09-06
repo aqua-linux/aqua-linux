@@ -1711,6 +1711,7 @@ grep -Fq 'installer-partitions-timezone' scripts/send-qemu-monitor-input.py
 grep -Fq 'installer-timezone-user' scripts/send-qemu-monitor-input.py
 grep -Fq 'installer-user-summary-confirmation' scripts/send-qemu-monitor-input.py
 grep -Fq 'installer-pointer-background-blur' scripts/send-qemu-monitor-input.py
+grep -Fq 'installer-pointer-language-drag-cancel' scripts/send-qemu-monitor-input.py
 grep -Fq '"sendkey ret 100"' scripts/send-qemu-monitor-input.py
 grep -Fq 'aqua_installer_hover x=[0-9]+ y=[0-9]+ hovered=forward' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_content_hover x=[0-9]+ y=[0-9]+' scripts/check-installer-wayland-qemu.sh
@@ -1718,7 +1719,9 @@ grep -Fq 'aqua_installer_pointer phase=press button=[0-9]+ primary=false ignored
 grep -Fq 'aqua_installer_pointer phase=release x=[0-9]+ y=[0-9]+ pressed=false action=AdvanceRequested' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'pressed=false focus=none action=none repaint=true' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_keyboard key=28 press_count=[0-9]+ action=None' scripts/check-installer-wayland-qemu.sh
-grep -Fq 'aqua_installer_redraw_count=41' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'target=None content=true' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'target=Some\(Choice' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'aqua_installer_redraw_count=49' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_keyboard_layout=trq' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_target_device=/dev/vdb' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_timezone=Europe/Istanbul' scripts/check-installer-wayland-qemu.sh

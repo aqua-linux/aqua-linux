@@ -3257,6 +3257,7 @@ pub struct InstallerWindowProbe {
     pub hovered_target: Option<InstallerFocusTarget>,
     pub hovered_content_target: Option<InstallerContentTarget>,
     pub pressed_target: Option<InstallerFocusTarget>,
+    pub pressed_content_target: Option<InstallerContentTarget>,
     pub step_count: usize,
     pub logo_rendered: bool,
     pub progress_percent: Option<u8>,
@@ -3498,6 +3499,7 @@ pub fn render_installer_window_rgba_with_theme(
             hovered_target: ui.hovered_target(),
             hovered_content_target: forms.hovered_target(),
             pressed_target: ui.pressed_target(),
+            pressed_content_target: forms.pressed_target(),
             step_count: InstallerStep::ALL.len(),
             logo_rendered,
             progress_percent: progress.map(InstallProgressEvent::percent),
@@ -3708,6 +3710,7 @@ fn draw_installer_content(
                     selected_index: forms.language_index(),
                     applied_value: model.locale(),
                     hovered_target: forms.hovered_target(),
+                    pressed_target: forms.pressed_target(),
                     palette,
                 },
             );
@@ -3726,6 +3729,7 @@ fn draw_installer_content(
                     selected_index: forms.keyboard_index(),
                     applied_value: model.keyboard_layout(),
                     hovered_target: forms.hovered_target(),
+                    pressed_target: forms.pressed_target(),
                     palette,
                 },
             );
@@ -3759,6 +3763,7 @@ fn draw_installer_content(
                     selected_index: forms.timezone_index(),
                     applied_value: model.timezone(),
                     hovered_target: forms.hovered_target(),
+                    pressed_target: forms.pressed_target(),
                     palette,
                 },
             );
@@ -3928,6 +3933,7 @@ struct InstallerChoiceForm<'a> {
     selected_index: usize,
     applied_value: Option<&'a str>,
     hovered_target: Option<InstallerContentTarget>,
+    pressed_target: Option<InstallerContentTarget>,
     palette: WindowChromePalette,
 }
 
@@ -3946,6 +3952,7 @@ fn draw_installer_choice_form(
         selected_index,
         applied_value,
         hovered_target,
+        pressed_target,
         palette,
     } = form;
     draw_installer_step_heading(buffer, width, height, x, y, step, palette);
@@ -3966,21 +3973,25 @@ fn draw_installer_choice_form(
     for (index, option) in options.iter().enumerate() {
         let row = layout.choice_row(index);
         let selected = index == selected_index;
-        let hovered = hovered_target == Some(InstallerContentTarget::Choice { step, index });
+        let target = InstallerContentTarget::Choice { step, index };
+        let hovered = hovered_target == Some(target);
+        let pressed = pressed_target == Some(target) && hovered;
         fill_rounded_rect(
             buffer,
             width,
             height,
             row,
             8,
-            if selected {
+            if selected || pressed {
                 palette.accent_soft
             } else if hovered {
                 palette.hover
             } else {
                 palette.field
             },
-            if selected {
+            if pressed {
+                255
+            } else if selected {
                 245
             } else if hovered {
                 235
@@ -3994,12 +4005,18 @@ fn draw_installer_choice_form(
                 width,
                 height,
                 row,
-                if selected {
+                if selected || pressed {
                     palette.accent
                 } else {
                     palette.border
                 },
-                if hovered { 225 } else { 190 },
+                if pressed {
+                    255
+                } else if hovered {
+                    225
+                } else {
+                    190
+                },
             );
         }
         fill_transparent_circle(
@@ -4099,20 +4116,24 @@ fn draw_installer_disk_form(
         let selected = form.forms.disk_index() == Some(index);
         let eligible = option.is_eligible();
         let hovered = form.forms.hovered_target() == Some(InstallerContentTarget::Disk { index });
+        let pressed =
+            form.forms.pressed_target() == Some(InstallerContentTarget::Disk { index }) && hovered;
         fill_rounded_rect(
             buffer,
             width,
             height,
             row,
             8,
-            if selected && eligible {
+            if (selected && eligible) || pressed {
                 form.palette.accent_soft
             } else if hovered {
                 form.palette.hover
             } else {
                 form.palette.field
             },
-            if hovered {
+            if pressed {
+                255
+            } else if hovered {
                 240
             } else if eligible {
                 225
@@ -4126,12 +4147,18 @@ fn draw_installer_disk_form(
                 width,
                 height,
                 row,
-                if selected {
+                if selected || pressed {
                     form.palette.accent
                 } else {
                     form.palette.border
                 },
-                if hovered { 225 } else { 190 },
+                if pressed {
+                    255
+                } else if hovered {
+                    225
+                } else {
+                    190
+                },
             );
         }
         fill_transparent_circle(
@@ -4293,21 +4320,51 @@ fn draw_installer_user_form(
     for (field, label, value) in fields {
         let row = form.layout.user_field_row(field);
         let selected = user.active_field() == field;
+        let target = InstallerContentTarget::UserField { field };
+        let hovered = form.forms.hovered_target() == Some(target);
+        let pressed = form.forms.pressed_target() == Some(target) && hovered;
         fill_rounded_rect(
             buffer,
             width,
             height,
             row,
             8,
-            if selected {
+            if selected || pressed {
                 form.palette.accent_soft
+            } else if hovered {
+                form.palette.hover
             } else {
                 form.palette.field
             },
-            if selected { 245 } else { 205 },
+            if pressed {
+                255
+            } else if selected {
+                245
+            } else if hovered {
+                235
+            } else {
+                205
+            },
         );
-        if selected {
-            draw_rect_outline(buffer, width, height, row, form.palette.accent, 190);
+        if selected || hovered {
+            draw_rect_outline(
+                buffer,
+                width,
+                height,
+                row,
+                if selected || pressed {
+                    form.palette.accent
+                } else {
+                    form.palette.border
+                },
+                if pressed {
+                    255
+                } else if hovered {
+                    225
+                } else {
+                    190
+                },
+            );
         }
         draw_bitmap_text(
             buffer,
@@ -4519,11 +4576,19 @@ fn draw_installer_summary(
         1,
     );
     if view.model.mode() == InstallMode::Real {
-        let checkbox = view.forms.summary().acknowledgement_checkbox(
+        let mut checkbox = view.forms.summary().acknowledgement_checkbox(
             view.model,
             view.layout,
             "Hedef diskin silineceğini anlıyorum",
         );
+        let target = InstallerContentTarget::SummaryAcknowledgement;
+        if view.forms.pressed_target() == Some(target)
+            && view.forms.hovered_target() == Some(target)
+        {
+            checkbox = checkbox.with_state(ComponentState::Pressed);
+        } else if view.forms.hovered_target() == Some(target) {
+            checkbox = checkbox.with_state(ComponentState::Hover);
+        }
         primitives += draw_checkbox(
             buffer,
             width,
@@ -8598,6 +8663,7 @@ mod tests {
         assert_eq!(probe.hovered_target, None);
         assert_eq!(probe.hovered_content_target, None);
         assert_eq!(probe.pressed_target, None);
+        assert_eq!(probe.pressed_content_target, None);
         assert_eq!(probe.step_count, 9);
         assert!(probe.logo_rendered);
         assert_eq!(probe.progress_percent, None);
@@ -8755,6 +8821,35 @@ mod tests {
         assert_eq!(hovered_probe.hovered_target, idle_probe.hovered_target);
         assert_ne!(hovered_probe.checksum, idle_probe.checksum);
         assert_ne!(hovered, idle);
+
+        assert!(forms.begin_pointer_press(
+            &model,
+            &layout,
+            row.x + row.width - 1,
+            row.y + row.height / 2,
+        ));
+        let (pressed, pressed_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+        assert_eq!(
+            pressed_probe.pressed_content_target,
+            hovered_probe.hovered_content_target
+        );
+        assert_ne!(pressed_probe.checksum, hovered_probe.checksum);
+        assert_ne!(pressed, hovered);
+        assert_eq!(
+            forms.finish_pointer_press(
+                &model,
+                &layout,
+                row.x + row.width - 1,
+                row.y + row.height / 2,
+            ),
+            (true, pressed_probe.pressed_content_target)
+        );
+        let (hover_restored, hover_restored_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+        assert_eq!(hover_restored_probe.pressed_content_target, None);
+        assert_eq!(hover_restored_probe.checksum, hovered_probe.checksum);
+        assert_eq!(hover_restored, hovered);
 
         assert!(forms.clear_pointer_hover());
         let (restored, restored_probe) =
