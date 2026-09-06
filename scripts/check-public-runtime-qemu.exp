@@ -69,8 +69,18 @@ send_input public-search "Global Search input"
 run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_launcher_keyboard_code=20 query=set' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_launcher_keyboard_code=20 query=set' /run/aqua/graphical-session-supervisor.log; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$repaint_before" ]} "waiting for Global Search"
 capture $env(SEARCH_PPM) $env(SEARCH_PNG) "Global Search capture"
 
+run_shell_check {repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"; config=/home/aqua/.config/aqua/settings.conf; temporary="${config}.public-runtime-theme"; sed 's/^theme=.*/theme=Dark/' "$config" > "$temporary" && chmod 600 "$temporary" && chown aqua:aqua "$temporary" && mv "$temporary" "$config"} "selecting Dark"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_shell_theme_changed=Dark' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_shell_theme_changed=Dark' /run/aqua/graphical-session-supervisor.log; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$repaint_before" ]} "waiting for Dark Search"
+capture $env(SEARCH_DARK_PPM) $env(SEARCH_DARK_PNG) "Dark Global Search capture"
+
 send_input public-launcher-dismiss "Launcher dismissal"
 run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_launcher_visible=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_launcher_visible=false' ]; do sleep 1; i=$((i + 1)); done} "waiting for launcher dismissal"
+run_shell_check {repaint_before="$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)"} "recording the Dark Search frame"
+send_input public-applications "Dark Applications input"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_launcher_visible=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_launcher_visible=true' ]; do sleep 1; i=$((i + 1)); done; [ "$(grep -F 'desktop_event_launcher_visible=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" = 'desktop_event_launcher_visible=true' ]; [ "$(grep -Fc 'desktop_event_repaint_sequence=' /run/aqua/graphical-session-supervisor.log)" -gt "$repaint_before" ]} "waiting for Dark Applications"
+capture $env(APPLICATIONS_DARK_PPM) $env(APPLICATIONS_DARK_PNG) "Dark Applications capture"
+send_input public-launcher-dismiss "Dark launcher dismissal"
+run_shell_check {i=0; while [ "$i" -lt 30 ] && [ "$(grep -F 'desktop_event_launcher_visible=' /run/aqua/graphical-session-supervisor.log | tail -n 1)" != 'desktop_event_launcher_visible=false' ]; do sleep 1; i=$((i + 1)); done} "waiting for Dark launcher dismissal"
 send_input files-launch-fast "Files launch"
 run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_launch_surface_app_id=aqua.files' /run/aqua/graphical-session-supervisor.log; do sleep 1; i=$((i + 1)); done; grep -Fq 'desktop_launch_surface_app_id=aqua.files' /run/aqua/graphical-session-supervisor.log} "waiting for Files"
 send_input settings-launch-fast "Settings launch"
@@ -78,9 +88,9 @@ run_shell_check {i=0; while [ "$i" -lt 30 ] && ! grep -Fq 'desktop_launch_surfac
 capture $env(WINDOWS_PPM) $env(WINDOWS_PNG) "First-party windows capture"
 
 run_shell_check {ok=1; grep -Fq 'desktop_launcher_keyboard_code=20 query=set' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_surface_app_id=aqua.files' /run/aqua/graphical-session-supervisor.log || ok=0; grep -Fq 'desktop_launch_surface_app_id=aqua.settings' /run/aqua/graphical-session-supervisor.log || ok=0; [ "$(pidof aqua-files | wc -w)" = 1 ] || ok=0; [ "$(pidof aqua-settings | wc -w)" = 1 ] || ok=0} "checking public runtime evidence"
-send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-public-runtime-qemu status=ok captures=desktop,applications,search,windows clients=files,settings'}
+send -- {[ "$ok" = 1 ] && echo '[AQUA-TEST] stage=desktop-public-runtime-qemu status=ok captures=desktop,applications,search,applications-dark,search-dark,windows themes=Light,Dark clients=files,settings'}
 send -- "\r"
-expect -exact {[AQUA-TEST] stage=desktop-public-runtime-qemu status=ok captures=desktop,applications,search,windows clients=files,settings}
+expect -exact {[AQUA-TEST] stage=desktop-public-runtime-qemu status=ok captures=desktop,applications,search,applications-dark,search-dark,windows themes=Light,Dark clients=files,settings}
 expect -exact {# }
 
 send -- "/usr/bin/aqua-graphical-session-stop\r"
