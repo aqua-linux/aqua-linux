@@ -192,6 +192,9 @@ MODES = {
     "installer-keyboard-partitions": (
         "sendkey end 100", "sendkey ret 100", "sendkey ret 100",
     ),
+    "installer-keyboard-choice-arrows": (
+        "sendkey down 100", "sendkey up 100",
+    ),
     "installer-partitions-timezone": (
         "sendkey end 100", "sendkey ret 100", "sendkey ret 100",
     ),

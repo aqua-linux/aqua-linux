@@ -8767,6 +8767,51 @@ impl XdgSmokeClientState {
         ) else {
             return false;
         };
+        let form_navigation_key = match key {
+            103 => Some(InstallerFormKey::Up),
+            108 => Some(InstallerFormKey::Down),
+            _ => None,
+        };
+        if ui.step_content_keyboard_active() {
+            match (model.step(), form_navigation_key) {
+                (
+                    InstallerStep::Language | InstallerStep::Keyboard | InstallerStep::TimeZone,
+                    Some(form_key),
+                ) => {
+                    self.installer_keyboard_press_count += 1;
+                    match forms.handle_key(model, form_key) {
+                        Ok(update) => {
+                            println!(
+                                "aqua_installer_form_navigation key={key} press_count={} update={update:?}",
+                                self.installer_keyboard_press_count
+                            );
+                            if update.changed() {
+                                self.redraw_installer_buffer(qh);
+                            }
+                        }
+                        Err(error) => eprintln!("aqua_installer_form_error={error}"),
+                    }
+                    return true;
+                }
+                (InstallerStep::Partitions, Some(form_key)) => {
+                    self.installer_keyboard_press_count += 1;
+                    match forms.handle_disk_key(model, form_key) {
+                        Ok(update) => {
+                            println!(
+                                "aqua_installer_disk_navigation key={key} press_count={} update={update:?}",
+                                self.installer_keyboard_press_count
+                            );
+                            if update.changed() {
+                                self.redraw_installer_buffer(qh);
+                            }
+                        }
+                        Err(error) => eprintln!("aqua_installer_disk_form_error={error}"),
+                    }
+                    return true;
+                }
+                _ => {}
+            }
+        }
         if model.step() == InstallerStep::Summary && ui.step_content_keyboard_active() {
             let summary_ready = forms.summary().can_begin_install(model);
             let summary_key = match key {
