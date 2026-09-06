@@ -5,7 +5,7 @@ ROOT_DIR="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 SOURCE_DIR="${SOURCE_DIR:-${ROOT_DIR}/build/qemu-public-runtime}"
 TARGET_DIR="${TARGET_DIR:-${ROOT_DIR}/docs/aqua-linux/assets/runtime}"
 SERIAL_LOG="${SERIAL_LOG:-${SOURCE_DIR}/serial.log}"
-MARKER='[AQUA-TEST] stage=desktop-public-runtime-qemu status=ok captures=desktop,applications,search,windows clients=files,settings'
+MARKER='[AQUA-TEST] stage=desktop-public-runtime-qemu status=ok captures=desktop,applications,search,applications-dark,search-dark,windows themes=Light,Dark clients=files,settings'
 
 grep -Fq "${MARKER}" "${SERIAL_LOG}" || {
     echo "Missing successful public runtime QEMU marker: ${SERIAL_LOG}" >&2
@@ -13,7 +13,7 @@ grep -Fq "${MARKER}" "${SERIAL_LOG}" || {
 }
 
 mkdir -p "${TARGET_DIR}"
-for name in desktop applications search windows; do
+for name in desktop applications search applications-dark search-dark windows; do
     test -s "${SOURCE_DIR}/${name}.png" || {
         echo "Missing validated QEMU capture: ${SOURCE_DIR}/${name}.png" >&2
         exit 1
@@ -23,6 +23,8 @@ done
 cp "${SOURCE_DIR}/desktop.png" "${TARGET_DIR}/qemu-desktop.png"
 cp "${SOURCE_DIR}/applications.png" "${TARGET_DIR}/qemu-applications.png"
 cp "${SOURCE_DIR}/search.png" "${TARGET_DIR}/qemu-search.png"
+cp "${SOURCE_DIR}/applications-dark.png" "${TARGET_DIR}/qemu-applications-dark.png"
+cp "${SOURCE_DIR}/search-dark.png" "${TARGET_DIR}/qemu-search-dark.png"
 cp "${SOURCE_DIR}/windows.png" "${TARGET_DIR}/qemu-first-party-windows.png"
 
 SOURCE_REVISION="$(git -C "${ROOT_DIR}" rev-parse HEAD)"
@@ -38,6 +40,8 @@ views = [
     ("qemu-desktop.png", "Clean desktop"),
     ("qemu-applications.png", "Applications"),
     ("qemu-search.png", "Global Search query: set"),
+    ("qemu-applications-dark.png", "Applications, Dark theme"),
+    ("qemu-search-dark.png", "Global Search query: set, Dark theme"),
     ("qemu-first-party-windows.png", "Aqua Files and Aqua Settings"),
 ]
 images = []

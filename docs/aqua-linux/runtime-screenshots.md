@@ -29,6 +29,14 @@ for each image.
 
 ![Aqua Linux Global Search captured in QEMU](assets/runtime/qemu-search.png)
 
+## Applications — Dark
+
+![Aqua Linux Applications in Dark theme captured in QEMU](assets/runtime/qemu-applications-dark.png)
+
+## Global Search — Dark
+
+![Aqua Linux Global Search in Dark theme captured in QEMU](assets/runtime/qemu-search-dark.png)
+
 ## First-Party Windows
 
 ![Aqua Files and Aqua Settings captured in QEMU](assets/runtime/qemu-first-party-windows.png)

@@ -4487,12 +4487,12 @@ impl LauncherState {
     }
 
     pub fn panel_bounds(&self, viewport_width: u32, viewport_height: u32) -> LauncherPanelBounds {
-        let requested_width = match self.mode {
-            LauncherMode::Applications => 620,
-            LauncherMode::Search => 720,
+        let (requested_width, requested_height) = match self.mode {
+            LauncherMode::Applications => (620, 350),
+            LauncherMode::Search => (720, 460),
         };
         let width = requested_width.min(viewport_width.saturating_sub(48));
-        let height = 460_u32.min(viewport_height.saturating_sub(140));
+        let height = requested_height.min(viewport_height.saturating_sub(140));
         LauncherPanelBounds {
             x: viewport_width.saturating_sub(width) / 2,
             y: 70_u32.min(viewport_height.saturating_sub(height) / 2),
@@ -7061,10 +7061,27 @@ mod tests {
         launcher.handle_event(LauncherEvent::OpenApplications);
         assert_eq!(launcher.mode(), LauncherMode::Applications);
         assert_eq!(launcher.category(), LauncherCategory::AllApplications);
+        let applications = launcher.panel_bounds(1280, 800);
+        assert_eq!((applications.width, applications.height), (620, 350));
+        let overview = launcher.application_overview(1280, 800);
+        assert_eq!(
+            overview.cell_rect(5).bottom() + overview.horizontal_inset,
+            overview.rect.bottom()
+        );
+        let compact_overview = launcher.application_overview(800, 600);
+        assert!(compact_overview.is_valid());
+        assert_eq!(compact_overview.rect.width, 620);
+        assert_eq!(compact_overview.rect.height, 350);
+        assert_eq!(
+            compact_overview.cell_rect(5).bottom() + compact_overview.horizontal_inset,
+            compact_overview.rect.bottom()
+        );
 
         launcher.handle_event(LauncherEvent::OpenSearch);
         assert_eq!(launcher.mode(), LauncherMode::Search);
         assert_eq!(launcher.query(), "");
+        let search = launcher.panel_bounds(1280, 800);
+        assert_eq!((search.width, search.height), (720, 460));
 
         launcher.handle_event(LauncherEvent::OpenApplications);
         launcher.handle_event(LauncherEvent::ReplaceQuery("files".into()));
