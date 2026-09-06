@@ -3254,6 +3254,7 @@ pub struct InstallerWindowProbe {
     pub step: InstallerStep,
     pub focus: InstallerFocusTarget,
     pub keyboard_focus_visible: bool,
+    pub hovered_target: Option<InstallerFocusTarget>,
     pub step_count: usize,
     pub logo_rendered: bool,
     pub progress_percent: Option<u8>,
@@ -3492,6 +3493,7 @@ pub fn render_installer_window_rgba_with_theme(
             step: model.step(),
             focus: ui.focus(),
             keyboard_focus_visible: ui.keyboard_focus_visible(),
+            hovered_target: ui.hovered_target(),
             step_count: InstallerStep::ALL.len(),
             logo_rendered,
             progress_percent: progress.map(InstallProgressEvent::percent),
@@ -4524,7 +4526,9 @@ fn draw_installer_footer(
 ) -> usize {
     let focus = ui.focus();
     let state_for = |target| {
-        if ui.keyboard_focus_visible() && focus == target {
+        if ui.hovered_target() == Some(target) {
+            ComponentState::Hover
+        } else if ui.keyboard_focus_visible() && focus == target {
             ComponentState::KeyboardFocus
         } else {
             ComponentState::Idle
@@ -8540,6 +8544,7 @@ mod tests {
         assert_eq!(probe.step, InstallerStep::Welcome);
         assert_eq!(probe.focus, InstallerFocusTarget::LanguageControl);
         assert!(probe.keyboard_focus_visible);
+        assert_eq!(probe.hovered_target, None);
         assert_eq!(probe.step_count, 9);
         assert!(probe.logo_rendered);
         assert_eq!(probe.progress_percent, None);
@@ -8586,6 +8591,40 @@ mod tests {
         assert!(restored_probe.keyboard_focus_visible);
         assert_eq!(restored_probe.checksum, focused_probe.checksum);
         assert_eq!(restored, focused);
+    }
+
+    #[test]
+    fn installer_footer_hover_uses_shared_button_paint_and_is_reversible() {
+        let model = InstallerModel::default();
+        let mut ui = InstallerUiState::new(&model);
+        let forms = InstallerFormState::default();
+        let logo_pixels = [0x18, 0x78, 0xc8, 0xff];
+        let logo = InstallerImageSource::new(1, 1, &logo_pixels).unwrap();
+        let layout = InstallerWindowLayout::for_viewport(Viewport::new(1280, 800)).unwrap();
+        let (idle, idle_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+
+        assert!(ui.handle_pointer_hover(
+            &layout,
+            layout.forward_button.x + layout.forward_button.width / 2,
+            layout.forward_button.y + layout.forward_button.height / 2,
+        ));
+        let (hovered, hovered_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+        assert_eq!(
+            hovered_probe.hovered_target,
+            Some(InstallerFocusTarget::Forward)
+        );
+        assert_eq!(hovered_probe.focus, idle_probe.focus);
+        assert_ne!(hovered_probe.checksum, idle_probe.checksum);
+        assert_ne!(hovered, idle);
+
+        assert!(ui.clear_pointer_hover());
+        let (restored, restored_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+        assert_eq!(restored_probe.hovered_target, None);
+        assert_eq!(restored_probe.checksum, idle_probe.checksum);
+        assert_eq!(restored, idle);
     }
 
     #[test]

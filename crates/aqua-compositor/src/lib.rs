@@ -8017,7 +8017,7 @@ impl XdgSmokeClientState {
         })
     }
 
-    fn clear_first_party_pointer_interaction(&mut self) -> [Option<PointerLeaveTransition>; 3] {
+    fn clear_first_party_pointer_interaction(&mut self) -> [Option<PointerLeaveTransition>; 4] {
         let files_drag_cancelled = std::mem::take(&mut self.files_scrollbar_dragging);
         let files_hover_changed = self
             .files_navigator
@@ -8034,6 +8034,10 @@ impl XdgSmokeClientState {
             .settings_model
             .as_mut()
             .is_some_and(aqua_shell::SettingsWindowModel::clear_hovered_category);
+        let installer_hover_changed = self
+            .installer_ui
+            .as_mut()
+            .is_some_and(InstallerUiState::clear_pointer_hover);
         [
             (
                 FirstPartyUiSurface::Files,
@@ -8046,6 +8050,11 @@ impl XdgSmokeClientState {
                 properties.press_cancelled,
             ),
             (FirstPartyUiSurface::Settings, settings_hover_changed, false),
+            (
+                FirstPartyUiSurface::Installer,
+                installer_hover_changed,
+                false,
+            ),
         ]
         .map(|(surface, visual_changed, interaction_cancelled)| {
             (visual_changed || interaction_cancelled).then_some(PointerLeaveTransition {
@@ -8188,6 +8197,8 @@ impl XdgSmokeClientState {
             self.redraw_properties_buffer(qh);
         } else if self.terminal_session.is_some() {
             self.redraw_terminal_buffer(qh);
+        } else if self.installer_model.is_some() {
+            self.redraw_installer_buffer(qh);
         }
         true
     }
@@ -14635,6 +14646,7 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
             event,
             client_wl_pointer::Event::Enter { .. } | client_wl_pointer::Event::Motion { .. }
         ) && !state.window_hovered
+            && state.installer_model.is_none()
         {
             state.window_hovered = true;
             state.redraw_first_party_window(qh);
@@ -14659,7 +14671,30 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                         surface_y.max(0.0) as u32
                     );
                 }
-                if let Some(model) = state.properties_model.as_mut() {
+                if state.installer_ui.is_some() {
+                    let pointer_x = state.pointer_surface_x.max(0.0) as u32;
+                    let pointer_y = state.pointer_surface_y.max(0.0) as u32;
+                    let layout = InstallerWindowLayout::for_viewport(Viewport::new(
+                        state.buffer_width.max(1),
+                        state.buffer_height.max(1),
+                    ));
+                    let changed = layout.is_ok_and(|layout| {
+                        state.installer_ui.as_mut().is_some_and(|ui| {
+                            ui.handle_pointer_hover(&layout, pointer_x, pointer_y)
+                        })
+                    });
+                    if changed {
+                        let hovered = state
+                            .installer_ui
+                            .as_ref()
+                            .and_then(InstallerUiState::hovered_target)
+                            .map_or("none", InstallerFocusTarget::id);
+                        println!(
+                            "aqua_installer_hover x={pointer_x} y={pointer_y} hovered={hovered} reason=pointer-motion repaint=true"
+                        );
+                        state.redraw_installer_buffer(qh);
+                    }
+                } else if let Some(model) = state.properties_model.as_mut() {
                     let pointer_x = state.pointer_surface_x.max(0.0) as u32;
                     let pointer_y = state.pointer_surface_y.max(0.0) as u32;
                     if model.handle_primary_action_hover(
@@ -14745,7 +14780,9 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                                 "aqua_settings_hover hovered=none reason=pointer-leave category={selected_category} repaint={repaint}"
                             );
                         }
-                        FirstPartyUiSurface::Installer => {}
+                        FirstPartyUiSurface::Installer => println!(
+                            "aqua_installer_hover hovered=none reason=pointer-leave repaint={repaint}"
+                        ),
                     }
                 }
                 if window_hover_changed || content_repaint {
@@ -17342,12 +17379,26 @@ mod tests {
                             hovered_category: hovered.then_some(1),
                             ..aqua_shell::SettingsWindowModel::default()
                         };
+                        let installer_model = InstallerModel::default();
+                        let mut installer_ui = InstallerUiState::new(&installer_model);
+                        if hovered {
+                            let layout =
+                                InstallerWindowLayout::for_viewport(Viewport::new(1280, 800))
+                                    .expect("Installer layout");
+                            assert!(installer_ui.handle_pointer_hover(
+                                &layout,
+                                layout.forward_button.x + layout.forward_button.width / 2,
+                                layout.forward_button.y + layout.forward_button.height / 2,
+                            ));
+                        }
                         let mut state = XdgSmokeClientState {
                             files_model: Some(navigator.window().clone()),
                             files_navigator: Some(navigator),
                             files_scrollbar_dragging: dragging,
                             properties_model: Some(properties.clone()),
                             settings_model: Some(settings.clone()),
+                            installer_model: Some(installer_model),
+                            installer_ui: Some(installer_ui),
                             close_event_received,
                             ..XdgSmokeClientState::default()
                         };
@@ -17359,6 +17410,8 @@ mod tests {
                         expected_properties.primary_action_pressed = false;
                         let mut expected_settings = settings;
                         expected_settings.hovered_category = None;
+                        let mut expected_installer = state.installer_ui.clone().expect("Installer");
+                        expected_installer.clear_pointer_hover();
                         assert_eq!(
                             state.clear_first_party_pointer_interaction(),
                             [
@@ -17377,6 +17430,11 @@ mod tests {
                                     interaction_cancelled: false,
                                     repaint: !close_event_received,
                                 }),
+                                hovered.then_some(PointerLeaveTransition {
+                                    surface: FirstPartyUiSurface::Installer,
+                                    interaction_cancelled: false,
+                                    repaint: !close_event_received,
+                                }),
                             ]
                         );
                         assert!(!state.files_scrollbar_dragging);
@@ -17386,7 +17444,8 @@ mod tests {
                         assert_eq!(navigator.current(), root.canonicalize().expect("root"));
                         assert_eq!(state.properties_model, Some(expected_properties));
                         assert_eq!(state.settings_model, Some(expected_settings));
-                        assert_eq!(state.clear_first_party_pointer_interaction(), [None; 3]);
+                        assert_eq!(state.installer_ui, Some(expected_installer));
+                        assert_eq!(state.clear_first_party_pointer_interaction(), [None; 4]);
                     }
                 }
             }
@@ -17394,7 +17453,7 @@ mod tests {
                 close_event_received,
                 ..XdgSmokeClientState::default()
             };
-            assert_eq!(empty.clear_first_party_pointer_interaction(), [None; 3]);
+            assert_eq!(empty.clear_first_party_pointer_interaction(), [None; 4]);
             empty.files_scrollbar_dragging = true;
             assert_eq!(
                 empty.clear_first_party_pointer_interaction(),
@@ -17406,10 +17465,11 @@ mod tests {
                     }),
                     None,
                     None,
+                    None,
                 ]
             );
             assert!(!empty.files_scrollbar_dragging);
-            assert_eq!(empty.clear_first_party_pointer_interaction(), [None; 3]);
+            assert_eq!(empty.clear_first_party_pointer_interaction(), [None; 4]);
         }
         fs::remove_dir_all(root).expect("remove isolated root");
     }
@@ -17624,7 +17684,7 @@ mod tests {
             // A repeated close and later leave need no further model action or repaint.
             state.begin_close();
             assert_eq!(state.clear_first_party_keyboard_focus(), [None; 4]);
-            assert_eq!(state.clear_first_party_pointer_interaction(), [None; 3]);
+            assert_eq!(state.clear_first_party_pointer_interaction(), [None; 4]);
         }
     }
 
