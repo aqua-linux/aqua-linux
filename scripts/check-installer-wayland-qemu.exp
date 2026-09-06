@@ -107,6 +107,29 @@ expect {
     eof { puts stderr "QEMU exited before installer blurred Enter rejection"; exit 1 }
 }
 
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-pointer-language-drag-cancel} input_error]} {
+    puts stderr "QEMU installer form pointer cancellation injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -re {aqua_installer_pointer phase=press button=[0-9]+ primary=false ignored=true} {}
+    timeout { puts stderr "Timed out waiting for installer content non-primary rejection"; exit 1 }
+    eof { puts stderr "QEMU exited before installer content non-primary rejection"; exit 1 }
+}
+
+expect {
+    -re {aqua_installer_pointer phase=press x=[0-9]+ y=[0-9]+ pressed=true target=Choice \{ step: Language, index: 0 \} action=FocusChanged\(StepContent\) content=true repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer content pointer arm"; exit 1 }
+    eof { puts stderr "QEMU exited before installer content pointer arm"; exit 1 }
+}
+
+expect {
+    -re {aqua_installer_pointer phase=release x=[0-9]+ y=[0-9]+ pressed=false target=None content=true} {}
+    timeout { puts stderr "Timed out waiting for installer content drag cancellation"; exit 1 }
+    eof { puts stderr "QEMU exited before installer content drag cancellation"; exit 1 }
+}
+
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-pointer-language-row} input_error]} {
     puts stderr "QEMU installer form pointer injection failed: $input_error"
     exit 1
@@ -116,6 +139,12 @@ expect {
     -re {aqua_installer_content_hover x=[0-9]+ y=[0-9]+ hovered=Some\(Choice \{ step: Language, index: 0 \}\) reason=pointer-motion repaint=true} {}
     timeout { puts stderr "Timed out waiting for installer content row hover"; exit 1 }
     eof { puts stderr "QEMU exited before installer content row hover"; exit 1 }
+}
+
+expect {
+    -re {aqua_installer_pointer phase=release x=[0-9]+ y=[0-9]+ pressed=false target=Some\(Choice \{ step: Language, index: 0 \}\) content=true} {}
+    timeout { puts stderr "Timed out waiting for installer content pointer release"; exit 1 }
+    eof { puts stderr "QEMU exited before installer content pointer release"; exit 1 }
 }
 
 expect {

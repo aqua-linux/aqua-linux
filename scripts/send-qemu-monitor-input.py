@@ -177,6 +177,11 @@ MODES = {
         "mouse_button 1", "mouse_button 0",
         "sendkey ret 100",
     ),
+    "installer-pointer-language-drag-cancel": (
+        "mouse_move 336 252",
+        "mouse_button 2", "mouse_button 0",
+        "mouse_button 1", "mouse_move -336 -252", "mouse_button 0",
+    ),
     "installer-pointer-language-row": (
         "mouse_move 336 252", "mouse_button 1", "mouse_button 0",
     ),

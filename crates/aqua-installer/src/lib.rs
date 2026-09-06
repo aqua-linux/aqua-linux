@@ -1249,6 +1249,7 @@ pub struct InstallerFormState {
     disk_options: Vec<InstallerDiskOption>,
     disk_index: Option<usize>,
     hovered_target: Option<InstallerContentTarget>,
+    pressed_target: Option<InstallerContentTarget>,
     user: InstallerUserFormState,
     summary: InstallerSummaryState,
 }
@@ -1257,6 +1258,8 @@ pub struct InstallerFormState {
 pub enum InstallerContentTarget {
     Choice { step: InstallerStep, index: usize },
     Disk { index: usize },
+    UserField { field: InstallerUserField },
+    SummaryAcknowledgement,
 }
 
 impl InstallerContentTarget {
@@ -1264,6 +1267,8 @@ impl InstallerContentTarget {
         match self {
             Self::Choice { step, .. } => step,
             Self::Disk { .. } => InstallerStep::Partitions,
+            Self::UserField { .. } => InstallerStep::UserInformation,
+            Self::SummaryAcknowledgement => InstallerStep::Summary,
         }
     }
 }
@@ -1291,6 +1296,10 @@ impl InstallerFormState {
 
     pub const fn hovered_target(&self) -> Option<InstallerContentTarget> {
         self.hovered_target
+    }
+
+    pub const fn pressed_target(&self) -> Option<InstallerContentTarget> {
+        self.pressed_target
     }
 
     pub const fn user(&self) -> &InstallerUserFormState {
@@ -1350,6 +1359,12 @@ impl InstallerFormState {
         {
             self.hovered_target = None;
         }
+        if self
+            .pressed_target
+            .is_some_and(|target| target.step() != model.step())
+        {
+            self.pressed_target = None;
+        }
         if let Some(locale) = model.locale() {
             if let Some(index) = LANGUAGE_OPTIONS
                 .iter()
@@ -1390,7 +1405,61 @@ impl InstallerFormState {
         x: u32,
         y: u32,
     ) -> bool {
-        let hovered_target = match model.step() {
+        let hovered_target = self.pointer_target(model, layout, x, y);
+        if self.hovered_target == hovered_target {
+            return false;
+        }
+        self.hovered_target = hovered_target;
+        true
+    }
+
+    pub fn clear_pointer_hover(&mut self) -> bool {
+        self.hovered_target.take().is_some()
+    }
+
+    pub fn begin_pointer_press(
+        &mut self,
+        model: &InstallerModel,
+        layout: &InstallerWindowLayout,
+        x: u32,
+        y: u32,
+    ) -> bool {
+        let Some(target) = self.pointer_target(model, layout, x, y) else {
+            self.pressed_target = None;
+            return false;
+        };
+        self.hovered_target = Some(target);
+        self.pressed_target = Some(target);
+        true
+    }
+
+    pub fn finish_pointer_press(
+        &mut self,
+        model: &InstallerModel,
+        layout: &InstallerWindowLayout,
+        x: u32,
+        y: u32,
+    ) -> (bool, Option<InstallerContentTarget>) {
+        let Some(pressed_target) = self.pressed_target.take() else {
+            return (false, None);
+        };
+        let action = (self.pointer_target(model, layout, x, y) == Some(pressed_target))
+            .then_some(pressed_target);
+        (true, action)
+    }
+
+    pub fn cancel_pointer_press(&mut self) -> bool {
+        self.pressed_target.take().is_some()
+    }
+
+    fn pointer_target(
+        &self,
+        model: &InstallerModel,
+        layout: &InstallerWindowLayout,
+        x: u32,
+        y: u32,
+    ) -> Option<InstallerContentTarget> {
+        match model.step() {
             step
             @ (InstallerStep::Language | InstallerStep::Keyboard | InstallerStep::TimeZone) => {
                 let option_count = match step {
@@ -1414,17 +1483,23 @@ impl InstallerFormState {
                             .then_some(InstallerContentTarget::Disk { index })
                     })
             }
+            InstallerStep::UserInformation => [
+                InstallerUserField::Username,
+                InstallerUserField::DisplayName,
+                InstallerUserField::Password,
+            ]
+            .into_iter()
+            .find_map(|field| {
+                rect_contains(layout.user_field_row(field), x, y)
+                    .then_some(InstallerContentTarget::UserField { field })
+            }),
+            InstallerStep::Summary => self
+                .summary
+                .acknowledgement_checkbox(model, layout, "Hedef diskin silineceğini anlıyorum")
+                .pointer_toggles(x, y)
+                .then_some(InstallerContentTarget::SummaryAcknowledgement),
             _ => None,
-        };
-        if self.hovered_target == hovered_target {
-            return false;
         }
-        self.hovered_target = hovered_target;
-        true
-    }
-
-    pub fn clear_pointer_hover(&mut self) -> bool {
-        self.hovered_target.take().is_some()
     }
 
     pub fn handle_key(
@@ -5579,6 +5654,103 @@ mod tests {
                 index: 2,
             })
         );
+    }
+
+    #[test]
+    fn installer_content_press_activates_only_after_release_on_the_armed_target() {
+        let layout = InstallerWindowLayout::for_viewport(Viewport::new(1280, 800)).unwrap();
+        let center = |rect: Rect| (rect.x + rect.width / 2, rect.y + rect.height / 2);
+        let mut model = InstallerModel::default();
+        model.advance().unwrap();
+        let mut forms = InstallerFormState::default();
+        let language_one = center(layout.choice_row(1));
+        let language_two = center(layout.choice_row(2));
+
+        assert!(forms.begin_pointer_press(&model, &layout, language_one.0, language_one.1));
+        assert_eq!(model.locale(), None);
+        assert_eq!(
+            forms.pressed_target(),
+            Some(InstallerContentTarget::Choice {
+                step: InstallerStep::Language,
+                index: 1,
+            })
+        );
+        assert!(forms.handle_pointer_hover(&model, &layout, language_two.0, language_two.1));
+        assert_eq!(
+            forms.finish_pointer_press(&model, &layout, language_two.0, language_two.1),
+            (true, None)
+        );
+        assert_eq!(model.locale(), None);
+
+        assert!(forms.begin_pointer_press(&model, &layout, language_one.0, language_one.1));
+        let target = InstallerContentTarget::Choice {
+            step: InstallerStep::Language,
+            index: 1,
+        };
+        assert_eq!(
+            forms.finish_pointer_press(&model, &layout, language_one.0, language_one.1),
+            (true, Some(target))
+        );
+        assert_eq!(model.locale(), None);
+        forms
+            .handle_choice_pointer(&mut model, &layout, language_one.0, language_one.1)
+            .unwrap();
+        assert_eq!(model.locale(), Some("en_US.UTF-8"));
+
+        assert!(forms.begin_pointer_press(&model, &layout, language_one.0, language_one.1));
+        assert!(forms.cancel_pointer_press());
+        assert!(!forms.cancel_pointer_press());
+        assert_eq!(
+            forms.finish_pointer_press(&model, &layout, language_one.0, language_one.1),
+            (false, None)
+        );
+
+        let mut user_model = ready_model(InstallMode::Real);
+        user_model.retreat().unwrap();
+        let mut user_forms = InstallerFormState::default();
+        user_forms.sync_model(&user_model);
+        let display_name = center(layout.user_field_row(InstallerUserField::DisplayName));
+        assert!(user_forms.begin_pointer_press(
+            &user_model,
+            &layout,
+            display_name.0,
+            display_name.1,
+        ));
+        assert_eq!(
+            user_forms.finish_pointer_press(&user_model, &layout, display_name.0, display_name.1,),
+            (
+                true,
+                Some(InstallerContentTarget::UserField {
+                    field: InstallerUserField::DisplayName,
+                })
+            )
+        );
+
+        let summary_model = ready_model(InstallMode::Real);
+        let mut summary_forms = InstallerFormState::default();
+        summary_forms.sync_model(&summary_model);
+        let acknowledgement = center(layout.summary_acknowledgement_rect());
+        assert!(!summary_forms
+            .summary()
+            .acknowledgement_checked(&summary_model));
+        assert!(summary_forms.begin_pointer_press(
+            &summary_model,
+            &layout,
+            acknowledgement.0,
+            acknowledgement.1,
+        ));
+        assert_eq!(
+            summary_forms.finish_pointer_press(
+                &summary_model,
+                &layout,
+                acknowledgement.0,
+                acknowledgement.1,
+            ),
+            (true, Some(InstallerContentTarget::SummaryAcknowledgement))
+        );
+        assert!(!summary_forms
+            .summary()
+            .acknowledgement_checked(&summary_model));
     }
 
     #[test]
