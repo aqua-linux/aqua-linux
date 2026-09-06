@@ -8787,6 +8787,17 @@ impl XdgSmokeClientState {
                                 "aqua_installer_form_navigation key={key} press_count={} update={update:?}",
                                 self.installer_keyboard_press_count
                             );
+                            let applied_value = match model.step() {
+                                InstallerStep::Language => model.locale(),
+                                InstallerStep::Keyboard => model.keyboard_layout(),
+                                InstallerStep::TimeZone => model.timezone(),
+                                _ => None,
+                            }
+                            .unwrap_or("none");
+                            println!(
+                                "aqua_installer_form_navigation_applied step={} value={applied_value}",
+                                model.step().id()
+                            );
                             if update.changed() {
                                 self.redraw_installer_buffer(qh);
                             }

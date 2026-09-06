@@ -1554,27 +1554,27 @@ impl InstallerFormState {
             InstallerFormKey::Activate => *index,
         };
         let selected = options[*index];
-        match model.step() {
-            InstallerStep::Language => model.set_locale(selected.value)?,
-            InstallerStep::Keyboard => model.set_keyboard_layout(selected.value)?,
-            InstallerStep::TimeZone => model.set_timezone(selected.value)?,
-            _ => unreachable!("form step checked above"),
+        if matches!(key, InstallerFormKey::Activate) {
+            match model.step() {
+                InstallerStep::Language => model.set_locale(selected.value)?,
+                InstallerStep::Keyboard => model.set_keyboard_layout(selected.value)?,
+                InstallerStep::TimeZone => model.set_timezone(selected.value)?,
+                _ => unreachable!("form step checked above"),
+            }
+            Ok(InstallerFormUpdate::ValueApplied {
+                step: model.step(),
+                index: *index,
+                value: selected.value,
+            })
+        } else if previous == *index {
+            Ok(InstallerFormUpdate::None)
+        } else {
+            Ok(InstallerFormUpdate::SelectionChanged {
+                step: model.step(),
+                index: *index,
+                value: selected.value,
+            })
         }
-        Ok(
-            if matches!(key, InstallerFormKey::Activate) || previous == *index {
-                InstallerFormUpdate::ValueApplied {
-                    step: model.step(),
-                    index: *index,
-                    value: selected.value,
-                }
-            } else {
-                InstallerFormUpdate::SelectionChanged {
-                    step: model.step(),
-                    index: *index,
-                    value: selected.value,
-                }
-            },
-        )
     }
 
     pub fn handle_choice_pointer(
@@ -5977,7 +5977,7 @@ mod tests {
                 value: "en_US.UTF-8",
             }
         );
-        assert_eq!(model.locale(), Some("en_US.UTF-8"));
+        assert_eq!(model.locale(), None);
         assert_eq!(
             forms.handle_key(&mut model, InstallerFormKey::End).unwrap(),
             InstallerFormUpdate::SelectionChanged {
@@ -5996,6 +5996,7 @@ mod tests {
                 value: "de_DE.UTF-8",
             }
         );
+        assert_eq!(model.locale(), Some("de_DE.UTF-8"));
 
         model.advance().unwrap();
         assert_eq!(model.step(), InstallerStep::Keyboard);
@@ -6007,7 +6008,7 @@ mod tests {
                 value: "us",
             }
         );
-        assert_eq!(model.keyboard_layout(), Some("us"));
+        assert_eq!(model.keyboard_layout(), None);
         assert_eq!(
             forms
                 .handle_key(&mut model, InstallerFormKey::Home)
@@ -6018,6 +6019,18 @@ mod tests {
                 value: "trq",
             }
         );
+        assert_eq!(model.keyboard_layout(), None);
+        assert_eq!(
+            forms
+                .handle_key(&mut model, InstallerFormKey::Activate)
+                .unwrap(),
+            InstallerFormUpdate::ValueApplied {
+                step: InstallerStep::Keyboard,
+                index: 0,
+                value: "trq",
+            }
+        );
+        assert_eq!(model.keyboard_layout(), Some("trq"));
 
         let mut restored = InstallerFormState::default();
         restored.sync_model(&model);
@@ -6103,7 +6116,7 @@ mod tests {
                 value: "America/New_York",
             }
         );
-        assert_eq!(model.timezone(), Some("America/New_York"));
+        assert_eq!(model.timezone(), None);
         assert_eq!(
             forms
                 .handle_key(&mut model, InstallerFormKey::Activate)
@@ -6114,6 +6127,7 @@ mod tests {
                 value: "America/New_York",
             }
         );
+        assert_eq!(model.timezone(), Some("America/New_York"));
 
         let mut restored = InstallerFormState::default();
         restored.sync_model(&model);

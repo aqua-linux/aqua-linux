@@ -9058,6 +9058,9 @@ mod tests {
         ));
         model.advance().unwrap();
         forms.handle_key(&mut model, InstallerFormKey::End).unwrap();
+        forms
+            .handle_key(&mut model, InstallerFormKey::Activate)
+            .unwrap();
         let ui = InstallerUiState::new(&model);
         let (_, probe) =
             render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();

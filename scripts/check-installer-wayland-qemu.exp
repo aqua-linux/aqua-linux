@@ -194,6 +194,12 @@ expect {
 }
 
 expect {
+    -exact {aqua_installer_form_navigation_applied step=keyboard value=trq} {}
+    timeout { puts stderr "Timed out waiting for installer Keyboard unapplied End selection proof"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Keyboard unapplied End selection proof"; exit 1 }
+}
+
+expect {
     -exact {aqua_installer_form_navigation key=102 press_count=11 update=SelectionChanged { step: Keyboard, index: 0, value: "trq" }} {}
     timeout { puts stderr "Timed out waiting for installer Keyboard Home selection"; exit 1 }
     eof { puts stderr "QEMU exited before installer Keyboard Home selection"; exit 1 }
