@@ -229,6 +229,7 @@ MODES = {
     ),
     "installer-summary-begin": ("sendkey end 100", "sendkey ret 100"),
     "installer-progress-next": ("sendkey ret 100",),
+    "installer-completed-finish": ("sendkey spc 100",),
     "session-recovery": (
         "sendkey f10 100", "sendkey down 100", "sendkey down 100",
         "sendkey down 100", "sendkey ret 100", "sendkey ret 100",

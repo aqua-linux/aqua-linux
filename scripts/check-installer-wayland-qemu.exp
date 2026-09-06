@@ -459,6 +459,23 @@ if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(COMPLETE
     exit 1
 }
 
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-completed-finish} input_error]} {
+    puts stderr "QEMU installer completed Finish keyboard injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -exact {aqua_installer_keyboard key=57 press_count=65 action=FinishRequested} {}
+    timeout { puts stderr "Timed out waiting for installer completed keyboard Finish action"; exit 1 }
+    eof { puts stderr "QEMU exited before installer completed keyboard Finish action"; exit 1 }
+}
+
+expect {
+    -exact {aqua_installer_finish_requested=true} {}
+    timeout { puts stderr "Timed out waiting for installer completed Finish request"; exit 1 }
+    eof { puts stderr "QEMU exited before installer completed Finish request"; exit 1 }
+}
+
 expect {
     -exact {[AQUA-COMPOSITOR] stage=drm-wayland-session status=ok} {}
     timeout { puts stderr "Timed out waiting for the installer session cleanup"; exit 1 }

@@ -5422,6 +5422,10 @@ mod tests {
         let mut ui = InstallerUiState::new(&model);
         assert_eq!(ui.focus(), InstallerFocusTarget::LanguageControl);
         assert_eq!(
+            ui.handle_key(InstallerUiKey::Activate),
+            InstallerUiAction::OpenLanguageControl
+        );
+        assert_eq!(
             ui.handle_key(InstallerUiKey::Tab),
             InstallerUiAction::FocusChanged(InstallerFocusTarget::Cancel)
         );
