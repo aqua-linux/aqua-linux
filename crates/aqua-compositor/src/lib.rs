@@ -8424,42 +8424,14 @@ impl XdgSmokeClientState {
         if self.close_event_received {
             return;
         }
-        let Some(shm) = self.shm.clone() else {
-            return;
-        };
         let width = self.buffer_width.max(1);
         let height = self.buffer_height.max(1);
-        let stride = width * 4;
-        let size = stride * height;
         let Ok(pixels) = self.render_installer_buffer() else {
             eprintln!("aqua_installer_redraw_error=render-failed");
             return;
         };
 
-        use std::io::Write;
-        use std::os::unix::io::AsFd;
-        let mut file = tempfile::tempfile().expect("Aqua Installer redraw tempfile should open");
-        file.write_all(&pixels)
-            .expect("Aqua Installer redraw buffer should be writable");
-        file.flush()
-            .expect("Aqua Installer redraw buffer should flush");
-        let pool = shm.create_pool(file.as_fd(), size as i32, qh, ());
-        let buffer = pool.create_buffer(
-            0,
-            width as i32,
-            height as i32,
-            stride as i32,
-            client_wl_shm::Format::Argb8888,
-            qh,
-            (),
-        );
-        pool.destroy();
-        if let Some(surface) = self.base_surface.as_ref() {
-            surface.attach(Some(&buffer), 0, 0);
-            surface.damage(0, 0, width as i32, height as i32);
-            surface.frame(qh, ());
-            surface.commit();
-            self.replace_shm_buffer(buffer);
+        if self.submit_ui_redraw_buffer(qh, width, height, &pixels, false) {
             self.installer_redraw_count += 1;
             println!(
                 "aqua_installer_redraw_count={}",
@@ -9194,7 +9166,7 @@ impl XdgSmokeClientState {
         )
         .0;
 
-        self.submit_ui_redraw_buffer(qh, width, height, &pixels);
+        self.submit_ui_redraw_buffer(qh, width, height, &pixels, true);
     }
 
     fn redraw_settings_buffer(&mut self, qh: &QueueHandle<Self>) {
@@ -9216,7 +9188,7 @@ impl XdgSmokeClientState {
             );
         }
 
-        self.submit_ui_redraw_buffer(qh, width, height, &pixels);
+        self.submit_ui_redraw_buffer(qh, width, height, &pixels, true);
     }
 
     fn redraw_properties_buffer(&mut self, qh: &QueueHandle<Self>) {
@@ -9237,7 +9209,7 @@ impl XdgSmokeClientState {
         )
         .0;
 
-        self.submit_ui_redraw_buffer(qh, width, height, &pixels);
+        self.submit_ui_redraw_buffer(qh, width, height, &pixels, true);
     }
 
     fn redraw_first_party_window(&mut self, qh: &QueueHandle<Self>) {
@@ -9267,6 +9239,7 @@ impl XdgSmokeClientState {
         width: u32,
         height: u32,
         pixels: &[u8],
+        request_frame_callback: bool,
     ) -> bool {
         if self.close_event_received {
             return false;
@@ -9295,7 +9268,9 @@ impl XdgSmokeClientState {
         pool.destroy();
         surface.attach(Some(&buffer), 0, 0);
         surface.damage(0, 0, width as i32, height as i32);
-        surface.frame(qh, ());
+        if request_frame_callback {
+            surface.frame(qh, ());
+        }
         surface.commit();
         self.replace_shm_buffer(buffer);
         true
@@ -9321,7 +9296,7 @@ impl XdgSmokeClientState {
         )
         .0;
 
-        if self.submit_ui_redraw_buffer(qh, width, height, &pixels) {
+        if self.submit_ui_redraw_buffer(qh, width, height, &pixels, true) {
             self.terminal_frame_pending = true;
             self.terminal_frame_requested_at = Some(std::time::Instant::now());
             self.terminal_dirty = false;
@@ -10149,6 +10124,23 @@ impl SmithayDrmSession {
             self.session.wayland_state.pointer_motion_count += 1;
             return true;
         }
+        let installer_surface = self
+            .session
+            .wayland_state
+            .toplevel_surfaces
+            .iter()
+            .find(|toplevel| {
+                with_states(toplevel.wl_surface(), |states| {
+                    states
+                        .data_map
+                        .get::<XdgToplevelSurfaceData>()
+                        .and_then(|data| data.lock().ok())
+                        .and_then(|attributes| attributes.app_id.clone())
+                        .as_deref()
+                        == Some("aqua.installer")
+                })
+            })
+            .map(|toplevel| toplevel.wl_surface().clone());
         let exact_surface_hit = self
             .session
             .wayland_state
@@ -10163,15 +10155,24 @@ impl SmithayDrmSession {
                     width: record.display_width,
                     height: record.display_height,
                 };
-                pointer_location_in_surface_space(surface, pointer_location, viewport).map(
-                    |surface_pointer_location| {
-                        (
-                            record.surface.clone(),
-                            (f64::from(record.x), f64::from(record.y)).into(),
-                            surface_pointer_location,
-                        )
-                    },
-                )
+                if installer_surface.as_ref() == Some(&record.surface)
+                    && pointer_location.0 >= 0.0
+                    && pointer_location.0 < f64::from(viewport.width)
+                    && pointer_location.1 >= 0.0
+                    && pointer_location.1 < f64::from(viewport.height)
+                {
+                    Some((record.surface.clone(), (0.0, 0.0).into(), pointer_location))
+                } else {
+                    pointer_location_in_surface_space(surface, pointer_location, viewport).map(
+                        |surface_pointer_location| {
+                            (
+                                record.surface.clone(),
+                                (f64::from(record.x), f64::from(record.y)).into(),
+                                surface_pointer_location,
+                            )
+                        },
+                    )
+                }
             });
         // Treat the whole painted window frame and its visible shadow as one hover target. This
         // must not depend on the previous wl_pointer focus: a buffer redraw can be processed
@@ -15515,6 +15516,74 @@ mod tests {
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
     #[test]
+    fn installer_shared_redraw_preserves_mapping_and_counts_only_commits() {
+        let mut session = SmithayDrmSession::new().expect("Smithay session should start");
+        session.set_output_dimensions(1280, 800);
+        let (server, client) =
+            std::os::unix::net::UnixStream::pair().expect("Wayland stream pair should open");
+        session
+            .insert_client(server)
+            .expect("Installer client should insert");
+        let connection = ClientConnection::from_socket(client)
+            .expect("Installer Wayland connection should open");
+        let mut queue = connection.new_event_queue::<XdgSmokeClientState>();
+        let qh = queue.handle();
+        connection.display().get_registry(&qh, ());
+        connection.flush().expect("registry request should flush");
+        session
+            .dispatch_clients()
+            .expect("registry request should dispatch");
+        session
+            .flush_clients()
+            .expect("registry globals should flush");
+
+        let logo_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../docs/aqua-linux/assets/aqua-symbol-primary.png");
+        let mut state = XdgSmokeClientState::installer_app_with_logo(&logo_path)
+            .expect("installer client state should load canonical logo");
+        queue
+            .blocking_dispatch(&mut state)
+            .expect("registry globals should dispatch");
+        connection.flush().expect("surface request should flush");
+        session
+            .dispatch_clients()
+            .expect("surface request should dispatch");
+        session
+            .flush_clients()
+            .expect("initial configure should flush");
+        queue
+            .blocking_dispatch(&mut state)
+            .expect("initial configure should dispatch");
+        connection.flush().expect("initial buffer should flush");
+        session
+            .dispatch_clients()
+            .expect("initial buffer should dispatch");
+
+        assert_eq!(session.visible_client_surface_snapshots().len(), 1);
+        assert_eq!(state.installer_redraw_count, 0);
+        let commits_before = session.session.wayland_state.surface_commit_count;
+        state.redraw_installer_buffer(&qh);
+        assert_eq!(state.installer_redraw_count, 1);
+        connection.flush().expect("redraw buffer should flush");
+        session
+            .dispatch_clients()
+            .expect("redraw buffer should dispatch");
+        assert_eq!(session.visible_client_surface_snapshots().len(), 1);
+        assert!(session.visible_client_surface_snapshots()[0].is_ready());
+        assert_eq!(
+            session.session.wayland_state.surface_commit_count,
+            commits_before + 1
+        );
+        assert!(session.dispatch_pointer_position(1095.0, 716.0, 1));
+        assert_eq!(session.input_snapshot().pointer_surface_hit_count, 1);
+
+        state.begin_close();
+        state.redraw_installer_buffer(&qh);
+        assert_eq!(state.installer_redraw_count, 1);
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
     fn typography_wayland_client_state_uses_accepted_full_output_raster() {
         let state = XdgSmokeClientState::typography_acceptance_app();
         let (pixels, probe) = render_typography_layout_acceptance_rgba(
@@ -16968,7 +17037,7 @@ mod tests {
             let buffer_before = state.shm_buffer.clone();
             let theme_before = state.theme;
             let settings_before = state.settings_model.clone();
-            assert!(!state.submit_ui_redraw_buffer(&qh, 1, 1, &[0; 4]));
+            assert!(!state.submit_ui_redraw_buffer(&qh, 1, 1, &[0; 4], true));
             state.redraw_settings_buffer(&qh);
             assert!(
                 !state.apply_runtime_theme(if theme_before == aqua_shell::AquaTheme::Light {

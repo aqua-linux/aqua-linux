@@ -188,10 +188,13 @@ aggregate session snapshots likewise use live seat owners for both focus flags,
 including grabs outside window bounds and exclusion of destroyed resources;
 the external-client paint adapter preserves compositor stacking independently of
 keyboard focus styling, with deterministic order and z-index capacity checks;
-Files, Settings, Properties, and Terminal share redraw buffer allocation and
-Wayland submission with a close guard at the shared boundary, while retaining
-their domain renderers, initial-attachment lifecycle, and Terminal PTY frame
-bookkeeping;
+Files, Settings, Properties, Terminal, and Installer share redraw buffer
+allocation and Wayland submission with a close guard at the shared boundary,
+while retaining their domain renderers, initial-attachment lifecycle, Terminal
+PTY frame bookkeeping, and Installer's persistent presentation loop without
+client frame callbacks;
+the full-output Installer surface uses output coordinates directly for pointer
+hit testing, avoiding a second application of the canonical scene scale;
 one-shot shared-memory pools are destroyed after client buffer creation, with
 real-server object enumeration covering initial attachment and repeated redraws;
 replaced client buffers retire after server release, with batched-redraw checks
