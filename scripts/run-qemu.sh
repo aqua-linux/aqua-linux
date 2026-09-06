@@ -11,7 +11,9 @@ MEMORY="${MEMORY:-1024M}"
 CPUS="${CPUS:-2}"
 QEMU_ACCELERATOR="${QEMU_ACCELERATOR:-}"
 QEMU_CPU_MODEL="${QEMU_CPU_MODEL:-}"
-QEMU_HOST_CURSOR="${QEMU_HOST_CURSOR:-true}"
+# SDL can hide its host cursor after the QEMU window captures pointer input. Keep Aqua's
+# composited cursor as the reliable default; input motion is coalesced by the compositor.
+QEMU_HOST_CURSOR="${QEMU_HOST_CURSOR:-false}"
 KERNEL_APPEND="${AQUA_KERNEL_APPEND:-}"
 KERNEL_COMMAND_LINE="root=/dev/vda rw console=tty1 console=ttyS0,115200n8 panic=-1 aqua.desktop_icons=1"
 if [ -n "${KERNEL_APPEND}" ]; then
