@@ -113,6 +113,12 @@ if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-point
 }
 
 expect {
+    -re {aqua_installer_content_hover x=[0-9]+ y=[0-9]+ hovered=Some\(Choice \{ step: Language, index: 0 \}\) reason=pointer-motion repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer content row hover"; exit 1 }
+    eof { puts stderr "QEMU exited before installer content row hover"; exit 1 }
+}
+
+expect {
     -exact {aqua_installer_pointer_form_update=SelectionChanged { step: Language, index: 0, value: "tr_TR.UTF-8" }} {}
     timeout { puts stderr "Timed out waiting for installer form pointer selection"; exit 1 }
     eof { puts stderr "QEMU exited before installer form pointer selection"; exit 1 }

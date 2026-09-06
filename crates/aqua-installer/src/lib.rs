@@ -1248,8 +1248,24 @@ pub struct InstallerFormState {
     timezone_index: usize,
     disk_options: Vec<InstallerDiskOption>,
     disk_index: Option<usize>,
+    hovered_target: Option<InstallerContentTarget>,
     user: InstallerUserFormState,
     summary: InstallerSummaryState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstallerContentTarget {
+    Choice { step: InstallerStep, index: usize },
+    Disk { index: usize },
+}
+
+impl InstallerContentTarget {
+    pub const fn step(self) -> InstallerStep {
+        match self {
+            Self::Choice { step, .. } => step,
+            Self::Disk { .. } => InstallerStep::Partitions,
+        }
+    }
 }
 
 impl InstallerFormState {
@@ -1271,6 +1287,10 @@ impl InstallerFormState {
 
     pub const fn disk_index(&self) -> Option<usize> {
         self.disk_index
+    }
+
+    pub const fn hovered_target(&self) -> Option<InstallerContentTarget> {
+        self.hovered_target
     }
 
     pub const fn user(&self) -> &InstallerUserFormState {
@@ -1324,6 +1344,12 @@ impl InstallerFormState {
     }
 
     pub fn sync_model(&mut self, model: &InstallerModel) {
+        if self
+            .hovered_target
+            .is_some_and(|target| target.step() != model.step())
+        {
+            self.hovered_target = None;
+        }
         if let Some(locale) = model.locale() {
             if let Some(index) = LANGUAGE_OPTIONS
                 .iter()
@@ -1355,6 +1381,50 @@ impl InstallerFormState {
             }
         }
         self.user.sync_model(model);
+    }
+
+    pub fn handle_pointer_hover(
+        &mut self,
+        model: &InstallerModel,
+        layout: &InstallerWindowLayout,
+        x: u32,
+        y: u32,
+    ) -> bool {
+        let hovered_target = match model.step() {
+            step
+            @ (InstallerStep::Language | InstallerStep::Keyboard | InstallerStep::TimeZone) => {
+                let option_count = match step {
+                    InstallerStep::Language => LANGUAGE_OPTIONS.len(),
+                    InstallerStep::Keyboard => KEYBOARD_OPTIONS.len(),
+                    InstallerStep::TimeZone => TIMEZONE_OPTIONS.len(),
+                    _ => unreachable!("choice step checked above"),
+                };
+                (0..option_count).find_map(|index| {
+                    rect_contains(layout.choice_row(index), x, y)
+                        .then_some(InstallerContentTarget::Choice { step, index })
+                })
+            }
+            InstallerStep::Partitions => {
+                self.disk_options
+                    .iter()
+                    .take(4)
+                    .enumerate()
+                    .find_map(|(index, option)| {
+                        (option.is_eligible() && rect_contains(layout.disk_row(index), x, y))
+                            .then_some(InstallerContentTarget::Disk { index })
+                    })
+            }
+            _ => None,
+        };
+        if self.hovered_target == hovered_target {
+            return false;
+        }
+        self.hovered_target = hovered_target;
+        true
+    }
+
+    pub fn clear_pointer_hover(&mut self) -> bool {
+        self.hovered_target.take().is_some()
     }
 
     pub fn handle_key(
@@ -5410,6 +5480,105 @@ mod tests {
             Some(InstallerFocusTarget::LanguageControl)
         );
         assert_eq!(ui.pressed_target(), None);
+    }
+
+    #[test]
+    fn installer_content_hover_uses_full_actionable_row_geometry() {
+        let layout = InstallerWindowLayout::for_viewport(Viewport::new(1280, 800)).unwrap();
+        let mut model = InstallerModel::default();
+        let mut forms = InstallerFormState::default();
+
+        model.advance().unwrap();
+        let language_row = layout.choice_row(1);
+        assert!(forms.handle_pointer_hover(
+            &model,
+            &layout,
+            language_row.x + language_row.width - 1,
+            language_row.y + 1,
+        ));
+        assert_eq!(
+            forms.hovered_target(),
+            Some(InstallerContentTarget::Choice {
+                step: InstallerStep::Language,
+                index: 1,
+            })
+        );
+        assert!(!forms.handle_pointer_hover(
+            &model,
+            &layout,
+            language_row.x + 1,
+            language_row.y + language_row.height - 1,
+        ));
+
+        model.set_locale("tr_TR.UTF-8").unwrap();
+        model.advance().unwrap();
+        forms.sync_model(&model);
+        assert_eq!(forms.hovered_target(), None);
+        let keyboard_row = layout.choice_row(2);
+        assert!(forms.handle_pointer_hover(
+            &model,
+            &layout,
+            keyboard_row.x + 1,
+            keyboard_row.y + 1,
+        ));
+        assert_eq!(
+            forms.hovered_target(),
+            Some(InstallerContentTarget::Choice {
+                step: InstallerStep::Keyboard,
+                index: 2,
+            })
+        );
+
+        model.set_keyboard_layout("trq").unwrap();
+        model.advance().unwrap();
+        let root = TestStorageRoot::new();
+        root.add_disk("vda", "252:0", 67_108_864, true);
+        root.add_disk("vdb", "252:16", 67_108_864, false);
+        forms.load_storage_inventory(&probe_storage(&root.paths()).unwrap());
+        forms.sync_model(&model);
+        let blocked = layout.disk_row(0);
+        assert!(!forms.handle_pointer_hover(&model, &layout, blocked.x + 1, blocked.y + 1,));
+        let eligible = layout.disk_row(1);
+        assert!(forms.handle_pointer_hover(
+            &model,
+            &layout,
+            eligible.x + eligible.width - 1,
+            eligible.y + eligible.height - 1,
+        ));
+        assert_eq!(
+            forms.hovered_target(),
+            Some(InstallerContentTarget::Disk { index: 1 })
+        );
+        assert!(forms.clear_pointer_hover());
+        assert!(!forms.clear_pointer_hover());
+
+        let disk_center = (
+            eligible.x + eligible.width / 2,
+            eligible.y + eligible.height / 2,
+        );
+        assert_eq!(
+            forms.handle_disk_pointer(&model, &layout, disk_center.0, disk_center.1),
+            InstallerDiskFormUpdate::SelectionChanged { index: 1 }
+        );
+        forms
+            .handle_disk_key(&mut model, InstallerFormKey::Activate)
+            .unwrap();
+        model.advance().unwrap();
+        forms.sync_model(&model);
+        let timezone_row = layout.choice_row(2);
+        assert!(forms.handle_pointer_hover(
+            &model,
+            &layout,
+            timezone_row.x + timezone_row.width - 1,
+            timezone_row.y + 1,
+        ));
+        assert_eq!(
+            forms.hovered_target(),
+            Some(InstallerContentTarget::Choice {
+                step: InstallerStep::TimeZone,
+                index: 2,
+            })
+        );
     }
 
     #[test]
