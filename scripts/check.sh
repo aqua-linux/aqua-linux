@@ -1711,7 +1711,8 @@ grep -Fq 'installer-partitions-timezone' scripts/send-qemu-monitor-input.py
 grep -Fq 'installer-timezone-user' scripts/send-qemu-monitor-input.py
 grep -Fq 'installer-user-summary-confirmation' scripts/send-qemu-monitor-input.py
 grep -Fq '"sendkey ret 100"' scripts/send-qemu-monitor-input.py
-grep -Fq 'aqua_installer_redraw_count=35' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'aqua_installer_hover x=[0-9]+ y=[0-9]+ hovered=forward' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'aqua_installer_redraw_count=38' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_keyboard_layout=trq' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_target_device=/dev/vdb' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_timezone=Europe/Istanbul' scripts/check-installer-wayland-qemu.sh

@@ -199,6 +199,10 @@ Installer now participates in the shared keyboard-leave lifecycle: its durable
 focus target remains available for navigation, while visible keyboard focus is
 cleared on Wayland leave, restored on enter, and gated against redraw or
 restoration after xdg close;
+Installer footer hover now derives from the same visible action targets used by
+pointer activation and shared `StandardButton` rendering. Repeated motion over
+one target is inert, step changes and pointer leave clear stale hover, and the
+shared close gate prevents a final hover repaint;
 one-shot shared-memory pools are destroyed after client buffer creation, with
 real-server object enumeration covering initial attachment and repeated redraws;
 replaced client buffers retire after server release, with batched-redraw checks
