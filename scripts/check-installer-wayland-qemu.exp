@@ -170,6 +170,29 @@ expect {
     eof { puts stderr "QEMU exited before installer Keyboard repaint"; exit 1 }
 }
 
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-keyboard-choice-arrows} input_error]} {
+    puts stderr "QEMU installer Keyboard arrow navigation injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -exact {aqua_installer_form_navigation key=108 press_count=6 update=SelectionChanged { step: Keyboard, index: 1, value: "trf" }} {}
+    timeout { puts stderr "Timed out waiting for installer Keyboard Down selection"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Keyboard Down selection"; exit 1 }
+}
+
+expect {
+    -exact {aqua_installer_form_navigation key=103 press_count=7 update=SelectionChanged { step: Keyboard, index: 0, value: "trq" }} {}
+    timeout { puts stderr "Timed out waiting for installer Keyboard Up selection"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Keyboard Up selection"; exit 1 }
+}
+
+expect {
+    -exact {installer_wayland_repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer Keyboard arrow repaint"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Keyboard arrow repaint"; exit 1 }
+}
+
 after 500
 if {[catch {exec python3 $env(CAPTURE_HELPER) $env(MONITOR_SOCKET) $env(NAV_SCREENSHOT) $env(NAV_SCREENSHOT_PNG)} capture_error]} {
     puts stderr "QEMU installer navigation screendump failed: $capture_error"
