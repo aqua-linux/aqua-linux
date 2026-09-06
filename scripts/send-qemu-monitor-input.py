@@ -217,6 +217,9 @@ MODES = {
     "installer-summary-acknowledgement": (
         "mouse_move 209 461", "mouse_button 1", "mouse_button 0",
     ),
+    "installer-summary-confirmation-field": (
+        "mouse_move 0 20", "mouse_button 1", "mouse_button 0",
+    ),
     "installer-summary-begin": ("sendkey end 100", "sendkey ret 100"),
     "installer-progress-next": ("sendkey ret 100",),
     "session-recovery": (

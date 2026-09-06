@@ -291,6 +291,35 @@ expect {
     eof { puts stderr "QEMU exited before installer pointer destructive acknowledgement"; exit 1 }
 }
 
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-summary-confirmation-field} input_error]} {
+    puts stderr "QEMU installer Summary confirmation field pointer injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -re {aqua_installer_content_hover x=[0-9]+ y=[0-9]+ hovered=Some\(SummaryConfirmationField\) reason=pointer-motion repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer Summary confirmation field hover"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Summary confirmation field hover"; exit 1 }
+}
+
+expect {
+    -re {aqua_installer_pointer phase=press x=[0-9]+ y=[0-9]+ pressed=true target=SummaryConfirmationField action=FocusChanged\(StepContent\) content=true repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer Summary confirmation field arm"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Summary confirmation field arm"; exit 1 }
+}
+
+expect {
+    -re {aqua_installer_pointer phase=release x=[0-9]+ y=[0-9]+ pressed=false target=Some\(SummaryConfirmationField\) content=true} {}
+    timeout { puts stderr "Timed out waiting for installer Summary confirmation field release"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Summary confirmation field release"; exit 1 }
+}
+
+expect {
+    -exact {aqua_installer_pointer_summary_update=FocusChanged(ConfirmationField)} {}
+    timeout { puts stderr "Timed out waiting for installer Summary confirmation field focus"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Summary confirmation field focus"; exit 1 }
+}
+
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-user-summary-confirmation} input_error]} {
     puts stderr "QEMU installer Summary keyboard injection failed: $input_error"
     exit 1

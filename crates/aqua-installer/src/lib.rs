@@ -358,6 +358,16 @@ impl InstallerWindowLayout {
             height: 28,
         }
     }
+
+    pub const fn summary_confirmation_field_rect(&self) -> Rect {
+        let panel = self.summary_confirmation_panel();
+        Rect {
+            x: panel.x + 12,
+            y: panel.y + 56,
+            width: panel.width.saturating_sub(24),
+            height: 26,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1185,6 +1195,11 @@ impl InstallerSummaryState {
         if checkbox.pointer_toggles(x, y) {
             self.active_control = InstallerSummaryControl::Acknowledgement;
             self.toggle_acknowledgement(model)
+        } else if model.mode() == InstallMode::Real
+            && rect_contains(layout.summary_confirmation_field_rect(), x, y)
+        {
+            self.active_control = InstallerSummaryControl::ConfirmationField;
+            InstallerSummaryUpdate::FocusChanged(self.active_control)
         } else {
             InstallerSummaryUpdate::None
         }
@@ -1265,6 +1280,7 @@ pub enum InstallerContentTarget {
     Disk { index: usize },
     UserField { field: InstallerUserField },
     SummaryAcknowledgement,
+    SummaryConfirmationField,
 }
 
 impl InstallerContentTarget {
@@ -1274,6 +1290,7 @@ impl InstallerContentTarget {
             Self::Disk { .. } => InstallerStep::Partitions,
             Self::UserField { .. } => InstallerStep::UserInformation,
             Self::SummaryAcknowledgement => InstallerStep::Summary,
+            Self::SummaryConfirmationField => InstallerStep::Summary,
         }
     }
 }
@@ -1498,11 +1515,21 @@ impl InstallerFormState {
                 rect_contains(layout.user_field_row(field), x, y)
                     .then_some(InstallerContentTarget::UserField { field })
             }),
-            InstallerStep::Summary => self
-                .summary
-                .acknowledgement_checkbox(model, layout, "Hedef diskin silineceğini anlıyorum")
-                .pointer_toggles(x, y)
-                .then_some(InstallerContentTarget::SummaryAcknowledgement),
+            InstallerStep::Summary => {
+                if self
+                    .summary
+                    .acknowledgement_checkbox(model, layout, "Hedef diskin silineceğini anlıyorum")
+                    .pointer_toggles(x, y)
+                {
+                    Some(InstallerContentTarget::SummaryAcknowledgement)
+                } else if model.mode() == InstallMode::Real
+                    && rect_contains(layout.summary_confirmation_field_rect(), x, y)
+                {
+                    Some(InstallerContentTarget::SummaryConfirmationField)
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
@@ -5369,6 +5396,10 @@ mod tests {
             assert!(layout.regions_are_separated());
             assert_eq!(layout.surfaces().len(), 6);
             assert!(layout.progress_track.width > 0);
+            assert!(layout.summary_confirmation_field_rect().fits_in(viewport));
+            assert!(!layout
+                .summary_acknowledgement_rect()
+                .overlaps(layout.summary_confirmation_field_rect()));
         }
 
         let canonical = InstallerWindowLayout::for_viewport(Viewport::new(1536, 1024)).unwrap();
@@ -5763,6 +5794,36 @@ mod tests {
         assert!(!summary_forms
             .summary()
             .acknowledgement_checked(&summary_model));
+
+        let confirmation = center(layout.summary_confirmation_field_rect());
+        assert!(summary_forms.begin_pointer_press(
+            &summary_model,
+            &layout,
+            confirmation.0,
+            confirmation.1,
+        ));
+        assert_eq!(
+            summary_forms.finish_pointer_press(
+                &summary_model,
+                &layout,
+                confirmation.0,
+                confirmation.1,
+            ),
+            (true, Some(InstallerContentTarget::SummaryConfirmationField))
+        );
+        assert_eq!(
+            summary_forms.summary_mut().handle_pointer(
+                &summary_model,
+                &layout,
+                confirmation.0,
+                confirmation.1,
+            ),
+            InstallerSummaryUpdate::FocusChanged(InstallerSummaryControl::ConfirmationField)
+        );
+        assert_eq!(
+            summary_forms.summary().active_control(),
+            InstallerSummaryControl::ConfirmationField
+        );
         assert!(summary_forms.begin_pointer_press(
             &summary_model,
             &layout,
@@ -6203,6 +6264,21 @@ mod tests {
         assert!(summary.acknowledgement_checked(&model));
         assert_eq!(
             summary.handle_pointer(&model, &layout, checkbox_rect.right(), checkbox_rect.y),
+            InstallerSummaryUpdate::None
+        );
+
+        let confirmation_rect = layout.summary_confirmation_field_rect();
+        assert_eq!(
+            summary.handle_pointer(&model, &layout, confirmation_rect.x, confirmation_rect.y,),
+            InstallerSummaryUpdate::FocusChanged(InstallerSummaryControl::ConfirmationField)
+        );
+        assert_eq!(
+            summary.handle_pointer(
+                &model,
+                &layout,
+                confirmation_rect.right(),
+                confirmation_rect.y,
+            ),
             InstallerSummaryUpdate::None
         );
 
