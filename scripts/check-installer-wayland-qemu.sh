@@ -110,6 +110,7 @@ need_marker 'aqua_installer_form_navigation key=108 press_count=8 update=Selecti
 need_marker 'aqua_installer_form_navigation key=103 press_count=9 update=SelectionChanged { step: Keyboard, index: 0, value: "trq" }'
 need_marker 'aqua_installer_form_navigation key=107 press_count=10 update=SelectionChanged { step: Keyboard, index: 2, value: "us" }'
 need_marker 'aqua_installer_form_navigation key=102 press_count=11 update=SelectionChanged { step: Keyboard, index: 0, value: "trq" }'
+need_marker 'aqua_installer_form_navigation_applied step=keyboard value=trq'
 need_marker 'aqua_installer_storage_candidate_count=2'
 need_marker 'aqua_installer_storage_eligible_count=1'
 need_marker 'aqua_installer_storage_candidate=/dev/vda eligible=false blocked_reasons=running-system-disk'
