@@ -58,7 +58,7 @@ Forward navigation is blocked until the current stage has a valid selection. Ins
 ## Language And Keyboard Forms
 
 - `InstallerFormState` owns bounded selection indices for the language and keyboard catalogs and synchronizes them from validated installer model values.
-- Up, Down, Home, and End change only the selected row in the catalog for the current Language or Keyboard step; they do not mutate the applied installer model value. Activate commits the current catalog selection through the existing model validation rather than writing arbitrary text. A completed pointer press over a choice row remains direct activation.
+- Up, Down, Home, and End change only the selected row in the catalog for the current Language or Keyboard step; they do not mutate the applied installer model value. Activate commits the current catalog selection through the existing model validation rather than writing arbitrary text. A completed pointer press over a choice row performs the same validated commit and reports `ValueApplied`.
 - The initial catalogs provide Turkish, English, and German locale choices plus Turkish Q, Turkish F, and US keyboard layouts. Each stored value remains compatible with the existing installation metadata contract.
 - `aqua-renderer` now draws real Language and Keyboard content screens with selected-row focus, applied-value status, labels, and details. Their probes require valid shared geometry and produce distinct deterministic checksums without requiring the Welcome logo layer.
 - `scripts/check-installer-render.sh` regenerates and validates `build/installer-welcome.png`, `build/installer-language.png`, and `build/installer-keyboard.png` as 1280x800 RGBA PNG outputs.
@@ -74,7 +74,7 @@ Forward navigation is blocked until the current stage has a valid selection. Ins
 ## Time Zone Form
 
 - The initial bounded catalog provides `Europe/Istanbul`, `UTC`, `Europe/Berlin`, and `America/New_York` as standard IANA identifiers. The list can grow without introducing free-form values into installer state.
-- Up, Down, Home, End, and Activate reuse the tested choice-form controller. Selection is applied through `InstallerModel::set_timezone()` and restored from model state when navigating back.
+- Up, Down, Home, End, and Activate reuse the tested choice-form controller. Activate or a completed pointer activation applies the selection through `InstallerModel::set_timezone()`; directional movement remains unapplied, and the applied value restores selection when navigating back.
 - The Time Zone raster presents localized city and region labels, keyboard focus, and the applied-value marker using the same deterministic row contract as Language and Keyboard.
 - `scripts/check-installer-render.sh` validates `build/installer-timezone.png` as the fifth deterministic 1280x800 installer screen.
 
