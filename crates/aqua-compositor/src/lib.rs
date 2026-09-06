@@ -10176,7 +10176,6 @@ impl SmithayDrmSession {
             self.session.wayland_state.pointer_motion_count += 1;
             return true;
         }
-        let previous_focus = self.session.wayland_state.pointer_focus_surface.clone();
         let exact_surface_hit = self
             .session
             .wayland_state
@@ -10201,20 +10200,18 @@ impl SmithayDrmSession {
                     },
                 )
             });
-        // Keep the current window hovered across its visible active-window shadow. This avoids a
-        // leave/enter flicker while the pointer travels to controls near the frame edge. An exact
-        // hit on another window above still wins before this retained-focus path is considered.
+        // Treat the whole painted window frame and its visible shadow as one hover target. This
+        // must not depend on the previous wl_pointer focus: a buffer redraw can be processed
+        // between two physical motion events while the pointer is travelling toward the controls.
+        // An exact hit on a window always wins over another window's shadow.
         let surface_hit = exact_surface_hit.or_else(|| {
-            let previous_focus = previous_focus.as_ref()?;
             self.session
                 .wayland_state
                 .mapped_surfaces
                 .iter()
-                .find(|record| {
-                    record.workspace == self.session.wayland_state.active_workspace
-                        && &record.surface == previous_focus
-                })
-                .and_then(|record| {
+                .rev()
+                .filter(|record| record.workspace == self.session.wayland_state.active_workspace)
+                .find_map(|record| {
                     let surface = Rect {
                         x: record.x,
                         y: record.y,
@@ -16664,6 +16661,31 @@ mod tests {
                 );
             }
         }
+
+        assert!(session.dispatch_pointer_position(0.0, 0.0, 102));
+        session.flush_clients().expect("pointer leave flush");
+        queue
+            .blocking_dispatch(&mut state)
+            .expect("pointer leave dispatch");
+        assert!(!state.window_hovered);
+        assert!(session
+            .session
+            .wayland_state
+            .pointer_focus_surface
+            .is_none());
+
+        // Entering the painted frame edge must restore whole-window hover even after focus was
+        // fully cleared. Window controls stay open while the pointer crosses this edge region.
+        assert!(session.dispatch_pointer_position(214.0, 210.0, 103));
+        session.flush_clients().expect("frame hover flush");
+        queue
+            .blocking_dispatch(&mut state)
+            .expect("frame hover dispatch");
+        assert!(state.window_hovered);
+        assert_eq!(
+            session.session.wayland_state.pointer_focus_surface,
+            session.session.wayland_state.mapped_surface
+        );
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -17853,16 +17875,16 @@ mod tests {
         );
         assert_owner(&session, Some("aqua.settings"));
         // The grab still owns pointer events when no window is under the cursor.
-        assert!(session.dispatch_pointer_motion(1300.0, 0.0, 154));
+        assert!(session.dispatch_pointer_position(1535.0, 900.0, 154));
         assert!(!session.session.wayland_state.pointer_focus_assigned);
         assert_owner(&session, Some("aqua.settings"));
-        assert!(session.dispatch_pointer_motion(-1300.0, 0.0, 155));
+        assert!(session.dispatch_pointer_position(100.0, 180.0, 155));
         assert!(session.dispatch_pointer_button(0x110, false, 156));
         // Smithay retains the old focus until the next ordinary motion after release.
         assert_owner(&session, Some("aqua.settings"));
         assert!(session.dispatch_pointer_motion(0.0, 0.0, 155));
         assert_owner(&session, Some("aqua.files"));
-        assert!(session.dispatch_pointer_motion(1300.0, 200.0, 155));
+        assert!(session.dispatch_pointer_position(1535.0, 900.0, 155));
         assert_owner(&session, None);
         assert!(session.move_active_toplevel_to_workspace(1, 156));
         assert_owner(&session, None);

@@ -8119,6 +8119,39 @@ struct LibinputAquaSeatSource {
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct PendingPointerPosition {
+    x: f64,
+    y: f64,
+    serial: u32,
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn queue_relative_pointer_motion(
+    pending: &mut Option<PendingPointerPosition>,
+    current: (f64, f64),
+    dx: f64,
+    dy: f64,
+    viewport: Viewport,
+    serial: u32,
+) {
+    let origin = pending.map_or(current, |position| (position.x, position.y));
+    let x = (origin.0 + dx).clamp(0.0, f64::from(viewport.width.saturating_sub(1)));
+    let y = (origin.1 + dy).clamp(0.0, f64::from(viewport.height.saturating_sub(1)));
+    *pending = Some(PendingPointerPosition { x, y, serial });
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+fn flush_pointer_motion(
+    session: &mut SmithayDrmSession,
+    pending: &mut Option<PendingPointerPosition>,
+) {
+    if let Some(position) = pending.take() {
+        session.dispatch_pointer_position(position.x, position.y, position.serial);
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 impl LibinputAquaSeatSource {
     fn open(seat_name: &str) -> Result<Self, String> {
         let mut context = Libinput::new_with_udev(DirectLibinputInterface);
@@ -8150,6 +8183,7 @@ impl LibinputAquaSeatSource {
         let deadline = std::time::Instant::now() + timeout;
         let mut events = PollEvents::new();
         let mut first_input_event_time_us = None;
+        let mut pending_pointer_position = None;
         while std::time::Instant::now() < deadline {
             self.context
                 .dispatch()
@@ -8158,6 +8192,7 @@ impl LibinputAquaSeatSource {
                 self.serial = self.serial.saturating_add(1);
                 match event {
                     input::Event::Device(DeviceEvent::Added(event)) => {
+                        flush_pointer_motion(session, &mut pending_pointer_position);
                         let device = event.device();
                         if device.has_capability(DeviceCapability::Keyboard) {
                             self.keyboard_devices = self.keyboard_devices.saturating_add(1);
@@ -8167,6 +8202,7 @@ impl LibinputAquaSeatSource {
                         }
                     }
                     input::Event::Device(DeviceEvent::Removed(event)) => {
+                        flush_pointer_motion(session, &mut pending_pointer_position);
                         let device = event.device();
                         if device.has_capability(DeviceCapability::Keyboard) {
                             self.keyboard_devices = self.keyboard_devices.saturating_sub(1);
@@ -8176,6 +8212,7 @@ impl LibinputAquaSeatSource {
                         }
                     }
                     input::Event::Keyboard(KeyboardEvent::Key(event)) => {
+                        flush_pointer_motion(session, &mut pending_pointer_position);
                         first_input_event_time_us = Some(
                             first_input_event_time_us.map_or(event.time_usec(), |current: u64| {
                                 current.min(event.time_usec())
@@ -8193,7 +8230,15 @@ impl LibinputAquaSeatSource {
                                 current.min(event.time_usec())
                             }),
                         );
-                        session.dispatch_pointer_motion(event.dx(), event.dy(), self.serial);
+                        let input = session.input_snapshot();
+                        queue_relative_pointer_motion(
+                            &mut pending_pointer_position,
+                            (f64::from(input.pointer_x), f64::from(input.pointer_y)),
+                            event.dx(),
+                            event.dy(),
+                            Viewport::new(input.output_width, input.output_height),
+                            self.serial,
+                        );
                     }
                     input::Event::Pointer(PointerEvent::MotionAbsolute(event)) => {
                         first_input_event_time_us = Some(
@@ -8202,13 +8247,14 @@ impl LibinputAquaSeatSource {
                             }),
                         );
                         let input = session.input_snapshot();
-                        session.dispatch_pointer_position(
-                            event.absolute_x_transformed(input.output_width),
-                            event.absolute_y_transformed(input.output_height),
-                            self.serial,
-                        );
+                        pending_pointer_position = Some(PendingPointerPosition {
+                            x: event.absolute_x_transformed(input.output_width),
+                            y: event.absolute_y_transformed(input.output_height),
+                            serial: self.serial,
+                        });
                     }
                     input::Event::Pointer(PointerEvent::Button(event)) => {
+                        flush_pointer_motion(session, &mut pending_pointer_position);
                         first_input_event_time_us = Some(
                             first_input_event_time_us.map_or(event.time_usec(), |current: u64| {
                                 current.min(event.time_usec())
@@ -8220,13 +8266,14 @@ impl LibinputAquaSeatSource {
                             self.serial,
                         );
                     }
-                    _ => {}
+                    _ => flush_pointer_motion(session, &mut pending_pointer_position),
                 }
                 if session.has_session_action_request() {
                     println!("desktop_input_action_yield=libinput-iterator");
                     break;
                 }
             }
+            flush_pointer_motion(session, &mut pending_pointer_position);
             if session.has_session_action_request() {
                 println!("desktop_input_action_yield=dispatch-until-return");
                 return Ok(first_input_event_time_us);
@@ -12164,8 +12211,6 @@ fn smoke_loop() {
 
 #[cfg(test)]
 mod fbdev_tests {
-    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
-    use super::host_cursor_requested;
     #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
     use super::{
         bounded_desktop_pointer_origin, paint_desktop_pointer_rgba, themed_desktop_brand_path,
@@ -12178,6 +12223,10 @@ mod fbdev_tests {
         record_drm_presentation_event, record_live_idle_observation,
         record_wayland_presentation_counters, render_fbdev_frame, themed_wallpaper_path,
         with_stride, DrmPresentationEvent, WaylandPresentationCounters,
+    };
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    use super::{
+        host_cursor_requested, queue_relative_pointer_motion, PendingPointerPosition, Viewport,
     };
     use aqua_compositor::{PresentationEvidenceTarget, PresentationPath, PresentationWorkload};
     use std::fs;
@@ -12197,6 +12246,28 @@ mod fbdev_tests {
             Some("aqua.host_cursor=1")
         ));
         assert!(!host_cursor_requested(None, Some("aqua.host_cursor=0")));
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn relative_pointer_bursts_coalesce_without_losing_distance() {
+        let mut pending = None;
+        let viewport = Viewport::new(1280, 800);
+        queue_relative_pointer_motion(&mut pending, (400.0, 300.0), 3.5, -2.0, viewport, 10);
+        queue_relative_pointer_motion(&mut pending, (400.0, 300.0), 6.5, 5.0, viewport, 11);
+
+        assert_eq!(
+            pending,
+            Some(PendingPointerPosition {
+                x: 410.0,
+                y: 303.0,
+                serial: 11,
+            })
+        );
+
+        queue_relative_pointer_motion(&mut pending, (400.0, 300.0), 2000.0, 2000.0, viewport, 12);
+        assert_eq!(pending.expect("pending motion").x, 1279.0);
+        assert_eq!(pending.expect("pending motion").y, 799.0);
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-gpu"))]
