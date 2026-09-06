@@ -203,6 +203,12 @@ Installer footer hover now derives from the same visible action targets used by
 pointer activation and shared `StandardButton` rendering. Repeated motion over
 one target is inert, step changes and pointer leave clear stale hover, and the
 shared close gate prevents a final hover repaint;
+Installer Language, Keyboard, Time Zone, and eligible Partitions rows now
+derive hover from the same full-row `InstallerWindowLayout` rectangles used by
+rendering and pointer selection. Content and footer hover share one repaint
+boundary, repeated motion within one row is inert, blocked disks remain
+non-interactive, and step changes, pointer leave, and close retire stale content
+hover;
 Installer footer actions now arm only on a primary-button press, render the
 shared pressed state, and activate only when that same visible target receives
 the release. Dragging away or leaving the surface cancels the press, while

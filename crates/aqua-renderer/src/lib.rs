@@ -1,8 +1,8 @@
 use aqua_installer::{
     InstallMode, InstallProgressEvent, InstallProgressPhase, InstallerChoiceOption,
-    InstallerFocusTarget, InstallerFormState, InstallerModel, InstallerStep, InstallerUiState,
-    InstallerUserField, InstallerWindowLayout, INSTALL_ESP_LABEL, INSTALL_ESP_SIZE_MIB,
-    INSTALL_ROOT_LABEL, KEYBOARD_OPTIONS, LANGUAGE_OPTIONS, TIMEZONE_OPTIONS,
+    InstallerContentTarget, InstallerFocusTarget, InstallerFormState, InstallerModel,
+    InstallerStep, InstallerUiState, InstallerUserField, InstallerWindowLayout, INSTALL_ESP_LABEL,
+    INSTALL_ESP_SIZE_MIB, INSTALL_ROOT_LABEL, KEYBOARD_OPTIONS, LANGUAGE_OPTIONS, TIMEZONE_OPTIONS,
 };
 use aqua_scene::{MaterialKind, Rect, ShellScene, SurfaceKind, Viewport};
 use aqua_shell::{
@@ -3255,6 +3255,7 @@ pub struct InstallerWindowProbe {
     pub focus: InstallerFocusTarget,
     pub keyboard_focus_visible: bool,
     pub hovered_target: Option<InstallerFocusTarget>,
+    pub hovered_content_target: Option<InstallerContentTarget>,
     pub pressed_target: Option<InstallerFocusTarget>,
     pub step_count: usize,
     pub logo_rendered: bool,
@@ -3495,6 +3496,7 @@ pub fn render_installer_window_rgba_with_theme(
             focus: ui.focus(),
             keyboard_focus_visible: ui.keyboard_focus_visible(),
             hovered_target: ui.hovered_target(),
+            hovered_content_target: forms.hovered_target(),
             pressed_target: ui.pressed_target(),
             step_count: InstallerStep::ALL.len(),
             logo_rendered,
@@ -3705,6 +3707,7 @@ fn draw_installer_content(
                     options: &LANGUAGE_OPTIONS,
                     selected_index: forms.language_index(),
                     applied_value: model.locale(),
+                    hovered_target: forms.hovered_target(),
                     palette,
                 },
             );
@@ -3722,6 +3725,7 @@ fn draw_installer_content(
                     options: &KEYBOARD_OPTIONS,
                     selected_index: forms.keyboard_index(),
                     applied_value: model.keyboard_layout(),
+                    hovered_target: forms.hovered_target(),
                     palette,
                 },
             );
@@ -3754,6 +3758,7 @@ fn draw_installer_content(
                     options: &TIMEZONE_OPTIONS,
                     selected_index: forms.timezone_index(),
                     applied_value: model.timezone(),
+                    hovered_target: forms.hovered_target(),
                     palette,
                 },
             );
@@ -3922,6 +3927,7 @@ struct InstallerChoiceForm<'a> {
     options: &'a [InstallerChoiceOption],
     selected_index: usize,
     applied_value: Option<&'a str>,
+    hovered_target: Option<InstallerContentTarget>,
     palette: WindowChromePalette,
 }
 
@@ -3939,6 +3945,7 @@ fn draw_installer_choice_form(
         options,
         selected_index,
         applied_value,
+        hovered_target,
         palette,
     } = form;
     draw_installer_step_heading(buffer, width, height, x, y, step, palette);
@@ -3959,6 +3966,7 @@ fn draw_installer_choice_form(
     for (index, option) in options.iter().enumerate() {
         let row = layout.choice_row(index);
         let selected = index == selected_index;
+        let hovered = hovered_target == Some(InstallerContentTarget::Choice { step, index });
         fill_rounded_rect(
             buffer,
             width,
@@ -3967,13 +3975,32 @@ fn draw_installer_choice_form(
             8,
             if selected {
                 palette.accent_soft
+            } else if hovered {
+                palette.hover
             } else {
                 palette.field
             },
-            if selected { 245 } else { 205 },
+            if selected {
+                245
+            } else if hovered {
+                235
+            } else {
+                205
+            },
         );
-        if selected {
-            draw_rect_outline(buffer, width, height, row, palette.accent, 190);
+        if selected || hovered {
+            draw_rect_outline(
+                buffer,
+                width,
+                height,
+                row,
+                if selected {
+                    palette.accent
+                } else {
+                    palette.border
+                },
+                if hovered { 225 } else { 190 },
+            );
         }
         fill_transparent_circle(
             buffer,
@@ -4071,6 +4098,7 @@ fn draw_installer_disk_form(
         let row = form.layout.disk_row(index);
         let selected = form.forms.disk_index() == Some(index);
         let eligible = option.is_eligible();
+        let hovered = form.forms.hovered_target() == Some(InstallerContentTarget::Disk { index });
         fill_rounded_rect(
             buffer,
             width,
@@ -4079,13 +4107,32 @@ fn draw_installer_disk_form(
             8,
             if selected && eligible {
                 form.palette.accent_soft
+            } else if hovered {
+                form.palette.hover
             } else {
                 form.palette.field
             },
-            if eligible { 225 } else { 150 },
+            if hovered {
+                240
+            } else if eligible {
+                225
+            } else {
+                150
+            },
         );
-        if selected && eligible {
-            draw_rect_outline(buffer, width, height, row, form.palette.accent, 190);
+        if (selected && eligible) || hovered {
+            draw_rect_outline(
+                buffer,
+                width,
+                height,
+                row,
+                if selected {
+                    form.palette.accent
+                } else {
+                    form.palette.border
+                },
+                if hovered { 225 } else { 190 },
+            );
         }
         fill_transparent_circle(
             buffer,
@@ -8549,6 +8596,7 @@ mod tests {
         assert_eq!(probe.focus, InstallerFocusTarget::LanguageControl);
         assert!(probe.keyboard_focus_visible);
         assert_eq!(probe.hovered_target, None);
+        assert_eq!(probe.hovered_content_target, None);
         assert_eq!(probe.pressed_target, None);
         assert_eq!(probe.step_count, 9);
         assert!(probe.logo_rendered);
@@ -8672,6 +8720,48 @@ mod tests {
         assert_eq!(blurred_probe.focus, InstallerFocusTarget::Forward);
         assert_ne!(blurred_probe.checksum, restored_probe.checksum);
         assert_ne!(blurred, restored);
+    }
+
+    #[test]
+    fn installer_content_hover_changes_only_the_shared_row_paint() {
+        let logo_pixels = [0x18, 0x78, 0xc8, 0xff];
+        let logo = InstallerImageSource::new(1, 1, &logo_pixels).unwrap();
+        let mut model = InstallerModel::default();
+        model.advance().unwrap();
+        let ui = InstallerUiState::new(&model);
+        let mut forms = InstallerFormState::default();
+        let layout = InstallerWindowLayout::for_viewport(Viewport::new(1280, 800)).unwrap();
+        let row = layout.choice_row(1);
+        let (idle, idle_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+
+        assert!(forms.handle_pointer_hover(
+            &model,
+            &layout,
+            row.x + row.width - 1,
+            row.y + row.height / 2,
+        ));
+        let (hovered, hovered_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+        assert_eq!(idle_probe.hovered_content_target, None);
+        assert_eq!(
+            hovered_probe.hovered_content_target,
+            Some(InstallerContentTarget::Choice {
+                step: InstallerStep::Language,
+                index: 1,
+            })
+        );
+        assert_eq!(hovered_probe.focus, idle_probe.focus);
+        assert_eq!(hovered_probe.hovered_target, idle_probe.hovered_target);
+        assert_ne!(hovered_probe.checksum, idle_probe.checksum);
+        assert_ne!(hovered, idle);
+
+        assert!(forms.clear_pointer_hover());
+        let (restored, restored_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+        assert_eq!(restored_probe.hovered_content_target, None);
+        assert_eq!(restored_probe.checksum, idle_probe.checksum);
+        assert_eq!(restored, idle);
     }
 
     #[test]

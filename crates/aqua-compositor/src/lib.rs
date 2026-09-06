@@ -8034,11 +8034,17 @@ impl XdgSmokeClientState {
             .settings_model
             .as_mut()
             .is_some_and(aqua_shell::SettingsWindowModel::clear_hovered_category);
-        let (installer_hover_changed, installer_press_cancelled) = self
+        let installer_content_hover_changed = self
+            .installer_forms
+            .as_mut()
+            .is_some_and(InstallerFormState::clear_pointer_hover);
+        let (installer_footer_hover_changed, installer_press_cancelled) = self
             .installer_ui
             .as_mut()
             .map(|ui| (ui.clear_pointer_hover(), ui.cancel_pointer_press()))
             .unwrap_or((false, false));
+        let installer_hover_changed =
+            installer_content_hover_changed || installer_footer_hover_changed;
         [
             (
                 FirstPartyUiSurface::Files,
@@ -14715,12 +14721,23 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                         state.buffer_width.max(1),
                         state.buffer_height.max(1),
                     ));
-                    let changed = layout.is_ok_and(|layout| {
-                        state.installer_ui.as_mut().is_some_and(|ui| {
-                            ui.handle_pointer_hover(&layout, pointer_x, pointer_y)
-                        })
-                    });
-                    if changed {
+                    let (footer_changed, content_changed) =
+                        layout.map_or((false, false), |layout| {
+                            let footer_changed = state.installer_ui.as_mut().is_some_and(|ui| {
+                                ui.handle_pointer_hover(&layout, pointer_x, pointer_y)
+                            });
+                            let content_changed = match (
+                                state.installer_model.as_ref(),
+                                state.installer_forms.as_mut(),
+                            ) {
+                                (Some(model), Some(forms)) => {
+                                    forms.handle_pointer_hover(model, &layout, pointer_x, pointer_y)
+                                }
+                                _ => false,
+                            };
+                            (footer_changed, content_changed)
+                        });
+                    if footer_changed {
                         let hovered = state
                             .installer_ui
                             .as_ref()
@@ -14729,6 +14746,17 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                         println!(
                             "aqua_installer_hover x={pointer_x} y={pointer_y} hovered={hovered} reason=pointer-motion repaint=true"
                         );
+                    }
+                    if content_changed {
+                        let hovered = state
+                            .installer_forms
+                            .as_ref()
+                            .and_then(InstallerFormState::hovered_target);
+                        println!(
+                            "aqua_installer_content_hover x={pointer_x} y={pointer_y} hovered={hovered:?} reason=pointer-motion repaint=true"
+                        );
+                    }
+                    if footer_changed || content_changed {
                         state.redraw_installer_buffer(qh);
                     }
                 } else if let Some(model) = state.properties_model.as_mut() {
@@ -17537,6 +17565,48 @@ mod tests {
             assert_eq!(empty.clear_first_party_pointer_interaction(), [None; 4]);
         }
         fs::remove_dir_all(root).expect("remove isolated root");
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn installer_pointer_leave_clears_content_hover_once() {
+        let mut installer_model = InstallerModel::default();
+        installer_model.advance().expect("Language step");
+        let installer_ui = InstallerUiState::new(&installer_model);
+        let mut installer_forms = InstallerFormState::default();
+        let layout = InstallerWindowLayout::for_viewport(Viewport::new(1280, 800))
+            .expect("Installer layout");
+        let row = layout.choice_row(1);
+        assert!(installer_forms.handle_pointer_hover(
+            &installer_model,
+            &layout,
+            row.x + row.width - 1,
+            row.y + row.height / 2,
+        ));
+        let mut state = XdgSmokeClientState {
+            installer_model: Some(installer_model),
+            installer_forms: Some(installer_forms),
+            installer_ui: Some(installer_ui),
+            ..XdgSmokeClientState::default()
+        };
+
+        assert_eq!(
+            state.clear_first_party_pointer_interaction()[3],
+            Some(PointerLeaveTransition {
+                surface: FirstPartyUiSurface::Installer,
+                interaction_cancelled: false,
+                repaint: true,
+            })
+        );
+        assert_eq!(
+            state
+                .installer_forms
+                .as_ref()
+                .expect("Installer forms")
+                .hovered_target(),
+            None
+        );
+        assert_eq!(state.clear_first_party_pointer_interaction(), [None; 4]);
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
