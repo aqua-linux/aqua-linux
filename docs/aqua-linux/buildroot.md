@@ -24,7 +24,9 @@ uses `/var/tmp/aqua-linux-buildroot-<version>-<uid>/` as its work directory and
 copies completed images and the generated configuration back to the path above.
 Set `AQUA_BUILD_DIR` to select another ASCII-only work directory. The native
 script also selects GNU `install` explicitly on hosts where another
-implementation owns the default `install` command.
+implementation owns the default `install` command. If Docker left the local
+artifact output non-writable, the script preserves it with a
+`.previous.<timestamp>` suffix before copying the native-build artifacts.
 
 Buildroot needs GNU gcc/g++ host compilers. On macOS where `/usr/bin/gcc` is Apple clang, use a Linux host or:
 
