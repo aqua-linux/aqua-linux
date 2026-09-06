@@ -171,7 +171,7 @@ MODES = {
         "mouse_move 368 230", "mouse_button 1", "mouse_button 0",
     ),
     "installer-pointer-language-row": (
-        "mouse_move -200 -226", "mouse_button 1", "mouse_button 0",
+        "mouse_move -200 -400", "mouse_button 1", "mouse_button 0",
     ),
     "installer-language-keyboard": (
         "sendkey home 100", "sendkey end 100", "sendkey ret 100",
