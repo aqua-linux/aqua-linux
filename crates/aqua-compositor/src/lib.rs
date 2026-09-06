@@ -9267,12 +9267,12 @@ impl XdgSmokeClientState {
         width: u32,
         height: u32,
         pixels: &[u8],
-    ) {
+    ) -> bool {
         if self.close_event_received {
-            return;
+            return false;
         }
         let (Some(shm), Some(surface)) = (self.shm.as_ref(), self.base_surface.as_ref()) else {
-            return;
+            return false;
         };
         let stride = width * 4;
         let size = stride * height;
@@ -9298,15 +9298,13 @@ impl XdgSmokeClientState {
         surface.frame(qh, ());
         surface.commit();
         self.replace_shm_buffer(buffer);
+        true
     }
 
     fn redraw_terminal_buffer(&mut self, qh: &QueueHandle<Self>) {
         if self.close_event_received {
             return;
         }
-        let Some(shm) = self.shm.clone() else {
-            return;
-        };
         let Some(terminal) = self.terminal_session.as_mut() else {
             return;
         };
@@ -9314,8 +9312,6 @@ impl XdgSmokeClientState {
         let view = terminal.view();
         let width = self.buffer_width.max(1);
         let height = self.buffer_height.max(1);
-        let stride = width * 4;
-        let size = stride * height;
         let pixels = render_terminal_window_rgba_with_theme_and_controls(
             width,
             height,
@@ -9325,30 +9321,7 @@ impl XdgSmokeClientState {
         )
         .0;
 
-        use std::io::Write;
-        use std::os::unix::io::AsFd;
-        let mut file = tempfile::tempfile().expect("Aqua Terminal redraw tempfile should open");
-        file.write_all(&pixels)
-            .expect("Aqua Terminal redraw buffer should be writable");
-        file.flush()
-            .expect("Aqua Terminal redraw buffer should flush");
-        let pool = shm.create_pool(file.as_fd(), size as i32, qh, ());
-        let buffer = pool.create_buffer(
-            0,
-            width as i32,
-            height as i32,
-            stride as i32,
-            client_wl_shm::Format::Argb8888,
-            qh,
-            (),
-        );
-        pool.destroy();
-        if let Some(surface) = self.base_surface.as_ref() {
-            surface.attach(Some(&buffer), 0, 0);
-            surface.damage(0, 0, width as i32, height as i32);
-            surface.frame(qh, ());
-            surface.commit();
-            self.replace_shm_buffer(buffer);
+        if self.submit_ui_redraw_buffer(qh, width, height, &pixels) {
             self.terminal_frame_pending = true;
             self.terminal_frame_requested_at = Some(std::time::Instant::now());
             self.terminal_dirty = false;
@@ -16995,7 +16968,7 @@ mod tests {
             let buffer_before = state.shm_buffer.clone();
             let theme_before = state.theme;
             let settings_before = state.settings_model.clone();
-            state.submit_ui_redraw_buffer(&qh, 1, 1, &[0; 4]);
+            assert!(!state.submit_ui_redraw_buffer(&qh, 1, 1, &[0; 4]));
             state.redraw_settings_buffer(&qh);
             assert!(
                 !state.apply_runtime_theme(if theme_before == aqua_shell::AquaTheme::Light {
