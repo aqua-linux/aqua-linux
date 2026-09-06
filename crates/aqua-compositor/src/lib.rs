@@ -9064,11 +9064,15 @@ impl XdgSmokeClientState {
             InstallerUiAction::CancelRequested => {
                 println!("aqua_installer_cancel_requested=true");
             }
+            InstallerUiAction::OpenLanguageControl => {
+                println!("aqua_installer_language_control_requested=true");
+            }
+            InstallerUiAction::FinishRequested => {
+                println!("aqua_installer_finish_requested=true");
+            }
             InstallerUiAction::None
             | InstallerUiAction::FocusChanged(_)
-            | InstallerUiAction::ActivateStepContent(_)
-            | InstallerUiAction::OpenLanguageControl
-            | InstallerUiAction::FinishRequested => {}
+            | InstallerUiAction::ActivateStepContent(_) => {}
         }
         if changed {
             println!("aqua_installer_focus={}", ui.focus().id());

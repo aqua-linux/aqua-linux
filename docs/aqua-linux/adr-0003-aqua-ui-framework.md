@@ -227,6 +227,9 @@ Home, and End to their bounded form navigation only while visible `StepContent`
 focus is active. Choice movement remains model-validated, disk movement skips
 blocked targets, Enter and Space share activation outside text-entry controls,
 and Tab retains the explicit path into footer focus;
+Installer keyboard activation now emits the same bounded language-control and
+finish requests as pointer activation; Completed Space activation is
+packaged-QEMU-proven without granting restart authority;
 Installer footer actions now arm only on a primary-button press, render the
 shared pressed state, and activate only when that same visible target receives
 the release. Dragging away or leaving the surface cancels the press, while

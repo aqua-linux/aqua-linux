@@ -5638,8 +5638,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                                     let _ = std::io::stdout().flush();
                                 }
                                 let snapshot = smithay_session.borrow().input_snapshot();
-                                let installer_ready = snapshot.keyboard_event_count >= 138
-                                    && snapshot.keyboard_forward_count >= 138
+                                let installer_ready = snapshot.keyboard_event_count >= 140
+                                    && snapshot.keyboard_forward_count >= 140
                                     && source.keyboard_devices >= 1
                                     && smithay_session
                                         .borrow()
@@ -6068,8 +6068,8 @@ fn run_drm_wayland_session_cli(device: PathBuf) {
                     }
                     let snapshot = smithay_session.borrow().input_snapshot();
                     let ready = if installer_scenario {
-                        snapshot.keyboard_event_count >= 138
-                            && snapshot.keyboard_forward_count >= 138
+                        snapshot.keyboard_event_count >= 140
+                            && snapshot.keyboard_forward_count >= 140
                             && source.keyboard_devices >= 1
                             && smithay_session
                                 .borrow()
