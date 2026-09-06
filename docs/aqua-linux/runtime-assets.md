@@ -26,6 +26,7 @@ Expected first exports:
 | --- | --- | --- |
 | `docs/aqua-linux/assets/wallpaper-light.png` | `/usr/share/aqua/wallpapers/wallpaper-light.png` | Current Light-mode wallpaper, 1672x941 |
 | `docs/aqua-linux/assets/wallpaper-dark.png` | `/usr/share/aqua/wallpapers/wallpaper-dark.png` | Current Dark-mode wallpaper, 1672x941 |
+| `docs/aqua-linux/assets/aqua-cursor.png` | Embedded in `/usr/bin/aqua-compositor` | Owner-approved 28x42 RGBA cursor used by CPU and GPU composition paths |
 | `docs/aqua-linux/assets/default-wallpaper.png` | `/usr/share/aqua/wallpapers/default-wallpaper.png` | Keep original source; compositor may request scaled copies later |
 | `docs/aqua-linux/assets/wallpaper-pale-waves.png` | `/usr/share/aqua/wallpapers/wallpaper-pale-waves.png` | Reproducible pale-wave source master and current default |
 | `docs/aqua-linux/assets/wallpaper-surf.png` | `/usr/share/aqua/wallpapers/wallpaper-surf.png` | Official alternate wallpaper |
@@ -46,6 +47,7 @@ Expected first exports:
 ## Export Rules
 
 - Preserve source PNGs exactly in `docs/aqua-linux/assets/`.
+- Keep the cursor export at its reviewed 28x42 runtime size and preserve its alpha channel.
 - Preserve the alpha channel in every derived brand export; never flatten a symbol or wordmark onto a matte.
 - Preserve wallpaper aspect ratio; scale with a centered cover crop and never stretch.
 - Generate runtime-size variants only from committed source assets.

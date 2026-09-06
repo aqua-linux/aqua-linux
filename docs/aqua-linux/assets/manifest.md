@@ -49,6 +49,7 @@ material.
 | --- | --- | --- | --- |
 | Light wallpaper | `assets/wallpaper-light.png` | current-runtime | Light mode; owner-supplied 1672x941 PNG; SHA-256 `2254725043229e1801bd4524c651ca9cdf6b6c156aaaa8d2e36b1603cf19e672` |
 | Dark wallpaper | `assets/wallpaper-dark.png` | current-runtime | Dark mode; owner-supplied 1672x941 PNG; SHA-256 `7a54206a067c7d3a50b9fc263b68566fcab80d32765b0b3fe86d34f049b698d0` |
+| Aqua cursor | `assets/aqua-cursor.png` | current-runtime | Owner-supplied cursor scaled to a 28x42 RGBA PNG and embedded in the compositor; SHA-256 `af54d662db41c5eaa070796039909a45080f5342452e8ea6955cb073bd8e594c` |
 | Default wallpaper alias | `assets/default-wallpaper.png` | compatibility-runtime | Legacy fallback alias |
 | Pale Waves wallpaper | `assets/wallpaper-pale-waves.png` | legacy-runtime | Previous reproducible default; SHA-256 `bd749fee349ce50ceeba89457d0b24a2b3578a4a06d8366e1fef4683d9bfe455` |
 | Surf wallpaper | `assets/wallpaper-surf.png` | legacy-runtime | Optional wallpaper |

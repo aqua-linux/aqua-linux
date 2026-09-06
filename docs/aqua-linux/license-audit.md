@@ -93,7 +93,8 @@ is outside this audit.
 
 The Aqua identity source and original wallpapers were supplied by the project
 owner on 2026-08-27. The current Light and Dark wallpapers were supplied by the
-project owner on 2026-09-05. These assets remain separate from the MIT code
+project owner on 2026-09-05. The current cursor was supplied and approved for
+runtime use by the project owner on 2026-09-06. These assets remain separate from the MIT code
 license. The complete identity
 and interface source boards are stored in a Git-ignored local-only tree; only
 approved transparent logo exports and runtime wallpapers are part of the
