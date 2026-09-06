@@ -209,11 +209,15 @@ rendering and pointer selection. Content and footer hover share one repaint
 boundary, repeated motion within one row is inert, blocked disks remain
 non-interactive, and step changes, pointer leave, and close retire stale content
 hover;
-Installer choice, eligible-disk, user-field, and enabled Summary acknowledgement
-targets now arm only on a primary press, render a pressed state from that same
-shared geometry, and activate only when released over the armed target. Dragging
-away or leaving the surface cancels the content press, while non-primary buttons
-leave the form and navigation state unchanged;
+Installer choice, eligible-disk, user-field, Summary acknowledgement, and
+exact-text confirmation targets now arm only on a primary press, render a
+pressed state from that same shared geometry, and activate only when released
+over the armed target. Dragging away or leaving the surface cancels the content
+press, while non-primary buttons leave the form and navigation state unchanged;
+the Summary confirmation field now owns a bounded rectangle inside its panel
+for rendering, hover, pointer focus, and release-inside activation. Typed
+confirmation text is rendered in that field while disk-bound validation remains
+in the Installer model;
 Installer User Information and Summary keyboard editing now requires a visible
 `StepContent` focus. Summary participates in the same focus order as the other
 forms; a background press hides that focus and blocks form mutation, while a

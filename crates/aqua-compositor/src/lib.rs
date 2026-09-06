@@ -8553,7 +8553,8 @@ impl XdgSmokeClientState {
                 }
                 update.changed()
             }
-            aqua_installer::InstallerContentTarget::SummaryAcknowledgement => {
+            aqua_installer::InstallerContentTarget::SummaryAcknowledgement
+            | aqua_installer::InstallerContentTarget::SummaryConfirmationField => {
                 let update = forms.summary_mut().handle_pointer(model, layout, x, y);
                 if update.changed() {
                     println!("aqua_installer_pointer_summary_update={update:?}");

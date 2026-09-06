@@ -4528,6 +4528,8 @@ fn draw_installer_summary(
             "Seçilen diskteki tüm veriler silinecek".to_string(),
             if view.model.destructive_confirmed() {
                 "Hedefe bağlı onay doğrulandı".to_string()
+            } else if !view.forms.summary().confirmation().is_empty() {
+                view.forms.summary().confirmation().to_string()
             } else {
                 view.model
                     .confirmation_phrase()
@@ -4597,7 +4599,62 @@ fn draw_installer_summary(
             view.theme,
             OutputScale::One,
         );
+
+        let field = view.layout.summary_confirmation_field_rect();
+        let target = InstallerContentTarget::SummaryConfirmationField;
+        let hovered = view.forms.hovered_target() == Some(target);
+        let pressed = view.forms.pressed_target() == Some(target) && hovered;
+        let active = view.forms.summary().active_control()
+            == aqua_installer::InstallerSummaryControl::ConfirmationField;
+        fill_rounded_rect(
+            buffer,
+            width,
+            height,
+            field,
+            5,
+            if pressed {
+                view.palette.accent_soft
+            } else if hovered {
+                view.palette.hover
+            } else {
+                view.palette.field
+            },
+            if pressed {
+                255
+            } else if hovered {
+                240
+            } else {
+                215
+            },
+        );
+        if active || hovered {
+            draw_rect_outline(
+                buffer,
+                width,
+                height,
+                field,
+                if active || pressed {
+                    view.palette.accent
+                } else {
+                    view.palette.border
+                },
+                if pressed {
+                    255
+                } else if hovered {
+                    225
+                } else {
+                    190
+                },
+            );
+        }
+        primitives += if active || hovered { 2 } else { 1 };
     }
+    let detail_position = if view.model.mode() == InstallMode::Real {
+        let field = view.layout.summary_confirmation_field_rect();
+        (field.x + 6, field.y + 6)
+    } else {
+        detail_position
+    };
     draw_bitmap_text(
         buffer,
         (width, height),
@@ -9101,6 +9158,44 @@ mod tests {
         model.advance().unwrap();
         model.set_mode(InstallMode::Real);
         let mut forms = InstallerFormState::default();
+        let ui = InstallerUiState::new(&model);
+        let layout = InstallerWindowLayout::for_viewport(Viewport::new(1280, 800)).unwrap();
+        let field = layout.summary_confirmation_field_rect();
+        let field_point = (field.x + field.width / 2, field.y + field.height / 2);
+        let (_, idle_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+        assert!(forms.handle_pointer_hover(&model, &layout, field_point.0, field_point.1,));
+        let (_, hover_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+        assert_eq!(
+            hover_probe.hovered_content_target,
+            Some(InstallerContentTarget::SummaryConfirmationField)
+        );
+        assert_ne!(hover_probe.checksum, idle_probe.checksum);
+        assert!(forms.begin_pointer_press(&model, &layout, field_point.0, field_point.1));
+        let (_, pressed_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+        assert_eq!(
+            pressed_probe.pressed_content_target,
+            Some(InstallerContentTarget::SummaryConfirmationField)
+        );
+        assert_ne!(pressed_probe.checksum, hover_probe.checksum);
+        assert_eq!(
+            forms.finish_pointer_press(&model, &layout, field_point.0, field_point.1),
+            (true, Some(InstallerContentTarget::SummaryConfirmationField))
+        );
+        assert_eq!(
+            forms
+                .summary_mut()
+                .handle_pointer(&model, &layout, field_point.0, field_point.1,),
+            aqua_installer::InstallerSummaryUpdate::FocusChanged(
+                aqua_installer::InstallerSummaryControl::ConfirmationField
+            )
+        );
+        forms
+            .summary_mut()
+            .handle_key(&mut model, InstallerSummaryKey::PreviousControl)
+            .unwrap();
         assert_eq!(
             forms
                 .summary_mut()
@@ -9119,7 +9214,6 @@ mod tests {
             .summary_mut()
             .handle_key(&mut model, InstallerSummaryKey::Activate)
             .unwrap();
-        let ui = InstallerUiState::new(&model);
         let (_, probe) =
             render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
 

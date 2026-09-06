@@ -1714,6 +1714,7 @@ grep -Fq 'installer-pointer-background-blur' scripts/send-qemu-monitor-input.py
 grep -Fq 'installer-pointer-language-drag-cancel' scripts/send-qemu-monitor-input.py
 grep -Fq 'installer-summary-background-blur' scripts/send-qemu-monitor-input.py
 grep -Fq 'installer-summary-acknowledgement' scripts/send-qemu-monitor-input.py
+grep -Fq 'installer-summary-confirmation-field' scripts/send-qemu-monitor-input.py
 grep -Fq '"sendkey ret 100"' scripts/send-qemu-monitor-input.py
 grep -Fq 'aqua_installer_hover x=[0-9]+ y=[0-9]+ hovered=forward' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_content_hover x=[0-9]+ y=[0-9]+' scripts/check-installer-wayland-qemu.sh
@@ -1724,7 +1725,8 @@ grep -Fq 'aqua_installer_keyboard key=28 press_count=[0-9]+ action=None' scripts
 grep -Fq 'target=None content=true' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'target=Some\(Choice' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'target=Some\(SummaryAcknowledgement\)' scripts/check-installer-wayland-qemu.sh
-grep -Fq 'aqua_installer_redraw_count=52' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'target=Some\(SummaryConfirmationField\)' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'aqua_installer_redraw_count=55' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_keyboard_layout=trq' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_target_device=/dev/vdb' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_timezone=Europe/Istanbul' scripts/check-installer-wayland-qemu.sh
