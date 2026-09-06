@@ -214,6 +214,10 @@ targets now arm only on a primary press, render a pressed state from that same
 shared geometry, and activate only when released over the armed target. Dragging
 away or leaving the surface cancels the content press, while non-primary buttons
 leave the form and navigation state unchanged;
+Installer User Information and Summary keyboard editing now requires a visible
+`StepContent` focus. Summary participates in the same focus order as the other
+forms; a background press hides that focus and blocks form mutation, while a
+valid content press or explicit keyboard navigation restores it;
 Installer footer actions now arm only on a primary-button press, render the
 shared pressed state, and activate only when that same visible target receives
 the release. Dragging away or leaving the surface cancels the press, while

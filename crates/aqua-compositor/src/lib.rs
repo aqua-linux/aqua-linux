@@ -8766,7 +8766,7 @@ impl XdgSmokeClientState {
         ) else {
             return false;
         };
-        if model.step() == InstallerStep::Summary {
+        if model.step() == InstallerStep::Summary && ui.step_content_keyboard_active() {
             let summary_ready = forms.summary().can_begin_install(model);
             let summary_key = match key {
                 14 => Some(InstallerSummaryKey::Backspace),
@@ -8842,9 +8842,7 @@ impl XdgSmokeClientState {
                 return true;
             }
         }
-        if model.step() == InstallerStep::UserInformation
-            && ui.focus() == InstallerFocusTarget::StepContent
-        {
+        if model.step() == InstallerStep::UserInformation && ui.step_content_keyboard_active() {
             let form_key = match key {
                 14 => Some(InstallerUserFormKey::Backspace),
                 103 => Some(InstallerUserFormKey::PreviousField),
