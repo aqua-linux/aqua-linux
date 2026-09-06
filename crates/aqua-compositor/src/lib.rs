@@ -8770,6 +8770,8 @@ impl XdgSmokeClientState {
         let form_navigation_key = match key {
             103 => Some(InstallerFormKey::Up),
             108 => Some(InstallerFormKey::Down),
+            102 => Some(InstallerFormKey::Home),
+            107 => Some(InstallerFormKey::End),
             _ => None,
         };
         if ui.step_content_keyboard_active() {

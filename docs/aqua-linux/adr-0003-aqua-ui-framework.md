@@ -222,10 +222,10 @@ Installer User Information and Summary keyboard editing now requires a visible
 `StepContent` focus. Summary participates in the same focus order as the other
 forms; a background press hides that focus and blocks form mutation, while a
 valid content press or explicit keyboard navigation restores it;
-Installer Language, Keyboard, Time Zone, and Partitions now route Up and Down
-to their bounded form navigation only while visible `StepContent` focus is
-active. Choice movement remains model-validated, disk movement skips blocked
-targets, and footer focus retains its existing navigation behavior;
+Installer Language, Keyboard, Time Zone, and Partitions now route Up, Down,
+Home, and End to their bounded form navigation only while visible `StepContent`
+focus is active. Choice movement remains model-validated, disk movement skips
+blocked targets, and Tab retains the explicit path into footer focus;
 Installer footer actions now arm only on a primary-button press, render the
 shared pressed state, and activate only when that same visible target receives
 the release. Dragging away or leaving the surface cancels the press, while

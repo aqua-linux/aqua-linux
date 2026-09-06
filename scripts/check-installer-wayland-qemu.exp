@@ -176,15 +176,27 @@ if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-keybo
 }
 
 expect {
-    -exact {aqua_installer_form_navigation key=108 press_count=6 update=SelectionChanged { step: Keyboard, index: 1, value: "trf" }} {}
+    -exact {aqua_installer_form_navigation key=108 press_count=8 update=SelectionChanged { step: Keyboard, index: 1, value: "trf" }} {}
     timeout { puts stderr "Timed out waiting for installer Keyboard Down selection"; exit 1 }
     eof { puts stderr "QEMU exited before installer Keyboard Down selection"; exit 1 }
 }
 
 expect {
-    -exact {aqua_installer_form_navigation key=103 press_count=7 update=SelectionChanged { step: Keyboard, index: 0, value: "trq" }} {}
+    -exact {aqua_installer_form_navigation key=103 press_count=9 update=SelectionChanged { step: Keyboard, index: 0, value: "trq" }} {}
     timeout { puts stderr "Timed out waiting for installer Keyboard Up selection"; exit 1 }
     eof { puts stderr "QEMU exited before installer Keyboard Up selection"; exit 1 }
+}
+
+expect {
+    -exact {aqua_installer_form_navigation key=107 press_count=10 update=SelectionChanged { step: Keyboard, index: 2, value: "us" }} {}
+    timeout { puts stderr "Timed out waiting for installer Keyboard End selection"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Keyboard End selection"; exit 1 }
+}
+
+expect {
+    -exact {aqua_installer_form_navigation key=102 press_count=11 update=SelectionChanged { step: Keyboard, index: 0, value: "trq" }} {}
+    timeout { puts stderr "Timed out waiting for installer Keyboard Home selection"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Keyboard Home selection"; exit 1 }
 }
 
 expect {
