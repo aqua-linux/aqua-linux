@@ -4,50 +4,64 @@
   "environment": "QEMU x86_64 TCG",
   "captureScript": "scripts/check-public-runtime-qemu.sh",
   "publishScript": "scripts/publish-public-runtime-screenshots.sh",
-  "validationMarker": "[AQUA-TEST] stage=desktop-public-runtime-qemu status=ok captures=desktop,applications,search,applications-dark,search-dark,windows themes=Light,Dark clients=files,settings",
-  "runtimeSourceRevision": "a3a7a233e43877222d555fb985d6b05a856942f0",
+  "validationMarker": "[AQUA-TEST] stage=desktop-public-runtime-qemu status=ok captures=desktop,applications,search,search-empty,applications-dark,search-dark,search-empty-dark,windows themes=Light,Dark clients=files,settings",
+  "runtimeSourceRevision": "349396a353be5818103b47cb7db099ec805f847f",
   "images": [
     {
       "file": "qemu-desktop.png",
       "view": "Clean desktop",
       "width": 1280,
       "height": 800,
-      "sha256": "daf5168f39d2b98aa372af1dc51fd4c130ea37090bda38f9f590b8276fb08c9b"
+      "sha256": "dfe874b45864971d86363ba638e4d33987b62c458812187dee75f676e7e22353"
     },
     {
       "file": "qemu-applications.png",
       "view": "Applications",
       "width": 1280,
       "height": 800,
-      "sha256": "8cfc10dfc01431b10da06346ab650301882e0073625ce11ae988d3cdf5c37efd"
+      "sha256": "e9069e96d14b8c208b1714444ccd0c9e2214f530151c9ec81cc42679c901998f"
     },
     {
       "file": "qemu-search.png",
       "view": "Global Search query: set",
       "width": 1280,
       "height": 800,
-      "sha256": "4cf6267f92a8534786f82078dd8d254af3c6f735373a6dcf58a651b3a198ef26"
+      "sha256": "bd8c9e962e931bb639dcc1d56e3c7df27a5952790a07e9c7e1f17cfc64d7cf1d"
+    },
+    {
+      "file": "qemu-search-empty.png",
+      "view": "Global Search empty state: setxyz",
+      "width": 1280,
+      "height": 800,
+      "sha256": "52f1588cc6af24e6e1370c8623ebdb83b87f4d60f26d0ff146118bc196986e7c"
     },
     {
       "file": "qemu-applications-dark.png",
       "view": "Applications, Dark theme",
       "width": 1280,
       "height": 800,
-      "sha256": "6ab1f27c0cfb68968f9f822f29697b68565a99d5b099273e8371e40498ccce36"
+      "sha256": "0f5dfd7c36722c2b542394a745798a88ac74289c67f2cec5efb48ac7bda9f060"
     },
     {
       "file": "qemu-search-dark.png",
       "view": "Global Search query: set, Dark theme",
       "width": 1280,
       "height": 800,
-      "sha256": "3e9242a90b150e2b6afd616291bf76993eea3552a914e8ea1821ffd6a219071d"
+      "sha256": "3f0faa857e1c3b8d255b0afb5dc50317da405abc223614fccd3dbc3484c1ff5a"
+    },
+    {
+      "file": "qemu-search-empty-dark.png",
+      "view": "Global Search empty state: setxyz, Dark theme",
+      "width": 1280,
+      "height": 800,
+      "sha256": "359fca67bf59d1e1abfe2821ad5eab7c21864a6d1ff0b76397d8b118cf714ef8"
     },
     {
       "file": "qemu-first-party-windows.png",
       "view": "Aqua Files and Aqua Settings",
       "width": 1280,
       "height": 800,
-      "sha256": "d3681b35c23c92606047d61c48386dc9b6301c22db7214d28ad715a5e426a5da"
+      "sha256": "d3f8af2f6b19dae3ed5a3de3db61ddc3b33730eec66641d2b4027d47cf2662df"
     }
   ]
 }

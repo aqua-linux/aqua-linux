@@ -23,10 +23,14 @@ APPLICATIONS_PPM="${OUTPUT_DIR}/applications.ppm"
 APPLICATIONS_PNG="${OUTPUT_DIR}/applications.png"
 SEARCH_PPM="${OUTPUT_DIR}/search.ppm"
 SEARCH_PNG="${OUTPUT_DIR}/search.png"
+SEARCH_EMPTY_PPM="${OUTPUT_DIR}/search-empty.ppm"
+SEARCH_EMPTY_PNG="${OUTPUT_DIR}/search-empty.png"
 APPLICATIONS_DARK_PPM="${OUTPUT_DIR}/applications-dark.ppm"
 APPLICATIONS_DARK_PNG="${OUTPUT_DIR}/applications-dark.png"
 SEARCH_DARK_PPM="${OUTPUT_DIR}/search-dark.ppm"
 SEARCH_DARK_PNG="${OUTPUT_DIR}/search-dark.png"
+SEARCH_EMPTY_DARK_PPM="${OUTPUT_DIR}/search-empty-dark.ppm"
+SEARCH_EMPTY_DARK_PNG="${OUTPUT_DIR}/search-empty-dark.png"
 WINDOWS_PPM="${OUTPUT_DIR}/windows.ppm"
 WINDOWS_PNG="${OUTPUT_DIR}/windows.png"
 
@@ -73,11 +77,12 @@ export ROOT_DIR KERNEL ROOTFS SERIAL_LOG MONITOR_SOCKET MEMORY CPUS TIMEOUT_SECO
 export INPUT_HELPER CAPTURE_HELPER DESKTOP_PPM DESKTOP_PNG APPLICATIONS_PPM
 export APPLICATIONS_PNG SEARCH_PPM SEARCH_PNG WINDOWS_PPM WINDOWS_PNG
 export APPLICATIONS_DARK_PPM APPLICATIONS_DARK_PNG SEARCH_DARK_PPM SEARCH_DARK_PNG
+export SEARCH_EMPTY_PPM SEARCH_EMPTY_PNG SEARCH_EMPTY_DARK_PPM SEARCH_EMPTY_DARK_PNG
 export AQUA_QEMU_INPUT_CONTROL_SOCKET="${INPUT_CONTROL_SOCKET}"
 expect "${ROOT_DIR}/scripts/check-public-runtime-qemu.exp"
 
-grep -Fq '[AQUA-TEST] stage=desktop-public-runtime-qemu status=ok captures=desktop,applications,search,applications-dark,search-dark,windows themes=Light,Dark clients=files,settings' "${SERIAL_LOG}"
-python3 - "${DESKTOP_PNG}" "${APPLICATIONS_PNG}" "${SEARCH_PNG}" "${APPLICATIONS_DARK_PNG}" "${SEARCH_DARK_PNG}" "${WINDOWS_PNG}" <<'PY'
+grep -Fq '[AQUA-TEST] stage=desktop-public-runtime-qemu status=ok captures=desktop,applications,search,search-empty,applications-dark,search-dark,search-empty-dark,windows themes=Light,Dark clients=files,settings' "${SERIAL_LOG}"
+python3 - "${DESKTOP_PNG}" "${APPLICATIONS_PNG}" "${SEARCH_PNG}" "${SEARCH_EMPTY_PNG}" "${SEARCH_EMPTY_DARK_PNG}" "${SEARCH_DARK_PNG}" "${APPLICATIONS_DARK_PNG}" "${WINDOWS_PNG}" <<'PY'
 import struct
 import sys
 import zlib
@@ -147,4 +152,4 @@ print("Public runtime PNG validation passed.")
 PY
 
 echo "Aqua Linux public runtime QEMU capture check passed."
-echo "Captures: ${DESKTOP_PNG} ${APPLICATIONS_PNG} ${SEARCH_PNG} ${APPLICATIONS_DARK_PNG} ${SEARCH_DARK_PNG} ${WINDOWS_PNG}"
+echo "Captures: ${DESKTOP_PNG} ${APPLICATIONS_PNG} ${SEARCH_PNG} ${SEARCH_EMPTY_PNG} ${APPLICATIONS_DARK_PNG} ${SEARCH_DARK_PNG} ${SEARCH_EMPTY_DARK_PNG} ${WINDOWS_PNG}"

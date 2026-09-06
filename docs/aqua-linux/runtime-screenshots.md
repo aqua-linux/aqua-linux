@@ -29,6 +29,10 @@ for each image.
 
 ![Aqua Linux Global Search captured in QEMU](assets/runtime/qemu-search.png)
 
+## Global Search — Empty
+
+![Aqua Linux empty Global Search captured in QEMU](assets/runtime/qemu-search-empty.png)
+
 ## Applications — Dark
 
 ![Aqua Linux Applications in Dark theme captured in QEMU](assets/runtime/qemu-applications-dark.png)
@@ -36,6 +40,10 @@ for each image.
 ## Global Search — Dark
 
 ![Aqua Linux Global Search in Dark theme captured in QEMU](assets/runtime/qemu-search-dark.png)
+
+## Global Search — Empty, Dark
+
+![Aqua Linux empty Global Search in Dark theme captured in QEMU](assets/runtime/qemu-search-empty-dark.png)
 
 ## First-Party Windows
 
