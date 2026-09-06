@@ -7845,6 +7845,7 @@ enum FirstPartyUiSurface {
     Properties,
     Files,
     Settings,
+    Installer,
 }
 
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -7979,7 +7980,7 @@ impl XdgSmokeClientState {
         self.keyboard_ctrl = false;
     }
 
-    fn clear_first_party_keyboard_focus(&mut self) -> [Option<KeyboardLeaveTransition>; 3] {
+    fn clear_first_party_keyboard_focus(&mut self) -> [Option<KeyboardLeaveTransition>; 4] {
         let properties_changed = self
             .properties_model
             .as_mut()
@@ -7998,10 +7999,15 @@ impl XdgSmokeClientState {
             .settings_model
             .as_mut()
             .is_some_and(aqua_shell::SettingsWindowModel::clear_keyboard_focus);
+        let installer_changed = self
+            .installer_ui
+            .as_mut()
+            .is_some_and(InstallerUiState::clear_keyboard_focus);
         [
             (FirstPartyUiSurface::Properties, properties_changed),
             (FirstPartyUiSurface::Files, files_changed),
             (FirstPartyUiSurface::Settings, settings_changed),
+            (FirstPartyUiSurface::Installer, installer_changed),
         ]
         .map(|(surface, changed)| {
             changed.then_some(KeyboardLeaveTransition {
@@ -14358,6 +14364,19 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
         _: &ClientConnection,
         qh: &QueueHandle<Self>,
     ) {
+        if !state.close_event_received && matches!(event, client_wl_keyboard::Event::Enter { .. }) {
+            if state
+                .installer_ui
+                .as_mut()
+                .is_some_and(InstallerUiState::restore_keyboard_focus)
+            {
+                println!(
+                    "aqua_installer_keyboard focus=restored reason=keyboard-enter repaint=true"
+                );
+                state.redraw_installer_buffer(qh);
+            }
+            return;
+        }
         if matches!(event, client_wl_keyboard::Event::Leave { .. }) {
             for transition in state
                 .clear_first_party_keyboard_focus()
@@ -14370,6 +14389,7 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
                         FirstPartyUiSurface::Properties => state.redraw_properties_buffer(qh),
                         FirstPartyUiSurface::Files => state.redraw_files_buffer(qh),
                         FirstPartyUiSurface::Settings => state.redraw_settings_buffer(qh),
+                        FirstPartyUiSurface::Installer => state.redraw_installer_buffer(qh),
                     }
                 }
                 match transition.surface {
@@ -14386,6 +14406,9 @@ impl ClientDispatch<client_wl_keyboard::WlKeyboard, ()> for XdgSmokeClientState 
                             "aqua_settings_keyboard focus=none reason=keyboard-leave category={selected_category} repaint={repaint}"
                         );
                     }
+                    FirstPartyUiSurface::Installer => println!(
+                        "aqua_installer_keyboard focus=none reason=keyboard-leave repaint={repaint}"
+                    ),
                 }
             }
             return;
@@ -14722,6 +14745,7 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                                 "aqua_settings_hover hovered=none reason=pointer-leave category={selected_category} repaint={repaint}"
                             );
                         }
+                        FirstPartyUiSurface::Installer => {}
                     }
                 }
                 if window_hover_changed || content_repaint {
@@ -17102,6 +17126,7 @@ mod tests {
                     FirstPartyUiSurface::Properties,
                     FirstPartyUiSurface::Files,
                     FirstPartyUiSurface::Settings,
+                    FirstPartyUiSurface::Installer,
                 ] {
                     let mut state = XdgSmokeClientState {
                         close_event_received,
@@ -17142,6 +17167,15 @@ mod tests {
                                 ..aqua_shell::SettingsWindowModel::default()
                             });
                         }
+                        FirstPartyUiSurface::Installer => {
+                            let model = InstallerModel::default();
+                            let mut ui = InstallerUiState::new(&model);
+                            if !focused {
+                                assert!(ui.clear_keyboard_focus());
+                            }
+                            state.installer_model = Some(model);
+                            state.installer_ui = Some(ui);
+                        }
                     }
                     let mut expected_properties = state.properties_model.clone();
                     if let Some(model) = expected_properties.as_mut() {
@@ -17155,6 +17189,10 @@ mod tests {
                     let mut expected_settings = state.settings_model.clone();
                     if let Some(model) = expected_settings.as_mut() {
                         model.keyboard_focus = false;
+                    }
+                    let mut expected_installer = state.installer_ui.clone();
+                    if let Some(ui) = expected_installer.as_mut() {
+                        ui.clear_keyboard_focus();
                     }
                     let changes: Vec<_> = state
                         .clear_first_party_keyboard_focus()
@@ -17172,6 +17210,7 @@ mod tests {
                     assert_eq!(state.properties_model, expected_properties);
                     assert_eq!(state.files_model, expected_files);
                     assert_eq!(state.settings_model, expected_settings);
+                    assert_eq!(state.installer_ui, expected_installer);
                     if let Some(navigator) = state.files_navigator.as_ref() {
                         assert_eq!(Some(navigator.window()), state.files_model.as_ref());
                         assert_eq!(
@@ -17179,16 +17218,93 @@ mod tests {
                             root.canonicalize().expect("canonical root")
                         );
                     }
-                    assert_eq!(state.clear_first_party_keyboard_focus(), [None; 3]);
+                    assert_eq!(state.clear_first_party_keyboard_focus(), [None; 4]);
                 }
             }
             let mut state = XdgSmokeClientState {
                 close_event_received,
                 ..XdgSmokeClientState::default()
             };
-            assert_eq!(state.clear_first_party_keyboard_focus(), [None; 3]);
+            assert_eq!(state.clear_first_party_keyboard_focus(), [None; 4]);
         }
         fs::remove_dir(root).expect("remove isolated root");
+    }
+
+    #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
+    #[test]
+    fn installer_wayland_keyboard_focus_round_trip_preserves_target_and_close_gate() {
+        let (_server, client) = std::os::unix::net::UnixStream::pair().expect("stream pair");
+        let connection = ClientConnection::from_socket(client).expect("client connection");
+        let queue = connection.new_event_queue::<XdgSmokeClientState>();
+        let qh = queue.handle();
+        let registry = connection.display().get_registry(&qh, ());
+        let seat = registry.bind::<client_wl_seat::WlSeat, _, _>(1, 5, &qh, ());
+        let keyboard = seat.get_keyboard(&qh, ());
+        let compositor = registry.bind::<wl_compositor::WlCompositor, _, _>(2, 4, &qh, ());
+        let surface = compositor.create_surface(&qh, ());
+        let model = InstallerModel::default();
+        let mut ui = InstallerUiState::new(&model);
+        ui.handle_key(InstallerUiKey::End);
+        let mut state = XdgSmokeClientState {
+            installer_model: Some(model),
+            installer_ui: Some(ui),
+            buffer_width: 1280,
+            buffer_height: 800,
+            ..XdgSmokeClientState::default()
+        };
+
+        <XdgSmokeClientState as ClientDispatch<client_wl_keyboard::WlKeyboard, ()>>::event(
+            &mut state,
+            &keyboard,
+            client_wl_keyboard::Event::Leave {
+                serial: 1,
+                surface: surface.clone(),
+            },
+            &(),
+            &connection,
+            &qh,
+        );
+        let ui = state.installer_ui.as_ref().expect("Installer UI");
+        assert!(!ui.keyboard_focus_visible());
+        assert_eq!(ui.focus(), InstallerFocusTarget::Forward);
+        assert_eq!(state.installer_redraw_count, 0);
+
+        <XdgSmokeClientState as ClientDispatch<client_wl_keyboard::WlKeyboard, ()>>::event(
+            &mut state,
+            &keyboard,
+            client_wl_keyboard::Event::Enter {
+                serial: 2,
+                surface: surface.clone(),
+                keys: Vec::new(),
+            },
+            &(),
+            &connection,
+            &qh,
+        );
+        let ui = state.installer_ui.as_ref().expect("Installer UI");
+        assert!(ui.keyboard_focus_visible());
+        assert_eq!(ui.focus(), InstallerFocusTarget::Forward);
+
+        state.begin_close();
+        <XdgSmokeClientState as ClientDispatch<client_wl_keyboard::WlKeyboard, ()>>::event(
+            &mut state,
+            &keyboard,
+            client_wl_keyboard::Event::Enter {
+                serial: 3,
+                surface,
+                keys: Vec::new(),
+            },
+            &(),
+            &connection,
+            &qh,
+        );
+        assert!(state.close_event_received);
+        assert!(!state
+            .installer_ui
+            .as_ref()
+            .expect("Installer UI")
+            .keyboard_focus_visible());
+        assert_eq!(state.installer_redraw_count, 0);
     }
 
     #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
@@ -17337,6 +17453,7 @@ mod tests {
                 FirstPartyUiSurface::Settings => {
                     state.settings_model = Some(aqua_shell::SettingsWindowModel::default())
                 }
+                FirstPartyUiSurface::Installer => {}
             }
             let expected_files = state.files_model.clone();
             let expected_properties = state.properties_model.clone();
@@ -17506,7 +17623,7 @@ mod tests {
             assert_eq!(state.settings_model, Some(settings));
             // A repeated close and later leave need no further model action or repaint.
             state.begin_close();
-            assert_eq!(state.clear_first_party_keyboard_focus(), [None; 3]);
+            assert_eq!(state.clear_first_party_keyboard_focus(), [None; 4]);
             assert_eq!(state.clear_first_party_pointer_interaction(), [None; 3]);
         }
     }
@@ -18061,7 +18178,8 @@ mod tests {
                 Some(KeyboardLeaveTransition {
                     surface: FirstPartyUiSurface::Settings,
                     repaint: true
-                })
+                }),
+                None,
             ]
         );
         settings.redraw_settings_buffer(&settings_qh);
