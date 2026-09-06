@@ -8522,12 +8522,22 @@ impl XdgSmokeClientState {
             self.redraw_installer_buffer(qh);
             return true;
         }
+        let focus_was_visible = ui.keyboard_focus_visible();
         let pressed = ui.begin_pointer_press(&layout, x, y);
-        println!("aqua_installer_pointer phase=press x={x} y={y} pressed={pressed} action=none");
-        if pressed {
+        let focus_cleared = focus_was_visible && !ui.keyboard_focus_visible();
+        let interaction_changed = pressed || focus_cleared;
+        println!(
+            "aqua_installer_pointer phase=press x={x} y={y} pressed={pressed} focus={} action=none repaint={interaction_changed}",
+            if ui.keyboard_focus_visible() {
+                ui.focus().id()
+            } else {
+                "none"
+            }
+        );
+        if interaction_changed {
             self.redraw_installer_buffer(qh);
         }
-        pressed
+        interaction_changed
     }
 
     fn finish_installer_pointer_press(&mut self, x: u32, y: u32, qh: &QueueHandle<Self>) -> bool {

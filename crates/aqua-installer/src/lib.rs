@@ -506,6 +506,7 @@ impl InstallerUiState {
     pub fn begin_pointer_press(&mut self, layout: &InstallerWindowLayout, x: u32, y: u32) -> bool {
         let Some(target) = self.pointer_target(layout, x, y) else {
             self.pressed_target = None;
+            self.keyboard_focus_visible = false;
             return false;
         };
         self.hovered_target = Some(target);
@@ -553,17 +554,29 @@ impl InstallerUiState {
     }
 
     pub fn handle_key(&mut self, key: InstallerUiKey) -> InstallerUiAction {
-        self.keyboard_focus_visible = true;
         let targets = installer_focus_order(self.step);
         match key {
-            InstallerUiKey::Tab | InstallerUiKey::Right => self.move_focus(targets, 1),
-            InstallerUiKey::BackTab | InstallerUiKey::Left => self.move_focus(targets, -1),
-            InstallerUiKey::Home => self.set_focus(targets[0]),
-            InstallerUiKey::End => self.set_focus(targets[targets.len() - 1]),
+            InstallerUiKey::Tab | InstallerUiKey::Right => {
+                self.keyboard_focus_visible = true;
+                self.move_focus(targets, 1)
+            }
+            InstallerUiKey::BackTab | InstallerUiKey::Left => {
+                self.keyboard_focus_visible = true;
+                self.move_focus(targets, -1)
+            }
+            InstallerUiKey::Home => {
+                self.keyboard_focus_visible = true;
+                self.set_focus(targets[0])
+            }
+            InstallerUiKey::End => {
+                self.keyboard_focus_visible = true;
+                self.set_focus(targets[targets.len() - 1])
+            }
             InstallerUiKey::Escape if targets.contains(&InstallerFocusTarget::Cancel) => {
                 InstallerUiAction::CancelRequested
             }
             InstallerUiKey::Escape => InstallerUiAction::None,
+            InstallerUiKey::Activate if !self.keyboard_focus_visible => InstallerUiAction::None,
             InstallerUiKey::Activate => match self.focus {
                 InstallerFocusTarget::StepContent => {
                     InstallerUiAction::ActivateStepContent(self.step)
@@ -588,6 +601,8 @@ impl InstallerUiState {
         y: u32,
     ) -> InstallerUiAction {
         let Some(target) = self.pointer_target(layout, x, y) else {
+            self.pressed_target = None;
+            self.keyboard_focus_visible = false;
             return InstallerUiAction::None;
         };
         self.hovered_target = Some(target);
@@ -5431,6 +5446,18 @@ mod tests {
             (false, None)
         );
         assert!(!ui.begin_pointer_press(&layout, 0, 0));
+        assert!(!ui.keyboard_focus_visible());
+        assert_eq!(ui.focus(), InstallerFocusTarget::Forward);
+        assert_eq!(
+            ui.handle_key(InstallerUiKey::Activate),
+            InstallerUiAction::None
+        );
+        assert!(!ui.keyboard_focus_visible());
+        assert_eq!(
+            ui.handle_key(InstallerUiKey::Tab),
+            InstallerUiAction::FocusChanged(InstallerFocusTarget::LanguageControl)
+        );
+        assert!(ui.keyboard_focus_visible());
     }
 
     #[test]

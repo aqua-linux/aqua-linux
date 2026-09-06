@@ -1710,11 +1710,14 @@ grep -Fq 'installer-keyboard-partitions' scripts/send-qemu-monitor-input.py
 grep -Fq 'installer-partitions-timezone' scripts/send-qemu-monitor-input.py
 grep -Fq 'installer-timezone-user' scripts/send-qemu-monitor-input.py
 grep -Fq 'installer-user-summary-confirmation' scripts/send-qemu-monitor-input.py
+grep -Fq 'installer-pointer-background-blur' scripts/send-qemu-monitor-input.py
 grep -Fq '"sendkey ret 100"' scripts/send-qemu-monitor-input.py
 grep -Fq 'aqua_installer_hover x=[0-9]+ y=[0-9]+ hovered=forward' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_pointer phase=press button=[0-9]+ primary=false ignored=true' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_pointer phase=release x=[0-9]+ y=[0-9]+ pressed=false action=AdvanceRequested' scripts/check-installer-wayland-qemu.sh
-grep -Fq 'aqua_installer_redraw_count=39' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'pressed=false focus=none action=none repaint=true' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'aqua_installer_keyboard key=28 press_count=[0-9]+ action=None' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'aqua_installer_redraw_count=40' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_keyboard_layout=trq' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_target_device=/dev/vdb' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_timezone=Europe/Istanbul' scripts/check-installer-wayland-qemu.sh
@@ -1723,8 +1726,8 @@ grep -Fq 'aqua_installer_summary_destructive_acknowledgement=true' scripts/check
 grep -Fq 'aqua_installer_summary_confirmation_applied=true' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_summary_target_device=/dev/vdb' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'installer-welcome' crates/aqua-compositor/src/main.rs
-grep -Fq 'snapshot.keyboard_event_count >= 106' crates/aqua-compositor/src/main.rs
-grep -Fq '.any(|surface| surface.commit_count >= 38)' crates/aqua-compositor/src/main.rs
+grep -Fq 'snapshot.keyboard_event_count >= 108' crates/aqua-compositor/src/main.rs
+grep -Fq '.any(|surface| surface.commit_count >= 43)' crates/aqua-compositor/src/main.rs
 grep -Fq 'DestructiveAcknowledgementRequired' crates/aqua-installer/src/lib.rs
 grep -Fq 'CONFIG_VFAT_FS=y' br2-external/aqua/board/aqua/x86_64/linux.config
 grep -Fq 'installer_qemu_transaction = "a second exact opt-in executes' docs/aqua-linux/compositor-foundation.toml

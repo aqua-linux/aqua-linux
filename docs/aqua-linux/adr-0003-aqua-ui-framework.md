@@ -207,6 +207,10 @@ Installer footer actions now arm only on a primary-button press, render the
 shared pressed state, and activate only when that same visible target receives
 the release. Dragging away or leaving the surface cancels the press, while
 non-primary buttons cannot change navigation or interaction state;
+an Installer background press now hides stale keyboard focus while preserving
+the durable target, and Enter cannot activate that hidden target. Pointer
+selection or explicit Tab, arrow, Home, or End navigation restores visible
+focus through the existing model-owned path;
 one-shot shared-memory pools are destroyed after client buffer creation, with
 real-server object enumeration covering initial attachment and repeated redraws;
 replaced client buffers retire after server release, with batched-redraw checks

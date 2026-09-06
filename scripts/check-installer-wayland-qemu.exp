@@ -73,7 +73,7 @@ expect {
 }
 
 expect {
-    -re {aqua_installer_pointer phase=press x=[0-9]+ y=[0-9]+ pressed=true action=none} {}
+    -re {aqua_installer_pointer phase=press x=[0-9]+ y=[0-9]+ pressed=true focus=forward action=none repaint=true} {}
     timeout { puts stderr "Timed out waiting for installer footer pressed state"; exit 1 }
     eof { puts stderr "QEMU exited before installer footer pressed state"; exit 1 }
 }
@@ -88,6 +88,23 @@ expect {
     -exact {installer_wayland_repaint=true} {}
     timeout { puts stderr "Timed out waiting for installer Language repaint"; exit 1 }
     eof { puts stderr "QEMU exited before installer Language repaint"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-pointer-background-blur} input_error]} {
+    puts stderr "QEMU installer background pointer injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -re {aqua_installer_pointer phase=press x=[0-9]+ y=[0-9]+ pressed=false focus=none action=none repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer background focus blur"; exit 1 }
+    eof { puts stderr "QEMU exited before installer background focus blur"; exit 1 }
+}
+
+expect {
+    -re {aqua_installer_keyboard key=28 press_count=[0-9]+ action=None} {}
+    timeout { puts stderr "Timed out waiting for installer blurred Enter rejection"; exit 1 }
+    eof { puts stderr "QEMU exited before installer blurred Enter rejection"; exit 1 }
 }
 
 if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-pointer-language-row} input_error]} {
