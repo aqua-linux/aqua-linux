@@ -195,6 +195,10 @@ PTY frame bookkeeping, and Installer's persistent presentation loop without
 client frame callbacks;
 the full-output Installer surface uses output coordinates directly for pointer
 hit testing, avoiding a second application of the canonical scene scale;
+Installer now participates in the shared keyboard-leave lifecycle: its durable
+focus target remains available for navigation, while visible keyboard focus is
+cleared on Wayland leave, restored on enter, and gated against redraw or
+restoration after xdg close;
 one-shot shared-memory pools are destroyed after client buffer creation, with
 real-server object enumeration covering initial attachment and repeated redraws;
 replaced client buffers retire after server release, with batched-redraw checks

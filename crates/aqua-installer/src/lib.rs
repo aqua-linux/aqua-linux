@@ -439,6 +439,7 @@ impl InstallerUiAction {
 pub struct InstallerUiState {
     step: InstallerStep,
     focus: InstallerFocusTarget,
+    keyboard_focus_visible: bool,
 }
 
 impl InstallerUiState {
@@ -447,6 +448,7 @@ impl InstallerUiState {
         Self {
             step: model.step(),
             focus: targets[0],
+            keyboard_focus_visible: true,
         }
     }
 
@@ -456,6 +458,18 @@ impl InstallerUiState {
 
     pub const fn focus(&self) -> InstallerFocusTarget {
         self.focus
+    }
+
+    pub const fn keyboard_focus_visible(&self) -> bool {
+        self.keyboard_focus_visible
+    }
+
+    pub fn clear_keyboard_focus(&mut self) -> bool {
+        std::mem::replace(&mut self.keyboard_focus_visible, false)
+    }
+
+    pub fn restore_keyboard_focus(&mut self) -> bool {
+        !std::mem::replace(&mut self.keyboard_focus_visible, true)
     }
 
     pub fn sync_step(&mut self, model: &InstallerModel) -> bool {
@@ -468,6 +482,7 @@ impl InstallerUiState {
     }
 
     pub fn handle_key(&mut self, key: InstallerUiKey) -> InstallerUiAction {
+        self.keyboard_focus_visible = true;
         let targets = installer_focus_order(self.step);
         match key {
             InstallerUiKey::Tab | InstallerUiKey::Right => self.move_focus(targets, 1),
@@ -519,6 +534,7 @@ impl InstallerUiState {
         let Some(target) = target else {
             return InstallerUiAction::None;
         };
+        self.keyboard_focus_visible = true;
         self.focus = target;
         match target {
             InstallerFocusTarget::LanguageControl => InstallerUiAction::OpenLanguageControl,
@@ -539,6 +555,7 @@ impl InstallerUiState {
         if !installer_focus_order(self.step).contains(&InstallerFocusTarget::StepContent) {
             return InstallerUiAction::None;
         }
+        self.keyboard_focus_visible = true;
         self.set_focus(InstallerFocusTarget::StepContent)
     }
 
@@ -5179,6 +5196,37 @@ mod tests {
             ui.handle_key(InstallerUiKey::Activate),
             InstallerUiAction::FinishRequested
         );
+    }
+
+    #[test]
+    fn installer_keyboard_focus_visibility_preserves_the_selected_target() {
+        let mut model = InstallerModel::default();
+        let mut ui = InstallerUiState::new(&model);
+        ui.handle_key(InstallerUiKey::End);
+        assert_eq!(ui.focus(), InstallerFocusTarget::Forward);
+        assert!(ui.keyboard_focus_visible());
+
+        assert!(ui.clear_keyboard_focus());
+        assert!(!ui.keyboard_focus_visible());
+        assert_eq!(ui.focus(), InstallerFocusTarget::Forward);
+        assert!(!ui.clear_keyboard_focus());
+
+        model.advance().unwrap();
+        assert!(ui.sync_step(&model));
+        assert_eq!(ui.focus(), InstallerFocusTarget::StepContent);
+        assert!(!ui.keyboard_focus_visible());
+
+        assert!(ui.restore_keyboard_focus());
+        assert!(ui.keyboard_focus_visible());
+        assert_eq!(ui.focus(), InstallerFocusTarget::StepContent);
+        assert!(!ui.restore_keyboard_focus());
+
+        ui.clear_keyboard_focus();
+        assert_eq!(
+            ui.handle_key(InstallerUiKey::Tab),
+            InstallerUiAction::FocusChanged(InstallerFocusTarget::LanguageControl)
+        );
+        assert!(ui.keyboard_focus_visible());
     }
 
     #[test]

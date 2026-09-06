@@ -3253,6 +3253,7 @@ pub struct InstallerWindowProbe {
     pub layout_valid: bool,
     pub step: InstallerStep,
     pub focus: InstallerFocusTarget,
+    pub keyboard_focus_visible: bool,
     pub step_count: usize,
     pub logo_rendered: bool,
     pub progress_percent: Option<u8>,
@@ -3478,7 +3479,10 @@ pub fn render_installer_window_rgba_with_theme(
         },
     );
     primitives += draw_installer_footer(&mut buffer, width, height, &layout, ui, theme);
-    primitives += draw_installer_focus(&mut buffer, width, height, &layout, ui.focus(), palette);
+    if ui.keyboard_focus_visible() {
+        primitives +=
+            draw_installer_focus(&mut buffer, width, height, &layout, ui.focus(), palette);
+    }
     let checksum = checksum_bytes(&buffer);
     Ok((
         buffer,
@@ -3487,6 +3491,7 @@ pub fn render_installer_window_rgba_with_theme(
             layout_valid: layout.fits_viewport() && layout.regions_are_separated(),
             step: model.step(),
             focus: ui.focus(),
+            keyboard_focus_visible: ui.keyboard_focus_visible(),
             step_count: InstallerStep::ALL.len(),
             logo_rendered,
             progress_percent: progress.map(InstallProgressEvent::percent),
@@ -4519,7 +4524,7 @@ fn draw_installer_footer(
 ) -> usize {
     let focus = ui.focus();
     let state_for = |target| {
-        if focus == target {
+        if ui.keyboard_focus_visible() && focus == target {
             ComponentState::KeyboardFocus
         } else {
             ComponentState::Idle
@@ -8534,6 +8539,7 @@ mod tests {
         assert!(probe.is_ready());
         assert_eq!(probe.step, InstallerStep::Welcome);
         assert_eq!(probe.focus, InstallerFocusTarget::LanguageControl);
+        assert!(probe.keyboard_focus_visible);
         assert_eq!(probe.step_count, 9);
         assert!(probe.logo_rendered);
         assert_eq!(probe.progress_percent, None);
@@ -8553,6 +8559,33 @@ mod tests {
             export_installer_window_png(1280, 800, &model, &ui, &forms, None, logo).unwrap();
         assert_eq!(&png[..8], &[137, 80, 78, 71, 13, 10, 26, 10]);
         assert_eq!(png_probe.checksum, probe.checksum);
+    }
+
+    #[test]
+    fn installer_keyboard_leave_hides_only_the_focus_paint() {
+        let model = InstallerModel::default();
+        let mut ui = InstallerUiState::new(&model);
+        let forms = InstallerFormState::default();
+        let logo_pixels = [0x18, 0x78, 0xc8, 0xff];
+        let logo = InstallerImageSource::new(1, 1, &logo_pixels).unwrap();
+        let (focused, focused_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+
+        assert!(ui.clear_keyboard_focus());
+        let (unfocused, unfocused_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+        assert_eq!(focused_probe.focus, unfocused_probe.focus);
+        assert!(focused_probe.keyboard_focus_visible);
+        assert!(!unfocused_probe.keyboard_focus_visible);
+        assert_ne!(focused_probe.checksum, unfocused_probe.checksum);
+        assert_ne!(focused, unfocused);
+
+        assert!(ui.restore_keyboard_focus());
+        let (restored, restored_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+        assert!(restored_probe.keyboard_focus_visible);
+        assert_eq!(restored_probe.checksum, focused_probe.checksum);
+        assert_eq!(restored, focused);
     }
 
     #[test]
