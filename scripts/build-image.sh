@@ -186,6 +186,22 @@ if [ -f "${OUTPUT_DIR}/images/rootfs.ext2" ]; then
 fi
 
 if [ "${OUTPUT_DIR}" != "${ARTIFACT_OUTPUT_DIR}" ]; then
+    artifact_output_needs_replacement=false
+    if [ -e "${ARTIFACT_OUTPUT_DIR}" ] && [ ! -w "${ARTIFACT_OUTPUT_DIR}" ]; then
+        artifact_output_needs_replacement=true
+    elif [ -e "${ARTIFACT_OUTPUT_DIR}/.config" ] && [ ! -w "${ARTIFACT_OUTPUT_DIR}/.config" ]; then
+        artifact_output_needs_replacement=true
+    elif [ -e "${ARTIFACT_OUTPUT_DIR}/images" ] && [ ! -w "${ARTIFACT_OUTPUT_DIR}/images" ]; then
+        artifact_output_needs_replacement=true
+    fi
+
+    if [ "${artifact_output_needs_replacement}" = true ]; then
+        artifact_suffix="$(date -u +%Y%m%dT%H%M%SZ).$$"
+        preserved_output="${ARTIFACT_OUTPUT_DIR}.previous.${artifact_suffix}"
+        echo "Preserving non-writable artifact output at ${preserved_output}."
+        mv "${ARTIFACT_OUTPUT_DIR}" "${preserved_output}"
+    fi
+
     if [ -d "${OUTPUT_DIR}/images" ]; then
         mkdir -p "${ARTIFACT_OUTPUT_DIR}/images"
         cp -a "${OUTPUT_DIR}/images/." "${ARTIFACT_OUTPUT_DIR}/images/"
