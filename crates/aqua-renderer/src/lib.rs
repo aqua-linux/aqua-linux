@@ -8664,6 +8664,14 @@ mod tests {
         assert_eq!(restored_probe.focus, InstallerFocusTarget::Forward);
         assert_ne!(restored_probe.checksum, hover_restored_probe.checksum);
         assert_ne!(restored, hover_restored);
+
+        assert!(!ui.begin_pointer_press(&layout, layout.titlebar.x, layout.titlebar.y));
+        let (blurred, blurred_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+        assert!(!blurred_probe.keyboard_focus_visible);
+        assert_eq!(blurred_probe.focus, InstallerFocusTarget::Forward);
+        assert_ne!(blurred_probe.checksum, restored_probe.checksum);
+        assert_ne!(blurred, restored);
     }
 
     #[test]
