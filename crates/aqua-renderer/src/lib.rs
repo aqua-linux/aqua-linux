@@ -3255,6 +3255,7 @@ pub struct InstallerWindowProbe {
     pub focus: InstallerFocusTarget,
     pub keyboard_focus_visible: bool,
     pub hovered_target: Option<InstallerFocusTarget>,
+    pub pressed_target: Option<InstallerFocusTarget>,
     pub step_count: usize,
     pub logo_rendered: bool,
     pub progress_percent: Option<u8>,
@@ -3494,6 +3495,7 @@ pub fn render_installer_window_rgba_with_theme(
             focus: ui.focus(),
             keyboard_focus_visible: ui.keyboard_focus_visible(),
             hovered_target: ui.hovered_target(),
+            pressed_target: ui.pressed_target(),
             step_count: InstallerStep::ALL.len(),
             logo_rendered,
             progress_percent: progress.map(InstallProgressEvent::percent),
@@ -4526,7 +4528,9 @@ fn draw_installer_footer(
 ) -> usize {
     let focus = ui.focus();
     let state_for = |target| {
-        if ui.hovered_target() == Some(target) {
+        if ui.pressed_target() == Some(target) && ui.hovered_target() == Some(target) {
+            ComponentState::Pressed
+        } else if ui.hovered_target() == Some(target) {
             ComponentState::Hover
         } else if ui.keyboard_focus_visible() && focus == target {
             ComponentState::KeyboardFocus
@@ -8545,6 +8549,7 @@ mod tests {
         assert_eq!(probe.focus, InstallerFocusTarget::LanguageControl);
         assert!(probe.keyboard_focus_visible);
         assert_eq!(probe.hovered_target, None);
+        assert_eq!(probe.pressed_target, None);
         assert_eq!(probe.step_count, 9);
         assert!(probe.logo_rendered);
         assert_eq!(probe.progress_percent, None);
@@ -8594,7 +8599,7 @@ mod tests {
     }
 
     #[test]
-    fn installer_footer_hover_uses_shared_button_paint_and_is_reversible() {
+    fn installer_footer_hover_and_press_use_shared_button_paint() {
         let model = InstallerModel::default();
         let mut ui = InstallerUiState::new(&model);
         let forms = InstallerFormState::default();
@@ -8619,12 +8624,46 @@ mod tests {
         assert_ne!(hovered_probe.checksum, idle_probe.checksum);
         assert_ne!(hovered, idle);
 
+        assert!(ui.begin_pointer_press(
+            &layout,
+            layout.forward_button.x + layout.forward_button.width / 2,
+            layout.forward_button.y + layout.forward_button.height / 2,
+        ));
+        let (pressed, pressed_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+        assert_eq!(
+            pressed_probe.pressed_target,
+            Some(InstallerFocusTarget::Forward)
+        );
+        assert_ne!(pressed_probe.checksum, hovered_probe.checksum);
+        assert_ne!(pressed, hovered);
+
+        assert_eq!(
+            ui.finish_pointer_press(
+                &layout,
+                layout.forward_button.x + layout.forward_button.width / 2,
+                layout.forward_button.y + layout.forward_button.height / 2,
+            ),
+            (
+                true,
+                Some(aqua_installer::InstallerUiAction::AdvanceRequested)
+            )
+        );
+        let (hover_restored, hover_restored_probe) =
+            render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
+        assert_eq!(hover_restored_probe.pressed_target, None);
+        assert_eq!(hover_restored_probe.focus, InstallerFocusTarget::Forward);
+        assert_ne!(hover_restored_probe.checksum, pressed_probe.checksum);
+        assert_ne!(hover_restored, pressed);
+
         assert!(ui.clear_pointer_hover());
         let (restored, restored_probe) =
             render_installer_window_rgba(1280, 800, &model, &ui, &forms, None, logo).unwrap();
         assert_eq!(restored_probe.hovered_target, None);
-        assert_eq!(restored_probe.checksum, idle_probe.checksum);
-        assert_eq!(restored, idle);
+        assert_eq!(restored_probe.pressed_target, None);
+        assert_eq!(restored_probe.focus, InstallerFocusTarget::Forward);
+        assert_ne!(restored_probe.checksum, hover_restored_probe.checksum);
+        assert_ne!(restored, hover_restored);
     }
 
     #[test]
