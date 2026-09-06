@@ -186,20 +186,24 @@ MODES = {
         "mouse_move 336 252", "mouse_button 1", "mouse_button 0",
     ),
     "installer-language-keyboard": (
-        "sendkey home 100", "sendkey end 100", "sendkey ret 100",
-        "sendkey ret 100",
+        "sendkey tab 100", "sendkey tab 100", "sendkey tab 100",
+        "sendkey tab 100", "sendkey ret 100", "sendkey ret 100",
     ),
     "installer-keyboard-partitions": (
-        "sendkey end 100", "sendkey ret 100", "sendkey ret 100",
+        "sendkey tab 100", "sendkey tab 100", "sendkey tab 100",
+        "sendkey tab 100", "sendkey ret 100", "sendkey ret 100",
     ),
     "installer-keyboard-choice-arrows": (
         "sendkey down 100", "sendkey up 100",
+        "sendkey end 100", "sendkey home 100",
     ),
     "installer-partitions-timezone": (
-        "sendkey end 100", "sendkey ret 100", "sendkey ret 100",
+        "sendkey tab 100", "sendkey tab 100", "sendkey tab 100",
+        "sendkey tab 100", "sendkey ret 100", "sendkey ret 100",
     ),
     "installer-timezone-user": (
-        "sendkey end 100", "sendkey ret 100",
+        "sendkey tab 100", "sendkey tab 100", "sendkey tab 100",
+        "sendkey tab 100", "sendkey ret 100",
         "sendkey a 50", "sendkey q 50", "sendkey u 50", "sendkey a 50",
         "sendkey down 100",
         "sendkey u 50", "sendkey s 50", "sendkey e 50", "sendkey r 50",

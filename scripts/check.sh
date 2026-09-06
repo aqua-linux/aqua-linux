@@ -1729,7 +1729,9 @@ grep -Fq 'target=Some\(SummaryAcknowledgement\)' scripts/check-installer-wayland
 grep -Fq 'target=Some\(SummaryConfirmationField\)' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_form_navigation key=108' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_form_navigation key=103' scripts/check-installer-wayland-qemu.sh
-grep -Fq 'aqua_installer_redraw_count=57' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'aqua_installer_form_navigation key=107' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'aqua_installer_form_navigation key=102' scripts/check-installer-wayland-qemu.sh
+grep -Fq 'aqua_installer_redraw_count=70' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_keyboard_layout=trq' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_target_device=/dev/vdb' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_timezone=Europe/Istanbul' scripts/check-installer-wayland-qemu.sh
@@ -1738,7 +1740,7 @@ grep -Fq 'aqua_installer_summary_destructive_acknowledgement=true' scripts/check
 grep -Fq 'aqua_installer_summary_confirmation_applied=true' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'aqua_installer_summary_target_device=/dev/vdb' scripts/check-installer-wayland-qemu.sh
 grep -Fq 'installer-welcome' crates/aqua-compositor/src/main.rs
-grep -Fq 'snapshot.keyboard_event_count >= 112' crates/aqua-compositor/src/main.rs
+grep -Fq 'snapshot.keyboard_event_count >= 138' crates/aqua-compositor/src/main.rs
 grep -Fq '.any(|surface| surface.commit_count >= 43)' crates/aqua-compositor/src/main.rs
 grep -Fq 'DestructiveAcknowledgementRequired' crates/aqua-installer/src/lib.rs
 grep -Fq 'CONFIG_VFAT_FS=y' br2-external/aqua/board/aqua/x86_64/linux.config
