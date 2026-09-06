@@ -12,8 +12,8 @@ use aqua_shell::{
     top_system_bar, workspace_switcher, AquaTheme, AudioControlStatus, DesktopIconState,
     DesktopPropertiesModel, DockState, FilesEntryKind, FilesWindowModel, LauncherCategory,
     LauncherMode, LauncherState, NotificationCenter, SessionAction, SessionMenuState,
-    SettingsWindowModel, SystemOverviewModel, TerminalView, TopBarState, DESKTOP_ICONS,
-    SETTINGS_ABOUT_METADATA,
+    SettingsWindowModel, SystemOverviewModel, TerminalView, TerminalWindowLayout, TopBarState,
+    DESKTOP_ICONS, SETTINGS_ABOUT_METADATA,
 };
 pub use aqua_text::UI_FONT_FAMILY;
 use aqua_text::{GlyphCacheKey, OutputScale, RenderingMode, ShapedLine, TextRole, TextService};
@@ -3008,12 +3008,21 @@ pub fn render_terminal_window_rgba_with_theme_and_controls(
         palette,
     );
 
-    let scrim = Rect {
-        x: 10,
-        y: 58,
-        width: width.saturating_sub(20),
-        height: height.saturating_sub(68),
+    let Some(layout) = TerminalWindowLayout::new(width, height) else {
+        let checksum = checksum_bytes(&buffer);
+        return (
+            buffer,
+            TerminalWindowProbe {
+                rendered: false,
+                rows: view.rows,
+                cols: view.cols,
+                visible_line_count: 0,
+                primitive_count: primitives,
+                checksum,
+            },
+        );
     };
+    let scrim = layout.scrim;
     fill_rect(
         &mut buffer,
         width,
@@ -3024,14 +3033,17 @@ pub fn render_terminal_window_rgba_with_theme_and_controls(
     );
     primitives += 1;
 
-    let visible_rows = ((scrim.height.saturating_sub(20)) / 18) as usize;
+    let visible_rows = usize::from(layout.rows);
     let visible_line_count = view.lines.len().min(visible_rows);
     for (index, line) in view.lines.iter().take(visible_rows).enumerate() {
         let bounded = line.chars().take(view.cols as usize).collect::<String>();
         draw_bitmap_text(
             &mut buffer,
             (width, height),
-            (22, 70 + index as u32 * 18),
+            (
+                layout.text_x,
+                layout.text_y + index as u32 * TerminalWindowLayout::CELL_HEIGHT,
+            ),
             &bounded,
             [0xd9, 0xf6, 0xee, 0xff],
             1,
@@ -3044,8 +3056,12 @@ pub fn render_terminal_window_rgba_with_theme_and_controls(
             width,
             height,
             Rect {
-                x: 22 + u32::from(view.cursor_col) * 8,
-                y: 72 + u32::from(view.cursor_row) * 18,
+                x: layout.text_x
+                    + u32::from(view.cursor_col.min(layout.cols.saturating_sub(1)))
+                        * TerminalWindowLayout::CELL_WIDTH,
+                y: layout.text_y
+                    + 2
+                    + u32::from(view.cursor_row) * TerminalWindowLayout::CELL_HEIGHT,
                 width: 8,
                 height: 14,
             },
@@ -9064,6 +9080,22 @@ mod tests {
         assert!(probe.primitive_count >= 7);
         assert_ne!(probe.checksum, 0);
         assert_eq!(pixels.len(), 680 * 430 * 4);
+    }
+
+    #[test]
+    fn terminal_window_uses_the_shared_viewport_grid_and_fails_closed_when_clipped() {
+        let view = TerminalView::empty(100, 240);
+        let (_, probe) = render_terminal_window_rgba(640, 478, &view);
+        let layout = TerminalWindowLayout::new(640, 478).expect("valid terminal layout");
+        assert!(probe.rendered);
+        assert_eq!(probe.visible_line_count, usize::from(layout.rows));
+
+        let (_, narrow) = render_terminal_window_rgba(203, 178, &view);
+        let (_, short) = render_terminal_window_rgba(204, 177, &view);
+        assert!(!narrow.rendered);
+        assert!(!short.rendered);
+        assert_eq!(narrow.visible_line_count, 0);
+        assert_eq!(short.visible_line_count, 0);
     }
 
     #[test]

@@ -1165,6 +1165,42 @@ pub struct TerminalView {
     pub cols: u16,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalWindowLayout {
+    pub scrim: Rect,
+    pub text_x: u32,
+    pub text_y: u32,
+    pub rows: u16,
+    pub cols: u16,
+}
+
+impl TerminalWindowLayout {
+    pub const CELL_WIDTH: u32 = 8;
+    pub const CELL_HEIGHT: u32 = 18;
+    pub const MIN_ROWS: u32 = 5;
+    pub const MIN_COLS: u32 = 20;
+
+    pub fn new(width: u32, height: u32) -> Option<Self> {
+        let cols = width.checked_sub(44)? / Self::CELL_WIDTH;
+        let rows = height.checked_sub(88)? / Self::CELL_HEIGHT;
+        if cols < Self::MIN_COLS || rows < Self::MIN_ROWS {
+            return None;
+        }
+        Some(Self {
+            scrim: Rect {
+                x: 10,
+                y: 58,
+                width: width - 20,
+                height: height - 68,
+            },
+            text_x: 22,
+            text_y: 70,
+            rows: rows.min(100) as u16,
+            cols: cols.min(240) as u16,
+        })
+    }
+}
+
 impl TerminalView {
     pub fn empty(rows: u16, cols: u16) -> Self {
         Self {
@@ -7053,6 +7089,28 @@ mod tests {
         assert_eq!(launcher.mode(), LauncherMode::Search);
         assert_eq!(launcher.query(), "system");
         assert_eq!(launcher.selected_index(), 1);
+    }
+
+    #[test]
+    fn terminal_layout_owns_the_renderer_and_pty_grid_contract() {
+        let layout = TerminalWindowLayout::new(640, 478).expect("desktop terminal layout");
+        assert_eq!(
+            layout.scrim,
+            Rect {
+                x: 10,
+                y: 58,
+                width: 620,
+                height: 410
+            }
+        );
+        assert_eq!((layout.cols, layout.rows), (74, 21));
+        assert!(TerminalWindowLayout::new(204, 178).is_some());
+        assert!(TerminalWindowLayout::new(203, 178).is_none());
+        assert!(TerminalWindowLayout::new(204, 177).is_none());
+        assert_eq!(
+            TerminalWindowLayout::new(4000, 4000).map(|layout| (layout.cols, layout.rows)),
+            Some((240, 100))
+        );
     }
 
     #[test]

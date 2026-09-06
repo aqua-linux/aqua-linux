@@ -63,9 +63,9 @@ pub use aqua_shell::{
     BottomShellTarget, CollectionNavigationKey, DesktopContextAction, DesktopContextMenuKey,
     DesktopIconState, DesktopIconUpdate, DesktopPointerButton, DockItem, DockState, LaunchRequest,
     LauncherCategory, LauncherEvent, LauncherPointerTarget, LauncherState, MenuNavigationKey,
-    NotificationCenter, SessionAction, SessionMenuEvent, SessionMenuState, TrashModel,
-    WorkspaceNavigationKey, NOTIFICATION_DEFAULT_TIMEOUT_MS, SESSION_MENU_RUNTIME_HEIGHT,
-    SESSION_MENU_RUNTIME_WIDTH, WORKSPACE_COUNT,
+    NotificationCenter, SessionAction, SessionMenuEvent, SessionMenuState, TerminalWindowLayout,
+    TrashModel, WorkspaceNavigationKey, NOTIFICATION_DEFAULT_TIMEOUT_MS,
+    SESSION_MENU_RUNTIME_HEIGHT, SESSION_MENU_RUNTIME_WIDTH, WORKSPACE_COUNT,
 };
 #[cfg(all(target_os = "linux", feature = "smithay-smoke"))]
 use aqua_text::OutputScale;
@@ -14065,8 +14065,15 @@ impl ClientDispatch<client_xdg_toplevel::XdgToplevel, ()> for XdgSmokeClientStat
             {
                 state.buffer_width = width as u32;
                 state.buffer_height = height as u32;
-                let cols = ((state.buffer_width.saturating_sub(44)) / 8).clamp(20, 240) as u16;
-                let rows = ((state.buffer_height.saturating_sub(86)) / 18).clamp(5, 100) as u16;
+                let Some(layout) =
+                    TerminalWindowLayout::new(state.buffer_width, state.buffer_height)
+                else {
+                    state.terminal_dirty = true;
+                    state.redraw_terminal_buffer(qh);
+                    return;
+                };
+                let cols = layout.cols;
+                let rows = layout.rows;
                 if let Some(terminal) = state.terminal_session.as_mut() {
                     match terminal.resize(rows, cols) {
                         Err(error) => eprintln!("aqua_terminal_resize_error={error}"),
