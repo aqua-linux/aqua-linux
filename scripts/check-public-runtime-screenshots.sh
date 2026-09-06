@@ -20,6 +20,8 @@ expected = {
     "qemu-desktop.png",
     "qemu-applications.png",
     "qemu-search.png",
+    "qemu-applications-dark.png",
+    "qemu-search-dark.png",
     "qemu-first-party-windows.png",
 }
 images = data.get("images", [])
