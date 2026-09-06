@@ -199,6 +199,7 @@ committed buffer ownership lives in the surface registry, with release delayed
 until the final surface user replaces the buffer or is destroyed;
 NULL-buffer commits unmap surfaces with shared buffer/focus cleanup while
 preserving protocol resources, with detach and remap regression coverage;
+Terminal rendering and live PTY resize now consume one renderer-neutral viewport contract for the scrim, text origin, cell metrics, visible rows, and bounded grid. The established 640-by-478 buffer remains 74-by-21; layouts below 20 columns or five rows omit the terminal content and do not fabricate a minimum PTY grid;
 the broader consolidation remains in progress.
 
 ## Context

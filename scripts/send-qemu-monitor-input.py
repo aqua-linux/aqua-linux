@@ -398,7 +398,7 @@ def mode_delay(mode: str) -> float:
     if mode == "basic":
         return 0
     if mode == "terminal-command":
-        return 0.005
+        return 2.0
     if mode == "input-burst":
         return 0.12
     return 0.35
@@ -406,7 +406,7 @@ def mode_delay(mode: str) -> float:
 
 def request_daemon(control_socket: str, request: str) -> int:
     with connect_unix(control_socket, 10) as connection:
-        connection.settimeout(30)
+        connection.settimeout(300 if request == "terminal-command" else 30)
         connection.sendall(f"{request}\n".encode("utf-8"))
         response = bytearray()
         while chunk := connection.recv(4096):
