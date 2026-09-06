@@ -969,7 +969,7 @@ mod tests {
         assert!(report.contains("installer_ui_viewport=1280x800"));
         assert!(report.contains("installer_ui_window=32,32,1216,736"));
         assert!(report.contains("installer_ui_step_count=9"));
-        assert!(report.contains("installer_ui_focus=language-control"));
+        assert!(report.contains("installer_ui_focus=step-content"));
         assert!(report.contains("installer_ui_keyboard_navigation=true"));
         assert!(report
             .contains("installer_form_status=validated-language-keyboard-form-controls-ready"));

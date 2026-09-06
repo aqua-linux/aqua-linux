@@ -245,15 +245,55 @@ expect {
     eof { puts stderr "QEMU exited before installer Summary step repaint"; exit 1 }
 }
 
-if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-user-summary-confirmation} input_error]} {
-    puts stderr "QEMU installer Summary keyboard injection failed: $input_error"
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-summary-background-blur} input_error]} {
+    puts stderr "QEMU installer Summary background blur injection failed: $input_error"
     exit 1
 }
 
 expect {
+    -re {aqua_installer_pointer phase=press x=[0-9]+ y=[0-9]+ pressed=false focus=none action=none repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer Summary background blur"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Summary background blur"; exit 1 }
+}
+
+expect {
+    -re {aqua_installer_keyboard key=28 press_count=[0-9]+ action=None} {}
+    timeout { puts stderr "Timed out waiting for installer Summary blurred Enter rejection"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Summary blurred Enter rejection"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-summary-acknowledgement} input_error]} {
+    puts stderr "QEMU installer Summary acknowledgement pointer injection failed: $input_error"
+    exit 1
+}
+
+expect {
+    -re {aqua_installer_content_hover x=[0-9]+ y=[0-9]+ hovered=Some\(SummaryAcknowledgement\) reason=pointer-motion repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer Summary acknowledgement hover"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Summary acknowledgement hover"; exit 1 }
+}
+
+expect {
+    -re {aqua_installer_pointer phase=press x=[0-9]+ y=[0-9]+ pressed=true target=SummaryAcknowledgement action=FocusChanged\(StepContent\) content=true repaint=true} {}
+    timeout { puts stderr "Timed out waiting for installer Summary acknowledgement arm"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Summary acknowledgement arm"; exit 1 }
+}
+
+expect {
+    -re {aqua_installer_pointer phase=release x=[0-9]+ y=[0-9]+ pressed=false target=Some\(SummaryAcknowledgement\) content=true} {}
+    timeout { puts stderr "Timed out waiting for installer Summary acknowledgement release"; exit 1 }
+    eof { puts stderr "QEMU exited before installer Summary acknowledgement release"; exit 1 }
+}
+
+expect {
     -exact {aqua_installer_summary_destructive_acknowledgement=true} {}
-    timeout { puts stderr "Timed out waiting for installer destructive acknowledgement"; exit 1 }
-    eof { puts stderr "QEMU exited before installer destructive acknowledgement"; exit 1 }
+    timeout { puts stderr "Timed out waiting for installer pointer destructive acknowledgement"; exit 1 }
+    eof { puts stderr "QEMU exited before installer pointer destructive acknowledgement"; exit 1 }
+}
+
+if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-user-summary-confirmation} input_error]} {
+    puts stderr "QEMU installer Summary keyboard injection failed: $input_error"
+    exit 1
 }
 
 expect {

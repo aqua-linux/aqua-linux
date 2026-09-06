@@ -482,6 +482,10 @@ impl InstallerUiState {
         self.keyboard_focus_visible
     }
 
+    pub const fn step_content_keyboard_active(&self) -> bool {
+        self.keyboard_focus_visible && matches!(self.focus, InstallerFocusTarget::StepContent)
+    }
+
     pub const fn hovered_target(&self) -> Option<InstallerFocusTarget> {
         self.hovered_target
     }
@@ -719,7 +723,8 @@ const FORM_FOCUS_ORDER: [InstallerFocusTarget; 5] = [
     InstallerFocusTarget::Back,
     InstallerFocusTarget::Forward,
 ];
-const SUMMARY_FOCUS_ORDER: [InstallerFocusTarget; 4] = [
+const SUMMARY_FOCUS_ORDER: [InstallerFocusTarget; 5] = [
+    InstallerFocusTarget::StepContent,
     InstallerFocusTarget::LanguageControl,
     InstallerFocusTarget::Cancel,
     InstallerFocusTarget::Back,
@@ -5417,6 +5422,8 @@ mod tests {
         let mut model = ready_model(InstallMode::DryRun);
         let mut ui = InstallerUiState::new(&model);
         assert_eq!(ui.step(), InstallerStep::Summary);
+        assert_eq!(ui.focus(), InstallerFocusTarget::StepContent);
+        assert!(ui.step_content_keyboard_active());
         assert_eq!(ui.forward_label(), Some("Kur"));
         ui.handle_key(InstallerUiKey::End);
         assert_eq!(
@@ -5455,6 +5462,7 @@ mod tests {
 
         assert!(ui.clear_keyboard_focus());
         assert!(!ui.keyboard_focus_visible());
+        assert!(!ui.step_content_keyboard_active());
         assert_eq!(ui.focus(), InstallerFocusTarget::Forward);
         assert!(!ui.clear_keyboard_focus());
 
@@ -5466,6 +5474,7 @@ mod tests {
         assert!(ui.restore_keyboard_focus());
         assert!(ui.keyboard_focus_visible());
         assert_eq!(ui.focus(), InstallerFocusTarget::StepContent);
+        assert!(ui.step_content_keyboard_active());
         assert!(!ui.restore_keyboard_focus());
 
         ui.clear_keyboard_focus();
@@ -5474,6 +5483,27 @@ mod tests {
             InstallerUiAction::FocusChanged(InstallerFocusTarget::LanguageControl)
         );
         assert!(ui.keyboard_focus_visible());
+    }
+
+    #[test]
+    fn summary_form_keyboard_requires_visible_step_content_focus() {
+        let model = ready_model(InstallMode::Real);
+        let mut ui = InstallerUiState::new(&model);
+
+        assert_eq!(ui.focus(), InstallerFocusTarget::StepContent);
+        assert!(ui.step_content_keyboard_active());
+        assert!(ui.clear_keyboard_focus());
+        assert!(!ui.step_content_keyboard_active());
+        assert_eq!(
+            ui.handle_key(InstallerUiKey::Activate),
+            InstallerUiAction::None
+        );
+
+        assert_eq!(
+            ui.focus_step_content(),
+            InstallerUiAction::FocusChanged(InstallerFocusTarget::StepContent)
+        );
+        assert!(ui.step_content_keyboard_active());
     }
 
     #[test]

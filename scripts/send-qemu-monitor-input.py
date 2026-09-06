@@ -204,12 +204,18 @@ MODES = {
         "sendkey end 100", "sendkey ret 100",
     ),
     "installer-user-summary-confirmation": (
-        "sendkey ret 100",
         "sendkey shift-e 50", "sendkey shift-r 50", "sendkey shift-a 50",
         "sendkey shift-s 50", "sendkey shift-e 50", "sendkey spc 50",
         "sendkey slash 50", "sendkey d 50", "sendkey e 50", "sendkey v 50",
         "sendkey slash 50", "sendkey v 50", "sendkey d 50", "sendkey b 50",
         "sendkey ret 100",
+    ),
+    "installer-summary-background-blur": (
+        "mouse_move -373 -280", "mouse_button 1", "mouse_button 0",
+        "sendkey ret 100",
+    ),
+    "installer-summary-acknowledgement": (
+        "mouse_move 209 461", "mouse_button 1", "mouse_button 0",
     ),
     "installer-summary-begin": ("sendkey end 100", "sendkey ret 100"),
     "installer-progress-next": ("sendkey ret 100",),
