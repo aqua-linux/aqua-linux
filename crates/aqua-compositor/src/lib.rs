@@ -8034,10 +8034,11 @@ impl XdgSmokeClientState {
             .settings_model
             .as_mut()
             .is_some_and(aqua_shell::SettingsWindowModel::clear_hovered_category);
-        let installer_hover_changed = self
+        let (installer_hover_changed, installer_press_cancelled) = self
             .installer_ui
             .as_mut()
-            .is_some_and(InstallerUiState::clear_pointer_hover);
+            .map(|ui| (ui.clear_pointer_hover(), ui.cancel_pointer_press()))
+            .unwrap_or((false, false));
         [
             (
                 FirstPartyUiSurface::Files,
@@ -8053,7 +8054,7 @@ impl XdgSmokeClientState {
             (
                 FirstPartyUiSurface::Installer,
                 installer_hover_changed,
-                false,
+                installer_press_cancelled,
             ),
         ]
         .map(|(surface, visual_changed, interaction_cancelled)| {
@@ -8457,7 +8458,7 @@ impl XdgSmokeClientState {
         }
     }
 
-    fn handle_installer_pointer(&mut self, x: u32, y: u32, qh: &QueueHandle<Self>) -> bool {
+    fn begin_installer_pointer_press(&mut self, x: u32, y: u32, qh: &QueueHandle<Self>) -> bool {
         let Ok(layout) = InstallerWindowLayout::for_viewport(Viewport::new(
             self.buffer_width,
             self.buffer_height,
@@ -8521,12 +8522,44 @@ impl XdgSmokeClientState {
             self.redraw_installer_buffer(qh);
             return true;
         }
-        let action = ui.handle_pointer(&layout, x, y);
-        if action == InstallerUiAction::None {
-            return false;
+        let pressed = ui.begin_pointer_press(&layout, x, y);
+        println!("aqua_installer_pointer phase=press x={x} y={y} pressed={pressed} action=none");
+        if pressed {
+            self.redraw_installer_buffer(qh);
         }
-        println!("aqua_installer_pointer x={x} y={y} action={action:?}");
+        pressed
+    }
 
+    fn finish_installer_pointer_press(&mut self, x: u32, y: u32, qh: &QueueHandle<Self>) -> bool {
+        let Ok(layout) = InstallerWindowLayout::for_viewport(Viewport::new(
+            self.buffer_width,
+            self.buffer_height,
+        )) else {
+            return false;
+        };
+        let (press_changed, action) = self
+            .installer_ui
+            .as_mut()
+            .map(|ui| ui.finish_pointer_press(&layout, x, y))
+            .unwrap_or((false, None));
+        println!(
+            "aqua_installer_pointer phase=release x={x} y={y} pressed=false action={}",
+            action.map_or("none", InstallerUiAction::log_name)
+        );
+        if let Some(action) = action {
+            self.apply_installer_pointer_action(action, qh);
+        } else if press_changed {
+            self.redraw_installer_buffer(qh);
+        }
+        press_changed
+    }
+
+    fn apply_installer_pointer_action(
+        &mut self,
+        action: InstallerUiAction,
+        qh: &QueueHandle<Self>,
+    ) {
+        println!("aqua_installer_pointer action={action:?}");
         match action {
             InstallerUiAction::AdvanceRequested => {
                 let (Some(model), Some(forms), Some(ui)) = (
@@ -8534,14 +8567,13 @@ impl XdgSmokeClientState {
                     self.installer_forms.as_mut(),
                     self.installer_ui.as_mut(),
                 ) else {
-                    return false;
+                    return;
                 };
                 match model.advance() {
                     Ok(step) => {
                         forms.sync_model(model);
                         ui.sync_step(model);
                         println!("aqua_installer_step={}", step.id());
-                        self.redraw_installer_buffer(qh);
                     }
                     Err(error) => eprintln!("aqua_installer_navigation_blocked={error}"),
                 }
@@ -8552,14 +8584,13 @@ impl XdgSmokeClientState {
                     self.installer_forms.as_mut(),
                     self.installer_ui.as_mut(),
                 ) else {
-                    return false;
+                    return;
                 };
                 match model.retreat() {
                     Ok(step) => {
                         forms.sync_model(model);
                         ui.sync_step(model);
                         println!("aqua_installer_step={}", step.id());
-                        self.redraw_installer_buffer(qh);
                     }
                     Err(error) => eprintln!("aqua_installer_navigation_blocked={error}"),
                 }
@@ -8570,7 +8601,7 @@ impl XdgSmokeClientState {
                     println!("aqua_installer_begin_install_blocked=live-execution-disabled");
                 } else {
                     let Some(model) = self.installer_model.as_mut() else {
-                        return false;
+                        return;
                     };
                     match build_installer_presentation_graph(model) {
                         Ok(graph) => {
@@ -8592,7 +8623,6 @@ impl XdgSmokeClientState {
                                             println!("aqua_installer_progress_presentation_rehearsal=true");
                                             println!("aqua_installer_transaction_executed=false");
                                             println!("aqua_installer_execution_allowed=false");
-                                            self.redraw_installer_buffer(qh);
                                         }
                                         Err(error) => {
                                             eprintln!("aqua_installer_navigation_blocked={error}")
@@ -8613,21 +8643,18 @@ impl XdgSmokeClientState {
             }
             InstallerUiAction::CancelRequested => {
                 println!("aqua_installer_cancel_requested=true");
-                self.redraw_installer_buffer(qh);
             }
             InstallerUiAction::OpenLanguageControl => {
                 println!("aqua_installer_language_control_requested=true");
-                self.redraw_installer_buffer(qh);
             }
             InstallerUiAction::FinishRequested => {
                 println!("aqua_installer_finish_requested=true");
-                self.redraw_installer_buffer(qh);
             }
             InstallerUiAction::None
             | InstallerUiAction::FocusChanged(_)
-            | InstallerUiAction::ActivateStepContent(_) => return false,
+            | InstallerUiAction::ActivateStepContent(_) => return,
         }
-        true
+        self.redraw_installer_buffer(qh);
     }
 
     fn handle_installer_key(&mut self, key: u32, qh: &QueueHandle<Self>) -> bool {
@@ -14781,7 +14808,7 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                             );
                         }
                         FirstPartyUiSurface::Installer => println!(
-                            "aqua_installer_hover hovered=none reason=pointer-leave repaint={repaint}"
+                            "aqua_installer_hover hovered=none reason=pointer-leave press_cancelled={cancelled} repaint={repaint}"
                         ),
                     }
                 }
@@ -14832,6 +14859,17 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
             ..
         } = event
         {
+            if button != 0x110 && state.installer_model.is_some() {
+                println!(
+                    "aqua_installer_pointer phase={} button={button} primary=false ignored=true",
+                    if button_state == client_wl_pointer::ButtonState::Pressed {
+                        "press"
+                    } else {
+                        "release"
+                    }
+                );
+                return;
+            }
             if button != 0x110 && state.properties_model.is_some() {
                 println!(
                     "aqua_properties_pointer phase={} button={button} primary=false ignored=true focus={}",
@@ -14878,6 +14916,14 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                 return;
             }
             if button_state == client_wl_pointer::ButtonState::Released
+                && state.installer_model.is_some()
+            {
+                let pointer_x = state.pointer_surface_x.max(0.0) as u32;
+                let pointer_y = state.pointer_surface_y.max(0.0) as u32;
+                state.finish_installer_pointer_press(pointer_x, pointer_y, qh);
+                return;
+            }
+            if button_state == client_wl_pointer::ButtonState::Released
                 && state.properties_model.is_some()
             {
                 let pointer_x = state.pointer_surface_x.max(0.0) as u32;
@@ -14912,7 +14958,7 @@ impl ClientDispatch<client_wl_pointer::WlPointer, ()> for XdgSmokeClientState {
                 let pointer_x = state.pointer_surface_x.max(0.0) as u32;
                 let pointer_y = state.pointer_surface_y.max(0.0) as u32;
                 println!("aqua_installer_pointer_event_received=true x={pointer_x} y={pointer_y}");
-                state.handle_installer_pointer(pointer_x, pointer_y, qh);
+                state.begin_installer_pointer_press(pointer_x, pointer_y, qh);
                 return;
             } else if state.terminal_session.is_some() {
                 state.handle_window_frame_pointer(serial);
@@ -17381,10 +17427,18 @@ mod tests {
                         };
                         let installer_model = InstallerModel::default();
                         let mut installer_ui = InstallerUiState::new(&installer_model);
-                        if hovered {
-                            let layout =
-                                InstallerWindowLayout::for_viewport(Viewport::new(1280, 800))
-                                    .expect("Installer layout");
+                        let layout = InstallerWindowLayout::for_viewport(Viewport::new(1280, 800))
+                            .expect("Installer layout");
+                        if pressed {
+                            assert!(installer_ui.begin_pointer_press(
+                                &layout,
+                                layout.forward_button.x + layout.forward_button.width / 2,
+                                layout.forward_button.y + layout.forward_button.height / 2,
+                            ));
+                            if !hovered {
+                                assert!(installer_ui.clear_pointer_hover());
+                            }
+                        } else if hovered {
                             assert!(installer_ui.handle_pointer_hover(
                                 &layout,
                                 layout.forward_button.x + layout.forward_button.width / 2,
@@ -17412,6 +17466,7 @@ mod tests {
                         expected_settings.hovered_category = None;
                         let mut expected_installer = state.installer_ui.clone().expect("Installer");
                         expected_installer.clear_pointer_hover();
+                        expected_installer.cancel_pointer_press();
                         assert_eq!(
                             state.clear_first_party_pointer_interaction(),
                             [
@@ -17430,10 +17485,10 @@ mod tests {
                                     interaction_cancelled: false,
                                     repaint: !close_event_received,
                                 }),
-                                hovered.then_some(PointerLeaveTransition {
+                                (hovered || pressed).then_some(PointerLeaveTransition {
                                     surface: FirstPartyUiSurface::Installer,
-                                    interaction_cancelled: false,
-                                    repaint: !close_event_received,
+                                    interaction_cancelled: pressed,
+                                    repaint: hovered && !close_event_received,
                                 }),
                             ]
                         );

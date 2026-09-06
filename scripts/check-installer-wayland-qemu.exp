@@ -67,7 +67,19 @@ if {[catch {exec python3 $env(INPUT_HELPER) $env(MONITOR_SOCKET) installer-point
 }
 
 expect {
-    -re {aqua_installer_pointer x=[0-9]+ y=[0-9]+ action=AdvanceRequested} {}
+    -re {aqua_installer_pointer phase=press button=[0-9]+ primary=false ignored=true} {}
+    timeout { puts stderr "Timed out waiting for installer non-primary pointer rejection"; exit 1 }
+    eof { puts stderr "QEMU exited before installer non-primary pointer rejection"; exit 1 }
+}
+
+expect {
+    -re {aqua_installer_pointer phase=press x=[0-9]+ y=[0-9]+ pressed=true action=none} {}
+    timeout { puts stderr "Timed out waiting for installer footer pressed state"; exit 1 }
+    eof { puts stderr "QEMU exited before installer footer pressed state"; exit 1 }
+}
+
+expect {
+    -re {aqua_installer_pointer phase=release x=[0-9]+ y=[0-9]+ pressed=false action=AdvanceRequested} {}
     timeout { puts stderr "Timed out waiting for installer footer pointer action"; exit 1 }
     eof { puts stderr "QEMU exited before installer footer pointer action"; exit 1 }
 }

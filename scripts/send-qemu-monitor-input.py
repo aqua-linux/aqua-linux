@@ -168,7 +168,9 @@ MODES = {
         "sendkey ret 100",
     ),
     "installer-pointer-welcome-forward": (
-        "mouse_move 368 230", "mouse_button 1", "mouse_button 0",
+        "mouse_move 368 230",
+        "mouse_button 2", "mouse_button 0",
+        "mouse_button 1", "mouse_button 0",
     ),
     "installer-pointer-language-row": (
         "mouse_move -200 -400", "mouse_button 1", "mouse_button 0",

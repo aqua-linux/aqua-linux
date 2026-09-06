@@ -433,6 +433,20 @@ impl InstallerUiAction {
     pub const fn changed(self) -> bool {
         !matches!(self, Self::None)
     }
+
+    pub const fn log_name(self) -> &'static str {
+        match self {
+            Self::None => "None",
+            Self::FocusChanged(_) => "FocusChanged",
+            Self::ActivateStepContent(_) => "ActivateStepContent",
+            Self::OpenLanguageControl => "OpenLanguageControl",
+            Self::CancelRequested => "CancelRequested",
+            Self::RetreatRequested => "RetreatRequested",
+            Self::AdvanceRequested => "AdvanceRequested",
+            Self::BeginInstallRequested => "BeginInstallRequested",
+            Self::FinishRequested => "FinishRequested",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -441,6 +455,7 @@ pub struct InstallerUiState {
     focus: InstallerFocusTarget,
     keyboard_focus_visible: bool,
     hovered_target: Option<InstallerFocusTarget>,
+    pressed_target: Option<InstallerFocusTarget>,
 }
 
 impl InstallerUiState {
@@ -451,6 +466,7 @@ impl InstallerUiState {
             focus: targets[0],
             keyboard_focus_visible: true,
             hovered_target: None,
+            pressed_target: None,
         }
     }
 
@@ -470,6 +486,10 @@ impl InstallerUiState {
         self.hovered_target
     }
 
+    pub const fn pressed_target(&self) -> Option<InstallerFocusTarget> {
+        self.pressed_target
+    }
+
     pub fn handle_pointer_hover(&mut self, layout: &InstallerWindowLayout, x: u32, y: u32) -> bool {
         let hovered_target = self.pointer_target(layout, x, y);
         if self.hovered_target == hovered_target {
@@ -481,6 +501,36 @@ impl InstallerUiState {
 
     pub fn clear_pointer_hover(&mut self) -> bool {
         self.hovered_target.take().is_some()
+    }
+
+    pub fn begin_pointer_press(&mut self, layout: &InstallerWindowLayout, x: u32, y: u32) -> bool {
+        let Some(target) = self.pointer_target(layout, x, y) else {
+            self.pressed_target = None;
+            return false;
+        };
+        self.hovered_target = Some(target);
+        self.pressed_target = Some(target);
+        self.keyboard_focus_visible = true;
+        self.focus = target;
+        true
+    }
+
+    pub fn finish_pointer_press(
+        &mut self,
+        layout: &InstallerWindowLayout,
+        x: u32,
+        y: u32,
+    ) -> (bool, Option<InstallerUiAction>) {
+        let Some(pressed_target) = self.pressed_target.take() else {
+            return (false, None);
+        };
+        let action = (self.pointer_target(layout, x, y) == Some(pressed_target))
+            .then(|| self.action_for_target(pressed_target));
+        (true, action)
+    }
+
+    pub fn cancel_pointer_press(&mut self) -> bool {
+        self.pressed_target.take().is_some()
     }
 
     pub fn clear_keyboard_focus(&mut self) -> bool {
@@ -498,6 +548,7 @@ impl InstallerUiState {
         self.step = model.step();
         self.focus = installer_focus_order(self.step)[0];
         self.hovered_target = None;
+        self.pressed_target = None;
         true
     }
 
@@ -540,8 +591,13 @@ impl InstallerUiState {
             return InstallerUiAction::None;
         };
         self.hovered_target = Some(target);
+        self.pressed_target = None;
         self.keyboard_focus_visible = true;
         self.focus = target;
+        self.action_for_target(target)
+    }
+
+    fn action_for_target(&self, target: InstallerFocusTarget) -> InstallerUiAction {
         match target {
             InstallerFocusTarget::LanguageControl => InstallerUiAction::OpenLanguageControl,
             InstallerFocusTarget::Cancel => InstallerUiAction::CancelRequested,
@@ -582,6 +638,7 @@ impl InstallerUiState {
 
     pub fn focus_step_content(&mut self) -> InstallerUiAction {
         self.hovered_target = None;
+        self.pressed_target = None;
         if !installer_focus_order(self.step).contains(&InstallerFocusTarget::StepContent) {
             return InstallerUiAction::None;
         }
@@ -5337,6 +5394,43 @@ mod tests {
             ui.hovered_target(),
             Some(InstallerFocusTarget::LanguageControl)
         );
+        assert_eq!(ui.pressed_target(), None);
+    }
+
+    #[test]
+    fn installer_footer_press_activates_only_on_release_over_the_armed_target() {
+        let layout = InstallerWindowLayout::for_viewport(Viewport::new(1280, 800)).unwrap();
+        let center = |rect: Rect| (rect.x + rect.width / 2, rect.y + rect.height / 2);
+        let model = InstallerModel::default();
+        let mut ui = InstallerUiState::new(&model);
+        let forward = center(layout.forward_button);
+        let cancel = center(layout.cancel_button);
+
+        assert!(ui.begin_pointer_press(&layout, forward.0, forward.1));
+        assert_eq!(ui.pressed_target(), Some(InstallerFocusTarget::Forward));
+        assert_eq!(ui.focus(), InstallerFocusTarget::Forward);
+        assert_eq!(
+            ui.finish_pointer_press(&layout, forward.0, forward.1),
+            (true, Some(InstallerUiAction::AdvanceRequested))
+        );
+        assert_eq!(ui.pressed_target(), None);
+
+        assert!(ui.begin_pointer_press(&layout, forward.0, forward.1));
+        assert!(ui.handle_pointer_hover(&layout, cancel.0, cancel.1));
+        assert_eq!(
+            ui.finish_pointer_press(&layout, cancel.0, cancel.1),
+            (true, None)
+        );
+        assert_eq!(ui.focus(), InstallerFocusTarget::Forward);
+
+        assert!(ui.begin_pointer_press(&layout, forward.0, forward.1));
+        assert!(ui.cancel_pointer_press());
+        assert!(!ui.cancel_pointer_press());
+        assert_eq!(
+            ui.finish_pointer_press(&layout, forward.0, forward.1),
+            (false, None)
+        );
+        assert!(!ui.begin_pointer_press(&layout, 0, 0));
     }
 
     #[test]
